@@ -1,8 +1,12 @@
 /* ============================================================
-   WAR DESK v20.7 — Configuratie
+   WAR DESK v20.9 — Configuratie
+   - 10 feeds verwijderd (Turks/Spaans/Frans/Indiaas)
+   - CAT_GROUPS met maroc + vs
+   - TAGS_VERSION voor her-tagging
    ============================================================ */
 
-window.APP_VERSION = "v8.1";
+window.APP_VERSION = "v8.6";
+window.TAGS_VERSION = "3";
 
 window.CONFIG = {
   perFeed: 12,
@@ -45,31 +49,14 @@ window.CONFIG = {
 
 window.CAT_GROUPS = {
   all:     [],
-  war:     ["war", "ukraine", "gaza", "lebanon", "syria", "yemen", "iran", "sudan"],
-  mideast: ["mideast", "il", "gaza", "lebanon", "syria", "yemen", "iran", "tr", "eg", "sa", "ae", "qa"],
-  europe:  ["be", "de", "fr", "es", "it", "uk"],
+  war:     ["war"],
+  mideast: ["mideast"],
+  europe:  ["europe"],
   nl:      ["nl"],
-  sport:   ["sport"],
   maroc:   ["maroc"],
-  be:      ["be"],
-  de:      ["de"],
-  fr:      ["fr"],
-  es:      ["es"],
-  it:      ["it"],
-  uk:      ["uk"],
-  us:      ["us"],
-  tr:      ["tr"],
-  eg:      ["eg"],
-  sa:      ["sa"],
-  ae:      ["ae"],
-  qa:      ["qa"],
-  il:      ["il"],
-  ukraine: ["ukraine"],
-  world:   ["world"],
-  sudan:   ["sudan"],
-  yemen:   ["yemen"],
-  iran:    ["iran"],
-  gaza:    ["gaza"]
+  vs:      ["vs"],
+  sport:   ["sport"],
+  favorites: []
 };
 
 window.HIGH_PRIORITY = [
@@ -88,6 +75,7 @@ window.KEYWORDS_MED = [
 ];
 
 window.FEEDS = [
+  /* ===== NEDERLAND ===== */
   {n:"NOS",lang:"nl",cat:"nl",url:"https://feeds.nos.nl/nosnieuwsalgemeen"},
   {n:"De Telegraaf",lang:"nl",cat:"nl",url:"https://www.telegraaf.nl/rss"},
   {n:"AD.nl",lang:"nl",cat:"nl",url:"https://www.ad.nl/rss.xml"},
@@ -104,6 +92,8 @@ window.FEEDS = [
   {n:"L1",lang:"nl",cat:"nl",url:"https://news.google.com/rss/search?q=site:l1.nl&hl=nl&gl=NL&ceid=NL:nl"},
   {n:"RTV Oost",lang:"nl",cat:"nl",url:"https://www.rtvoost.nl/rss"},
   {n:"Omroep West",lang:"nl",cat:"nl",url:"https://www.omroepwest.nl/rss"},
+
+  /* ===== SPORT ===== */
   {n:"NOS Sport",lang:"nl",cat:"sport",url:"https://feeds.nos.nl/nossport"},
   {n:"NOS Voetbal",lang:"nl",cat:"sport",url:"https://feeds.nos.nl/nossportvoetbal"},
   {n:"ESPN NL",lang:"nl",cat:"sport",url:"https://www.espn.nl/rss"},
@@ -116,14 +106,16 @@ window.FEEDS = [
   {n:"RTL Sport",lang:"nl",cat:"sport",url:"https://news.google.com/rss/search?q=site:rtlnieuws.nl+sport&hl=nl&gl=NL&ceid=NL:nl"},
   {n:"Glory Kickboxing",lang:"en",cat:"sport",url:"https://glorykickboxing.com/rss"},
   {n:"MMA DNA",lang:"nl",cat:"sport",url:"https://mmadna.nl/feed/"},
+
+  /* ===== BELGIË (→ Europa) ===== */
   {n:"HLN",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:hln.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"Nieuwsblad",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:nieuwsblad.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"De Standaard",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:standaard.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"VRT NWS",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:vrt.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"De Morgen",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:demorgen.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"De Tijd",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:tijd.be&hl=nl&gl=BE&ceid=BE:nl"},
-  {n:"Gazet van Antwerpen",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:gva.be&hl=nl&gl=BE&ceid=BE:nl"},
-  {n:"Het Belang van Limburg",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:hbvl.be&hl=nl&gl=BE&ceid=BE:nl"},
+
+  /* ===== DUITSLAND (→ Europa) ===== */
   {n:"Spiegel",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:spiegel.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Bild",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:bild.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Zeit",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:zeit.de&hl=de&gl=DE&ceid=DE:de"},
@@ -131,32 +123,33 @@ window.FEEDS = [
   {n:"Süddeutsche",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:sueddeutsche.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Tagesschau",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:tagesschau.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Die Welt",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:welt.de&hl=de&gl=DE&ceid=DE:de"},
+
+  /* ===== FRANKRIJK (→ Europa) ===== */
   {n:"Le Monde",lang:"fr",cat:"fr",url:"https://www.lemonde.fr/rss/une.xml"},
-  {n:"Le Figaro",lang:"fr",cat:"fr",url:"https://www.lefigaro.fr/rss/figaro_actualites.xml"},
   {n:"FranceInfo",lang:"fr",cat:"fr",url:"https://www.franceinfo.fr/titres.rss"},
   {n:"Libération",lang:"fr",cat:"fr",url:"https://www.liberation.fr/rss/"},
-  {n:"El País",lang:"es",cat:"es",url:"https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada"},
-  {n:"El Mundo",lang:"es",cat:"es",url:"https://www.elmundo.es/rss/portada.xml"},
-  {n:"ABC",lang:"es",cat:"es",url:"https://www.abc.es/rss/feeds/abc_ultima.xml"},
+
+  /* ===== ITALIË (→ Europa) ===== */
   {n:"Corriere della Sera",lang:"it",cat:"it",url:"https://www.corriere.it/rss/homepage.xml"},
   {n:"Repubblica",lang:"it",cat:"it",url:"https://www.repubblica.it/rss/homepage/rss2.0.xml"},
   {n:"ANSA",lang:"it",cat:"it",url:"https://www.ansa.it/sito/ansait_rss.xml"},
   {n:"La Stampa",lang:"it",cat:"it",url:"https://www.lastampa.it/rss/homepage.xml"},
+
+  /* ===== VK (→ Europa) ===== */
   {n:"BBC UK",lang:"en",cat:"uk",url:"https://feeds.bbci.co.uk/news/uk/rss.xml"},
   {n:"Guardian UK",lang:"en",cat:"uk",url:"https://www.theguardian.com/uk-news/rss"},
   {n:"Telegraph",lang:"en",cat:"uk",url:"https://www.telegraph.co.uk/rss.xml"},
   {n:"Sky News",lang:"en",cat:"uk",url:"https://feeds.skynews.com/feeds/rss/uk.xml"},
   {n:"Independent",lang:"en",cat:"uk",url:"https://www.independent.co.uk/rss"},
   {n:"FT",lang:"en",cat:"uk",url:"https://www.ft.com/rss/home/uk"},
+
+  /* ===== VS ===== */
   {n:"NYT US",lang:"en",cat:"us",url:"https://rss.nytimes.com/services/xml/rss/nyt/US.xml"},
   {n:"CNN",lang:"en",cat:"us",url:"http://rss.cnn.com/rss/cnn_us.rss"},
   {n:"Washington Post",lang:"en",cat:"us",url:"https://feeds.washingtonpost.com/rss/national"},
   {n:"NPR",lang:"en",cat:"us",url:"https://feeds.npr.org/1003/rss.xml"},
-  {n:"Hürriyet",lang:"tr",cat:"tr",url:"https://www.hurriyet.com.tr/rss/anasayfa"},
-  {n:"Sabah",lang:"tr",cat:"tr",url:"https://www.sabah.com.tr/rss/anasayfa.xml"},
-  {n:"NTV",lang:"tr",cat:"tr",url:"https://www.ntv.com.tr/son-dakika.rss"},
-  {n:"TRT Haber",lang:"tr",cat:"tr",url:"https://www.trthaber.com/sondakika.rss"},
-  {n:"Sözcü",lang:"tr",cat:"tr",url:"https://www.sozcu.com.tr/rss/all.xml"},
+
+  /* ===== MAROKKO ===== */
   {n:"Hespress",lang:"ar",cat:"maroc",url:"https://www.hespress.com/feed"},
   {n:"Le360",lang:"fr",cat:"maroc",url:"https://fr.le360.ma/feed"},
   {n:"MAP",lang:"fr",cat:"maroc",url:"https://www.mapnews.ma/fr/rss.xml"},
@@ -165,6 +158,8 @@ window.FEEDS = [
   {n:"TelQuel",lang:"fr",cat:"maroc",url:"https://telquel.ma/feed"},
   {n:"Bladna.nl",lang:"nl",cat:"maroc",url:"https://freenewsapi.ai/v1/rss?host=bladna.nl&size=50"},
   {n:"Marokko.nl",lang:"nl",cat:"maroc",url:"https://news.google.com/rss/search?q=site:marokko.nl&hl=nl&gl=NL&ceid=NL:nl"},
+
+  /* ===== MIDDEN-OOSTEN ===== */
   {n:"Al-Ahram",lang:"en",cat:"eg",url:"http://weekly.ahram.org.eg/front.xml"},
   {n:"Egypt Independent",lang:"en",cat:"eg",url:"https://www.egyptindependent.com/feed/"},
   {n:"Arab News",lang:"en",cat:"sa",url:"https://www.arabnews.com/rss.xml"},
@@ -190,12 +185,15 @@ window.FEEDS = [
   {n:"SANA",lang:"en",cat:"mideast",url:"https://sana.sy/en/?feed=rss2"},
   {n:"Enab Baladi",lang:"en",cat:"mideast",url:"https://english.enabbaladi.net/feed/"},
   {n:"Sudan Tribune",lang:"en",cat:"mideast",url:"https://sudantribune.com/feed/"},
+
+  /* ===== OEKRAÏNE / RUSLAND (→ Oorlog) ===== */
   {n:"Kyiv Independent",lang:"en",cat:"ukraine",url:"https://kyivindependent.com/feed/"},
   {n:"Ukrinform",lang:"en",cat:"ukraine",url:"https://www.ukrinform.net/rss"},
   {n:"RT News",lang:"en",cat:"war",url:"https://www.rt.com/rss/"},
   {n:"TASS",lang:"en",cat:"war",url:"https://tass.com/rss/v2.xml"},
+
+  /* ===== WERELD ===== */
   {n:"Japan Times",lang:"en",cat:"world",url:"https://www.japantimes.co.jp/feed/"},
-  {n:"Times of India",lang:"en",cat:"world",url:"https://timesofindia.indiatimes.com/rssfeedstopstories.cms"},
   {n:"BBC World",lang:"en",cat:"world",url:"https://feeds.bbci.co.uk/news/world/rss.xml"},
   {n:"BBC Arabic",lang:"ar",cat:"world",url:"https://feeds.bbci.co.uk/arabic/rss.xml"},
   {n:"TRT World",lang:"en",cat:"world",url:"https://www.trtworld.com/feed/rss.xml"},
@@ -204,6 +202,8 @@ window.FEEDS = [
   {n:"France24 EN",lang:"en",cat:"world",url:"https://www.france24.com/en/rss"},
   {n:"Reuters",lang:"en",cat:"world",url:"https://news.google.com/rss/search?q=site:reuters.com&hl=en&gl=US&ceid=US:en"},
   {n:"AP News",lang:"en",cat:"world",url:"https://news.google.com/rss/search?q=site:apnews.com&hl=en&gl=US&ceid=US:en"},
+
+  /* ===== CONFLICT-SPECIFIEK ===== */
   {n:"Radio Dabanga",lang:"en",cat:"sudan",url:"https://www.dabangasudan.org/en/rss"},
   {n:"SABA Yemen",lang:"en",cat:"yemen",url:"https://www.saba.ye/en/rsscatfeed14.htm"},
   {n:"Mehr News Iran",lang:"en",cat:"iran",url:"https://en.mehrnews.com/rss"},
