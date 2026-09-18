@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v9.1</title>
+<title>WAR DESK v9.2</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -45,7 +45,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="styles.css?v=21">
+<link rel="stylesheet" href="styles.css?v=22">
 <style>
 /* ============================================================
    FONT-SIZE
@@ -645,14 +645,25 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 #wdDebugPanel .actions button{background:#333;color:#fff;border:none;padding:.4rem .7rem;border-radius:4px;font-family:monospace;font-size:10px;cursor:pointer}
 
 /* ============================================================
-   MOBIEL — verberg stats
+   MOBIEL — stats blijven zichtbaar (compact)
    ============================================================ */
 @media(max-width:640px){
   .header-inner {
     grid-template-columns: auto 1fr;
     gap: .5rem;
   }
-  .header-stats { display: none !important; }
+  .header-stats {
+    display: flex !important;
+    gap: .5rem;
+    order: 3;
+    grid-column: 1 / -1;
+    justify-content: space-around;
+  }
+  .header-stats .hstat:nth-child(1),
+  .header-stats .hstat:nth-child(4) { display: none; }
+  .header-stats .hstat .hstat-label { font-size: .5rem; }
+  .header-stats .hstat .hstat-value { font-size: .72rem; }
+  .header-stats .hstat.teal { display: flex !important; }
   .header-actions { grid-column: 2; justify-self: end; }
   .btn-refresh { width: 36px; height: 36px; }
   .btn-refresh .refresh-icon { width: 16px; height: 16px; }
@@ -687,7 +698,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
       </div>
-      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v9.1</span></span></div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v9.2</span></span></div>
     </div>
     <div class="header-stats">
       <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
@@ -961,7 +972,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v9.1</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v9.2</span><br>
         Live nieuws + IPTV + Conflictkaart
       </div>
     </div>
@@ -1079,6 +1090,12 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     try { localStorage.setItem("wardesk_oled_mode", on ? "1" : "0"); }catch(e){}
     var row = document.getElementById("toggleOledRow");
     if(row) row.classList.toggle("active", on);
+    /* Update meta theme-color */
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if(meta){
+      var light = document.body.classList.contains("light");
+      meta.setAttribute("content", on ? "#000000" : (light ? "#f6f4ee" : "#070c16"));
+    }
     if(window.showToast) window.showToast(on ? "Diepzwart aan" : "Diepzwart uit");
   };
   document.addEventListener("DOMContentLoaded", function(){
@@ -1224,13 +1241,13 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<script src="config.js?v=33"></script>
-<script src="news.js?v=40"></script>
-<script src="app.js?v=22"></script>
-<script src="persist.js?v=22"></script>
-<script src="refresh.js?v=23"></script>
-<script src="iptv.js?v=32"></script>
-<script src="map.js?v=25"></script>
+<script src="config.js?v=34"></script>
+<script src="news.js?v=41"></script>
+<script src="app.js?v=23"></script>
+<script src="persist.js?v=23"></script>
+<script src="refresh.js?v=24"></script>
+<script src="iptv.js?v=33"></script>
+<script src="map.js?v=26"></script>
 
 <script>
 (function(){
@@ -1248,7 +1265,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(t){t.classList.remove("show");t._shownAt=0}
   });
 })();
-console.log("%c WAR DESK %c v9.1 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+console.log("%c WAR DESK %c v9.2 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
 </body>
 </html>
