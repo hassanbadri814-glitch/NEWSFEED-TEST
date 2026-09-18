@@ -1,5 +1,8 @@
 /* ============================================================
    WAR DESK v23.0 — Nieuws logica + Favorieten + Notificaties
+   - pruneOldReads (90d)
+   - __proxyHealth behouden over reloads
+   - esc() coerced
    ============================================================ */
 
 window.__newsVersion = "v23.0";
