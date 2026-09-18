@@ -1,13 +1,13 @@
 /* ============================================================
-   WAR DESK v20.2 — App orchestration
-   - ?tab= parameter lezer (voor manifest shortcuts)
+   WAR DESK v20.3 — App orchestration
+   - VOD-view toegevoegd
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VERSION = window.APP_VERSION || "v9.2";
+  var APP_VERSION = window.APP_VERSION || "v10.0";
 
   function ready(fn){
     if(document.readyState !== "loading") fn();
@@ -40,8 +40,9 @@
 
     var views = {
       news: $("viewNews"),
+      map: $("viewMap"),
       iptv: $("viewIptv"),
-      map: $("viewMap")
+      vod: $("viewVod")
     };
 
     function showView(name){
@@ -55,21 +56,26 @@
     }
 
     Array.prototype.forEach.call(document.querySelectorAll(".bottom-tabs .tab"), function(tab){
-      tab.addEventListener("click", function(){ showView(tab.dataset.view); });
+      tab.addEventListener("click", function(){
+        var view = tab.dataset.view;
+        showView(view);
+        /* VOD lazy-init bij eerste keer openen */
+        if(view === "vod" && window.VODAPI && typeof VODAPI.init === "function"){
+          setTimeout(function(){
+            try{ VODAPI.init(); }catch(e){}
+          }, 100);
+        }
+      });
     });
 
-    /* ============================================================
-       Manifest shortcut: ?tab=news|map|iptv
-       ============================================================ */
+    /* ?tab= shortcut lezer */
     try{
       var params = new URLSearchParams(location.search);
       var requestedTab = params.get("tab");
-      if(requestedTab && ["news","map","iptv"].indexOf(requestedTab) >= 0){
-        /* Wacht even zodat andere modules (map.js, iptv.js) klaar zijn */
+      if(requestedTab && ["news","map","iptv","vod"].indexOf(requestedTab) >= 0){
         setTimeout(function(){
           var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + requestedTab + '"]');
           if(tabBtn) tabBtn.click();
-          /* Verwijder ?tab= uit de URL zodat een refresh niet blijft terugspringen */
           try{
             var clean = location.pathname + (location.hash || "");
             history.replaceState(null, "", clean);
@@ -158,7 +164,7 @@
       });
     }
 
-    /* Swipe-sluiten (met scroll-detectie) */
+    /* Swipe-sluiten met scroll-detectie */
     var startY = 0, currentY = 0, dragging = false, canSwipeClose = false;
     if(sheet){
       sheet.addEventListener("touchstart", function(e){
@@ -200,6 +206,8 @@
       if(e.key !== "Escape") return;
       var modal = $("wdDetailModal");
       if(modal && modal.classList.contains("show")) return;
+      var vodModal = $("vodDetailModal");
+      if(vodModal && vodModal.classList.contains("show")) return;
       if(document.querySelector(".map-wrap.fullscreen")) return;
       closeSheet();
     });
