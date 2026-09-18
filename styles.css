@@ -1,5 +1,5 @@
 /* ============================================================
-   WAR DESK v3.3 — Volledige styling
+   WAR DESK v3.5 — Basis styling
    ============================================================ */
 
 :root{--bg:#070c16;--bg-2:#0d1522;--bg-3:#131e30;--card:#111b2d;--card-hover:#18253c;--ink:#f5f8ff;--ink-2:#a9b7ce;--ink-3:#6b7a93;--amber:#e2a857;--amber-2:#f0c78a;--amber-3:#8a5c26;--teal:#14b8a6;--coral:#e63950;--coral-2:#f87171;--green:#10b981;--line:#1a2540;--line-2:#26344f;--radius:14px;--shadow-card:0 2px 8px -4px rgba(0,0,0,.6);--shadow-deep:0 20px 50px -24px rgba(0,0,0,.8)}
@@ -232,10 +232,6 @@ html.light .map-legend,body.light .map-legend{background:rgba(255,255,255,.95);b
   .brand-mark{width:36px;height:36px}
   .brand-mark svg{width:20px;height:20px}
   .brand-text .name{font-size:1.05rem}
-  .header-stats{gap:.9rem;width:100%;margin-left:0;margin-top:.15rem;order:3}
-  .hstat:nth-child(4){display:none}
-  .hstat.teal{display:none}
-  .hstat-value{font-size:.78rem}
   .btn-mini{width:36px;height:36px;font-size:.95rem}
   .main{padding:1rem .85rem;padding-bottom:calc(80px + env(safe-area-inset-bottom,0))}
   .section-head h2{font-size:1rem}
