@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v4.1 — IPTV
-   - VLC intent-URL fix (host + scheme apart)
-   - Alle eerdere v4.0 fixes behouden
+   WAR DESK v4.2 — IPTV
+   - saveCreds debounced (max 1 write per 500ms)
+   - 1 visibilitychange handler (was 2)
    ============================================================ */
 
 (function(){
@@ -9,7 +9,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v4.1 geladen");
+  LOG("v4.2 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -33,7 +33,8 @@
     currentChannel: null,
     _playToken: 0,
     _initialized: false,
-    _groupsBound: false
+    _groupsBound: false,
+    _saveCredsTimer: null
   };
 
   var VOLUME_STORAGE_KEY = "wardesk_iptv_volume";
@@ -406,6 +407,25 @@
     }
   }
 
+  /* ============================================================
+     Debounced saveCreds — max 1 write per 500ms
+     ============================================================ */
+  function saveCredsNow(){
+    IPTV.server = (($("iptvServer") || {}).value || "").trim();
+    IPTV.user = (($("iptvUser") || {}).value || "").trim();
+    IPTV.pass = ($("iptvPass") || {}).value || "";
+    if(!IPTV.server && !IPTV.user && !IPTV.pass) return;
+    dbPut("creds", {server:IPTV.server, user:IPTV.user, pass:IPTV.pass});
+  }
+  function saveCreds(){
+    clearTimeout(IPTV._saveCredsTimer);
+    IPTV._saveCredsTimer = setTimeout(saveCredsNow, 500);
+  }
+  function saveCredsImmediate(){
+    clearTimeout(IPTV._saveCredsTimer);
+    saveCredsNow();
+  }
+
   function bindUI(){
     LOG("bindUI start");
 
@@ -422,14 +442,6 @@
       });
     }
 
-    function saveCreds(){
-      IPTV.server = (($("iptvServer") || {}).value || "").trim();
-      IPTV.user = (($("iptvUser") || {}).value || "").trim();
-      IPTV.pass = ($("iptvPass") || {}).value || "";
-      if(!IPTV.server && !IPTV.user && !IPTV.pass) return;
-      dbPut("creds", {server:IPTV.server, user:IPTV.user, pass:IPTV.pass});
-    }
-
     ["iptvServer","iptvUser","iptvPass"].forEach(function(id){
       var el = $(id);
       if(!el) return;
@@ -440,17 +452,17 @@
       });
     });
 
-    window.addEventListener("pagehide", saveCreds);
-    window.addEventListener("beforeunload", saveCreds);
+    window.addEventListener("pagehide", saveCredsImmediate);
+    window.addEventListener("beforeunload", saveCredsImmediate);
     document.addEventListener("visibilitychange", function(){
-      if(document.hidden) saveCreds();
+      if(document.hidden) saveCredsImmediate();
     });
 
     var testBtn = $("iptvTestBtn");
     if(testBtn){
       testBtn.addEventListener("click", async function(){
         if(testBtn.disabled) return;
-        saveCreds();
+        saveCredsImmediate();
         if(!IPTV.server || !IPTV.user || !IPTV.pass){ setStatus("Vul alle velden in", "err"); return; }
         testBtn.disabled = true;
         testBtn.style.opacity = ".6";
@@ -913,8 +925,14 @@
     }
   }
 
+  /* ============================================================
+     1 enkele visibilitychange handler (was 2)
+     ============================================================ */
   document.addEventListener("visibilitychange", function(){
     if(document.hidden){
+      /* Creds opslaan */
+      saveCredsImmediate();
+      /* VLC detectie */
       if(IPTV.vlcOpenTime && Date.now() - IPTV.vlcOpenTime < 5000){
         IPTV.vlcDidHide = true;
         clearTimeout(IPTV.vlcWatchdog);
