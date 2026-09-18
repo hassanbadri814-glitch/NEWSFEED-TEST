@@ -1,5 +1,10 @@
 /* ============================================================
    WAR DESK v6.0 — Conflictkaart
+   - readyState-aware init
+   - Escape capture (alleen als niets anders open)
+   - Timer cleanup bij tab-wissel
+   - Dynamische theme-color
+   - markManualTheme direct (geen race)
    ============================================================ */
 
 (function(){
