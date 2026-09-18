@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v9.0</title>
+<title>WAR DESK v9.1</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -28,7 +28,6 @@ try{
 try{
   var fs = localStorage.getItem("wardesk_font_size") || "medium";
   var ac = localStorage.getItem("wardesk_accent_color") || "goud";
-  /* Migratie oude → nieuwe kleurnamen */
   var map = { amber:"goud", blue:"saffier", green:"smaragd", red:"koraal", mono:"parel" };
   if(map[ac]) { ac = map[ac]; localStorage.setItem("wardesk_accent_color", ac); }
   if(["goud","saffier","smaragd","kobalt","koraal","parel"].indexOf(ac) < 0) ac = "goud";
@@ -46,7 +45,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="styles.css?v=20">
+<link rel="stylesheet" href="styles.css?v=21">
 <style>
 /* ============================================================
    FONT-SIZE
@@ -76,7 +75,7 @@ html[data-accent="koraal"] { --bg:#0f0708; --bg-2:#170b0d; --bg-3:#200e11; --car
 html[data-accent="parel"]  { --bg:#080808; --bg-2:#111111; --bg-3:#1c1c1c; --card:#151515; --card-hover:#222222; --line:#252525; --line-2:#383838; }
 
 /* ============================================================
-   DIEPZWART MODUS (OLED) — overschrijft achtergrond
+   DIEPZWART MODUS (OLED)
    ============================================================ */
 html[data-oled="true"] { --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808; --card-hover:#141414; --line:#141414; --line-2:#242424; }
 html[data-oled="true"] body { background:#000000; }
@@ -115,11 +114,6 @@ html[data-oled="true"] .news-card:hover { box-shadow:0 16px 40px -18px var(--acc
   align-items: center;
   gap: .5rem;
   flex-shrink: 0;
-}
-.header-actions .btn-row {
-  display: flex;
-  gap: .4rem;
-  align-items: center;
 }
 
 /* ============================================================
@@ -172,7 +166,7 @@ html[data-oled="true"] .news-card:hover { box-shadow:0 16px 40px -18px var(--acc
 .section-head-actions { margin-left: auto; display: flex; align-items: center; gap: .75rem; }
 
 /* ============================================================
-   NIEUWS — FAVORIETEN + SKELETON
+   NIEUWS — SKELETON
    ============================================================ */
 .card-actions { margin-left: auto; display: flex; gap: .4rem; align-items: center; }
 .card-footer .card-action { margin-left: 0 !important; }
@@ -215,7 +209,6 @@ html[data-oled="true"] .news-card:hover { box-shadow:0 16px 40px -18px var(--acc
 .sheet-content .sheet-title::before { display: none; }
 .sheet-content .sheet-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
 
-/* Chips (categorieën) */
 .chips-row {
   display: flex;
   gap: .4rem;
@@ -253,7 +246,6 @@ html[data-oled="true"] .news-card:hover { box-shadow:0 16px 40px -18px var(--acc
   font-weight: 700;
 }
 
-/* Accentkleur-picker (uitklapbaar) */
 .accent-picker-row {
   display: flex;
   align-items: center;
@@ -370,7 +362,6 @@ html[data-oled="true"] .news-card:hover { box-shadow:0 16px 40px -18px var(--acc
 .accent-dot[data-color="koraal"] { background:radial-gradient(circle at 35% 30%, #ffc8cf 0%, #ff6b7a 45%, #7a1524 100%); color:#ff6b7a; }
 .accent-dot[data-color="parel"]  { background:radial-gradient(circle at 35% 30%, #ffffff 0%, #c8ccd8 45%, #4a5060 100%); color:#c8ccd8; }
 
-/* Preview-kleuren (voor de enkele bol in de row) */
 .accent-preview[data-color="goud"]   { background:radial-gradient(circle at 35% 30%, #ffe2b5 0%, #e0a857 45%, #7a4a18 100%); }
 .accent-preview[data-color="saffier"]{ background:radial-gradient(circle at 35% 30%, #c8ddff 0%, #5b9dff 45%, #14307a 100%); }
 .accent-preview[data-color="smaragd"]{ background:radial-gradient(circle at 35% 30%, #a8f0d8 0%, #2dd4a8 45%, #064a30 100%); }
@@ -378,7 +369,6 @@ html[data-oled="true"] .news-card:hover { box-shadow:0 16px 40px -18px var(--acc
 .accent-preview[data-color="koraal"] { background:radial-gradient(circle at 35% 30%, #ffc8cf 0%, #ff6b7a 45%, #7a1524 100%); }
 .accent-preview[data-color="parel"]  { background:radial-gradient(circle at 35% 30%, #ffffff 0%, #c8ccd8 45%, #4a5060 100%); }
 
-/* Segmented controls */
 .segmented {
   display: flex;
   gap: .25rem;
@@ -419,7 +409,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 
 .segmented.font-segmented .sheet-item { font-size: .78rem; padding: .5rem .4rem; }
 
-/* Toggle-rijen */
 .toggle-row {
   display: flex;
   align-items: center;
@@ -464,7 +453,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .toggle-row.active .toggle-switch { background: var(--amber); }
 .toggle-row.active .toggle-switch::after { transform: translateX(18px); }
 
-/* Search field */
 .search-field { position: relative; }
 .search-field .ic-search {
   position: absolute;
@@ -494,7 +482,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 }
 .search-field input::placeholder { color: var(--ink-3); }
 
-/* Action rows */
 .action-row { display: flex; gap: .4rem; flex-wrap: wrap; }
 .action-row .sheet-item {
   flex: 1;
@@ -694,15 +681,13 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
   <button class="breaking-close" id="breakingClose">✕</button>
 </div>
 
-<div class="progress-bar" id="progressBar"></div>
-
 <header class="header">
   <div class="header-inner">
     <div class="brand">
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
       </div>
-      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v9.0</span></span></div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v9.1</span></span></div>
     </div>
     <div class="header-stats">
       <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
@@ -976,7 +961,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v9.0</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v9.1</span><br>
         Live nieuws + IPTV + Conflictkaart
       </div>
     </div>
@@ -1092,9 +1077,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(on) document.documentElement.setAttribute("data-oled", "true");
     else document.documentElement.removeAttribute("data-oled");
     try { localStorage.setItem("wardesk_oled_mode", on ? "1" : "0"); }catch(e){}
-    var sw = document.getElementById("toggleOled");
     var row = document.getElementById("toggleOledRow");
-    if(sw){}
     if(row) row.classList.toggle("active", on);
     if(window.showToast) window.showToast(on ? "Diepzwart aan" : "Diepzwart uit");
   };
@@ -1110,13 +1093,11 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     var prev = document.getElementById("accentPreview");
     if(prev) prev.setAttribute("data-color", ac);
 
-    /* OLED toggle init */
     var oledRow = document.getElementById("toggleOledRow");
     if(oledRow){
       oledRow.classList.toggle("active", window.__isOledActive());
     }
 
-    /* Accent-picker uitklappen */
     var pickerRow = document.getElementById("accentPickerRow");
     var dotsGrid = document.getElementById("accentDotsGrid");
     if(pickerRow && dotsGrid){
@@ -1137,7 +1118,6 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       });
     });
 
-    /* Sluit dots bij klik buiten */
     document.addEventListener("click", function(e){
       if(!dotsGrid || !pickerRow) return;
       if(dotsGrid.contains(e.target) || pickerRow.contains(e.target)) return;
@@ -1244,13 +1224,13 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<script src="config.js?v=32"></script>
-<script src="news.js?v=39"></script>
-<script src="app.js?v=21"></script>
-<script src="persist.js?v=21"></script>
-<script src="refresh.js?v=22"></script>
-<script src="iptv.js?v=31"></script>
-<script src="map.js?v=24"></script>
+<script src="config.js?v=33"></script>
+<script src="news.js?v=40"></script>
+<script src="app.js?v=22"></script>
+<script src="persist.js?v=22"></script>
+<script src="refresh.js?v=23"></script>
+<script src="iptv.js?v=32"></script>
+<script src="map.js?v=25"></script>
 
 <script>
 (function(){
@@ -1268,7 +1248,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(t){t.classList.remove("show");t._shownAt=0}
   });
 })();
-console.log("%c WAR DESK %c v9.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+console.log("%c WAR DESK %c v9.1 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
 </body>
 </html>
