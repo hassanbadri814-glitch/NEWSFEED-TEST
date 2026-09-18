@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK v24.1 — Nieuws logica
-   - Progress via CustomEvent ipv .progress-bar
+   WAR DESK v24.2 — Nieuws logica
+   - titleHashKey collision-safe (2 hashes)
+   - Notificatie icon + badge
    ============================================================ */
 
-window.__newsVersion = "v24.1";
+window.__newsVersion = "v24.2";
 
 var MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
@@ -203,10 +204,6 @@ function esc(s){
   });
 }
 
-/* ============================================================
-   PROGRESS EVENT — eenvoudige functie die door heel de file
-   gebruikt wordt om de ronde ring in de header te updaten.
-   ============================================================ */
 function emitProgress(pct, done){
   try{
     document.dispatchEvent(new CustomEvent("wardesk:feedprogress", {
@@ -216,7 +213,7 @@ function emitProgress(pct, done){
 }
 
 /* ============================================================
-   TAGS
+   TAGS — content-based + bron-categorie
    ============================================================ */
 function extractTags(title, desc, sourceCat){
   var tags = [];
@@ -445,9 +442,17 @@ var TRANSLATION_SEM = { active: 0, max: 3, queue: [] };
 
 function titleHashKey(lang, title) {
   var str = (lang || "xx") + "|" + (title || "");
-  var h = 5381;
-  for (var i = 0; i < str.length; i++) { h = ((h << 5) + h) ^ str.charCodeAt(i); }
-  return "tr_" + (h >>> 0).toString(36);
+  /* 2 hashes combineren voor lagere collision-kans */
+  var h1 = 5381;
+  var h2 = 52711;
+  for (var i = 0; i < str.length; i++) {
+    var c = str.charCodeAt(i);
+    h1 = ((h1 << 5) + h1) ^ c;
+    h2 = ((h2 << 5) + h2 + c) | 0;
+  }
+  var a = (h1 >>> 0).toString(36);
+  var b = (h2 >>> 0).toString(36);
+  return "tr_" + a + "_" + b;
 }
 function translationAcquire() {
   return new Promise(function(resolve){
@@ -623,7 +628,12 @@ window.__setNotifications = async function(enabled){
     try { localStorage.setItem("wardesk_notifications", "1"); }catch(e){}
     if(window.showToast) window.showToast("Breaking notificaties aan");
     try {
-      new Notification("WAR DESK", { body: "Notificaties zijn ingeschakeld.", tag: "wardesk-test" });
+      new Notification("WAR DESK", {
+        body: "Notificaties zijn ingeschakeld.",
+        tag: "wardesk-test",
+        icon: "./icons/icon-192.png",
+        badge: "./icons/icon-96.png"
+      });
     }catch(e){}
   } else {
     State.notificationsEnabled = false;
@@ -640,7 +650,12 @@ function sendBreakingNotification(group){
   try {
     var title = "Breaking - " + group.sources.length + " bronnen";
     var body = group.items[0].title.slice(0, 180);
-    var notif = new Notification(title, { body: body, tag: "wardesk-breaking-" + Math.floor(Date.now() / 60000) });
+    var notif = new Notification(title, {
+      body: body,
+      tag: "wardesk-breaking-" + Math.floor(Date.now() / 60000),
+      icon: "./icons/icon-192.png",
+      badge: "./icons/icon-96.png"
+    });
     notif.onclick = function(){ try { window.focus(); }catch(e){} notif.close(); };
   }catch(e) { console.warn("[WAR DESK] notificatie fout:", e); }
 }
