@@ -1,13 +1,13 @@
 /* ============================================================
-   WAR DESK v20.1 — App orchestration
-   - Swipe-handler blokkeert niet meer het scrollen
+   WAR DESK v20.2 — App orchestration
+   - ?tab= parameter lezer (voor manifest shortcuts)
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VERSION = window.APP_VERSION || "v8.1";
+  var APP_VERSION = window.APP_VERSION || "v9.2";
 
   function ready(fn){
     if(document.readyState !== "loading") fn();
@@ -57,6 +57,26 @@
     Array.prototype.forEach.call(document.querySelectorAll(".bottom-tabs .tab"), function(tab){
       tab.addEventListener("click", function(){ showView(tab.dataset.view); });
     });
+
+    /* ============================================================
+       Manifest shortcut: ?tab=news|map|iptv
+       ============================================================ */
+    try{
+      var params = new URLSearchParams(location.search);
+      var requestedTab = params.get("tab");
+      if(requestedTab && ["news","map","iptv"].indexOf(requestedTab) >= 0){
+        /* Wacht even zodat andere modules (map.js, iptv.js) klaar zijn */
+        setTimeout(function(){
+          var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + requestedTab + '"]');
+          if(tabBtn) tabBtn.click();
+          /* Verwijder ?tab= uit de URL zodat een refresh niet blijft terugspringen */
+          try{
+            var clean = location.pathname + (location.hash || "");
+            history.replaceState(null, "", clean);
+          }catch(e){}
+        }, 500);
+      }
+    }catch(e){}
 
     var sheet = $("sheet");
     var overlay = $("sheetOverlay");
@@ -138,7 +158,7 @@
       });
     }
 
-    /* ===== SWIPE-SLUITEN (met scroll-detectie) ===== */
+    /* Swipe-sluiten (met scroll-detectie) */
     var startY = 0, currentY = 0, dragging = false, canSwipeClose = false;
     if(sheet){
       sheet.addEventListener("touchstart", function(e){
