@@ -1,5 +1,8 @@
 /* ============================================================
    WAR DESK v4.0 — IPTV
+   - Race-conditie gefixt
+   - HLS-cache, SVG-behoud, prototype-pollution preventie
+   - VLC-encoding, iOS fullscreen, load-more
    ============================================================ */
 
 (function(){
