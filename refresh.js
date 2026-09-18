@@ -1,15 +1,18 @@
 /* ============================================================
-   WAR DESK v17.0 — Ronde verversingsknop met laad-effect
+   WAR DESK v17.1 — Ronde verversingsknop gekoppeld aan events
+   - Luistert naar "wardesk:feedprogress" van news.js
+   - Geen random animatie meer
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VERSION = window.APP_VERSION || "v8.6";
+  var APP_VERSION = window.APP_VERSION || "v9.0";
 
   function initRefresh(){
     var lastUpdate = null;
+    var activeLoad = false;
 
     var headerActions = document.querySelector(".header-actions");
     if(!headerActions) return;
@@ -61,7 +64,7 @@
       var circle = refreshBtn.querySelector(".refresh-progress");
       if(!circle) return;
       var dash = 106.8;
-      var offset = dash * (1 - pct / 100);
+      var offset = dash * (1 - Math.max(0, Math.min(100, pct)) / 100);
       circle.setAttribute("stroke-dashoffset", String(offset));
     }
 
@@ -71,39 +74,51 @@
       circle.setAttribute("stroke-dashoffset", "106.8");
     }
 
-    function doRefresh(){
-      if(!window.NewsAPI) return;
-      refreshBtn.classList.add("loading");
-      refreshBtn.disabled = true;
-      var beforeCount = (window.State && State.items.length) || 0;
+    /* ============================================================
+       Luister naar voortgangs-events uit news.js
+       ============================================================ */
+    document.addEventListener("wardesk:feedprogress", function(e){
+      var d = e.detail || {};
+      var pct = typeof d.pct === "number" ? d.pct : 0;
 
-      /* Progress animatie */
-      var pct = 0;
-      setProgress(0);
-      var progressTimer = setInterval(function(){
-        pct = Math.min(95, pct + Math.random() * 12 + 4);
-        setProgress(pct);
-      }, 180);
-
-      Promise.resolve(NewsAPI.reload()).then(function(){
-        clearInterval(progressTimer);
+      if(d.done){
         setProgress(100);
-        setTimeout(resetRing, 600);
-        var afterCount = (window.State && State.items.length) || 0;
-        var newCount = Math.max(0, afterCount - beforeCount);
+        /* klaar: vinkje tonen als de gebruiker op de knop klikte,
+           of rustig resetten als het een automatische load was */
+        setTimeout(function(){
+          resetRing();
+          if(refreshBtn.classList.contains("loading")){
+            refreshBtn.classList.remove("loading");
+            refreshBtn.classList.add("done");
+            refreshBtn.disabled = false;
+            activeLoad = false;
+            setTimeout(function(){ refreshBtn.classList.remove("done"); }, 1400);
+          }
+        }, 400);
         lastUpdate = Date.now();
         tickUpdate();
-        refreshBtn.classList.remove("loading");
-        refreshBtn.classList.add("done");
-        refreshBtn.disabled = false;
-        setTimeout(function(){ refreshBtn.classList.remove("done"); }, 1500);
+      } else {
+        setProgress(pct);
+      }
+    });
+
+    function doRefresh(){
+      if(!window.NewsAPI || activeLoad) return;
+      activeLoad = true;
+      refreshBtn.classList.add("loading");
+      refreshBtn.disabled = true;
+      setProgress(0);
+      var beforeCount = (window.State && State.items.length) || 0;
+
+      Promise.resolve(NewsAPI.reload()).then(function(){
+        var afterCount = (window.State && State.items.length) || 0;
+        var newCount = Math.max(0, afterCount - beforeCount);
         if(window.showToast) window.showToast(newCount > 0 ? (newCount + " nieuwe artikelen") : "Geen nieuwe artikelen");
       }).catch(function(){
-        clearInterval(progressTimer);
-        setProgress(100);
-        setTimeout(resetRing, 600);
         refreshBtn.classList.remove("loading");
         refreshBtn.disabled = false;
+        activeLoad = false;
+        resetRing();
         if(window.showToast) window.showToast("Verversen mislukt");
       });
     }
