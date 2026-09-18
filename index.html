@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v8.1</title>
+<title>WAR DESK v8.2</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -36,7 +36,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="styles.css?v=15">
+<link rel="stylesheet" href="styles.css?v=16">
 <style>
 /* ============================================================
    FONT-SIZE
@@ -46,12 +46,13 @@ html[data-font-size="medium"] body { font-size: 15px; }
 html[data-font-size="large"] body { font-size: 17px; }
 
 /* ============================================================
-   ACCENTKLEUR
+   ACCENTKLEUR — 5 thema's
    ============================================================ */
 html[data-accent="amber"] { --amber:#e2a857; --amber-2:#f0c78a; --amber-3:#8a5c26; }
 html[data-accent="blue"]  { --amber:#3b82f6; --amber-2:#93c5fd; --amber-3:#1e40af; }
 html[data-accent="green"] { --amber:#10b981; --amber-2:#6ee7b7; --amber-3:#065f46; }
 html[data-accent="red"]   { --amber:#e63950; --amber-2:#f87171; --amber-3:#991b1b; }
+html[data-accent="mono"]  { --amber:#c8c8c8; --amber-2:#e8e8e8; --amber-3:#4a4a4a; }
 
 /* ============================================================
    ACHTERGROND-TINT — donker
@@ -60,13 +61,16 @@ html[data-accent="amber"]{ --bg:#0e0a07; --bg-2:#17120c; --bg-3:#20180f; --card:
 html[data-accent="blue"]{ --bg:#070c16; --bg-2:#0d1522; --bg-3:#131e30; --card:#111b2d; --card-hover:#18253c; --line:#1a2540; --line-2:#26344f; }
 html[data-accent="green"]{ --bg:#070f0a; --bg-2:#0b1710; --bg-3:#10221a; --card:#0e1d14; --card-hover:#152a1e; --line:#162a1e; --line-2:#1f3a2a; }
 html[data-accent="red"]{ --bg:#0f0708; --bg-2:#170b0d; --bg-3:#200e11; --card:#1c0b0e; --card-hover:#281216; --line:#281014; --line-2:#3a181e; }
+html[data-accent="mono"]{ --bg:#0a0a0a; --bg-2:#141414; --bg-3:#1e1e1e; --card:#181818; --card-hover:#242424; --line:#262626; --line-2:#383838; }
 
 html[data-accent="amber"] .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(23,18,12,.95) 100%)}
 html[data-accent="green"] .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(11,23,16,.95) 100%)}
 html[data-accent="red"] .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(23,11,13,.95) 100%)}
+html[data-accent="mono"] .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(20,20,20,.95) 100%)}
 html[data-accent="amber"] .bottom-tabs{background:linear-gradient(180deg,rgba(23,18,12,.92),var(--bg-2))}
 html[data-accent="green"] .bottom-tabs{background:linear-gradient(180deg,rgba(11,23,16,.92),var(--bg-2))}
 html[data-accent="red"] .bottom-tabs{background:linear-gradient(180deg,rgba(23,11,13,.92),var(--bg-2))}
+html[data-accent="mono"] .bottom-tabs{background:linear-gradient(180deg,rgba(20,20,20,.92),var(--bg-2))}
 
 /* ============================================================
    ACHTERGROND-TINT — licht
@@ -75,15 +79,21 @@ html[data-accent="amber"].light, html[data-accent="amber"].light body.light{ --b
 html[data-accent="blue"].light, html[data-accent="blue"].light body.light{ --bg:#f0f3f8; --bg-2:#ffffff; --bg-3:#e3e8f0; --card:#ffffff; --card-hover:#f4f7fc; --line:#e1e6ee; --line-2:#ccd4de; }
 html[data-accent="green"].light, html[data-accent="green"].light body.light{ --bg:#f1f7f2; --bg-2:#ffffff; --bg-3:#e2ece4; --card:#ffffff; --card-hover:#f4f9f5; --line:#e1ece3; --line-2:#c8dbc9; }
 html[data-accent="red"].light, html[data-accent="red"].light body.light{ --bg:#f8f1f1; --bg-2:#ffffff; --bg-3:#f0e3e3; --card:#ffffff; --card-hover:#faf3f3; --line:#efe0e0; --line-2:#dbc7c7; }
+html[data-accent="mono"].light, html[data-accent="mono"].light body.light{ --bg:#f5f5f5; --bg-2:#ffffff; --bg-3:#e8e8e8; --card:#ffffff; --card-hover:#f0f0f0; --line:#e0e0e0; --line-2:#c8c8c8; }
+
+/* In licht thema: mono accent wordt donkergrijs voor contrast */
+html[data-accent="mono"].light, html[data-accent="mono"].light body.light { --amber:#3a3a3a; --amber-2:#5a5a5a; --amber-3:#1a1a1a; }
 
 html[data-accent="amber"].light .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(255,252,245,.95) 100%)}
 html[data-accent="blue"].light .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(255,255,255,.95) 100%)}
 html[data-accent="green"].light .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(255,255,255,.95) 100%)}
 html[data-accent="red"].light .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(255,255,255,.95) 100%)}
+html[data-accent="mono"].light .header{background:linear-gradient(180deg,var(--bg-2) 0%,rgba(255,255,255,.95) 100%)}
 html[data-accent="amber"].light .bottom-tabs{background:linear-gradient(180deg,rgba(255,252,245,.92),var(--bg-2))}
 html[data-accent="blue"].light .bottom-tabs{background:linear-gradient(180deg,rgba(255,255,255,.92),var(--bg-2))}
 html[data-accent="green"].light .bottom-tabs{background:linear-gradient(180deg,rgba(255,255,255,.92),var(--bg-2))}
 html[data-accent="red"].light .bottom-tabs{background:linear-gradient(180deg,rgba(255,255,255,.92),var(--bg-2))}
+html[data-accent="mono"].light .bottom-tabs{background:linear-gradient(180deg,rgba(255,255,255,.92),var(--bg-2))}
 
 /* ============================================================
    SVG ICON BASE
@@ -99,20 +109,82 @@ html[data-accent="red"].light .bottom-tabs{background:linear-gradient(180deg,rgb
 .ic-sm { width: 14px; height: 14px; }
 
 /* ============================================================
-   SECTIE-HEAD + KLEURDOTS
+   SECTIE-HEAD + GLANZENDE KLEURDOTS
    ============================================================ */
 .section-head-actions{ margin-left: auto; display: flex; align-items: center; gap: .75rem; }
-.accent-picker{ display: flex; align-items: center; gap: .5rem; padding: .25rem .5rem; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 999px; }
-.accent-dot{ width: 16px; height: 16px; border-radius: 50%; border: none; padding: 0; cursor: pointer; transition: transform .15s, box-shadow .15s; box-shadow: 0 0 0 0 transparent; }
-.accent-dot[data-color="amber"]{ background: linear-gradient(135deg, #f0c78a, #e2a857); }
-.accent-dot[data-color="blue"]{ background: linear-gradient(135deg, #93c5fd, #3b82f6); }
-.accent-dot[data-color="green"]{ background: linear-gradient(135deg, #6ee7b7, #10b981); }
-.accent-dot[data-color="red"]{ background: linear-gradient(135deg, #f87171, #e63950); }
-.accent-dot:hover{ transform: scale(1.15); }
-.accent-dot.active{ box-shadow: 0 0 0 2px var(--bg-3), 0 0 0 3.5px var(--ink-2); transform: scale(1.05); }
+.accent-picker{
+  display: flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .35rem .6rem;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.15);
+}
+.accent-dot{
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  transition: transform .18s cubic-bezier(.2,.9,.3,1), box-shadow .18s;
+  box-shadow:
+    0 2px 5px rgba(0,0,0,.4),
+    0 0 0 1px rgba(0,0,0,.25),
+    inset 0 -2px 4px rgba(0,0,0,.35),
+    inset 0 2px 3px rgba(255,255,255,.5);
+  overflow: hidden;
+  isolation: isolate;
+}
+.accent-dot::before{
+  content:"";
+  position:absolute;
+  top:2px;
+  left:18%;
+  right:18%;
+  height:42%;
+  border-radius:50%;
+  background:linear-gradient(180deg, rgba(255,255,255,.92) 0%, rgba(255,255,255,.35) 45%, rgba(255,255,255,0) 100%);
+  pointer-events:none;
+  z-index:2;
+  filter: blur(.2px);
+}
+.accent-dot:hover{
+  transform: scale(1.18) translateY(-1px);
+  box-shadow:
+    0 5px 12px rgba(0,0,0,.5),
+    0 0 0 1px rgba(0,0,0,.25),
+    inset 0 -2px 4px rgba(0,0,0,.35),
+    inset 0 2px 3px rgba(255,255,255,.6);
+}
+.accent-dot:active{
+  transform: scale(1.05) translateY(0);
+}
+.accent-dot.active{
+  transform: scale(1.1);
+  box-shadow:
+    0 0 0 2px var(--bg-3),
+    0 0 0 3.5px currentColor,
+    0 0 14px currentColor,
+    0 2px 5px rgba(0,0,0,.4),
+    inset 0 -2px 4px rgba(0,0,0,.35),
+    inset 0 2px 3px rgba(255,255,255,.5);
+}
+
+.accent-dot[data-color="amber"]{ background:radial-gradient(circle at 35% 30%, #ffe2b5 0%, #e2a857 45%, #7a4a18 100%); color:#e2a857; }
+.accent-dot[data-color="blue"]{  background:radial-gradient(circle at 35% 30%, #b8d4ff 0%, #3b82f6 45%, #14307a 100%); color:#3b82f6; }
+.accent-dot[data-color="green"]{ background:radial-gradient(circle at 35% 30%, #9cf0cf 0%, #10b981 45%, #064a30 100%); color:#10b981; }
+.accent-dot[data-color="red"]{   background:radial-gradient(circle at 35% 30%, #ffb0bc 0%, #e63950 45%, #7a1524 100%); color:#e63950; }
+.accent-dot[data-color="mono"]{  background:radial-gradient(circle at 35% 30%, #ffffff 0%, #a8a8a8 45%, #0a0a0a 100%); color:#c8c8c8; }
+
+html[data-accent="mono"].light .accent-dot[data-color="mono"]{ color:#3a3a3a; }
+
 @media(max-width:640px){
-  .accent-dot{ width: 14px; height: 14px; }
-  .accent-picker{ gap: .4rem; padding: .2rem .4rem; }
+  .accent-dot{ width: 22px; height: 22px; }
+  .accent-picker{ gap: .45rem; padding: .3rem .5rem; }
 }
 
 /* ============================================================
@@ -141,7 +213,7 @@ html[data-accent="red"].light .bottom-tabs{background:linear-gradient(180deg,rgb
 .card-original[dir="rtl"]{text-align:right}
 
 /* ============================================================
-   NIEUW MENU (v8.0)
+   MENU (v8.0 strak + v8.2)
    ============================================================ */
 .sheet-content .sheet-section { margin-bottom: 1.15rem; }
 .sheet-content .sheet-title {
@@ -242,12 +314,11 @@ html[data-accent="amber"] .segmented .sheet-item.active { color: var(--amber); b
 html[data-accent="blue"] .segmented .sheet-item.active { color: var(--amber); border-color: var(--amber); }
 html[data-accent="green"] .segmented .sheet-item.active { color: var(--amber); border-color: var(--amber); }
 html[data-accent="red"] .segmented .sheet-item.active { color: var(--amber); border-color: var(--amber); }
+html[data-accent="mono"] .segmented .sheet-item.active { color: var(--amber); border-color: var(--amber); }
 
 .segmented.font-segmented .sheet-item { font-size: .76rem; padding: .5rem .4rem; }
 
-.search-field {
-  position: relative;
-}
+.search-field { position: relative; }
 .search-field .ic-search {
   position: absolute;
   left: .85rem;
@@ -290,22 +361,8 @@ html[data-accent="red"] .segmented .sheet-item.active { color: var(--amber); bor
   user-select: none;
 }
 .toggle-row:hover { border-color: var(--amber); }
-.toggle-row .toggle-icon {
-  width: 18px;
-  height: 18px;
-  color: var(--ink-2);
-  flex-shrink: 0;
-}
-.toggle-row .toggle-label {
-  flex: 1;
-  font-size: .85rem;
-  font-weight: 600;
-  color: var(--ink);
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.toggle-row .toggle-icon { width: 18px; height: 18px; color: var(--ink-2); flex-shrink: 0; }
+.toggle-row .toggle-label { flex: 1; font-size: .85rem; font-weight: 600; color: var(--ink); min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .toggle-row.active .toggle-icon { color: var(--amber); }
 .toggle-row.active .toggle-label { color: var(--amber); }
 
@@ -333,11 +390,7 @@ html[data-accent="red"] .segmented .sheet-item.active { color: var(--amber); bor
 .toggle-row.active .toggle-switch { background: var(--amber); }
 .toggle-row.active .toggle-switch::after { transform: translateX(18px); }
 
-.action-row {
-  display: flex;
-  gap: .4rem;
-  flex-wrap: wrap;
-}
+.action-row { display: flex; gap: .4rem; flex-wrap: wrap; }
 .action-row .sheet-item {
   flex: 1;
   padding: .6rem .75rem;
@@ -358,18 +411,8 @@ html[data-accent="red"] .segmented .sheet-item.active { color: var(--amber); bor
 .action-row .sheet-item .ic { width: 15px; height: 15px; }
 .action-row .sheet-item:hover { border-color: var(--amber); color: var(--amber); }
 
-.sheet-about {
-  font-size: .75rem;
-  color: var(--ink-3);
-  line-height: 1.6;
-  text-align: center;
-  padding: .5rem 0;
-}
-.sheet-about .version {
-  color: var(--amber);
-  font-weight: 700;
-  letter-spacing: .05em;
-}
+.sheet-about { font-size: .75rem; color: var(--ink-3); line-height: 1.6; text-align: center; padding: .5rem 0; }
+.sheet-about .version { color: var(--amber); font-weight: 700; letter-spacing: .05em; }
 
 .sheet-grid { display: none !important; }
 .sheet-search { display: none !important; }
@@ -531,7 +574,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
       </div>
-      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v8.1</span></span></div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v8.2</span></span></div>
     </div>
     <div class="header-stats">
       <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
@@ -553,9 +596,10 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="section-head-actions">
         <div class="accent-picker" role="group" aria-label="Accentkleur">
           <button class="accent-dot" data-color="amber" aria-label="Amber"></button>
-          <button class="accent-dot" data-color="blue" aria-label="Blauw"></button>
-          <button class="accent-dot" data-color="green" aria-label="Groen"></button>
-          <button class="accent-dot" data-color="red" aria-label="Rood"></button>
+          <button class="accent-dot" data-color="blue" aria-label="Oceaan blauw"></button>
+          <button class="accent-dot" data-color="green" aria-label="Smaragd groen"></button>
+          <button class="accent-dot" data-color="red" aria-label="Robijn rood"></button>
+          <button class="accent-dot" data-color="mono" aria-label="Platina zwart"></button>
         </div>
         <span class="section-count" id="newsCount">—</span>
       </div>
@@ -795,7 +839,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v8.1</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v8.2</span><br>
         Live nieuws + IPTV + Conflictkaart
       </div>
     </div>
@@ -892,13 +936,14 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     });
   };
   window.__setAccentColor = function(color){
-    if(["amber","blue","green","red"].indexOf(color) < 0) return;
+    if(["amber","blue","green","red","mono"].indexOf(color) < 0) return;
     document.documentElement.setAttribute("data-accent", color);
     try { localStorage.setItem("wardesk_accent_color", color); } catch(e){}
     document.querySelectorAll("[data-color]").forEach(function(b){
       b.classList.toggle("active", b.dataset.color === color);
     });
-    if(window.showToast) window.showToast("Kleur aangepast");
+    var names = {amber:"Goud", blue:"Oceaan", green:"Smaragd", red:"Robijn", mono:"Platina"};
+    if(window.showToast) window.showToast("Thema: " + (names[color] || color));
   };
   document.addEventListener("DOMContentLoaded", function(){
     var fs = (document.documentElement.getAttribute("data-font-size") || "medium");
@@ -1013,13 +1058,13 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<script src="config.js?v=27"></script>
-<script src="news.js?v=34"></script>
-<script src="app.js?v=16"></script>
-<script src="persist.js?v=16"></script>
-<script src="refresh.js?v=17"></script>
-<script src="iptv.js?v=26"></script>
-<script src="map.js?v=19"></script>
+<script src="config.js?v=28"></script>
+<script src="news.js?v=35"></script>
+<script src="app.js?v=17"></script>
+<script src="persist.js?v=17"></script>
+<script src="refresh.js?v=18"></script>
+<script src="iptv.js?v=27"></script>
+<script src="map.js?v=20"></script>
 
 <script>
 (function(){
@@ -1037,7 +1082,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(t){t.classList.remove("show");t._shownAt=0}
   });
 })();
-console.log("%c WAR DESK %c v8.1 ","background:#e2a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e2a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+console.log("%c WAR DESK %c v8.2 ","background:#e2a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e2a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
 </body>
 </html>
