@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v8.3</title>
+<title>WAR DESK v8.4</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -36,7 +36,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=18">
 <style>
 /* ============================================================
    FONT-SIZE
@@ -102,25 +102,27 @@ html[data-accent="mono"].light .bottom-tabs{background:linear-gradient(180deg,rg
 .ic-sm { width: 14px; height: 14px; }
 
 /* ============================================================
-   HEADER-ACTIONS + KLEINE GLANZENDE KLEURDOTS
+   HEADER — knoppen + kleurdots horizontaal, uiterst rechts
    ============================================================ */
 .header-actions{
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: .35rem;
+  flex-direction: row;
+  align-items: center;
+  gap: .45rem;
   flex-shrink: 0;
+  margin-left: auto;
 }
 .header-actions .btn-row{
   display: flex;
   gap: .4rem;
   align-items: center;
 }
+
 .accent-picker{
   display: flex;
   align-items: center;
   gap: .28rem;
-  padding: .2rem .4rem;
+  padding: .22rem .45rem;
   background: var(--bg-3);
   border: 1px solid var(--line-2);
   border-radius: 999px;
@@ -186,7 +188,7 @@ html[data-accent="mono"].light .accent-dot[data-color="mono"]{ color:#3a3a3a; }
 @media(max-width:640px){
   .accent-dot{ width: 11px; height: 11px; }
   .accent-picker{ gap: .22rem; padding: .18rem .35rem; }
-  .header-actions{ gap: .3rem; }
+  .header-actions{ gap: .35rem; }
 }
 
 /* ============================================================
@@ -581,7 +583,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
       </div>
-      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v8.3</span></span></div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v8.4</span></span></div>
     </div>
     <div class="header-stats">
       <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
@@ -590,16 +592,16 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="hstat green"><span class="hstat-label">Items</span><span class="hstat-value" id="statItems">0</span></div>
     </div>
     <div class="header-actions">
+      <div class="btn-row">
+        <button class="btn-mini" id="btnTheme" aria-label="Thema">◐</button>
+        <button class="btn-mini" id="btnMenu" aria-label="Menu">☰</button>
+      </div>
       <div class="accent-picker" role="group" aria-label="Accentkleur">
         <button class="accent-dot" data-color="amber" aria-label="Goud"></button>
         <button class="accent-dot" data-color="blue" aria-label="Oceaan blauw"></button>
         <button class="accent-dot" data-color="green" aria-label="Smaragd groen"></button>
         <button class="accent-dot" data-color="red" aria-label="Robijn rood"></button>
         <button class="accent-dot" data-color="mono" aria-label="Platina"></button>
-      </div>
-      <div class="btn-row">
-        <button class="btn-mini" id="btnTheme" aria-label="Thema">◐</button>
-        <button class="btn-mini" id="btnMenu" aria-label="Menu">☰</button>
       </div>
     </div>
   </div>
@@ -848,7 +850,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v8.3</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v8.4</span><br>
         Live nieuws + IPTV + Conflictkaart
       </div>
     </div>
@@ -1067,13 +1069,13 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<script src="config.js?v=29"></script>
-<script src="news.js?v=36"></script>
-<script src="app.js?v=18"></script>
-<script src="persist.js?v=18"></script>
-<script src="refresh.js?v=19"></script>
-<script src="iptv.js?v=28"></script>
-<script src="map.js?v=21"></script>
+<script src="config.js?v=30"></script>
+<script src="news.js?v=37"></script>
+<script src="app.js?v=19"></script>
+<script src="persist.js?v=19"></script>
+<script src="refresh.js?v=20"></script>
+<script src="iptv.js?v=29"></script>
+<script src="map.js?v=22"></script>
 
 <script>
 (function(){
@@ -1091,7 +1093,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(t){t.classList.remove("show");t._shownAt=0}
   });
 })();
-console.log("%c WAR DESK %c v8.3 ","background:#e2a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e2a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+console.log("%c WAR DESK %c v8.4 ","background:#e2a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e2a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
 </body>
 </html>
