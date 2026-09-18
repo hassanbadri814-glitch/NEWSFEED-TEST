@@ -1,11 +1,12 @@
 /* ============================================================
-   WAR DESK v23.0 — Nieuws logica + Favorieten + Notificaties
-   - pruneOldReads (90d)
-   - __proxyHealth behouden over reloads
-   - esc() coerced
+   WAR DESK v24.0 — Nieuws logica
+   - extractTags herschreven (content-based)
+   - filterItems: alleen tags
+   - ensureTags: forceer her-tagging
+   - TAGS_VERSION check
    ============================================================ */
 
-window.__newsVersion = "v23.0";
+window.__newsVersion = "v24.0";
 
 var MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
@@ -205,32 +206,63 @@ function esc(s){
   });
 }
 
-function extractTags(title, desc, fallback){
+/* ============================================================
+   TAGS — content-based + bron-categorie
+   ============================================================ */
+function extractTags(title, desc, sourceCat){
   var tags = [];
   var t = ((title || "") + " " + (desc || "")).toLowerCase();
-  var sportSignal = /\b(voetbal|football|soccer|eredivisie|eerste divisie|knvb|ajax|psv|feyenoord|az alkmaar|fc utrecht|fc twente|vitesse|sc heerenveen|n\.e\.c\.|sparta|willem ii|go ahead|pec zwolle|rkc|fortuna sittard|excelsior|almere city|heracles|voetbalzone|voetbalnieuws|voetbalprimeur|match|wedstrijd|goal|doelpunt|keeper|doelman|coach|trainer|speler|selectie|toernooi|competitie|champions league|europa league|conference league|knvb beker|johan cruijff schaal|fifa|uefa|wk|ek|kickboxing|glory|mma|ufc|boksen|boks|vechtsport|formule 1|f1|grand prix|motogp|olympische|tennis|wimbledon|roland garros|us open|australian open|basketbal|nba|nfl|nhl|mlb|wielrennen|tour de france|giro|vuelta|darts|schaatsen|zwemmen|atletiek|hockey|handbal|volleybal|honkbal|rugby|cricket|golf|surfen|ski|snowboard)\b/.test(t);
-  if(sportSignal && !/\b(airstrike|missile strike|invasion|massacre|shelling)\b/.test(t)){
+
+  /* ----- 1. BRON-CATEGORIE → primaire tag ----- */
+  if(sourceCat === "nl") tags.push("nl");
+  if(sourceCat === "be" || sourceCat === "de" || sourceCat === "fr" || sourceCat === "it" || sourceCat === "uk") tags.push("europe");
+  if(sourceCat === "us") tags.push("vs");
+  if(sourceCat === "maroc") tags.push("maroc");
+  if(sourceCat === "eg" || sourceCat === "sa" || sourceCat === "ae" || sourceCat === "qa" || sourceCat === "il" || sourceCat === "mideast") tags.push("mideast");
+  if(sourceCat === "ukraine" || sourceCat === "gaza" || sourceCat === "yemen" || sourceCat === "iran" || sourceCat === "sudan" || sourceCat === "war") tags.push("war");
+  if(sourceCat === "sport") tags.push("sport");
+
+  /* ----- 2. SPORT (content) ----- */
+  var sportStrong = /\b(eredivisie|eerste divisie|knvb|johan cruijff schaal|champions league|europa league|conference league|wk voetbal|ek voetbal|formule 1|grand prix|motogp|tour de france|giro d'italia|vuelta|wimbledon|roland garros|us open tennis|australian open|olympische spelen|glory kickboxing|ufc|nba|nfl|nhl|mlb)\b/.test(t);
+  var sportTeam = /\b(ajax|psv|feyenoord|az alkmaar|fc utrecht|fc twente|vitesse|sc heerenveen|sparta rotterdam|willem ii|go ahead eagles|pec zwolle|rkc waalwijk|fortuna sittard|excelsior|almere city|heracles|n\.e\.c\.|real madrid|barcelona|atletico madrid|manchester united|manchester city|liverpool|chelsea|arsenal|tottenham|juventus|inter milan|ac milan|bayern münchen|borussia dortmund|paris saint-germain|psg)\b/.test(t);
+  var warBlock = /\b(airstrike|raketaanval|invasion|invasie|massacre|bloedbad|shelling|beschieting|offensief|oorlog|war)\b/.test(t);
+  if((sportStrong || sportTeam) && !warBlock && tags.indexOf("sport") === -1){
     tags.push("sport");
   }
-  if(/\b(gaza|rafah|khan younis|hamas|palestin|netanyahu|tel aviv|jerusalem|idf|hebron|jenin|nablus|ramallah|west bank)\b/.test(t)) tags.push("gaza", "mideast", "war");
-  if(/\b(lebanon|lebanese|beirut|hezbollah|nasrallah|hizbullah|sidon|tripoli|tyre)\b/.test(t)) tags.push("lebanon", "mideast", "war");
-  if(/\b(iran|iranian|tehran|irgc|khamenei|persian gulf|pezeshkian)\b/.test(t)) tags.push("iran", "mideast", "war");
-  if(/\b(syria|syrian|damascus|assad|idlib|aleppo|homs|raqqa|sharaa)\b/.test(t)) tags.push("syria", "mideast", "war");
-  if(/\b(yemen|yemeni|houthi|sanaa|aden|taiz|hodeidah)\b/.test(t)) tags.push("yemen", "mideast", "war");
-  if(/\b(ukraine|ukrainian|kyiv|kiev|zelensky|kharkiv|odesa|donbas|crimea|donetsk|luhansk|mariupol|putin|kremlin|moscow|russia)\b/.test(t)) tags.push("ukraine", "war");
-  if(/\b(sudan|sudanese|khartoum|darfur|rsf|omdurman)\b/.test(t)) tags.push("sudan", "war");
-  if(/\b(morocco|moroccan|maroc|rabat|casablanca|marrakech|agadir|fes|tanger|western sahara|sahara)\b/.test(t)) tags.push("maroc");
-  if(/\b(airstrike|air strike|missile|invasion|invaded|ceasefire|cease-fire|military|soldier|troops|combat|offensive|bombing|shelling|artillery|tank|drone strike|hostage|massacre|war crime)\b/.test(t)){
-    if(tags.indexOf("war") === -1) tags.push("war");
+
+  /* ----- 3. MIDDEN-OOSTEN (content) ----- */
+  var mideastContent = /\b(gaza|rafah|khan younis|hamas|hezbollah|idf|netanyahu|westelijke jordaanoever|palestijn|palestinian|israelisch|israeli|iran|irgc|tehran|khamenei|syrië|syria|damascus|assad|libanon|lebanon|beirut|jemen|yemen|houthi|irak|iraq|bagdad|saudi-arabië|riyadh|qatar|doha|aboe dhabi|dubai|jordanië|amman|jeruzalem|jerusalem|tel aviv|beiroet)\b/.test(t);
+  if(mideastContent && tags.indexOf("mideast") === -1) tags.push("mideast");
+
+  /* ----- 4. OORLOG (content, streng) ----- */
+  var warScore = 0;
+  if(/\b(airstrike|air strike|raketaanval|missile strike|drone strike|luchtaanval|invasion|invaded|invasie|massacre|bloedbad|genocide|ceasefire|staakt-het-vuren|offensive|offensief|bombing|bombardement|shelling|beschieting|artillery|artillerie|war crime|oorlogsmisdaad|chemical attack|gifgasaanval)\b/.test(t)) warScore += 3;
+  if(/\b(killed|gedood|doden|slachtoffers|gewonden|troops|troepen|soldiers|soldaat|militairen|military|combat|gevecht|tank|tanks|frontlinie|frontline)\b/.test(t)) warScore += 1;
+  if(/\b(oekraïne|ukraine|zelensky|zelenski|kyiv|kiev|kharkiv|odesa|donbas|crimea|donetsk|luhansk|marioepol|mariupol|poetin|putin|kremlin|moskou)\b/.test(t)) warScore += 2;
+  if(warScore >= 2 && tags.indexOf("war") === -1) tags.push("war");
+
+  /* ----- 5. NEDERLAND (content) ----- */
+  var nlContent = /\b(nederland|nederlands|dutch|holland|amsterdam|rotterdam|den haag|the hague|utrecht|eindhoven|groningen|tilburg|almere|breda|nijmegen|haarlem|arnhem|apeldoorn|enschede|amersfoort|zwolle|leeuwarden|maastricht|tweede kamer|eerste kamer|kabinet|minister-president|premier rutte|mark rutte|geert wilders|d66|vvd|cda|pvda|groenlinks|forum voor democratie|sp partij|christenunie|sgr|bbb|nieuw sociaal contract|gemeente|provincie|randstad|noord-holland|zuid-holland|flevoland|gelderland|overijssel|drenthe|friesland|zeeland|limburg|noord-brabant)\b/.test(t);
+  if(nlContent && tags.indexOf("nl") === -1) tags.push("nl");
+
+  /* ----- 6. MAROKKO (content) ----- */
+  if(/\b(marokko|morocco|maroc|rabat|casablanca|marrakech|agadir|fes|tanger|sahara|marokkaans|marokkaanse)\b/.test(t) && tags.indexOf("maroc") === -1){
+    tags.push("maroc");
   }
+
+  /* ----- 7. EUROPA (content) ----- */
+  var europeStrong = /\b(europese unie|european union|europese commissie|european commission|europese parlement|european parliament|brussel|brussels|nato|europese raad|eurozone|schengen|europese centrale bank|europese verkiezing)\b/.test(t);
+  var europeCountry = /\b(duitsland|germany|frankrijk|france|spanje|spain|españa|italië|italy|verenigd koninkrijk|united kingdom|engeland|england|polen|poland|oostenrijk|austria|zwitserland|switzerland|zweden|sweden|noorwegen|norway|denemarken|denmark|finland|ierland|ireland|portugal|griekenland|greece|tsjechië|czech|hongarije|hungary|roemenië|romania|bulgarije|bulgaria|belgië|belgium)\b/.test(t);
+  if((europeStrong || europeCountry) && tags.indexOf("europe") === -1 && tags.indexOf("nl") === -1){
+    tags.push("europe");
+  }
+
   return tags.filter(function(v, i, a){ return a.indexOf(v) === i; });
 }
 
 function ensureTags(items){
   return items.map(function(it){
-    if(!it.tags || !Array.isArray(it.tags) || it.tags.length === 0){
-      it.tags = extractTags(it.title, it.desc || "", it.cat);
-    }
+    it.tags = extractTags(it.title, it.desc || "", it.cat);
     return it;
   });
 }
@@ -589,10 +621,7 @@ window.__setNotifications = async function(enabled){
     try { localStorage.setItem("wardesk_notifications", "1"); }catch(e){}
     if(window.showToast) window.showToast("Breaking notificaties aan");
     try {
-      new Notification("WAR DESK", {
-        body: "Notificaties zijn ingeschakeld.",
-        tag: "wardesk-test"
-      });
+      new Notification("WAR DESK", { body: "Notificaties zijn ingeschakeld.", tag: "wardesk-test" });
     }catch(e){}
   } else {
     State.notificationsEnabled = false;
@@ -609,17 +638,9 @@ function sendBreakingNotification(group){
   try {
     var title = "Breaking - " + group.sources.length + " bronnen";
     var body = group.items[0].title.slice(0, 180);
-    var notif = new Notification(title, {
-      body: body,
-      tag: "wardesk-breaking-" + Math.floor(Date.now() / 60000)
-    });
-    notif.onclick = function(){
-      try { window.focus(); }catch(e){}
-      notif.close();
-    };
-  }catch(e) {
-    console.warn("[WAR DESK] notificatie fout:", e);
-  }
+    var notif = new Notification(title, { body: body, tag: "wardesk-breaking-" + Math.floor(Date.now() / 60000) });
+    notif.onclick = function(){ try { window.focus(); }catch(e){} notif.close(); };
+  }catch(e) { console.warn("[WAR DESK] notificatie fout:", e); }
 }
 
 async function loadAllFeeds(){
@@ -795,11 +816,11 @@ function filterItems(){
     list = list.filter(function(it){ return !!State.favorites[it.link]; });
   } else if(State.currentCat !== "all"){
     var cats = (window.CAT_GROUPS && CAT_GROUPS[State.currentCat]) || [State.currentCat];
-    list = list.filter(function(it){
-      var matchCat = cats.indexOf(it.cat) >= 0;
-      var matchTags = it.tags && it.tags.some(function(t){ return cats.indexOf(t) >= 0; });
-      return matchCat || matchTags;
-    });
+    if(cats.length){
+      list = list.filter(function(it){
+        return it.tags && it.tags.some(function(t){ return cats.indexOf(t) >= 0; });
+      });
+    }
   }
   if(State.currentSearch){
     var q = State.currentSearch;
@@ -837,9 +858,14 @@ function renderNews(){
   var title = document.getElementById("newsTitle");
   var count = document.getElementById("newsCount");
   var titles = {
-    all: "Laatste berichten", war: "Oorlog & conflict",
-    mideast: "Midden-Oosten", europe: "Europa",
-    nl: "Nederland", sport: "Sport",
+    all: "Laatste berichten",
+    war: "Oorlog & conflict",
+    mideast: "Midden-Oosten",
+    europe: "Europa",
+    nl: "Nederland",
+    maroc: "Marokko",
+    vs: "Verenigde Staten",
+    sport: "Sport",
     favorites: "Favorieten"
   };
   var catLabel = titles[State.currentCat] || "Laatste berichten";
@@ -960,6 +986,16 @@ function startAutoRefresh(){
 async function initNews(){
   await NewsDB.open();
   NewsDB.pruneOldReads().catch(function(){});
+
+  /* TAGS_VERSION check — cache legen bij nieuwe regels */
+  try{
+    if(localStorage.getItem("wardesk_tags_version") !== window.TAGS_VERSION){
+      await NewsDB.saveItems([]);
+      localStorage.setItem("wardesk_tags_version", window.TAGS_VERSION);
+      console.log("[WAR DESK] Tags-versie gewijzigd — cache geleegd");
+    }
+  }catch(e){}
+
   try { State.translateEnabled = localStorage.getItem("wardesk_translate") === "1"; }catch(e){}
   try { State.notificationsEnabled = localStorage.getItem("wardesk_notifications") === "1"; }catch(e){}
   State.health = {};
