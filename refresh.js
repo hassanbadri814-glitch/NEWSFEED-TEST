@@ -1,28 +1,34 @@
 /* ============================================================
-   WAR DESK v16.0 — Refresh knop + status indicator
+   WAR DESK v17.0 — Ronde verversingsknop met laad-effect
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VERSION = window.APP_VERSION || "v8.1";
+  var APP_VERSION = window.APP_VERSION || "v8.6";
 
   function initRefresh(){
     var lastUpdate = null;
-    var newCount = 0;
 
-    var themeBtn = $("btnTheme");
-    var headerActions = themeBtn ? themeBtn.parentNode : document.querySelector(".header-actions");
+    var headerActions = document.querySelector(".header-actions");
     if(!headerActions) return;
 
     var refreshBtn = document.createElement("button");
-    refreshBtn.className = "btn-mini";
+    refreshBtn.className = "btn-refresh";
     refreshBtn.id = "btnRefresh";
     refreshBtn.setAttribute("aria-label", "Verversen");
-    refreshBtn.textContent = "↻";
-    if(themeBtn) headerActions.insertBefore(refreshBtn, themeBtn);
-    else headerActions.appendChild(refreshBtn);
+    refreshBtn.innerHTML =
+      '<svg class="refresh-ring" viewBox="0 0 40 40" aria-hidden="true">' +
+        '<circle cx="20" cy="20" r="17" fill="none" stroke="currentColor" stroke-width="2" opacity="0.15"/>' +
+        '<circle class="refresh-progress" cx="20" cy="20" r="17" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="106.8" stroke-dashoffset="106.8" transform="rotate(-90 20 20)"/>' +
+      '</svg>' +
+      '<svg class="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+        '<polyline points="23 4 23 10 17 10"/>' +
+        '<polyline points="1 20 1 14 7 14"/>' +
+        '<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>' +
+      '</svg>';
+    headerActions.appendChild(refreshBtn);
 
     var statsEl = document.querySelector(".header-stats");
     if(statsEl && !$("lastUpdateStat")){
@@ -51,34 +57,53 @@
 
     setInterval(tickUpdate, 5000);
 
+    function setProgress(pct){
+      var circle = refreshBtn.querySelector(".refresh-progress");
+      if(!circle) return;
+      var dash = 106.8;
+      var offset = dash * (1 - pct / 100);
+      circle.setAttribute("stroke-dashoffset", String(offset));
+    }
+
+    function resetRing(){
+      var circle = refreshBtn.querySelector(".refresh-progress");
+      if(!circle) return;
+      circle.setAttribute("stroke-dashoffset", "106.8");
+    }
+
     function doRefresh(){
       if(!window.NewsAPI) return;
-      refreshBtn.style.animation = "spin 1s linear infinite";
+      refreshBtn.classList.add("loading");
       refreshBtn.disabled = true;
-      refreshBtn.style.opacity = ".6";
-
       var beforeCount = (window.State && State.items.length) || 0;
 
-      if(!document.getElementById("spinStyle")){
-        var s = document.createElement("style");
-        s.id = "spinStyle";
-        s.textContent = "@keyframes spin{to{transform:rotate(360deg)}}";
-        document.head.appendChild(s);
-      }
+      /* Progress animatie */
+      var pct = 0;
+      setProgress(0);
+      var progressTimer = setInterval(function(){
+        pct = Math.min(95, pct + Math.random() * 12 + 4);
+        setProgress(pct);
+      }, 180);
 
       Promise.resolve(NewsAPI.reload()).then(function(){
+        clearInterval(progressTimer);
+        setProgress(100);
+        setTimeout(resetRing, 600);
         var afterCount = (window.State && State.items.length) || 0;
-        newCount = Math.max(0, afterCount - beforeCount);
+        var newCount = Math.max(0, afterCount - beforeCount);
         lastUpdate = Date.now();
         tickUpdate();
-        refreshBtn.style.animation = "";
+        refreshBtn.classList.remove("loading");
+        refreshBtn.classList.add("done");
         refreshBtn.disabled = false;
-        refreshBtn.style.opacity = "1";
+        setTimeout(function(){ refreshBtn.classList.remove("done"); }, 1500);
         if(window.showToast) window.showToast(newCount > 0 ? (newCount + " nieuwe artikelen") : "Geen nieuwe artikelen");
       }).catch(function(){
-        refreshBtn.style.animation = "";
+        clearInterval(progressTimer);
+        setProgress(100);
+        setTimeout(resetRing, 600);
+        refreshBtn.classList.remove("loading");
         refreshBtn.disabled = false;
-        refreshBtn.style.opacity = "1";
         if(window.showToast) window.showToast("Verversen mislukt");
       });
     }
