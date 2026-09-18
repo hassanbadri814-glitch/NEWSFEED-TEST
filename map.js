@@ -1,10 +1,7 @@
 /* ============================================================
-   WAR DESK v6.0 — Conflictkaart
-   - readyState-aware init
-   - Escape capture (alleen als niets anders open)
-   - Timer cleanup bij tab-wissel
-   - Dynamische theme-color
-   - markManualTheme direct (geen race)
+   WAR DESK v6.1 — Conflictkaart
+   - OLED theme-color support
+   - checkTimeMode slaat over als manual_until actief is
    ============================================================ */
 
 (function(){
@@ -13,7 +10,7 @@
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
-  LOG("v6.0 geladen");
+  LOG("v6.1 geladen");
 
   function buildStadiaUrl(style){
     var key = (window.CONFIG && CONFIG.stadiaKey) ? CONFIG.stadiaKey : "";
@@ -40,7 +37,8 @@
     detailCache: {},
     currentTheme: "dark",
     themeObserver: null,
-    detailAbort: null
+    detailAbort: null,
+    _timeModeInterval: null
   };
 
   var TYPES = {
@@ -73,11 +71,19 @@
     return document.body.classList.contains("light") ? "light" : "dark";
   }
 
+  /* ============================================================
+     THEME-COLOR — rekening houdend met OLED-modus
+     ============================================================ */
   function updateMetaTheme(){
     var meta = document.querySelector('meta[name="theme-color"]');
     if(!meta) return;
+    var oled = document.documentElement.getAttribute("data-oled") === "true";
     var light = document.body.classList.contains("light");
-    meta.setAttribute("content", light ? "#f6f4ee" : "#070c16");
+    var color;
+    if(oled) color = "#000000";
+    else if(light) color = "#f6f4ee";
+    else color = "#070c16";
+    meta.setAttribute("content", color);
   }
 
   function switchTile(theme){
@@ -117,6 +123,9 @@
     MAP.themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   }
 
+  /* ============================================================
+     TIJDMODUS — slaat interval-werk over als handmatige keuze actief is
+     ============================================================ */
   function checkTimeMode(){
     if(!window.CONFIG || !CONFIG.themeAutoSwitch) return;
     var manualUntil = 0;
@@ -149,6 +158,7 @@
       ".leaflet-control-attribution{display:none!important}" +
       ".leaflet-container{background:#05080f!important}" +
       "body.light .leaflet-container{background:#f5f5f5!important}" +
+      "html[data-oled='true'] .leaflet-container{background:#000000!important}" +
       ".wd-marker{background:transparent!important;border:none!important}" +
       ".wd-marker-inner{position:relative;width:16px;height:16px;display:grid;place-items:center}" +
       ".wd-marker-icon{width:14px;height:14px;display:grid;place-items:center;position:relative;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85)) drop-shadow(0 0 3px currentColor);}" +
@@ -183,8 +193,8 @@
       "body.light .wd-detail-foot{background:rgba(0,0,0,.03)!important}" +
       ".wd-detail-btn{background:transparent!important;border:1px solid rgba(255,255,255,.08)!important;color:#8a94a8!important;font-weight:600!important;}" +
       ".wd-detail-btn:hover{border-color:rgba(255,255,255,.15)!important;color:#e6ebf5!important}" +
-      ".wd-detail-btn.primary{background:rgba(226,168,87,.1)!important;border:1px solid rgba(226,168,87,.28)!important;color:#e2a857!important;}" +
-      ".wd-detail-btn.primary:hover{background:rgba(226,168,87,.16)!important;border-color:rgba(226,168,87,.45)!important;}";
+      ".wd-detail-btn.primary{background:rgba(224,168,87,.1)!important;border:1px solid rgba(224,168,87,.28)!important;color:#e0a857!important;}" +
+      ".wd-detail-btn.primary:hover{background:rgba(224,168,87,.16)!important;border-color:rgba(224,168,87,.45)!important;}";
     document.head.appendChild(s);
   }
 
@@ -635,6 +645,7 @@
 
     observeThemeChanges();
     checkTimeMode();
+    updateMetaTheme();
     setInterval(checkTimeMode, 60000);
 
     var mapTab = document.querySelector('.tab[data-view="map"]');
