@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v4.0 — IPTV
-   - Race-conditie gefixt
-   - HLS-cache, SVG-behoud, prototype-pollution preventie
-   - VLC-encoding, iOS fullscreen, load-more
+   WAR DESK v4.1 — IPTV
+   - VLC intent-URL fix (host + scheme apart)
+   - Alle eerdere v4.0 fixes behouden
    ============================================================ */
 
 (function(){
@@ -10,7 +9,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v4.0 geladen");
+  LOG("v4.1 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -897,11 +896,20 @@
       }
     }, 3000);
     try{
-      var encoded = encodeURIComponent(url);
-      window.location.href = "intent://" + encoded + "#Intent;package=org.videolan.vlc;type=video/*;S.title=" + encodeURIComponent(channelName || "WAR DESK") + ";end";
+      var m = String(url).match(/^(https?):\/\/(.+)$/i);
+      if(!m){
+        window.location.href = url;
+        return;
+      }
+      var scheme = m[1];
+      var rest = m[2];
+      var title = encodeURIComponent(channelName || "WAR DESK");
+      var intentUrl = "intent://" + rest + "#Intent;scheme=" + scheme + ";package=org.videolan.vlc;type=video/*;S.title=" + title + ";end";
+      LOG("VLC intent:", intentUrl);
+      window.location.href = intentUrl;
     }catch(e){
       clearTimeout(IPTV.vlcWatchdog);
-      if(window.showToast) window.showToast("VLC niet gevonden");
+      if(window.showToast) window.showToast("VLC openen mislukt");
     }
   }
 
