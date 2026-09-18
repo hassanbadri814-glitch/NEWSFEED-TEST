@@ -1,12 +1,9 @@
 /* ============================================================
-   WAR DESK v24.0 — Nieuws logica
-   - extractTags herschreven (content-based)
-   - filterItems: alleen tags
-   - ensureTags: forceer her-tagging
-   - TAGS_VERSION check
+   WAR DESK v24.1 — Nieuws logica
+   - Progress via CustomEvent ipv .progress-bar
    ============================================================ */
 
-window.__newsVersion = "v24.0";
+window.__newsVersion = "v24.1";
 
 var MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
@@ -207,13 +204,24 @@ function esc(s){
 }
 
 /* ============================================================
-   TAGS — content-based + bron-categorie
+   PROGRESS EVENT — eenvoudige functie die door heel de file
+   gebruikt wordt om de ronde ring in de header te updaten.
+   ============================================================ */
+function emitProgress(pct, done){
+  try{
+    document.dispatchEvent(new CustomEvent("wardesk:feedprogress", {
+      detail: { pct: Math.max(0, Math.min(100, Math.round(pct))), done: !!done }
+    }));
+  }catch(e){}
+}
+
+/* ============================================================
+   TAGS
    ============================================================ */
 function extractTags(title, desc, sourceCat){
   var tags = [];
   var t = ((title || "") + " " + (desc || "")).toLowerCase();
 
-  /* ----- 1. BRON-CATEGORIE → primaire tag ----- */
   if(sourceCat === "nl") tags.push("nl");
   if(sourceCat === "be" || sourceCat === "de" || sourceCat === "fr" || sourceCat === "it" || sourceCat === "uk") tags.push("europe");
   if(sourceCat === "us") tags.push("vs");
@@ -222,7 +230,6 @@ function extractTags(title, desc, sourceCat){
   if(sourceCat === "ukraine" || sourceCat === "gaza" || sourceCat === "yemen" || sourceCat === "iran" || sourceCat === "sudan" || sourceCat === "war") tags.push("war");
   if(sourceCat === "sport") tags.push("sport");
 
-  /* ----- 2. SPORT (content) ----- */
   var sportStrong = /\b(eredivisie|eerste divisie|knvb|johan cruijff schaal|champions league|europa league|conference league|wk voetbal|ek voetbal|formule 1|grand prix|motogp|tour de france|giro d'italia|vuelta|wimbledon|roland garros|us open tennis|australian open|olympische spelen|glory kickboxing|ufc|nba|nfl|nhl|mlb)\b/.test(t);
   var sportTeam = /\b(ajax|psv|feyenoord|az alkmaar|fc utrecht|fc twente|vitesse|sc heerenveen|sparta rotterdam|willem ii|go ahead eagles|pec zwolle|rkc waalwijk|fortuna sittard|excelsior|almere city|heracles|n\.e\.c\.|real madrid|barcelona|atletico madrid|manchester united|manchester city|liverpool|chelsea|arsenal|tottenham|juventus|inter milan|ac milan|bayern münchen|borussia dortmund|paris saint-germain|psg)\b/.test(t);
   var warBlock = /\b(airstrike|raketaanval|invasion|invasie|massacre|bloedbad|shelling|beschieting|offensief|oorlog|war)\b/.test(t);
@@ -230,27 +237,22 @@ function extractTags(title, desc, sourceCat){
     tags.push("sport");
   }
 
-  /* ----- 3. MIDDEN-OOSTEN (content) ----- */
   var mideastContent = /\b(gaza|rafah|khan younis|hamas|hezbollah|idf|netanyahu|westelijke jordaanoever|palestijn|palestinian|israelisch|israeli|iran|irgc|tehran|khamenei|syrië|syria|damascus|assad|libanon|lebanon|beirut|jemen|yemen|houthi|irak|iraq|bagdad|saudi-arabië|riyadh|qatar|doha|aboe dhabi|dubai|jordanië|amman|jeruzalem|jerusalem|tel aviv|beiroet)\b/.test(t);
   if(mideastContent && tags.indexOf("mideast") === -1) tags.push("mideast");
 
-  /* ----- 4. OORLOG (content, streng) ----- */
   var warScore = 0;
   if(/\b(airstrike|air strike|raketaanval|missile strike|drone strike|luchtaanval|invasion|invaded|invasie|massacre|bloedbad|genocide|ceasefire|staakt-het-vuren|offensive|offensief|bombing|bombardement|shelling|beschieting|artillery|artillerie|war crime|oorlogsmisdaad|chemical attack|gifgasaanval)\b/.test(t)) warScore += 3;
   if(/\b(killed|gedood|doden|slachtoffers|gewonden|troops|troepen|soldiers|soldaat|militairen|military|combat|gevecht|tank|tanks|frontlinie|frontline)\b/.test(t)) warScore += 1;
   if(/\b(oekraïne|ukraine|zelensky|zelenski|kyiv|kiev|kharkiv|odesa|donbas|crimea|donetsk|luhansk|marioepol|mariupol|poetin|putin|kremlin|moskou)\b/.test(t)) warScore += 2;
   if(warScore >= 2 && tags.indexOf("war") === -1) tags.push("war");
 
-  /* ----- 5. NEDERLAND (content) ----- */
   var nlContent = /\b(nederland|nederlands|dutch|holland|amsterdam|rotterdam|den haag|the hague|utrecht|eindhoven|groningen|tilburg|almere|breda|nijmegen|haarlem|arnhem|apeldoorn|enschede|amersfoort|zwolle|leeuwarden|maastricht|tweede kamer|eerste kamer|kabinet|minister-president|premier rutte|mark rutte|geert wilders|d66|vvd|cda|pvda|groenlinks|forum voor democratie|sp partij|christenunie|sgr|bbb|nieuw sociaal contract|gemeente|provincie|randstad|noord-holland|zuid-holland|flevoland|gelderland|overijssel|drenthe|friesland|zeeland|limburg|noord-brabant)\b/.test(t);
   if(nlContent && tags.indexOf("nl") === -1) tags.push("nl");
 
-  /* ----- 6. MAROKKO (content) ----- */
   if(/\b(marokko|morocco|maroc|rabat|casablanca|marrakech|agadir|fes|tanger|sahara|marokkaans|marokkaanse)\b/.test(t) && tags.indexOf("maroc") === -1){
     tags.push("maroc");
   }
 
-  /* ----- 7. EUROPA (content) ----- */
   var europeStrong = /\b(europese unie|european union|europese commissie|european commission|europese parlement|european parliament|brussel|brussels|nato|europese raad|eurozone|schengen|europese centrale bank|europese verkiezing)\b/.test(t);
   var europeCountry = /\b(duitsland|germany|frankrijk|france|spanje|spain|españa|italië|italy|verenigd koninkrijk|united kingdom|engeland|england|polen|poland|oostenrijk|austria|zwitserland|switzerland|zweden|sweden|noorwegen|norway|denemarken|denmark|finland|ierland|ireland|portugal|griekenland|greece|tsjechië|czech|hongarije|hungary|roemenië|romania|bulgarije|bulgaria|belgië|belgium)\b/.test(t);
   if((europeStrong || europeCountry) && tags.indexOf("europe") === -1 && tags.indexOf("nl") === -1){
@@ -654,8 +656,9 @@ async function loadAllFeeds(){
   var collected = [];
   var collectedLinks = {};
   var tried = 0;
-  var bar = document.getElementById("progressBar");
-  if(bar){ bar.classList.add("show"); bar.style.width = "10%"; }
+
+  emitProgress(3);
+
   window.__wdDiagCount = 0;
   var lastProgressiveCount = 0;
   var progressiveTimer = setInterval(function(){
@@ -717,8 +720,10 @@ async function loadAllFeeds(){
       State.health[f.n].last = Date.now();
       if(State.health[f.n].fails >= CONFIG.failThreshold) State.disabled[f.n] = true;
     }
-    if(bar && session === State.loadSession){
-      bar.style.width = (10 + Math.round((tried / active.length) * 85)) + "%";
+
+    if(session === State.loadSession){
+      var pct = 3 + Math.round((tried / Math.max(1, active.length)) * 92);
+      emitProgress(pct);
     }
   }
 
@@ -743,10 +748,9 @@ async function loadAllFeeds(){
   if(itemsEl) itemsEl.textContent = State.items.length;
   NewsDB.saveItems(State.items);
   NewsDB.saveHealth(State.health);
-  if(bar){
-    bar.style.width = "100%";
-    setTimeout(function(){ bar.classList.remove("show"); bar.style.width = "0%"; }, 400);
-  }
+
+  emitProgress(100, true);
+
   detectBreaking();
   renderNews();
   if(State.translateEnabled){
@@ -987,7 +991,6 @@ async function initNews(){
   await NewsDB.open();
   NewsDB.pruneOldReads().catch(function(){});
 
-  /* TAGS_VERSION check — cache legen bij nieuwe regels */
   try{
     if(localStorage.getItem("wardesk_tags_version") !== window.TAGS_VERSION){
       await NewsDB.saveItems([]);
