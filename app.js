@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v20.0 — App orchestration
+   WAR DESK v20.1 — App orchestration
+   - Swipe-handler blokkeert niet meer het scrollen
    ============================================================ */
 
 (function(){
@@ -137,31 +138,39 @@
       });
     }
 
-    var startY = 0, currentY = 0, dragging = false;
+    /* ===== SWIPE-SLUITEN (met scroll-detectie) ===== */
+    var startY = 0, currentY = 0, dragging = false, canSwipeClose = false;
     if(sheet){
       sheet.addEventListener("touchstart", function(e){
         if(e.touches.length !== 1) return;
         startY = e.touches[0].clientY;
         dragging = true;
+        canSwipeClose = (sheet.scrollTop <= 0);
       }, {passive: true});
       sheet.addEventListener("touchmove", function(e){
         if(!dragging || e.touches.length !== 1) return;
         currentY = e.touches[0].clientY;
         var delta = currentY - startY;
-        if(delta > 0){
+        if(delta > 0 && canSwipeClose){
           if(e.cancelable) e.preventDefault();
           sheet.style.transform = "translateY(" + delta + "px)";
+        } else {
+          if(delta < 0) canSwipeClose = false;
+          dragging = false;
+          sheet.style.transform = "";
         }
       }, {passive: false});
       sheet.addEventListener("touchend", function(){
         if(!dragging) return;
         dragging = false;
-        if(currentY - startY > 100) closeSheet();
+        if(canSwipeClose && currentY - startY > 100) closeSheet();
         sheet.style.transform = "";
         startY = currentY = 0;
+        canSwipeClose = false;
       });
       sheet.addEventListener("touchcancel", function(){
         dragging = false;
+        canSwipeClose = false;
         sheet.style.transform = "";
         startY = currentY = 0;
       });
