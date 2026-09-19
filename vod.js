@@ -2,6 +2,8 @@
    WAR DESK v2.1 — VOD (Stremio via Cinemeta)
    - FIX: grid wordt nu altijd geleegd bij nieuwe categorie
    - FIX: loadMore-wrap wordt gereset
+   - FIX: isLoading reset bij cache-hit (voorkomt vastlopen)
+   - FIX: onerror crash bij wisselen categorieën opgelost
    - Race-conditie, timeout, skeleton, zoekfunctie
    ============================================================ */
 
@@ -135,6 +137,7 @@
     var entry = VOD.cache.get(key);
     return entry ? entry.items : null;
   }
+  
   function cacheSet(key, items){
     VOD.cache.set(key, { items: items, t: Date.now() });
     if(VOD.cache.size > VOD.cacheMaxSize){
@@ -189,7 +192,7 @@
         var grid = $("vodGrid");
         if(grid){
           grid.innerHTML = "";
-          showSkeletons();
+          /* showSkeletons() is verwijderd, dit gebeurt nu in loadCatalog */
         }
         var lmWrap = $("vodLoadMoreWrap");
         if(lmWrap) lmWrap.innerHTML = "";
@@ -226,7 +229,8 @@
       VOD.currentSkip = 0;
       VOD.currentItems = [];
       /* Altijd grid legen bij nieuwe categorie/zoekopdracht */
-      grid.innerHTML = "";
+      grid.innerHTML = ""; 
+      showSkeletons(); // <--- FIX: Skeletons worden nu correct getoond
       var lmReset = $("vodLoadMoreWrap");
       if(lmReset) lmReset.innerHTML = "";
     }
@@ -242,6 +246,7 @@
     var cached = cacheGet(cacheKey);
     if(cached){
       if(myToken !== VOD.loadToken) return;
+      VOD.isLoading = false; // <--- FIX: Reset isLoading, anders loopt het vast
       appendItems(cached);
       updateHeaderCount();
       updateLoadMore(cached.length);
@@ -304,7 +309,8 @@
 
       html += '<button class="vod-poster" data-idx="' + idx + '" aria-label="Open ' + esc(name) + '">';
       if(poster){
-        html += '<div class="vod-poster-img"><img src="' + esc(poster) + '" loading="lazy" alt="Poster van ' + esc(name) + '" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'"></div>';
+        // FIX: if(this.parentNode) toegevoegd om crashes bij het wisselen van categorie te voorkomen
+        html += '<div class="vod-poster-img"><img src="' + esc(poster) + '" loading="lazy" alt="Poster van ' + esc(name) + '" onerror="this.style.display=\'none\'; if(this.parentNode) this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'"></div>';
       } else {
         html += '<div class="vod-poster-img"><span class="vod-poster-fallback">' + esc(initial) + '</span></div>';
       }
