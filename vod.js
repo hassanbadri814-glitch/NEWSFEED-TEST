@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK v2.1 — VOD (Stremio via Cinemeta)
-   - FIX: grid wordt nu altijd geleegd bij nieuwe categorie
-   - FIX: loadMore-wrap wordt gereset
-   - FIX: isLoading reset bij cache-hit (voorkomt vastlopen)
-   - FIX: onerror crash bij wisselen categorieën opgelost
+   WAR DESK v2.2 — VOD (Stremio via Cinemeta)
+   - FIX: skeletons worden verwijderd vóór items worden geplaatst
+   - FIX: isLoading reset bij cache-hit
+   - FIX: onerror crash bij wisselen categorieën
    - Race-conditie, timeout, skeleton, zoekfunctie
    ============================================================ */
 
@@ -12,7 +11,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v2.1 geladen");
+  LOG("v2.2 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -137,7 +136,6 @@
     var entry = VOD.cache.get(key);
     return entry ? entry.items : null;
   }
-  
   function cacheSet(key, items){
     VOD.cache.set(key, { items: items, t: Date.now() });
     if(VOD.cache.size > VOD.cacheMaxSize){
@@ -188,12 +186,8 @@
         VOD.currentSkip = 0;
         VOD.currentItems = [];
 
-        /* GRID EN LOADMORE DIRECT LEGEN */
         var grid = $("vodGrid");
-        if(grid){
-          grid.innerHTML = "";
-          /* showSkeletons() is verwijderd, dit gebeurt nu in loadCatalog */
-        }
+        if(grid) grid.innerHTML = "";
         var lmWrap = $("vodLoadMoreWrap");
         if(lmWrap) lmWrap.innerHTML = "";
 
@@ -228,9 +222,8 @@
     if(!loadMore){
       VOD.currentSkip = 0;
       VOD.currentItems = [];
-      /* Altijd grid legen bij nieuwe categorie/zoekopdracht */
-      grid.innerHTML = ""; 
-      showSkeletons(); // <--- FIX: Skeletons worden nu correct getoond
+      grid.innerHTML = "";
+      showSkeletons();
       var lmReset = $("vodLoadMoreWrap");
       if(lmReset) lmReset.innerHTML = "";
     }
@@ -246,7 +239,9 @@
     var cached = cacheGet(cacheKey);
     if(cached){
       if(myToken !== VOD.loadToken) return;
-      VOD.isLoading = false; // <--- FIX: Reset isLoading, anders loopt het vast
+      VOD.isLoading = false;
+      /* FIX v2.2: verwijder skeletons vóór items worden geplaatst */
+      if(!loadMore) grid.innerHTML = "";
       appendItems(cached);
       updateHeaderCount();
       updateLoadMore(cached.length);
@@ -267,6 +262,8 @@
       LOG(items.length + " items");
 
       cacheSet(cacheKey, items);
+      /* FIX v2.2: verwijder skeletons vóór items worden geplaatst */
+      if(!loadMore) grid.innerHTML = "";
       appendItems(items);
       updateHeaderCount();
       updateLoadMore(items.length);
@@ -309,7 +306,6 @@
 
       html += '<button class="vod-poster" data-idx="' + idx + '" aria-label="Open ' + esc(name) + '">';
       if(poster){
-        // FIX: if(this.parentNode) toegevoegd om crashes bij het wisselen van categorie te voorkomen
         html += '<div class="vod-poster-img"><img src="' + esc(poster) + '" loading="lazy" alt="Poster van ' + esc(name) + '" onerror="this.style.display=\'none\'; if(this.parentNode) this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'"></div>';
       } else {
         html += '<div class="vod-poster-img"><span class="vod-poster-fallback">' + esc(initial) + '</span></div>';
@@ -553,5 +549,5 @@
     });
   }
 
-  console.log("[WAR DESK] vod.js v2.1 geladen");
+  console.log("[WAR DESK] vod.js v2.2 geladen");
 })();
