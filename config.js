@@ -1,11 +1,12 @@
 /* ============================================================
-   WAR DESK v20.9 — Configuratie
+   WAR DESK v11.0 — Configuratie (centrale versiebron)
+   - APP_VERSION is nu de ENIGE bron van waarheid
    - 10 feeds verwijderd (Turks/Spaans/Frans/Indiaas)
    - CAT_GROUPS met maroc + vs
    - TAGS_VERSION voor her-tagging
    ============================================================ */
 
-window.APP_VERSION = "v8.6";
+window.APP_VERSION = "v11.0";
 window.TAGS_VERSION = "3";
 
 window.CONFIG = {
