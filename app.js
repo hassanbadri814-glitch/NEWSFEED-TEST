@@ -1,6 +1,6 @@
 /* ============================================================
-   WAR DESK v20.3 — App orchestration
-   - VOD-view toegevoegd
+   WAR DESK v20.4 — App orchestration
+   - VOD-view + Escape fix
    ============================================================ */
 
 (function(){
@@ -59,7 +59,6 @@
       tab.addEventListener("click", function(){
         var view = tab.dataset.view;
         showView(view);
-        /* VOD lazy-init bij eerste keer openen */
         if(view === "vod" && window.VODAPI && typeof VODAPI.init === "function"){
           setTimeout(function(){
             try{ VODAPI.init(); }catch(e){}
@@ -202,12 +201,16 @@
       });
     }
 
+    /* Escape — VOD modal heeft prioriteit, dan map detail, dan pas sheet */
     document.addEventListener("keydown", function(e){
       if(e.key !== "Escape") return;
-      var modal = $("wdDetailModal");
-      if(modal && modal.classList.contains("show")) return;
+      /* VOD modal heeft eigen handler in vod.js, dus hier niets doen als open */
       var vodModal = $("vodDetailModal");
       if(vodModal && vodModal.classList.contains("show")) return;
+      /* Map detail modal */
+      var modal = $("wdDetailModal");
+      if(modal && modal.classList.contains("show")) return;
+      /* Fullscreen kaart */
       if(document.querySelector(".map-wrap.fullscreen")) return;
       closeSheet();
     });
