@@ -1819,4 +1819,29 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="config.js?v=11"></script>
 <script src="news.js?v=11"></script>
 <script src="app-v12.js"></script>
-<script src="persist.js
+<script src="persist.js?v=11"></script>
+<script src="refresh-v12.js"></script>
+<script src="iptv.js?v=11"></script>
+<script src="map.js?v=11"></script>
+<script src="vod-v22.js"></script>
+
+<script>
+(function(){
+  setInterval(function(){
+    var t=document.getElementById("toast");
+    if(!t)return;
+    if(t.classList.contains("show")){
+      var s=t._shownAt||0,n=Date.now();
+      if(!s)t._shownAt=n;
+      else if(n-s>3000){t.classList.remove("show");t._shownAt=0}
+    } else t._shownAt=0;
+  },500);
+  document.addEventListener("visibilitychange",function(){
+    var t=document.getElementById("toast");
+    if(t){t.classList.remove("show");t._shownAt=0}
+  });
+})();
+console.log("%c WAR DESK %c v11.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+</script>
+</body>
+</html>
