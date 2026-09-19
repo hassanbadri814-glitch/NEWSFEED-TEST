@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v10.0</title>
+<title>WAR DESK v10.1</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -45,7 +45,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=24">
 <style>
 /* ============================================================
    FONT-SIZE
@@ -626,7 +626,7 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 }
 
 /* ============================================================
-   VOD
+   VOD — Layout
    ============================================================ */
 .vod-page {
   display: grid;
@@ -678,6 +678,10 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
   min-width: 0;
 }
 .vod-sidebar-item:hover {
+  background: var(--bg-3);
+  color: var(--amber);
+}
+.vod-sidebar-item:active {
   background: var(--bg-3);
   color: var(--amber);
 }
@@ -750,6 +754,16 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
   color: var(--amber);
   opacity: .5;
 }
+.vod-poster-fallback {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--amber);
+  opacity: .5;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
 .vod-poster-body {
   padding: .5rem .55rem .6rem;
   display: flex;
@@ -821,7 +835,119 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
   background: var(--card-hover);
 }
 
-/* VOD Detail Modal */
+/* VOD search */
+.vod-search-wrap {
+  position: relative;
+  margin-bottom: .75rem;
+}
+.vod-search-icon {
+  position: absolute;
+  left: .85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  width: 15px;
+  height: 15px;
+  pointer-events: none;
+}
+.vod-search-wrap input {
+  width: 100%;
+  padding: .75rem 2.6rem .75rem 2.35rem;
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  border-radius: 10px;
+  font-size: .88rem;
+  outline: none;
+  font-family: inherit;
+  transition: border-color .18s, box-shadow .18s;
+}
+.vod-search-wrap input:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.vod-search-wrap input::placeholder { color: var(--ink-3); }
+.vod-search-clear {
+  position: absolute;
+  right: .35rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+  height: 32px;
+  background: transparent;
+  border: none;
+  color: var(--ink-3);
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+.vod-search-clear:hover { background: var(--bg-3); color: var(--ink); }
+.vod-search-clear svg { width: 14px; height: 14px; }
+
+/* VOD skeletons */
+.vod-skeleton {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.vod-skeleton-img {
+  width: 100%;
+  aspect-ratio: 2/3;
+  background: linear-gradient(90deg, var(--bg-3) 25%, var(--card-hover) 50%, var(--bg-3) 75%);
+  background-size: 200% 100%;
+  animation: wdShimmer 1.6s ease-in-out infinite;
+}
+.vod-skeleton-line {
+  height: 10px;
+  margin: .5rem .55rem 0;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--bg-3) 25%, var(--card-hover) 50%, var(--bg-3) 75%);
+  background-size: 200% 100%;
+  animation: wdShimmer 1.6s ease-in-out infinite;
+}
+.vod-skeleton-line.short { width: 40%; margin-bottom: .55rem; }
+
+/* VOD scroll-top */
+.vod-scroll-top {
+  position: fixed;
+  bottom: calc(90px + env(safe-area-inset-bottom, 0));
+  right: 16px;
+  z-index: 800;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  color: var(--amber);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s, transform .25s, border-color .15s;
+  padding: 0;
+  font-family: inherit;
+}
+.vod-scroll-top.show {
+  opacity: 1;
+  pointer-events: auto;
+}
+.vod-scroll-top:hover {
+  border-color: var(--amber);
+  transform: translateY(-2px);
+}
+.vod-scroll-top svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* VOD detail modal */
 .vod-detail-modal {
   position: fixed;
   inset: 0;
@@ -969,6 +1095,11 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
   filter: none;
 }
 
+/* Sidebar breder op desktop */
+@media(min-width:900px){
+  .vod-page { grid-template-columns: minmax(150px, 180px) 1fr; }
+}
+
 @media(max-width:640px){
   .vod-page {
     grid-template-columns: 100px 1fr;
@@ -976,7 +1107,7 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
   }
   .vod-sidebar {
     padding: .3rem;
-    max-height: calc(100vh - 180px);
+    max-height: calc(100vh - 200px);
   }
   .vod-sidebar-item {
     padding: .45rem .4rem;
@@ -994,12 +1125,25 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
   .vod-poster-body { padding: .4rem .45rem .5rem; min-height: 42px; }
   .vod-poster-name { font-size: .68rem; }
   .vod-poster-meta { font-size: .56rem; }
-  .vod-detail-body {
-    grid-template-columns: 90px 1fr;
-    gap: .75rem;
-    padding: .85rem .9rem;
+
+  /* Modal fullscreen op mobiel */
+  .vod-detail-modal { padding: 0; align-items: stretch; }
+  .vod-detail-box {
+    max-width: 100%;
+    max-height: 100vh;
+    border-radius: 0;
+    height: 100vh;
   }
-  .vod-detail-poster { width: 90px; }
+  .vod-detail-body {
+    grid-template-columns: 110px 1fr;
+    gap: .85rem;
+    padding: 1rem;
+    flex: 1;
+    overflow-y: auto;
+  }
+  .vod-detail-poster { width: 110px; }
+  .vod-detail-foot { flex-direction: column; }
+  .vod-detail-btn.secondary { width: 100%; }
 }
 
 /* ============================================================
@@ -1075,7 +1219,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
       </div>
-      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v10.0</span></span></div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v10.1</span></span></div>
     </div>
     <div class="header-stats">
       <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
@@ -1184,6 +1328,15 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <h2>VOD</h2>
       <span class="section-count" id="vodCount">Films & Series</span>
     </div>
+
+    <div class="vod-search-wrap">
+      <svg class="vod-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="vodSearchInput" placeholder="Zoek films of series..." autocomplete="off" aria-label="Zoek in films en series">
+      <button class="vod-search-clear" id="vodSearchClear" aria-label="Wissen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
     <div class="vod-page">
       <aside class="vod-sidebar" id="vodSidebar"></aside>
       <div class="vod-content">
@@ -1192,6 +1345,10 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
         <div id="vodLoadMoreWrap"></div>
       </div>
     </div>
+
+    <button class="vod-scroll-top" id="vodScrollTop" aria-label="Terug naar boven">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+    </button>
   </section>
 </main>
 
@@ -1365,7 +1522,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v10.0</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v10.1</span><br>
         Live nieuws + IPTV + Kaart + VOD
       </div>
     </div>
@@ -1659,14 +1816,14 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<script src="config.js?v=35"></script>
-<script src="news.js?v=42"></script>
-<script src="app.js?v=24"></script>
-<script src="persist.js?v=24"></script>
-<script src="refresh.js?v=25"></script>
-<script src="iptv.js?v=34"></script>
-<script src="map.js?v=27"></script>
-<script src="vod.js?v=1"></script>
+<script src="config.js?v=36"></script>
+<script src="news.js?v=43"></script>
+<script src="app.js?v=25"></script>
+<script src="persist.js?v=25"></script>
+<script src="refresh.js?v=26"></script>
+<script src="iptv.js?v=35"></script>
+<script src="map.js?v=28"></script>
+<script src="vod.js?v=2"></script>
 
 <script>
 (function(){
@@ -1684,7 +1841,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(t){t.classList.remove("show");t._shownAt=0}
   });
 })();
-console.log("%c WAR DESK %c v10.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+console.log("%c WAR DESK %c v10.1 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
 </body>
 </html>
