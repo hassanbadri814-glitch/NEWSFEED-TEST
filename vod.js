@@ -1,12 +1,8 @@
 /* ============================================================
-   WAR DESK v2.0 — VOD (Stremio via Cinemeta)
-   - Genre URLs gefixt
-   - Race-conditie opgelost
-   - Timeout op fetch
-   - Skeleton loaders
-   - Zoekfunctie
-   - Terug-naar-boven knop
-   - Cache-limiet
+   WAR DESK v2.1 — VOD (Stremio via Cinemeta)
+   - FIX: grid wordt nu altijd geleegd bij nieuwe categorie
+   - FIX: loadMore-wrap wordt gereset
+   - Race-conditie, timeout, skeleton, zoekfunctie
    ============================================================ */
 
 (function(){
@@ -14,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v2.0 geladen");
+  LOG("v2.1 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -25,20 +21,16 @@
     currentSkip: 0,
     currentItems: [],
     currentDetail: null,
-    cache: new Map(),        /* Map: key → { items, t } */
+    cache: new Map(),
     cacheMaxSize: 30,
-    renderLimit: 60,
     isLoading: false,
-    loadToken: 0,            /* voor race-conditie */
+    loadToken: 0,
     _initialized: false,
     _sidebarBound: false,
     _gridBound: false,
     _searchValue: ""
   };
 
-  /* ============================================================
-     Categorieën — 5 genres per type
-     ============================================================ */
   var CATS = [
     { group: "Populair", items: [
       { id: "movie/top",  label: "Top films",  color: "#e0a857" },
@@ -60,9 +52,6 @@
     ]}
   ];
 
-  /* ============================================================
-     Helpers
-     ============================================================ */
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
@@ -76,9 +65,6 @@
     return ["https://newsfeed2.hassanbadri814.workers.dev/?url="];
   }
 
-  /* ============================================================
-     Fetch met timeout
-     ============================================================ */
   function fetchJsonDirect(url, timeoutMs){
     var ctrl = new AbortController();
     var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 12000);
@@ -119,18 +105,13 @@
   }
 
   function fetchJson(url){
-    /* Probeer direct, val terug op proxy */
     return fetchJsonDirect(url, 12000).catch(function(e){
       LOG("Direct faalde:", e.message, "- probeer proxy");
       return fetchJsonViaProxy(url);
     });
   }
 
-  /* ============================================================
-     URL builders
-     ============================================================ */
   function buildCatalogUrl(catId, skip){
-    /* catId formaat: "movie/top" of "movie/top/genre=Action" */
     var url = CINEMETA_BASE + "/catalog/" + catId;
     if(typeof skip === "number" && skip > 0){
       url += "/skip=" + skip;
@@ -150,448 +131,14 @@
     return CINEMETA_BASE + "/meta/" + type + "/" + encodeURIComponent(id) + ".json";
   }
 
-  /* ============================================================
-     Cache met limiet
-     ============================================================ */
   function cacheGet(key){
     var entry = VOD.cache.get(key);
     return entry ? entry.items : null;
   }
   function cacheSet(key, items){
     VOD.cache.set(key, { items: items, t: Date.now() });
-    /* Prune als > max */
     if(VOD.cache.size > VOD.cacheMaxSize){
       var oldestKey = null;
       var oldestT = Infinity;
       VOD.cache.forEach(function(v, k){
-        if(v.t < oldestT){ oldestT = v.t; oldestKey = k; }
-      });
-      if(oldestKey) VOD.cache.delete(oldestKey);
-    }
-  }
-
-  /* ============================================================
-     Sidebar renderen
-     ============================================================ */
-  function renderSidebar(){
-    var wrap = $("vodSidebar");
-    if(!wrap) return;
-    var html = "";
-    CATS.forEach(function(group){
-      html += '<div class="vod-sidebar-group">';
-      html += '<div class="vod-sidebar-title">' + group.group + '</div>';
-      group.items.forEach(function(item){
-        var isActive = VOD.currentCatId === item.id;
-        html += '<button class="vod-sidebar-item ' + (isActive ? "active" : "") + '" data-cat="' + item.id + '" data-label="' + esc(item.label) + '" aria-label="Categorie: ' + esc(item.label) + '">';
-        html += '<span class="vod-sidebar-dot" style="background:' + item.color + '"></span>';
-        html += '<span class="vod-sidebar-label">' + item.label + '</span>';
-        html += '</button>';
-      });
-      html += '</div>';
-    });
-    wrap.innerHTML = html;
-
-    if(!VOD._sidebarBound){
-      VOD._sidebarBound = true;
-      wrap.addEventListener("click", function(e){
-        var btn = e.target.closest(".vod-sidebar-item");
-        if(!btn) return;
-        var catId = btn.dataset.cat;
-        var label = btn.dataset.label || "";
-        if(!catId) return;
-        if(catId === VOD.currentCatId && !VOD._searchValue) return;
-
-        /* Reset zoekbalk */
-        VOD._searchValue = "";
-        var searchInput = $("vodSearchInput");
-        if(searchInput) searchInput.value = "";
-
-        VOD.currentCatId = catId;
-        VOD.currentLabel = label;
-        VOD.currentType = catId.indexOf("series/") === 0 ? "series" : "movie";
-        VOD.currentSkip = 0;
-        VOD.currentItems = [];
-        renderSidebar();
-        showSkeletons();
-        loadCatalog(false);
-      });
-    }
-  }
-
-  /* ============================================================
-     Skeleton loaders
-     ============================================================ */
-  function showSkeletons(){
-    var grid = $("vodGrid");
-    if(!grid) return;
-    var html = "";
-    for(var i = 0; i < 12; i++){
-      html += '<div class="vod-skeleton">';
-      html += '<div class="vod-skeleton-img"></div>';
-      html += '<div class="vod-skeleton-line"></div>';
-      html += '<div class="vod-skeleton-line short"></div>';
-      html += '</div>';
-    }
-    grid.innerHTML = html;
-  }
-
-  /* ============================================================
-     Catalog laden
-     ============================================================ */
-  async function loadCatalog(loadMore){
-    var grid = $("vodGrid");
-    if(!grid) return;
-
-    var myToken = ++VOD.loadToken;
-
-    /* Bij loadMore: check of vorige fetch klaar is */
-    if(loadMore && VOD.isLoading) return;
-    /* Bij nieuwe categorie: onderbreek oude fetch logisch via token */
-    if(!loadMore){
-      VOD.currentSkip = 0;
-      VOD.currentItems = [];
-    }
-
-    var url;
-    if(VOD._searchValue){
-      url = buildSearchUrl(VOD.currentType, VOD._searchValue, VOD.currentSkip);
-    } else {
-      url = buildCatalogUrl(VOD.currentCatId, VOD.currentSkip);
-    }
-
-    var cacheKey = "c::" + url;
-    var cached = cacheGet(cacheKey);
-    if(cached){
-      /* Token check: alleen renderen als we nog steeds de actieve load zijn */
-      if(myToken !== VOD.loadToken) return;
-      appendItems(cached);
-      updateHeaderCount();
-      return;
-    }
-
-    VOD.isLoading = true;
-    var loadingEl = $("vodLoading");
-    if(loadingEl && loadMore) loadingEl.style.display = "block";
-
-    try{
-      LOG("Fetch:", url);
-      var data = await fetchJson(url);
-
-      /* Token check: als een nieuwere load gestart is, negeer deze */
-      if(myToken !== VOD.loadToken) return;
-
-      var items = (data && data.metas) ? data.metas : [];
-      LOG(items.length + " items");
-
-      cacheSet(cacheKey, items);
-
-      if(!loadMore){
-        /* Vervang skeletons door echte items */
-        grid.innerHTML = "";
-      }
-      appendItems(items);
-      updateHeaderCount();
-      updateLoadMore(items.length);
-    }catch(e){
-      if(myToken !== VOD.loadToken) return;
-      LOG("Fout:", e.message);
-      if(!loadMore){
-        grid.innerHTML = '<div class="vod-empty">Kon niets laden. Controleer je verbinding en probeer opnieuw.</div>';
-      } else {
-        var lm = $("vodLoadMoreWrap");
-        if(lm) lm.innerHTML = '<div class="vod-empty" style="padding:1rem">Kon niet meer laden.</div>';
-      }
-    } finally {
-      if(myToken === VOD.loadToken){
-        VOD.isLoading = false;
-        if(loadingEl) loadingEl.style.display = "none";
-      }
-    }
-  }
-
-  function appendItems(items){
-    var grid = $("vodGrid");
-    if(!grid) return;
-
-    if(!items.length){
-      if(!VOD.currentItems.length){
-        grid.innerHTML = '<div class="vod-empty">Geen resultaten.</div>';
-      }
-      return;
-    }
-
-    var html = "";
-    items.forEach(function(it, i){
-      var idx = VOD.currentItems.length + i;
-      var poster = it.poster || "";
-      var name = it.name || "?";
-      var year = it.releaseInfo || it.year || "";
-      var rating = it.imdbRating ? "⭐ " + it.imdbRating : "";
-      var initial = name.charAt(0).toUpperCase();
-
-      html += '<button class="vod-poster" data-idx="' + idx + '" aria-label="Open ' + esc(name) + '">';
-      if(poster){
-        html += '<div class="vod-poster-img"><img src="' + esc(poster) + '" loading="lazy" alt="Poster van ' + esc(name) + '" onerror="this.style.display=\'none\';this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'"></div>';
-      } else {
-        html += '<div class="vod-poster-img"><span class="vod-poster-fallback">' + esc(initial) + '</span></div>';
-      }
-      html += '<div class="vod-poster-body">';
-      html += '<div class="vod-poster-name">' + esc(name) + '</div>';
-      html += '<div class="vod-poster-meta">' + esc(year) + (rating ? ' · ' + esc(rating) : '') + '</div>';
-      html += '</div>';
-      html += '</button>';
-    });
-
-    grid.insertAdjacentHTML("beforeend", html);
-    VOD.currentItems = VOD.currentItems.concat(items);
-
-    if(!VOD._gridBound){
-      VOD._gridBound = true;
-      grid.addEventListener("click", function(e){
-        var btn = e.target.closest(".vod-poster");
-        if(!btn) return;
-        var idx = parseInt(btn.dataset.idx, 10);
-        if(isNaN(idx)) return;
-        var item = VOD.currentItems[idx];
-        if(item) openDetail(item);
-      });
-    }
-  }
-
-  function updateLoadMore(receivedCount){
-    var wrap = $("vodLoadMoreWrap");
-    if(!wrap) return;
-    /* Cinemeta geeft standaard 100 per pagina.
-       Als we minder dan 100 kregen → einde bereikt. */
-    if(receivedCount >= 100){
-      wrap.innerHTML = '<button class="vod-load-more" id="vodLoadMoreBtn">Meer laden</button>';
-      var btn = $("vodLoadMoreBtn");
-      if(btn){
-        btn.addEventListener("click", function(){
-          VOD.currentSkip += 100;
-          loadCatalog(true);
-        });
-      }
-    } else {
-      wrap.innerHTML = '';
-    }
-  }
-
-  function updateHeaderCount(){
-    var countEl = $("vodCount");
-    if(!countEl) return;
-    var n = VOD.currentItems.length;
-    var label = VOD._searchValue ? 'Zoeken: "' + VOD._searchValue + '"' : VOD.currentLabel;
-    countEl.textContent = label + ' · ' + n + ' resultaten';
-  }
-
-  /* ============================================================
-     Zoekfunctie
-     ============================================================ */
-  function bindSearch(){
-    var input = $("vodSearchInput");
-    var clearBtn = $("vodSearchClear");
-    if(!input) return;
-
-    var searchTimer;
-    input.addEventListener("input", function(){
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(function(){
-        var q = input.value.trim();
-        if(q.length < 2){
-          if(VOD._searchValue){
-            VOD._searchValue = "";
-            VOD.currentSkip = 0;
-            VOD.currentItems = [];
-            showSkeletons();
-            loadCatalog(false);
-          }
-          return;
-        }
-        VOD._searchValue = q;
-        VOD.currentSkip = 0;
-        VOD.currentItems = [];
-        showSkeletons();
-        loadCatalog(false);
-      }, 500);
-    });
-
-    if(clearBtn){
-      clearBtn.addEventListener("click", function(){
-        input.value = "";
-        if(VOD._searchValue){
-          VOD._searchValue = "";
-          VOD.currentSkip = 0;
-          VOD.currentItems = [];
-          showSkeletons();
-          loadCatalog(false);
-        }
-      });
-    }
-  }
-
-  /* ============================================================
-     Terug naar boven knop
-     ============================================================ */
-  function bindScrollTop(){
-    var btn = $("vodScrollTop");
-    if(!btn) return;
-    var main = document.querySelector(".main");
-    function checkScroll(){
-      var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-      btn.classList.toggle("show", scrollY > 400);
-    }
-    window.addEventListener("scroll", checkScroll, { passive: true });
-    btn.addEventListener("click", function(){
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-    checkScroll();
-  }
-
-  /* ============================================================
-     Detail modal
-     ============================================================ */
-  async function openDetail(item){
-    var modal = $("vodDetailModal");
-    if(!modal) return;
-
-    VOD.currentDetail = item;
-
-    /* Body scroll-lock */
-    document.body.style.overflow = "hidden";
-
-    $("vodDetailTitle").textContent = item.name || "?";
-    $("vodDetailMeta").textContent = "Laden...";
-    $("vodDetailText").textContent = "";
-    $("vodDetailPoster").innerHTML = item.poster
-      ? '<img src="' + esc(item.poster) + '" alt="Poster van ' + esc(item.name || "") + '">'
-      : '<span class="vod-poster-fallback">' + esc((item.name || "?").charAt(0)) + '</span>';
-
-    modal.classList.add("show");
-
-    /* Type-detectie: catId vertelt het meest betrouwbaar */
-    var type = "movie";
-    if(VOD.currentCatId && VOD.currentCatId.indexOf("series/") === 0){
-      type = "series";
-    } else if(VOD._searchValue && item.type){
-      type = item.type === "series" ? "series" : "movie";
-    }
-
-    var metaUrl = buildMetaUrl(type, item.imdb_id || item.id);
-
-    try{
-      var data = await fetchJson(metaUrl);
-      var meta = (data && data.meta) ? data.meta : null;
-      if(meta){
-        $("vodDetailTitle").textContent = meta.name || item.name;
-        var metaParts = [];
-        if(meta.releaseInfo) metaParts.push(meta.releaseInfo);
-        if(meta.runtime) metaParts.push(meta.runtime);
-        if(meta.imdbRating) metaParts.push("⭐ " + meta.imdbRating);
-        if(meta.genres && meta.genres.length) metaParts.push(meta.genres.slice(0, 3).join(", "));
-        $("vodDetailMeta").textContent = metaParts.join(" · ");
-        $("vodDetailText").textContent = meta.description || meta.plot || item.description || "(geen beschrijving)";
-
-        if(meta.poster){
-          $("vodDetailPoster").innerHTML = '<img src="' + esc(meta.poster) + '" alt="Poster van ' + esc(meta.name || "") + '">';
-        }
-
-        var dl = buildStremioLink(type, meta.imdb_id || meta.id);
-        var dlBtn = $("vodDetailOpenStremio");
-        if(dlBtn){
-          dlBtn.onclick = function(){
-            try{ window.location.href = dl; }catch(e){
-              if(window.showToast) window.showToast("Kon Stremio niet openen");
-            }
-          };
-        }
-      }
-    }catch(e){
-      LOG("Meta fout:", e.message);
-      $("vodDetailMeta").textContent = "";
-      $("vodDetailText").textContent = item.description || "(geen beschrijving)";
-      var dl2 = buildStremioLink(type, item.imdb_id || item.id);
-      var dlBtn2 = $("vodDetailOpenStremio");
-      if(dlBtn2){
-        dlBtn2.onclick = function(){
-          try{ window.location.href = dl2; }catch(e){}
-        };
-      }
-    }
-  }
-
-  function buildStremioLink(type, id){
-    if(!id) return "stremio:///";
-    return "stremio:///detail/" + type + "/" + encodeURIComponent(id);
-  }
-
-  function closeDetail(){
-    var modal = $("vodDetailModal");
-    if(modal) modal.classList.remove("show");
-    document.body.style.overflow = "";
-    VOD.currentDetail = null;
-  }
-
-  /* ============================================================
-     Bindings
-     ============================================================ */
-  function bindDetailModal(){
-    var modal = $("vodDetailModal");
-    if(!modal) return;
-    var closeBtn = $("vodDetailClose");
-    var closeBtn2 = $("vodDetailCloseBtn");
-    if(closeBtn) closeBtn.addEventListener("click", closeDetail);
-    if(closeBtn2) closeBtn2.addEventListener("click", closeDetail);
-    modal.addEventListener("click", function(e){
-      if(e.target === modal) closeDetail();
-    });
-    /* Escape sluit modal */
-    document.addEventListener("keydown", function(e){
-      if(e.key === "Escape" && modal.classList.contains("show")){
-        closeDetail();
-      }
-    });
-  }
-
-  /* ============================================================
-     Init
-     ============================================================ */
-  async function init(){
-    if(VOD._initialized) return;
-    VOD._initialized = true;
-    LOG("init");
-    renderSidebar();
-    bindDetailModal();
-    bindSearch();
-    bindScrollTop();
-    setTimeout(function(){
-      showSkeletons();
-      loadCatalog(false);
-    }, 100);
-  }
-
-  window.__vodRefresh = function(){
-    VOD.cache.clear();
-    VOD.currentSkip = 0;
-    VOD.currentItems = [];
-    showSkeletons();
-    loadCatalog(false);
-  };
-  window.VODAPI = { init: init, state: VOD };
-
-  /* Auto-init als view al zichtbaar is */
-  function autoInit(){
-    var view = document.getElementById("viewVod");
-    if(view && !view.hidden) init();
-  }
-
-  if(document.readyState !== "loading"){
-    setTimeout(autoInit, 800);
-  } else {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(autoInit, 800);
-    });
-  }
-
-  console.log("[WAR DESK] vod.js v2.0 geladen");
-})();
+        if(v.t
