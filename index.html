@@ -1824,10 +1824,10 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="config.js?v=12"></script>
 
 <!-- 2. REACTIVE STORE (de nieuwe "motor" van de app) -->
-<script type="module" src="store.js"></script>
+<script src="store.js"></script>
 
 <!-- 3. NIEUWS LOGICA (gemoderniseerd met store integratie) -->
-<script type="module" src="news-v27.js"></script>
+<script src="news-v27.js"></script>
 
 <!-- 4. OVERIGE SCRIPTS (blijven ongewijzigd, werken via de "Brug") -->
 <script src="app-v12.js"></script>
@@ -1837,24 +1837,18 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="map-v10.js"></script>
 <script src="vod-v23.js"></script>
 
-<!-- 5. APP INITIALISATIE (start de app na het laden van alle modules) -->
-<script type="module">
-  // Wacht tot alle modules geladen zijn
-  document.addEventListener("DOMContentLoaded", async () => {
-    // Geef de modules even tijd om te initialiseren
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Start de nieuws-module
+<!-- 5. APP INITIALISATIE -->
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
     if (window.NewsAPI && typeof window.NewsAPI.init === "function") {
-      try {
-        await window.NewsAPI.init();
+      window.NewsAPI.init().then(function(){
         console.log("[WAR DESK] ✅ App succesvol gestart");
-      } catch (err) {
+      }).catch(function(err){
         console.error("[WAR DESK] ❌ Fout bij starten:", err);
         if (window.showToast) {
           window.showToast("Kon app niet starten. Controleer console.");
         }
-      }
+      });
     }
   });
 </script>
