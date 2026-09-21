@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v11.0</title>
+<title>WAR DESK v12.0</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -45,7 +45,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 <style>
 /* ============================================================
    FONT-SIZE
@@ -1219,7 +1219,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
       </div>
-      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v11.0</span></span></div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v12.0</span></span></div>
     </div>
     <div class="header-stats">
       <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
@@ -1522,7 +1522,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v11.0</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v12.0</span><br>
         Live nieuws + IPTV + Kaart + VOD
       </div>
     </div>
@@ -1816,8 +1816,20 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
-<script src="config.js?v=11"></script>
-<script src="news-v26.js"></script>
+<!-- ============================================
+     WAR DESK v12.0 — Script Loading (Modernized)
+     ============================================ -->
+
+<!-- 1. CONFIGURATIE (moet als eerste, bevat feeds en settings) -->
+<script src="config.js?v=12"></script>
+
+<!-- 2. REACTIVE STORE (de nieuwe "motor" van de app) -->
+<script type="module" src="store.js"></script>
+
+<!-- 3. NIEUWS LOGICA (gemoderniseerd met store integratie) -->
+<script type="module" src="news-v27.js"></script>
+
+<!-- 4. OVERIGE SCRIPTS (blijven ongewijzigd, werken via de "Brug") -->
 <script src="app-v12.js"></script>
 <script src="persist-v4.js"></script>
 <script src="refresh-v12.js"></script>
@@ -1825,6 +1837,29 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 <script src="map-v10.js"></script>
 <script src="vod-v23.js"></script>
 
+<!-- 5. APP INITIALISATIE (start de app na het laden van alle modules) -->
+<script type="module">
+  // Wacht tot alle modules geladen zijn
+  document.addEventListener("DOMContentLoaded", async () => {
+    // Geef de modules even tijd om te initialiseren
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Start de nieuws-module
+    if (window.NewsAPI && typeof window.NewsAPI.init === "function") {
+      try {
+        await window.NewsAPI.init();
+        console.log("[WAR DESK] ✅ App succesvol gestart");
+      } catch (err) {
+        console.error("[WAR DESK] ❌ Fout bij starten:", err);
+        if (window.showToast) {
+          window.showToast("Kon app niet starten. Controleer console.");
+        }
+      }
+    }
+  });
+</script>
+
+<!-- 6. TOAST & DEBUG (bestaande functionaliteit, blijft ongewijzigd) -->
 <script>
 (function(){
   setInterval(function(){
@@ -1841,7 +1876,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
     if(t){t.classList.remove("show");t._shownAt=0}
   });
 })();
-console.log("%c WAR DESK %c v11.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
+console.log("%c WAR DESK %c v12.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
 </body>
 </html>
