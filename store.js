@@ -5,7 +5,7 @@
    ============================================================ */
 
 const createStore = (initialState) => {
-  const listeners = new Map(); // key -> Set van functies
+  const listeners = new Map(); 
   
   const state = new Proxy(initialState, {
     set(target, key, value) {
@@ -13,16 +13,15 @@ const createStore = (initialState) => {
       
       target[key] = value;
       
-      // Trigger listeners voor deze specifieke key, én algemene 'change'
+      // Trigger listeners voor deze specifieke key
       if (listeners.has(key)) {
         listeners.get(key).forEach(fn => fn(value));
       }
+      // Trigger algemene 'change' listener
       if (listeners.has('*')) {
         listeners.get('*').forEach(fn => fn(key, value));
       }
       
-      // Update legacy window.State voor oude scripts
-      window.State = state; 
       return true;
     }
   });
@@ -33,15 +32,11 @@ const createStore = (initialState) => {
       if (!listeners.has(key)) listeners.set(key, new Set());
       listeners.get(key).add(fn);
       return () => listeners.get(key).delete(fn); // Cleanup functie
-    },
-    batch: (updates) => {
-      // Voorkomt meerdere renders bij meerdere updates tegelijk
-      Object.assign(state, updates);
     }
   };
 };
 
-// Initialiseer de store met de standaard waarden
+// Initialiseer de store met exact dezelfde structuur als het oude window.State
 export const appStore = createStore({
   items: [],
   currentCat: "all",
@@ -57,14 +52,18 @@ export const appStore = createStore({
   notificationsEnabled: false,
   lastActivity: Date.now(),
   isScrolling: false,
+  scrollTimer: null,
+  refreshTimer: null,
   viewMode: "cards",
   breakingShownAt: 0,
   lastBreakingItem: null,
   loadSession: 0,
+  db: null,
+  _lastRenderHash: "",
   translateEnabled: false,
   translations: {},
   translationPending: {}
 });
 
-// Exposeer voor legacy scripts (De Brug)
+// DE BRUG: Exposeer voor legacy scripts zodat persist-v4.js etc. niet breken
 window.State = appStore.state;
