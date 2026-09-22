@@ -1872,5 +1872,16 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 })();
 console.log("%c WAR DESK %c v12.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
-</body>
+<!-- MOBILE DEBUG CONSOLE -->
+<script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
+<script>
+  var vConsole = new window.VConsole({
+    defaultPlugins: ['system', 'network', 'element', 'storage'],
+    maxLogNumber: 1000,
+    onReady: function() {
+      console.log('[WAR DESK] vConsole geladen - debug actief');
+    }
+  });
+  window.vConsole = vConsole;
+</script></body>
 </html>
