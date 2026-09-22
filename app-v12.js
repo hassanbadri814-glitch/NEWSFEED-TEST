@@ -1,215 +1,206 @@
 /* ============================================================
-   WAR DESK v20.5 — App orchestration
-   - v12: Klok pauzeert op achtergrond (batterij-besparing)
+   WAR DESK v12.0 — App Orchestration (Met Touch Gestures)
+   - Swipe navigation tussen tabs
+   - Klok pauzeert op achtergrond
    - VOD-view + Escape fix
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var $ = function(id){ return document.getElementById(id); };
-  var APP_VERSION = window.APP_VERSION || "v11.0";
+  const $ = (id) => document.getElementById(id);
+  const APP_VERSION = window.APP_VERSION || "v12.0";
 
-  function ready(fn){
+  const ready = (fn) => {
     if(document.readyState !== "loading") fn();
     else document.addEventListener("DOMContentLoaded", fn);
-  }
+  };
 
-  ready(function(){
-
+  ready(() => {
     if(document.documentElement.classList.contains("light")){
       document.body.classList.add("light");
     }
 
-    /* ============================================================
-       KLOK — v12: pauzeert op achtergrond
-       ============================================================ */
-    var clockTimer = null;
+    let clockTimer = null;
 
-    function tick(){
-      var el = $("clock");
+    const tick = () => {
+      const el = $("clock");
       if(el) el.textContent = new Date().toLocaleTimeString("nl-NL", {
         hour: "2-digit", minute: "2-digit", second: "2-digit"
       });
-    }
+    };
 
-    function startClock(){
+    const startClock = () => {
       if(clockTimer) return;
       tick();
       clockTimer = setInterval(tick, 1000);
-    }
+    };
 
-    function stopClock(){
+    const stopClock = () => {
       if(clockTimer){
         clearInterval(clockTimer);
         clockTimer = null;
       }
-    }
+    };
 
-    document.addEventListener("visibilitychange", function(){
+    document.addEventListener("visibilitychange", () => {
       if(document.hidden) stopClock();
       else startClock();
     });
 
     startClock();
 
-    var themeBtn = $("btnTheme");
+    const themeBtn = $("btnTheme");
     if(themeBtn){
-      themeBtn.addEventListener("click", function(){
-        var isLight = document.documentElement.classList.toggle("light");
+      themeBtn.addEventListener("click", () => {
+        const isLight = document.documentElement.classList.toggle("light");
         document.body.classList.toggle("light", isLight);
         try{ localStorage.setItem("wardesk_theme", isLight ? "light" : "dark"); }catch(e){}
       });
     }
 
-    var views = {
+    const views = {
       news: $("viewNews"),
       map: $("viewMap"),
       iptv: $("viewIptv"),
       vod: $("viewVod")
     };
 
-    function showView(name){
-      Object.keys(views).forEach(function(k){
+    const showView = (name) => {
+      Object.keys(views).forEach(k => {
         if(views[k]) views[k].hidden = (k !== name);
       });
-      Array.prototype.forEach.call(document.querySelectorAll(".bottom-tabs .tab"), function(t){
+      Array.from(document.querySelectorAll(".bottom-tabs .tab")).forEach(t => {
         t.classList.toggle("active", t.dataset.view === name);
       });
       window.scrollTo({ top: 0, behavior: "smooth" });
-    }
+    };
 
-    Array.prototype.forEach.call(document.querySelectorAll(".bottom-tabs .tab"), function(tab){
-      tab.addEventListener("click", function(){
-        var view = tab.dataset.view;
+    Array.from(document.querySelectorAll(".bottom-tabs .tab")).forEach(tab => {
+      tab.addEventListener("click", () => {
+        const view = tab.dataset.view;
         showView(view);
         if(view === "vod" && window.VODAPI && typeof VODAPI.init === "function"){
-          setTimeout(function(){
-            try{ VODAPI.init(); }catch(e){}
-          }, 100);
+          setTimeout(() => { try{ VODAPI.init(); }catch(e){} }, 100);
         }
       });
     });
 
-    /* ?tab= shortcut lezer */
+    // URL parameter support
     try{
-      var params = new URLSearchParams(location.search);
-      var requestedTab = params.get("tab");
-      if(requestedTab && ["news","map","iptv","vod"].indexOf(requestedTab) >= 0){
-        setTimeout(function(){
-          var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + requestedTab + '"]');
+      const params = new URLSearchParams(location.search);
+      const requestedTab = params.get("tab");
+      if(requestedTab && ["news","map","iptv","vod"].includes(requestedTab)){
+        setTimeout(() => {
+          const tabBtn = document.querySelector(`.bottom-tabs .tab[data-view="${requestedTab}"]`);
           if(tabBtn) tabBtn.click();
           try{
-            var clean = location.pathname + (location.hash || "");
+            const clean = location.pathname + (location.hash || "");
             history.replaceState(null, "", clean);
           }catch(e){}
         }, 500);
       }
     }catch(e){}
 
-    var sheet = $("sheet");
-    var overlay = $("sheetOverlay");
+    const sheet = $("sheet");
+    const overlay = $("sheetOverlay");
 
-    function openSheet(){
+    const openSheet = () => {
       if(!sheet || !overlay) return;
       sheet.classList.add("open");
       overlay.classList.add("open");
       document.body.style.overflow = "hidden";
-    }
-    function closeSheet(){
+    };
+    const closeSheet = () => {
       if(!sheet || !overlay) return;
       sheet.classList.remove("open");
       overlay.classList.remove("open");
       document.body.style.overflow = "";
-    }
+    };
 
-    var btnMenu = $("btnMenu");
+    const btnMenu = $("btnMenu");
     if(btnMenu) btnMenu.addEventListener("click", openSheet);
-    var sheetClose = $("sheetClose");
+    const sheetClose = $("sheetClose");
     if(sheetClose) sheetClose.addEventListener("click", closeSheet);
     if(overlay) overlay.addEventListener("click", closeSheet);
 
-    Array.prototype.forEach.call(document.querySelectorAll(".sheet-item[data-cat]"), function(btn){
-      btn.addEventListener("click", function(e){
+    Array.from(document.querySelectorAll(".sheet-item[data-cat]")).forEach(btn => {
+      btn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
         closeSheet();
-        Array.prototype.forEach.call(document.querySelectorAll(".sheet-item[data-cat]"), function(b){
-          b.classList.remove("active");
-        });
+        Array.from(document.querySelectorAll(".sheet-item[data-cat]")).forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
-        try{
-          if(window.NewsAPI) NewsAPI.setCat(btn.dataset.cat);
-        }catch(err){ console.error("[WAR DESK] setCat fout:", err); }
+        try{ if(window.NewsAPI) NewsAPI.setCat(btn.dataset.cat); }catch(err){ console.error("[WAR DESK] setCat fout:", err); }
       });
     });
 
-    function bindSort(id, sortValue){
-      var btn = $(id);
+    const bindSort = (id, sortValue) => {
+      const btn = $(id);
       if(!btn) return;
-      btn.addEventListener("click", function(e){
+      btn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
         closeSheet();
-        var imp = $("sortImportance"); if(imp) imp.classList.remove("active");
-        var nn = $("sortNewest"); if(nn) nn.classList.remove("active");
+        const imp = $("sortImportance"); if(imp) imp.classList.remove("active");
+        const nn = $("sortNewest"); if(nn) nn.classList.remove("active");
         btn.classList.add("active");
         try{ if(window.NewsAPI) NewsAPI.setSort(sortValue); }catch(err){}
       });
-    }
+    };
     bindSort("sortImportance", "importance");
     bindSort("sortNewest", "newest");
 
-    function bindView(id, viewValue){
-      var btn = $(id);
+    const bindView = (id, viewValue) => {
+      const btn = $(id);
       if(!btn) return;
-      btn.addEventListener("click", function(e){
+      btn.addEventListener("click", e => {
         e.preventDefault();
         e.stopPropagation();
         closeSheet();
-        var c = $("viewCards"); if(c) c.classList.remove("active");
-        var l = $("viewList"); if(l) l.classList.remove("active");
+        const c = $("viewCards"); if(c) c.classList.remove("active");
+        const l = $("viewList"); if(l) l.classList.remove("active");
         btn.classList.add("active");
         try{ if(window.NewsAPI) NewsAPI.setView(viewValue); }catch(err){}
       });
-    }
+    };
     bindView("viewCards", "cards");
     bindView("viewList", "list");
 
-    var searchInput = $("searchInput");
+    const searchInput = $("searchInput");
     if(searchInput){
-      var searchTimer;
-      searchInput.addEventListener("input", function(){
+      let searchTimer;
+      searchInput.addEventListener("input", () => {
         clearTimeout(searchTimer);
-        searchTimer = setTimeout(function(){
+        searchTimer = setTimeout(() => {
           try{ if(window.NewsAPI) NewsAPI.setSearch(searchInput.value); }catch(err){}
         }, 250);
       });
     }
 
-    /* Swipe-sluiten met scroll-detectie */
-    var startY = 0, currentY = 0, dragging = false, canSwipeClose = false;
+    // Sheet swipe-to-close
+    let startY = 0, currentY = 0, dragging = false, canSwipeClose = false;
     if(sheet){
-      sheet.addEventListener("touchstart", function(e){
+      sheet.addEventListener("touchstart", e => {
         if(e.touches.length !== 1) return;
         startY = e.touches[0].clientY;
         dragging = true;
         canSwipeClose = (sheet.scrollTop <= 0);
       }, {passive: true});
-      sheet.addEventListener("touchmove", function(e){
+      sheet.addEventListener("touchmove", e => {
         if(!dragging || e.touches.length !== 1) return;
         currentY = e.touches[0].clientY;
-        var delta = currentY - startY;
+        const delta = currentY - startY;
         if(delta > 0 && canSwipeClose){
           if(e.cancelable) e.preventDefault();
-          sheet.style.transform = "translateY(" + delta + "px)";
+          sheet.style.transform = `translateY(${delta}px)`;
         } else {
           if(delta < 0) canSwipeClose = false;
           dragging = false;
           sheet.style.transform = "";
         }
       }, {passive: false});
-      sheet.addEventListener("touchend", function(){
+      sheet.addEventListener("touchend", () => {
         if(!dragging) return;
         dragging = false;
         if(canSwipeClose && currentY - startY > 100) closeSheet();
@@ -217,7 +208,7 @@
         startY = currentY = 0;
         canSwipeClose = false;
       });
-      sheet.addEventListener("touchcancel", function(){
+      sheet.addEventListener("touchcancel", () => {
         dragging = false;
         canSwipeClose = false;
         sheet.style.transform = "";
@@ -225,52 +216,88 @@
       });
     }
 
-    /* Escape — VOD modal heeft prioriteit, dan map detail, dan pas sheet */
-    document.addEventListener("keydown", function(e){
+    document.addEventListener("keydown", e => {
       if(e.key !== "Escape") return;
-      var vodModal = $("vodDetailModal");
+      const vodModal = $("vodDetailModal");
       if(vodModal && vodModal.classList.contains("show")) return;
-      var modal = $("wdDetailModal");
+      const modal = $("wdDetailModal");
       if(modal && modal.classList.contains("show")) return;
       if(document.querySelector(".map-wrap.fullscreen")) return;
       closeSheet();
     });
 
-    var bb = $("breakingClose");
+    const bb = $("breakingClose");
     if(bb){
-      bb.addEventListener("click", function(e){
+      bb.addEventListener("click", e => {
         e.stopPropagation();
-        var banner = $("breakingBanner");
+        const banner = $("breakingBanner");
         if(banner) banner.classList.remove("show");
       });
     }
-    var banner = $("breakingBanner");
+    const banner = $("breakingBanner");
     if(banner){
-      banner.addEventListener("click", function(e){
+      banner.addEventListener("click", e => {
         if(e.target.closest(".breaking-close")) return;
-        var item = window.State && window.State.lastBreakingItem;
-        if(item && item.link){
+        const item = window.State?.lastBreakingItem;
+        if(item?.link){
           window.open(item.link, "_blank", "noopener");
           banner.classList.remove("show");
         }
       });
     }
 
-    var toastTimer;
-    window.showToast = function(msg){
-      var t = $("toast");
+    let toastTimer;
+    window.showToast = (msg) => {
+      const t = $("toast");
       if(!t) return;
       t.textContent = msg;
       t.classList.add("show");
       clearTimeout(toastTimer);
-      toastTimer = setTimeout(function(){ t.classList.remove("show"); }, 2200);
+      toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
+    // TOUCH GESTURES: Swipe navigation
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    document.addEventListener('touchstart', e => {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', e => {
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      
+      const deltaX = touchEndX - touchStartX;
+      const deltaY = touchEndY - touchStartY;
+      
+      // Horizontal swipe (min 100px, max 50px vertical)
+      if(Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50){
+        const tabs = ['news', 'map', 'iptv', 'vod'];
+        const currentTab = document.querySelector('.tab.active')?.dataset.view || 'news';
+        const currentIndex = tabs.indexOf(currentTab);
+        
+        let newIndex;
+        if(deltaX > 0 && currentIndex > 0){
+          newIndex = currentIndex - 1; // Swipe right
+        } else if(deltaX < 0 && currentIndex < tabs.length - 1){
+          newIndex = currentIndex + 1; // Swipe left
+        }
+        
+        if(newIndex !== undefined){
+          const tabBtn = document.querySelector(`.tab[data-view="${tabs[newIndex]}"]`);
+          if(tabBtn) tabBtn.click();
+        }
+      }
+    }, { passive: true });
+
     if(window.NewsAPI && typeof NewsAPI.init === "function"){
-      Promise.resolve(NewsAPI.init()).then(function(){
+      Promise.resolve(NewsAPI.init()).then(() => {
         if(window.State) console.log("[WAR DESK] Nieuws geladen:", State.items.length, "artikelen");
-      }).catch(function(err){
+      }).catch(err => {
         console.error("[WAR DESK] Nieuws init fout:", err);
+        if(window.showToast) window.showToast("Kon nieuws niet laden.");
       });
     }
 
