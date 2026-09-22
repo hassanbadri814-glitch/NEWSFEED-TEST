@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v13.4</title>
+<title>WAR DESK v13.7</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -61,7 +61,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
-<link rel="stylesheet" href="styles.css?v=13.4">
+<link rel="stylesheet" href="styles.css?v=13.7">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -139,7 +139,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v13.4</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v13.7</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -184,7 +184,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="live-feed">
         <div class="live-head">
-          <div class="live-title"><span class="live-dot"></span>LIVE EVENTS</div>
+          <div class="live-title"><span class="live-dot"></span>MIDDEN-OOSTEN EVENTS</div>
           <div class="live-count" id="liveCount">0</div>
         </div>
         <div class="live-filters" id="liveFilters">
@@ -386,7 +386,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       <div class="sheet-title">Kaart</div>
       <div class="action-row">
         <button class="sheet-item" onclick="document.getElementById('sheet').classList.remove('open');document.getElementById('sheetOverlay').classList.remove('open');document.body.style.overflow='';var t=document.querySelector('.tab[data-view=\'map\']');if(t)t.click();setTimeout(function(){if(window.__mapRefresh)window.__mapRefresh()},400)">Herlaad events</button>
-        <button class="sheet-item" onclick="document.getElementById('sheet').classList.remove('open');document.getElementById('sheetOverlay').classList.remove('open');document.body.style.overflow='';var t=document.querySelector('.tab[data-view=\'map\']');if(t)t.click();setTimeout(function(){if(window.__mapResetView)window.__mapResetView()},400)">Wereldbeeld</button>
+        <button class="sheet-item" onclick="document.getElementById('sheet').classList.remove('open');document.getElementById('sheetOverlay').classList.remove('open');document.body.style.overflow='';var t=document.querySelector('.tab[data-view=\'map\']');if(t)t.click();setTimeout(function(){if(window.__mapResetView)window.__mapResetView()},400)">Midden-Oosten</button>
       </div>
     </div>
 
@@ -408,8 +408,8 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v13.4</span><br>
-        Live nieuws + IPTV + Kaart + VOD
+        WAR DESK <span class="version" id="appVersionMenu">v13.7</span><br>
+        Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD
       </div>
     </div>
 
@@ -683,15 +683,15 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
-<script src="config.js?v=13.4" defer></script>
-<script src="store.js?v=13.4" defer></script>
-<script src="news-v27.js?v=13.4" defer></script>
-<script src="app-v12.js?v=13.4" defer></script>
-<script src="persist-v4.js?v=13.4" defer></script>
-<script src="refresh-v12.js?v=13.4" defer></script>
-<script src="iptv-v8.js?v=13.4" defer></script>
-<script src="map-v11.6.js?v=13.4" defer></script>
-<script src="vod-v24.js?v=13.4" defer></script>
+<script src="config.js?v=13.7" defer></script>
+<script src="store.js?v=13.7" defer></script>
+<script src="news-v27.js?v=13.7" defer></script>
+<script src="app-v12.js?v=13.7" defer></script>
+<script src="persist-v4.js?v=13.7" defer></script>
+<script src="refresh-v12.js?v=13.7" defer></script>
+<script src="iptv-v8.js?v=13.7" defer></script>
+<script src="map-v11.9.js?v=13.7" defer></script>
+<script src="vod-v24.js?v=13.7" defer></script>
 
 <script>
 (function(){
