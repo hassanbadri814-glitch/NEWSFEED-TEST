@@ -3,6 +3,7 @@
    - Chunked rendering voor grote catalogi
    - FIX: data-idx correct voor alle chunks
    - FIX: Terug-knop van telefoon sluit modal, niet de app
+   - FIX: Initialiseert nu pas als de VOD-tab wordt geopend
    - Geïntegreerd met window.appStore (Reactive via de Brug)
    - Behoudt window.VODAPI voor compatibiliteit
    ============================================================ */
@@ -451,7 +452,6 @@
     checkScroll();
   }
 
-  // 🔧 FIX: openDetail met history.pushState voor terug-knop
   async function openDetail(item){
     var modal = $("vodDetailModal");
     if(!modal) return;
@@ -468,7 +468,6 @@
 
     modal.classList.add("show");
 
-    // Voeg een geschiedenis-stap toe zodat de terug-knop de modal sluit
     if (!history.state || !history.state.vodModal) {
       history.pushState({ vodModal: true }, '');
     }
@@ -529,20 +528,17 @@
     return "stremio:///detail/" + type + "/" + encodeURIComponent(id);
   }
 
-  // 🔧 FIX: closeDetail met optie om history niet aan te roepen (bij popstate)
   function closeDetail(force){
     var modal = $("vodDetailModal");
     if(modal) modal.classList.remove("show");
     document.body.style.overflow = "";
     VOD.currentDetail = null;
     
-    // Als we de modal sluiten via de UI (niet via de terug-knop), ga 1 stap terug in de geschiedenis
     if (!force && history.state && history.state.vodModal) {
       history.back();
     }
   }
 
-  // 🔧 FIX: Luister naar de terug-knop van de telefoon
   window.addEventListener('popstate', function(e) {
     var modal = $("vodDetailModal");
     if (modal && modal.classList.contains("show")) {
@@ -592,16 +588,29 @@
   
   window.VODAPI = { init: init, state: VOD };
 
-  function autoInit(){
+  // 🔧 FIX: Initialiseer de VOD alleen als de tab wordt geopend
+  function checkAndInit() {
     var view = document.getElementById("viewVod");
-    if(view && !view.hidden) init();
+    if (view && !view.hidden) {
+      init();
+    }
+  }
+
+  function hookVodTab() {
+    document.querySelectorAll(".bottom-tabs .tab").forEach(function(tab){
+      tab.addEventListener("click", function(){
+        if(tab.dataset.view === "vod"){
+          setTimeout(checkAndInit, 150);
+        }
+      });
+    });
   }
 
   if(document.readyState !== "loading"){
-    setTimeout(autoInit, 800);
+    setTimeout(function(){ checkAndInit(); hookVodTab(); }, 800);
   } else {
     document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(autoInit, 800);
+      setTimeout(function(){ checkAndInit(); hookVodTab(); }, 800);
     });
   }
 
