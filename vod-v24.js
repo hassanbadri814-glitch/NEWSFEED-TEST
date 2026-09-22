@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK v24.0 — VOD (High Performance)
+   WAR DESK v24.1 — VOD (High Performance + Click Fix)
    - Chunked rendering voor grote catalogi
+   - FIX: data-idx correct voor alle chunks
    - Geïntegreerd met window.appStore (Reactive via de Brug)
-   - Snellere sidebar navigatie
-   - Betere zoek-performance (debounced)
    - Behoudt window.VODAPI voor compatibiliteit
    ============================================================ */
 
@@ -12,10 +11,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v24.0 geladen");
-
-  // Gebruik de store (via de Brug)
-  var state = window.appStore ? window.appStore.state : null;
+  LOG("v24.1 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -216,7 +212,7 @@
     grid.innerHTML = html;
   }
 
-  // PERFORMANCE: Chunked rendering voor posters
+  // PERFORMANCE: Chunked rendering met CORRECTE idx berekening
   function appendItemsChunked(items){
     var grid = $("vodGrid");
     if(!grid) return;
@@ -234,6 +230,8 @@
       VOD._renderChunkTimer = null;
     }
 
+    // 🔧 FIX: Leg de start-index VAST voordat we beginnen met renderen
+    var baseIdx = VOD.currentItems.length;
     var chunkSize = 40;
     var index = 0;
 
@@ -243,7 +241,8 @@
 
       for(var i = index; i < end; i++){
         var it = items[i];
-        var idx = VOD.currentItems.length + i;
+        // 🔧 FIX: Gebruik baseIdx zodat idx correct blijft over alle chunks
+        var idx = baseIdx + i;
         var poster = it.poster || "";
         var name = it.name || "?";
         var year = it.releaseInfo || it.year || "";
@@ -590,5 +589,5 @@
     });
   }
 
-  console.log("[WAR DESK] vod-v24.js v24.0 geladen");
+  console.log("[WAR DESK] vod-v24.1.js v24.1 geladen");
 })();
