@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.4</title>
+<title>WAR DESK v14.5</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -61,7 +61,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
-<link rel="stylesheet" href="styles.css?v=14.4">
+<link rel="stylesheet" href="styles.css?v=14.5">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -81,8 +81,8 @@ html[data-oled="true"] {
 }
 
 #wdDebugBtn, #wdDebugPanel { display: none !important; }
-html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:80px;right:15px;z-index:999999;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
-html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
+html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:80px;right:15px;z-index:9999999;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
+html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:99999999;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
 #wdDebugPanel .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;padding-bottom:.5rem;border-bottom:1px solid #333;position:sticky;top:0;background:rgba(0,0,0,.95);z-index:1}
 #wdDebugPanel h2{color:#e0a857;font-size:14px;margin:0}
 #wdDebugPanel .close{background:#e63950;color:#fff;border:none;padding:.4rem .8rem;border-radius:6px;font-family:monospace;font-weight:700;cursor:pointer}
@@ -113,16 +113,16 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .brand-mark svg { width:22px; height:22px; }
 
 /* ============================================================
-   FIXES: Onderbalk, VOD grid, Menu
+   FIXES: Onderbalk, VOD grid, Menu, VOD Modal
    ============================================================ */
 
-/* Onderste menubalk - compact en boven systeemnavigatie */
+/* Onderste menubalk - compact, altijd zichtbaar, boven alles */
 .bottom-tabs {
   position: fixed !important;
   bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  z-index: 9999 !important;
+  z-index: 9999999 !important;
   display: flex !important;
   justify-content: space-around !important;
   background: var(--bg-2, #070c16) !important;
@@ -132,9 +132,11 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
 }
 
-/* Content niet achter de menubalk */
+/* Content niet achter de menubalk, scroll correct */
 #viewNews, #viewMap, #viewIptv, #viewVod {
-  padding-bottom: 70px !important;
+  padding-bottom: 75px !important;
+  min-height: auto !important;
+  overflow-y: auto !important;
 }
 
 /* VOD Grid */
@@ -196,7 +198,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   position: fixed !important;
   inset: 0 !important;
   background: rgba(0,0,0,0.6) !important;
-  z-index: 100000 !important;
+  z-index: 10000000 !important;
   opacity: 0 !important;
   pointer-events: none !important;
   transition: opacity 0.3s !important;
@@ -210,7 +212,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   bottom: -100% !important;
   left: 0 !important;
   right: 0 !important;
-  z-index: 100001 !important;
+  z-index: 10000001 !important;
   background: var(--bg-2, #070c16) !important;
   border-radius: 20px 20px 0 0 !important;
   transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
@@ -224,27 +226,53 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   bottom: 0 !important;
 }
 
-/* VOD Detail Modal */
+/* VOD Detail Modal - Bottom Sheet stijl, past altijd op scherm */
 .vod-detail-modal {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 100002 !important;
-  background: rgba(0,0,0,0.8) !important;
-  display: none !important;
-  align-items: center !important;
+  z-index: 99999999 !important;
+  background: rgba(0,0,0,0.7) !important;
+  display: flex !important;
+  align-items: flex-end !important;
   justify-content: center !important;
-  padding: 20px !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s !important;
 }
-.vod-detail-modal.show { display: flex !important; }
+.vod-detail-modal.show {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
 .vod-detail-box {
   background: var(--bg-2, #070c16) !important;
-  border-radius: 12px !important;
+  border-radius: 20px 20px 0 0 !important;
   width: 100% !important;
-  max-width: 500px !important;
-  max-height: 90vh !important;
+  max-width: 100% !important;
+  max-height: 85vh !important;
   overflow-y: auto !important;
-  border: 1px solid var(--line-2, #1a2332) !important;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.8) !important;
+  border: none !important;
+  border-top: 1px solid var(--line-2, #1a2332) !important;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.8) !important;
+  padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+  transform: translateY(100%) !important;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+.vod-detail-modal.show .vod-detail-box {
+  transform: translateY(0) !important;
+}
+
+/* VOD Detail body layout */
+.vod-detail-body {
+  padding: 16px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+}
+.vod-detail-poster img {
+  max-width: 120px !important;
+  border-radius: 8px !important;
+  display: block !important;
 }
 </style>
 </head>
@@ -274,7 +302,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.4</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.5</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -543,7 +571,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v14.4</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v14.5</span><br>
         Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD
       </div>
     </div>
@@ -851,15 +879,15 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
-<script src="config.js?v=14.4" defer></script>
-<script src="store.js?v=14.4" defer></script>
-<script src="news-v27.js?v=14.4" defer></script>
-<script src="app-v12.js?v=14.4" defer></script>
-<script src="persist-v4.js?v=14.4" defer></script>
-<script src="refresh-v12.js?v=14.4" defer></script>
-<script src="iptv-v8.js?v=14.4" defer></script>
-<script src="map-v11.10.js?v=14.4" defer></script>
-<script src="vod-v24.js?v=14.4" defer></script>
+<script src="config.js?v=14.5" defer></script>
+<script src="store.js?v=14.5" defer></script>
+<script src="news-v27.js?v=14.5" defer></script>
+<script src="app-v12.js?v=14.5" defer></script>
+<script src="persist-v4.js?v=14.5" defer></script>
+<script src="refresh-v12.js?v=14.5" defer></script>
+<script src="iptv-v8.js?v=14.5" defer></script>
+<script src="map-v11.10.js?v=14.5" defer></script>
+<script src="vod-v24.js?v=14.5" defer></script>
 
 <script>
 (function(){
@@ -885,36 +913,7 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<script>
-(function(){
-  function loadSavedTab() {
-    var savedTab = localStorage.getItem('wardesk_active_tab');
-    if (savedTab && savedTab !== 'news') {
-      setTimeout(function(){
-        var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + savedTab + '"]');
-        if (tabBtn) {
-          tabBtn.click();
-        }
-      }, 800);
-    }
-  }
-
-  document.querySelectorAll('.bottom-tabs .tab').forEach(function(tab){
-    tab.addEventListener('click', function(){
-      var view = tab.getAttribute('data-view');
-      if (view) {
-        localStorage.setItem('wardesk_active_tab', view);
-      }
-    });
-  });
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", loadSavedTab);
-  } else {
-    loadSavedTab();
-  }
-})();
-</script>
+<!-- Het script dat de actieve tab onthield is VERWIJDERD zodat de app altijd op Nieuws start -->
 
 </body>
 </html>
