@@ -1,15 +1,17 @@
 /* ============================================================
-   WAR DESK v12.0 — App Orchestration (Met Touch Gestures)
+   WAR DESK v12.2 — App Orchestration (Met Touch Gestures)
    - Swipe navigation tussen tabs
    - Klok pauzeert op achtergrond
    - VOD-view + Escape fix
+   - FIX v12.1: Dubbele VODAPI.init() aanroep verwijderd
+   - FIX v12.2: Dubbele NewsAPI.init() aanroep verwijderd (index.html regelt dit)
    ============================================================ */
 
 (function(){
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = window.APP_VERSION || "v12.0";
+  const APP_VERSION = window.APP_VERSION || "v12.2";
 
   const ready = (fn) => {
     if(document.readyState !== "loading") fn();
@@ -80,9 +82,7 @@
       tab.addEventListener("click", () => {
         const view = tab.dataset.view;
         showView(view);
-        if(view === "vod" && window.VODAPI && typeof VODAPI.init === "function"){
-          setTimeout(() => { try{ VODAPI.init(); }catch(e){} }, 100);
-        }
+        // VODAPI.init() wordt NIET hier aangeroepen — vod-v24.js doet dit zelf via setupVodWatcher()
       });
     });
 
@@ -292,14 +292,11 @@
       }
     }, { passive: true });
 
-    if(window.NewsAPI && typeof NewsAPI.init === "function"){
-      Promise.resolve(NewsAPI.init()).then(() => {
-        if(window.State) console.log("[WAR DESK] Nieuws geladen:", State.items.length, "artikelen");
-      }).catch(err => {
-        console.error("[WAR DESK] Nieuws init fout:", err);
-        if(window.showToast) window.showToast("Kon nieuws niet laden.");
-      });
-    }
+    // ============================================================
+    // FASE 3A FIX: NewsAPI.init() wordt NIET hier aangeroepen.
+    // index.html heeft een robuuste retry-loop (40× 100ms = 4s wachten).
+    // Door beide aanroepen tegelijk te laten draaien werden feeds 2× geladen.
+    // ============================================================
 
     console.log("[WAR DESK] app-v12.js " + APP_VERSION + " geladen");
   });
