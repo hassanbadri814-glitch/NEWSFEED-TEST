@@ -1,10 +1,5 @@
 /* ============================================================
-   WAR DESK v11.0 — Conflictkaart (High Performance)
-   - Chunked rendering voor 100+ live events
-   - Event delegation voor live list (geen per-item listeners)
-   - Store-integratie via de Brug
-   - Snellere filter-switching
-   - Behoudt alle Leaflet/Cluster functionaliteit
+   WAR DESK v11.1 — Conflictkaart (DEBUG VERSION)
    ============================================================ */
 
 (function(){
@@ -12,7 +7,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ console.log.apply(console, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v11.0 geladen");
+  LOG("v11.1 DEBUG geladen");
 
   function buildStadiaUrl(style){
     var key = (window.CONFIG && CONFIG.stadiaKey) ? CONFIG.stadiaKey : "";
@@ -41,9 +36,7 @@
     themeObserver: null,
     detailAbort: null,
     _timeModeInterval: null,
-    currentDetailEvent: null,
-    _renderChunkTimer: null,
-    _listBound: false
+    currentDetailEvent: null
   };
 
   var TYPES = {
@@ -420,9 +413,11 @@
         var data = await r.json();
         var events = (data && data.events) ? data.events : (Array.isArray(data) ? data : []);
         LOG(events.length, "events ontvangen via proxy " + (i + 1));
+        LOG("Eerste event:", events[0]);
         var withCoords = events.filter(function(e){
           return typeof e.lat === "number" && typeof e.lng === "number" && isFinite(e.lat) && isFinite(e.lng) && e.lat !== 0 && e.lng !== 0;
         });
+        LOG(withCoords.length, "events met coordinaten");
         MAP.events = withCoords.map(function(e){
           var type = getType(e.event_type);
           var fullDesc = (e.description || "").trim();
@@ -440,6 +435,7 @@
             confidence: e.confidence || "LOW"
           };
         });
+        LOG("MAP.events length:", MAP.events.length);
         var statEl = $("statEvents");
         if(statEl) statEl.textContent = MAP.events.length;
         renderMarkers();
@@ -468,9 +464,17 @@
   }
 
   function renderMarkers(){
-    if(!MAP.cluster) return;
+    LOG("renderMarkers called, events:", MAP.events.length);
+    if(!MAP.cluster) {
+      LOG("MAP.cluster is null!");
+      return;
+    }
     MAP.cluster.clearLayers();
-    var filtered = getFilteredEvents();
+    var filtered = MAP.events.filter(function(e){
+      if(MAP.currentFilter === "all") return true;
+      return e.typeConfig.filter === MAP.currentFilter;
+    });
+    LOG("Filtered events:", filtered.length);
     var markers = [];
     filtered.forEach(function(e){
       var color = e.typeConfig.color;
@@ -507,15 +511,8 @@
       });
       markers.push(marker);
     });
+    LOG("Adding", markers.length, "markers to cluster");
     MAP.cluster.addLayers(markers);
-  }
-
-  // PERFORMANCE: Gecentraliseerde filter-functie
-  function getFilteredEvents(){
-    if(MAP.currentFilter === "all") return MAP.events;
-    return MAP.events.filter(function(e){
-      return e.typeConfig.filter === MAP.currentFilter;
-    });
   }
 
   function renderLegend(){
@@ -540,85 +537,52 @@
     }).join("");
   }
 
-  // PERFORMANCE: Chunked rendering voor live events lijst
   function renderLiveList(){
+    LOG("renderLiveList called");
     var list = $("liveList");
     var countEl = $("liveCount");
-    if(!list) return;
-
-    // Annuleer bestaande render
-    if(MAP._renderChunkTimer){
-      cancelAnimationFrame(MAP._renderChunkTimer);
-      MAP._renderChunkTimer = null;
+    if(!list) {
+      LOG("liveList element not found!");
+      return;
     }
 
-    var filtered = getFilteredEvents();
+    var filtered = MAP.events.filter(function(e){
+      if(MAP.currentFilter === "all") return true;
+      return e.typeConfig.filter === MAP.currentFilter;
+    });
     filtered.sort(function(a, b){ return new Date(b.date) - new Date(a.date); });
 
     if(countEl) countEl.textContent = filtered.length;
+    LOG("Filtered for list:", filtered.length);
 
     if(!filtered.length){
       list.innerHTML = '<div class="live-empty">Geen events in deze categorie</div>';
       return;
     }
 
-    var toShow = filtered.slice(0, 80);
-    list.innerHTML = "";
-    var chunkSize = 30;
-    var index = 0;
-
-    function renderChunk(){
-      var fragment = document.createDocumentFragment();
-      var end = Math.min(index + chunkSize, toShow.length);
-
-      for(var i = index; i < end; i++){
-        var e = toShow[i];
-        var color = e.typeConfig.color;
-        var shortText = (e.fullDescription || "").slice(0, 160);
-        var hasMore = e.fullDescription.length > 160;
-
-        var html = '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '">' +
-          '<div class="live-event-body">' +
-          '<div class="live-event-title">' + escapeHtml(shortText) + (hasMore ? "…" : "") + '</div>' +
-          '<div class="live-event-meta">' +
-          '<span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span>' +
-          '<span>·</span>' +
-          '<span>' + timeAgo(e.date) + '</span>' +
-          '<span class="live-event-cat" style="--cat-color:' + color + '">' + e.typeConfig.label + '</span>' +
-          '</div></div></div>';
-
-        var temp = document.createElement('div');
-        temp.innerHTML = html;
-        fragment.appendChild(temp.firstElementChild);
-      }
-
-      list.appendChild(fragment);
-      index = end;
-
-      if(index < toShow.length){
-        MAP._renderChunkTimer = requestAnimationFrame(renderChunk);
-      } else {
-        MAP._renderChunkTimer = null;
-        bindListEvents();
-      }
-    }
-
-    MAP._renderChunkTimer = requestAnimationFrame(renderChunk);
-  }
-
-  // PERFORMANCE: Event delegation (één listener voor de hele lijst)
-  function bindListEvents(){
-    var list = $("liveList");
-    if(!list || MAP._listBound) return;
-
-    MAP._listBound = true;
-    list.addEventListener("click", function(e){
-      var el = e.target.closest(".live-event");
-      if(!el) return;
-      var id = el.dataset.id;
-      if(!id) return;
-      var ev = MAP.events.find(function(x){ return String(x.id) === String(id); });
-      if(ev) openDetail(ev);
+    list.innerHTML = filtered.slice(0, 80).map(function(e){
+      var color = e.typeConfig.color;
+      var shortText = (e.fullDescription || "").slice(0, 160);
+      var hasMore = e.fullDescription.length > 160;
+      return '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '">' +
+        '<div class="live-event-body">' +
+        '<div class="live-event-title">' + escapeHtml(shortText) + (hasMore ? "…" : "") + '</div>' +
+        '<div class="live-event-meta">' +
+        '<span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span>' +
+        '<span>·</span>' +
+        '<span>' + timeAgo(e.date) + '</span>' +
+        '<span class="live-event-cat" style="--cat-color:' + color + '">' + e.typeConfig.label + '</span>' +
+        '</div></div></div>';
+    }).join("");
+    
+    LOG("List HTML length:", list.innerHTML.length);
+    
+    Array.prototype.forEach.call(list.querySelectorAll(".live-event"), function(el){
+      el.addEventListener("click", function(){
+        var id = el.dataset.id;
+        var ev = MAP.events.find(function(x){ return String(x.id) === String(id); });
+        if(ev) openDetail(ev);
+      });
     });
   }
 
@@ -641,7 +605,11 @@
   function initMap(){
     if(MAP.instance || typeof L === "undefined") return;
     var mapEl = $("map");
-    if(!mapEl) return;
+    if(!mapEl) {
+      LOG("map element not found!");
+      return;
+    }
+    LOG("Initializing Leaflet map");
     MAP.instance = L.map("map", {
       center: [40, 30],
       zoom: 3,
@@ -666,6 +634,7 @@
     });
     MAP.instance.addLayer(MAP.cluster);
     observeThemeChanges();
+    LOG("Map initialized");
   }
 
   function bindControls(){
@@ -718,6 +687,7 @@
   window.__mapResetView = function(){ if(MAP.instance) MAP.instance.setView([40, 30], 3); };
 
   function activateMapView(){
+    LOG("activateMapView called");
     initMap();
     ensureFullscreenClose();
     if(MAP.instance) setTimeout(function(){ if(MAP.instance) MAP.instance.invalidateSize(); }, 350);
@@ -756,6 +726,7 @@
   }
 
   function initMapModule(){
+    LOG("initMapModule called");
     injectMapStyles();
     ensureDetailModal();
     ensureFullscreenClose();
@@ -811,8 +782,7 @@
     }
   }, true);
 
-  // DE BRUG: MAPAPI voor compatibiliteit
   window.MAPAPI = { refresh: fetchEvents, state: MAP };
 
-  console.log("[WAR DESK] map-v11.js v11.0 geladen");
+  console.log("[WAR DESK] map-v11.1.js DEBUG geladen");
 })();
