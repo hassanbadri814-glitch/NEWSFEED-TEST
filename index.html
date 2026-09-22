@@ -9,10 +9,6 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-
-<!-- CONTENT SECURITY POLICY -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://war-tracker.com https://tiles.stadiamaps.com https://newsfeed2.hassanbadri814.workers.dev https://nieuwsproxy.hassanbadri814.workers.dev https://api.allorigins.win https://api.mymemory.translated.net https://translate.googleapis.com https://v3-cinemeta.strem.io; manifest-src 'self';">
-
 <title>WAR DESK v13.0</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -24,15 +20,15 @@
 
 <script>
 try{
-  const t = localStorage.getItem("wardesk_theme");
+  var t = localStorage.getItem("wardesk_theme");
   if(t === "light" || (!t && matchMedia("(prefers-color-scheme:light)").matches)){
     document.documentElement.classList.add("light");
   }
 }catch(e){}
 try{
-  let fs = localStorage.getItem("wardesk_font_size") || "medium";
-  let ac = localStorage.getItem("wardesk_accent_color") || "goud";
-  const map = { amber:"goud", blue:"saffier", green:"smaragd", red:"koraal", mono:"parel" };
+  var fs = localStorage.getItem("wardesk_font_size") || "medium";
+  var ac = localStorage.getItem("wardesk_accent_color") || "goud";
+  var map = { amber:"goud", blue:"saffier", green:"smaragd", red:"koraal", mono:"parel" };
   if(map[ac]) { ac = map[ac]; localStorage.setItem("wardesk_accent_color", ac); }
   if(["goud","saffier","smaragd","kobalt","koraal","parel"].indexOf(ac) < 0) ac = "goud";
   document.documentElement.setAttribute("data-font-size", fs);
@@ -50,64 +46,234 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="styles.css?v=13">
-
-<style>
-/* Hardware acceleration voor smooth animations */
-.news-card, .iptv-ch, .vod-poster, .live-event {
-  will-change: transform;
-  transform: translateZ(0);
-  backface-visibility: hidden;
-}
-
-/* Smooth scrolling */
-html {
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-}
-
-/* Better touch targets */
-@media (pointer: coarse) {
-  button, .sheet-item, .tab {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
-
-/* [Rest van je bestaande CSS blijft hetzelfde] */
-</style>
 </head>
 <body>
 
-<!-- [Rest van je HTML body blijft hetzelfde - zie vorige versie] -->
+<!-- BREAKING NEWS BANNER -->
+<div class="breaking" id="breakingBanner" role="button" tabindex="0">
+  <div class="breaking-icon">🚨</div>
+  <div class="breaking-text">
+    <div class="breaking-label">Breaking · <span id="breakingCount">0</span> bronnen</div>
+    <div class="breaking-title" id="breakingTitle">—</div>
+    <div class="breaking-meta" id="breakingMeta">—</div>
+  </div>
+  <button class="breaking-close" id="breakingClose">✕</button>
+</div>
 
-<!-- SERVICE WORKER REGISTRATION -->
+<!-- HEADER -->
+<header class="header">
+  <div class="header-inner">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="2.2" fill="#070c16"/><path d="M12 6.5 C 15.5 6.5, 18.5 9.5, 18.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 3 C 17.5 3, 21.5 7, 21.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/><path d="M12 17.5 C 8.5 17.5, 5.5 14.5, 5.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none"/><path d="M12 21 C 6.5 21, 2.5 17, 2.5 12" stroke="#070c16" stroke-width="1.8" stroke-linecap="round" fill="none" opacity=".7"/></svg>
+      </div>
+      <div class="brand-text"><span class="name">WAR DESK</span><span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v13.0</span></span></div>
+    </div>
+    <div class="header-stats">
+      <div class="hstat"><span class="hstat-label">Klok</span><span class="hstat-value" id="clock">--:--:--</span></div>
+      <div class="hstat amber"><span class="hstat-label">Bronnen</span><span class="hstat-value" id="statSources">0/0</span></div>
+      <div class="hstat coral"><span class="hstat-label">Events</span><span class="hstat-value" id="statEvents">0</span></div>
+      <div class="hstat green"><span class="hstat-label">Items</span><span class="hstat-value" id="statItems">0</span></div>
+    </div>
+    <div class="header-actions">
+      <button class="btn-mini" id="btnTheme" aria-label="Thema">◐</button>
+      <button class="btn-mini" id="btnMenu" aria-label="Menu">☰</button>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN CONTENT -->
+<main class="main">
+  <section class="view" id="viewNews">
+    <div class="section-head">
+      <h2 id="newsTitle">Laatste berichten</h2>
+      <div class="section-head-actions">
+        <span class="section-count" id="newsCount">—</span>
+      </div>
+    </div>
+    <div class="feed-grid" id="feedGrid"></div>
+  </section>
+
+  <section class="view" id="viewMap" hidden>
+    <div class="map-page">
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div class="map-controls">
+          <button class="map-ctrl" id="mapZoomIn">＋</button>
+          <button class="map-ctrl" id="mapZoomOut">－</button>
+          <button class="map-ctrl" id="mapLocate">◎</button>
+          <button class="map-ctrl" id="mapFull">⛶</button>
+        </div>
+        <div class="map-legend" id="mapLegend">
+          <div class="legend-title">Type</div>
+          <div id="legendItems"></div>
+        </div>
+      </div>
+      <div class="live-feed">
+        <div class="live-head">
+          <div class="live-title"><span class="live-dot"></span>LIVE EVENTS</div>
+          <div class="live-count" id="liveCount">0</div>
+        </div>
+        <div class="live-filters" id="liveFilters">
+          <button class="live-filter active" data-cat="all">Alles</button>
+          <button class="live-filter" data-cat="conflict">Conflicten</button>
+          <button class="live-filter" data-cat="political">Politiek</button>
+          <button class="live-filter" data-cat="other">Overig</button>
+        </div>
+        <div class="live-list" id="liveList"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="viewIptv" hidden>
+    <div class="section-head">
+      <h2>IPTV</h2>
+      <span class="section-count" id="iptvCount">0 kanalen</span>
+      <button class="btn-mini" id="iptvViewToggle" aria-label="Weergave" hidden>⊞</button>
+      <button class="btn-mini" id="iptvToggleSetup" onclick="var s=document.getElementById('iptvSetup');if(s){s.hidden=!s.hidden}">⚙</button>
+    </div>
+    <div class="iptv-setup" id="iptvSetup">
+      <div class="iptv-setup-title">Xtream Codes Login</div>
+      <div class="iptv-row"><input type="url" id="iptvServer" placeholder="Server (http://provider.com:80)" autocomplete="off"></div>
+      <div class="iptv-row">
+        <input type="text" id="iptvUser" placeholder="Username" autocomplete="off">
+        <div class="pw-wrap">
+          <input type="password" id="iptvPass" placeholder="Password" autocomplete="off">
+          <button type="button" class="pw-toggle" id="iptvPwToggle" aria-label="Toon wachtwoord">👁</button>
+        </div>
+      </div>
+      <div class="iptv-row">
+        <button class="iptv-btn" id="iptvTestBtn">🔍 Test</button>
+        <button class="iptv-btn primary" id="iptvLoadBtn">⬇ Laad kanalen</button>
+        <button class="iptv-btn danger" id="iptvClearBtn">🗑</button>
+      </div>
+      <div class="iptv-status" id="iptvStatus"></div>
+    </div>
+    <div class="iptv-search-wrap" id="iptvSearchWrap" hidden>
+      <span class="iptv-search-icon">🔍</span>
+      <input type="search" id="iptvSearch" placeholder="Zoek kanaal..." autocomplete="off">
+      <button class="iptv-search-clear" id="iptvSearchClear">✕</button>
+    </div>
+    <div class="iptv-pills" id="iptvPills"></div>
+    <div class="iptv-grid" id="iptvGrid"></div>
+    <div id="iptvLoadMoreWrap"></div>
+    <div class="iptv-visible-count" id="iptvVisibleCount"></div>
+  </section>
+
+  <section class="view" id="viewVod" hidden>
+    <div class="section-head">
+      <h2>VOD</h2>
+      <span class="section-count" id="vodCount">Films & Series</span>
+    </div>
+    <div class="vod-search-wrap">
+      <svg class="vod-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input type="search" id="vodSearchInput" placeholder="Zoek films..." autocomplete="off">
+      <button class="vod-search-clear" id="vodSearchClear">✕</button>
+    </div>
+    <div class="vod-page">
+      <aside class="vod-sidebar" id="vodSidebar"></aside>
+      <div class="vod-content">
+        <div class="vod-grid" id="vodGrid"></div>
+        <div class="vod-loading" id="vodLoading">Laden...</div>
+        <div id="vodLoadMoreWrap"></div>
+      </div>
+    </div>
+    <button class="vod-scroll-top" id="vodScrollTop">↑</button>
+  </section>
+</main>
+
+<!-- BOTTOM TABS -->
+<nav class="bottom-tabs">
+  <button class="tab active" data-view="news"><span class="tab-icon">📰</span><span class="tab-label">Nieuws</span></button>
+  <button class="tab" data-view="map"><span class="tab-icon">️</span><span class="tab-label">Kaart</span></button>
+  <button class="tab" data-view="iptv"><span class="tab-icon">📡</span><span class="tab-label">IPTV</span></button>
+  <button class="tab" data-view="vod"><span class="tab-icon"></span><span class="tab-label">VOD</span></button>
+</nav>
+
+<!-- MENU SHEET -->
+<div class="sheet-overlay" id="sheetOverlay"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-header">
+    <h3>Menu</h3>
+    <button class="sheet-close" id="sheetClose">✕</button>
+  </div>
+  <div class="sheet-content">
+    <div class="sheet-section">
+      <div class="sheet-title">Categorieën</div>
+      <div class="chips-row">
+        <button class="sheet-item active" data-cat="all"><span>Alles</span></button>
+        <button class="sheet-item" data-cat="war"><span>Oorlog</span></button>
+        <button class="sheet-item" data-cat="mideast"><span>Midden-Oosten</span></button>
+        <button class="sheet-item" data-cat="europe"><span>Europa</span></button>
+        <button class="sheet-item" data-cat="nl"><span>Nederland</span></button>
+        <button class="sheet-item" data-cat="maroc"><span>Marokko</span></button>
+        <button class="sheet-item" data-cat="vs"><span>VS</span></button>
+        <button class="sheet-item" data-cat="sport"><span>Sport</span></button>
+        <button class="sheet-item" data-cat="favorites"><span>Favorieten (<span id="favCount">0</span>)</span></button>
+      </div>
+    </div>
+    <div class="sheet-section">
+      <div class="sheet-title">Sortering</div>
+      <div class="segmented">
+        <button class="sheet-item active" id="sortImportance"><span>Belangrijkheid</span></button>
+        <button class="sheet-item" id="sortNewest"><span>Nieuwste</span></button>
+      </div>
+    </div>
+    <div class="sheet-section">
+      <div class="sheet-title">Weergave</div>
+      <div class="segmented">
+        <button class="sheet-item active" id="viewCards"><span>Kaarten</span></button>
+        <button class="sheet-item" id="viewList"><span>Lijst</span></button>
+      </div>
+    </div>
+    <div class="sheet-section">
+      <div class="sheet-title">Zoeken</div>
+      <div class="search-field">
+        <input type="search" id="searchInput" placeholder="Zoek...">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">Klaar</div>
+
+<!-- SCRIPTS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+<script src="config.js?v=13"></script>
+<script src="store.js"></script>
+<script src="news-v27.js"></script>
+<script src="app-v12.js"></script>
+<script src="persist-v4.js"></script>
+<script src="refresh-v12.js"></script>
+<script src="iptv-v8.js"></script>
+<script src="map-v11.js"></script>
+<script src="vod-v24.js"></script>
+
+<!-- INIT -->
 <script>
-  if ('serviceWorker' in navigator) {
-    // Alleen registreren als sw.js bestaat
-    fetch('/sw.js')
-      .then(response => {
-        if(response.ok) {
-          return navigator.serviceWorker.register('/sw.js');
-        }
-        throw new Error('sw.js not found');
-      })
-      .then(reg => console.log('[SW] ✅ Service Worker registered'))
-      .catch(err => console.log('[SW] ⚠️ Service Worker skipped:', err.message));
+document.addEventListener("DOMContentLoaded", function() {
+  console.log("[WAR DESK] DOMContentLoaded");
+  if (window.NewsAPI && typeof window.NewsAPI.init === "function") {
+    window.NewsAPI.init().then(function(){
+      console.log("[WAR DESK] ✅ App succesvol gestart");
+    }).catch(function(err){
+      console.error("[WAR DESK] ❌ Fout:", err);
+    });
   }
-</script>
+});
 </script>
 
-<!-- MOBILE DEBUG CONSOLE -->
+<!-- VCONSOLE -->
 <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
 <script>
-  if(window.VConsole){
-    const vConsole = new window.VConsole({
-      defaultPlugins: ['system', 'network', 'element', 'storage'],
-      maxLogNumber: 1000,
-      onReady: () => console.log('[WAR DESK] vConsole geladen - debug actief')
-    });
-    window.vConsole = vConsole;
-  }
+if(window.VConsole) {
+  new window.VConsole();
+}
 </script>
+
 </body>
 </html>
