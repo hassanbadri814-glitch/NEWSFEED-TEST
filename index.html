@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v13.7</title>
+<title>WAR DESK v14.2</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -61,7 +61,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
-<link rel="stylesheet" href="styles.css?v=14.1">
+<link rel="stylesheet" href="styles.css?v=14.2">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -113,10 +113,10 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .brand-mark svg { width:22px; height:22px; }
 
 /* ============================================================
-   NIEUWE CSS VOOR VOD LAYOUT EN ONDERSTE MENUBALK
+   FIXES VOOR LAYOUT, MENU EN ONDERBALK
    ============================================================ */
 
-/* 1. Zorg dat de onderste menubalk altijd zichtbaar blijft */
+/* 1. Onderste menubalk altijd zichtbaar en boven systeemnavigatie */
 .bottom-tabs {
   position: fixed !important;
   bottom: 0 !important;
@@ -128,16 +128,18 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   background: var(--bg-2, #070c16) !important;
   border-top: 1px solid var(--line-2, #1a2332) !important;
   padding: 8px 0 !important;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
   box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
+  min-height: 50px !important;
 }
 
-/* 2. Zorg dat de content niet achter de menubalk verdwijnt */
+/* 2. Content niet achter de menubalk */
 #viewNews, #viewMap, #viewIptv, #viewVod {
-  padding-bottom: 85px !important; 
-  min-height: calc(100vh - 85px) !important;
+  padding-bottom: 90px !important; 
+  min-height: calc(100vh - 90px) !important;
 }
 
-/* 3. VOD Grid layout (zorgt voor nette posters naast elkaar) */
+/* 3. VOD Grid layout */
 .vod-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
@@ -157,13 +159,11 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   transition: transform 0.2s !important;
 }
 
-.vod-poster:active {
-  transform: scale(0.96) !important;
-}
+.vod-poster:active { transform: scale(0.96) !important; }
 
 .vod-poster-img {
   width: 100% !important;
-  aspect-ratio: 2 / 3 !important; /* Zorgt voor de juiste poster verhouding */
+  aspect-ratio: 2 / 3 !important;
   border-radius: 8px !important;
   overflow: hidden !important;
   background: #222 !important;
@@ -189,44 +189,55 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   background: linear-gradient(135deg, #1e3a5f, #3b6ba8) !important;
 }
 
-.vod-poster-body {
-  padding: 6px 2px !important;
+.vod-poster-body { padding: 6px 2px !important; }
+.vod-poster-name { font-size: 0.8rem !important; font-weight: 600 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: var(--ink-1, #fff) !important; margin-bottom: 2px !important; }
+.vod-poster-meta { font-size: 0.7rem !important; color: var(--ink-3, #888) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+
+/* 4. Menu / Sheet z-index en werking */
+.sheet-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0,0,0,0.6) !important;
+  z-index: 100000 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s !important;
+}
+.sheet-overlay.open {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.sheet {
+  position: fixed !important;
+  bottom: -100% !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 100001 !important;
+  background: var(--bg-2, #070c16) !important;
+  border-radius: 20px 20px 0 0 !important;
+  transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  max-height: 85vh !important;
+  overflow-y: auto !important;
+  padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+  border-top: 1px solid var(--line-2, #1a2332) !important;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5) !important;
+}
+.sheet.open {
+  bottom: 0 !important;
 }
 
-.vod-poster-name {
-  font-size: 0.8rem !important;
-  font-weight: 600 !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-  color: var(--ink-1, #fff) !important;
-  margin-bottom: 2px !important;
-}
-
-.vod-poster-meta {
-  font-size: 0.7rem !important;
-  color: var(--ink-3, #888) !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-/* VOD Detail Modal correct positioneren */
+/* 5. VOD Detail Modal */
 .vod-detail-modal {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 100000 !important;
+  z-index: 100002 !important;
   background: rgba(0,0,0,0.8) !important;
   display: none !important;
   align-items: center !important;
   justify-content: center !important;
   padding: 20px !important;
 }
-
-.vod-detail-modal.show {
-  display: flex !important;
-}
-
+.vod-detail-modal.show { display: flex !important; }
 .vod-detail-box {
   background: var(--bg-2, #070c16) !important;
   border-radius: 12px !important;
@@ -265,7 +276,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v13.7</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.2</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -534,7 +545,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v13.7</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v14.2</span><br>
         Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD
       </div>
     </div>
@@ -795,29 +806,53 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   });
 })();
 
+/* ============================================================
+   FIX: MENU OPENEN EN SLUITEN
+   ============================================================ */
 document.addEventListener("DOMContentLoaded", function(){
-  var tog = document.getElementById("iptvToggleSetup");
-  if(tog){
-    tog.addEventListener("click", function(){
-      var s = document.getElementById("iptvSetup");
-      if(s) s.hidden = !s.hidden;
-    });
+  var btnMenu = document.getElementById("btnMenu");
+  var sheet = document.getElementById("sheet");
+  var sheetOverlay = document.getElementById("sheetOverlay");
+  var sheetClose = document.getElementById("sheetClose");
+
+  function openSheet() {
+    if(sheet) sheet.classList.add("open");
+    if(sheetOverlay) sheetOverlay.classList.add("open");
+    document.body.style.overflow = "hidden";
   }
+
+  function closeSheet() {
+    if(sheet) sheet.classList.remove("open");
+    if(sheetOverlay) sheetOverlay.classList.remove("open");
+    document.body.style.overflow = "";
+  }
+
+  if(btnMenu) btnMenu.addEventListener("click", openSheet);
+  if(sheetClose) sheetClose.addEventListener("click", closeSheet);
+  if(sheetOverlay) sheetOverlay.addEventListener("click", closeSheet);
+
+  // Sluit menu als je ergens in het menu klikt dat de sheet sluit
+  document.querySelectorAll(".sheet-item").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      if(btn.onclick) return; // Als er al een onclick is, laat die eerst werken
+      closeSheet();
+    });
+  });
 });
 </script>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
-<script src="config.js?v=14.1" defer></script>
-<script src="store.js?v=14.1" defer></script>
-<script src="news-v27.js?v=14.1" defer></script>
-<script src="app-v12.js?v=14.1" defer></script>
-<script src="persist-v4.js?v=14.1" defer></script>
-<script src="refresh-v12.js?v=14.1" defer></script>
-<script src="iptv-v8.js?v=14.1" defer></script>
-<script src="map-v11.10.js?v=14.1" defer></script>
-<script src="vod-v24.js?v=14.1" defer></script>
+<script src="config.js?v=14.2" defer></script>
+<script src="store.js?v=14.2" defer></script>
+<script src="news-v27.js?v=14.2" defer></script>
+<script src="app-v12.js?v=14.2" defer></script>
+<script src="persist-v4.js?v=14.2" defer></script>
+<script src="refresh-v12.js?v=14.2" defer></script>
+<script src="iptv-v8.js?v=14.2" defer></script>
+<script src="map-v11.10.js?v=14.2" defer></script>
+<script src="vod-v24.js?v=14.2" defer></script>
 
 <script>
 (function(){
@@ -848,21 +883,18 @@ document.addEventListener("DOMContentLoaded", function(){
      ============================================================ -->
 <script>
 (function(){
-  // Functie om de opgeslagen tab te laden
   function loadSavedTab() {
     var savedTab = localStorage.getItem('wardesk_active_tab');
     if (savedTab && savedTab !== 'news') {
-      // Wacht heel even tot de app volledig geladen is
       setTimeout(function(){
         var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + savedTab + '"]');
         if (tabBtn) {
           tabBtn.click();
         }
-      }, 800); // 800ms is genoeg voor de init scripts
+      }, 800);
     }
   }
 
-  // Sla de tab op als erop geklikt wordt
   document.querySelectorAll('.bottom-tabs .tab').forEach(function(tab){
     tab.addEventListener('click', function(){
       var view = tab.getAttribute('data-view');
@@ -872,7 +904,6 @@ document.addEventListener("DOMContentLoaded", function(){
     });
   });
 
-  // Laad de opgeslagen tab bij het opstarten
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", loadSavedTab);
   } else {
