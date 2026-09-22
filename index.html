@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.5</title>
+<title>WAR DESK v14.6</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -61,7 +61,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
-<link rel="stylesheet" href="styles.css?v=14.5">
+<link rel="stylesheet" href="styles.css?v=14.6">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -116,7 +116,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
    FIXES: Onderbalk, VOD grid, Menu, VOD Modal
    ============================================================ */
 
-/* Onderste menubalk - compact, altijd zichtbaar, boven alles */
 .bottom-tabs {
   position: fixed !important;
   bottom: 0 !important;
@@ -132,14 +131,12 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
 }
 
-/* Content niet achter de menubalk, scroll correct */
 #viewNews, #viewMap, #viewIptv, #viewVod {
   padding-bottom: 75px !important;
   min-height: auto !important;
   overflow-y: auto !important;
 }
 
-/* VOD Grid */
 .vod-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
@@ -193,7 +190,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .vod-poster-name { font-size: 0.8rem !important; font-weight: 600 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: var(--ink-1, #fff) !important; margin-bottom: 2px !important; }
 .vod-poster-meta { font-size: 0.7rem !important; color: var(--ink-3, #888) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
 
-/* Menu / Sheet */
 .sheet-overlay {
   position: fixed !important;
   inset: 0 !important;
@@ -226,7 +222,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   bottom: 0 !important;
 }
 
-/* VOD Detail Modal - Bottom Sheet stijl, past altijd op scherm */
 .vod-detail-modal {
   position: fixed !important;
   inset: 0 !important;
@@ -262,7 +257,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   transform: translateY(0) !important;
 }
 
-/* VOD Detail body layout */
 .vod-detail-body {
   padding: 16px !important;
   display: flex !important;
@@ -302,7 +296,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.5</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.6</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -571,7 +565,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v14.5</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v14.6</span><br>
         Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD
       </div>
     </div>
@@ -879,15 +873,15 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
-<script src="config.js?v=14.5" defer></script>
-<script src="store.js?v=14.5" defer></script>
-<script src="news-v27.js?v=14.5" defer></script>
-<script src="app-v12.js?v=14.5" defer></script>
-<script src="persist-v4.js?v=14.5" defer></script>
-<script src="refresh-v12.js?v=14.5" defer></script>
-<script src="iptv-v8.js?v=14.5" defer></script>
-<script src="map-v11.10.js?v=14.5" defer></script>
-<script src="vod-v24.js?v=14.5" defer></script>
+<script src="config.js?v=14.6" defer></script>
+<script src="store.js?v=14.6" defer></script>
+<script src="news-v27.js?v=14.6" defer></script>
+<script src="app-v12.js?v=14.6" defer></script>
+<script src="persist-v4.js?v=14.6" defer></script>
+<script src="refresh-v12.js?v=14.6" defer></script>
+<script src="iptv-v8.js?v=14.6" defer></script>
+<script src="map-v11.10.js?v=14.6" defer></script>
+<script src="vod-v24.js?v=14.6" defer></script>
 
 <script>
 (function(){
@@ -913,7 +907,45 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<!-- Het script dat de actieve tab onthield is VERWIJDERD zodat de app altijd op Nieuws start -->
+<!-- ============================================================
+     TAB ONTHOUDEN: sessionStorage
+     - Overleeft refresh (F5) → blijft op huidige tab
+     - Wordt gewist bij app sluiten → start op Nieuws
+     ============================================================ -->
+<script>
+(function(){
+  // Onthoud de huidige tab in sessionStorage (per sessie)
+  document.querySelectorAll('.bottom-tabs .tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      var view = tab.getAttribute('data-view');
+      if (view) {
+        try { sessionStorage.setItem('wardesk_active_tab', view); } catch(e){}
+      }
+    });
+  });
+
+  // Bij laden: herstel de tab uit sessionStorage
+  function restoreTab(){
+    var savedTab;
+    try { savedTab = sessionStorage.getItem('wardesk_active_tab'); } catch(e){}
+    if (savedTab && savedTab !== 'news') {
+      setTimeout(function(){
+        var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + savedTab + '"]');
+        if (tabBtn) {
+          tabBtn.click();
+          console.log('[TAB] Hersteld naar:', savedTab);
+        }
+      }, 900);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", restoreTab);
+  } else {
+    restoreTab();
+  }
+})();
+</script>
 
 </body>
 </html>
