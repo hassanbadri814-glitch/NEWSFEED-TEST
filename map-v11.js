@@ -1,13 +1,19 @@
 /* ============================================================
-   WAR DESK v11.1 — Conflictkaart (DEBUG VERSION)
+   WAR DESK v11.3 — Conflictkaart (Direct Fetch + Fallback)
+   - Probeert eerst DIRECT zonder proxy
+   - Betere error handling
+   - Mobiel-vriendelijke logging
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var LOG = function(){ try{ console.log.apply(console, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v11.1 DEBUG geladen");
+  var LOG = function(){ 
+    var args = Array.prototype.slice.call(arguments);
+    console.log.apply(console, ["[MAP]"].concat(args));
+  };
+  LOG("v11.3 geladen - Direct fetch modus");
 
   function buildStadiaUrl(style){
     var key = (window.CONFIG && CONFIG.stadiaKey) ? CONFIG.stadiaKey : "";
@@ -29,7 +35,6 @@
     currentFilter: "all",
     refreshTimer: null,
     isFullscreen: false,
-    worker: "https://newsfeed2.hassanbadri814.workers.dev/?url=",
     apiBase: "https://war-tracker.com/api/v1/events",
     detailCache: {},
     currentTheme: "dark",
@@ -309,7 +314,7 @@
     textEl.style.opacity = ".55";
     try{
       var detailUrl = "https://war-tracker.com/api/v1/events/" + encodeURIComponent(event.id);
-      var r = await fetch(MAP.worker + encodeURIComponent(detailUrl), { signal: signal });
+      var r = await fetch(detailUrl, { signal: signal });
       if(!r.ok) throw new Error("HTTP " + r.status);
       var data = await r.json();
       var fullText = "";
@@ -396,9 +401,34 @@
     var limit = (window.CONFIG && CONFIG.warTrackerLimit) ? CONFIG.warTrackerLimit : 100;
     var apiUrl = MAP.apiBase + "?limit=" + limit;
 
+    LOG("Probeer DIRECT eerst (zonder proxy)...");
+    
+    // EERST DIRECT PROBEREN
+    try{
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 15000);
+      var r = await fetch(apiUrl, {signal: ctrl.signal});
+      clearTimeout(timer);
+      if(!r.ok) throw new Error("HTTP " + r.status);
+      var data = await r.json();
+      var events = (data && data.events) ? data.events : (Array.isArray(data) ? data : []);
+      LOG("✅ DIRECT SUCCESS:", events.length, "events");
+      processEvents(events);
+      return;
+    }catch(e){
+      LOG("❌ Direct faalde:", e.message, "- probeer proxies");
+    }
+
+    // DAN PROXIES
     var proxies = (window.CONFIG && CONFIG.proxies && CONFIG.proxies.length)
       ? CONFIG.proxies.slice()
-      : [MAP.worker];
+      : [];
+
+    if(proxies.length === 0) {
+      LOG("⚠️ Geen proxies beschikbaar");
+      failFetch("Geen proxies beschikbaar");
+      return;
+    }
 
     var lastErr = null;
 
@@ -412,51 +442,59 @@
         if(!r.ok) throw new Error("HTTP " + r.status);
         var data = await r.json();
         var events = (data && data.events) ? data.events : (Array.isArray(data) ? data : []);
-        LOG(events.length, "events ontvangen via proxy " + (i + 1));
-        LOG("Eerste event:", events[0]);
-        var withCoords = events.filter(function(e){
-          return typeof e.lat === "number" && typeof e.lng === "number" && isFinite(e.lat) && isFinite(e.lng) && e.lat !== 0 && e.lng !== 0;
-        });
-        LOG(withCoords.length, "events met coordinaten");
-        MAP.events = withCoords.map(function(e){
-          var type = getType(e.event_type);
-          var fullDesc = (e.description || "").trim();
-          return {
-            id: e.id,
-            lat: e.lat,
-            lng: e.lng,
-            title: fullDesc.slice(0, 100) || "Event",
-            fullDescription: fullDesc,
-            type: e.event_type || "NA",
-            typeConfig: type,
-            country: e.country || "?",
-            date: e.date || new Date().toISOString(),
-            url: e.url || "",
-            confidence: e.confidence || "LOW"
-          };
-        });
-        LOG("MAP.events length:", MAP.events.length);
-        var statEl = $("statEvents");
-        if(statEl) statEl.textContent = MAP.events.length;
-        renderMarkers();
-        renderLegend();
-        renderLiveList();
-        LOG("Klaar:", MAP.events.length, "events");
+        LOG("✅ Proxy", (i+1), "success:", events.length, "events");
+        processEvents(events);
         return;
       }catch(e){
         lastErr = e;
-        LOG("Proxy " + (i + 1) + " faalde:", e.message);
+        LOG("❌ Proxy", (i+1), "faalde:", e.message);
       }
     }
 
     if(retryCount < 2){
-      LOG("Alle proxies faalden, retry in 1.5s... (poging " + (retryCount + 2) + "/3)");
+      LOG("🔄 Alle proxies faalden, retry in 1.5s... (poging " + (retryCount + 2) + "/3)");
       await new Promise(function(res){ setTimeout(res, 1500); });
       if(document.hidden) return;
       return fetchEvents(retryCount + 1);
     }
 
-    LOG("Fetch definitief gefaald:", lastErr ? lastErr.message : "onbekend");
+    failFetch(lastErr ? lastErr.message : "onbekend");
+  }
+
+  function processEvents(events){
+    LOG("Verwerk", events.length, "events");
+    var withCoords = events.filter(function(e){
+      return typeof e.lat === "number" && typeof e.lng === "number" && isFinite(e.lat) && isFinite(e.lng) && e.lat !== 0 && e.lng !== 0;
+    });
+    LOG(withCoords.length, "events met coordinaten");
+    MAP.events = withCoords.map(function(e){
+      var type = getType(e.event_type);
+      var fullDesc = (e.description || "").trim();
+      return {
+        id: e.id,
+        lat: e.lat,
+        lng: e.lng,
+        title: fullDesc.slice(0, 100) || "Event",
+        fullDescription: fullDesc,
+        type: e.event_type || "NA",
+        typeConfig: type,
+        country: e.country || "?",
+        date: e.date || new Date().toISOString(),
+        url: e.url || "",
+        confidence: e.confidence || "LOW"
+      };
+    });
+    var statEl = $("statEvents");
+    if(statEl) statEl.textContent = MAP.events.length;
+    renderMarkers();
+    renderLegend();
+    renderLiveList();
+    LOG("✅ Klaar:", MAP.events.length, "events");
+  }
+
+  function failFetch(errMsg){
+    LOG("❌ Fetch definitief gefaald:", errMsg);
+    var list = $("liveList");
     if(list && !MAP.events.length){
       list.innerHTML = '<div class="live-empty">Kon events niet laden. Tik op ververs om opnieuw te proberen.</div>';
     }
@@ -464,9 +502,9 @@
   }
 
   function renderMarkers(){
-    LOG("renderMarkers called, events:", MAP.events.length);
+    LOG("renderMarkers:", MAP.events.length, "events");
     if(!MAP.cluster) {
-      LOG("MAP.cluster is null!");
+      LOG("⚠️ MAP.cluster is null!");
       return;
     }
     MAP.cluster.clearLayers();
@@ -474,7 +512,7 @@
       if(MAP.currentFilter === "all") return true;
       return e.typeConfig.filter === MAP.currentFilter;
     });
-    LOG("Filtered events:", filtered.length);
+    LOG("Filtered:", filtered.length, "markers");
     var markers = [];
     filtered.forEach(function(e){
       var color = e.typeConfig.color;
@@ -511,8 +549,8 @@
       });
       markers.push(marker);
     });
-    LOG("Adding", markers.length, "markers to cluster");
     MAP.cluster.addLayers(markers);
+    LOG("✅ Markers toegevoegd:", markers.length);
   }
 
   function renderLegend(){
@@ -538,13 +576,10 @@
   }
 
   function renderLiveList(){
-    LOG("renderLiveList called");
+    LOG("renderLiveList:", MAP.events.length, "events");
     var list = $("liveList");
     var countEl = $("liveCount");
-    if(!list) {
-      LOG("liveList element not found!");
-      return;
-    }
+    if(!list) return;
 
     var filtered = MAP.events.filter(function(e){
       if(MAP.currentFilter === "all") return true;
@@ -553,7 +588,6 @@
     filtered.sort(function(a, b){ return new Date(b.date) - new Date(a.date); });
 
     if(countEl) countEl.textContent = filtered.length;
-    LOG("Filtered for list:", filtered.length);
 
     if(!filtered.length){
       list.innerHTML = '<div class="live-empty">Geen events in deze categorie</div>';
@@ -574,9 +608,7 @@
         '<span class="live-event-cat" style="--cat-color:' + color + '">' + e.typeConfig.label + '</span>' +
         '</div></div></div>';
     }).join("");
-    
-    LOG("List HTML length:", list.innerHTML.length);
-    
+
     Array.prototype.forEach.call(list.querySelectorAll(".live-event"), function(el){
       el.addEventListener("click", function(){
         var id = el.dataset.id;
@@ -584,6 +616,7 @@
         if(ev) openDetail(ev);
       });
     });
+    LOG("✅ Live list rendered");
   }
 
   function escapeHtml(s){
@@ -605,10 +638,7 @@
   function initMap(){
     if(MAP.instance || typeof L === "undefined") return;
     var mapEl = $("map");
-    if(!mapEl) {
-      LOG("map element not found!");
-      return;
-    }
+    if(!mapEl) return;
     LOG("Initializing Leaflet map");
     MAP.instance = L.map("map", {
       center: [40, 30],
@@ -683,7 +713,10 @@
     }catch(e){}
   }
 
-  window.__mapRefresh = function(){ fetchEvents(); };
+  window.__mapRefresh = function(){ 
+    LOG("Manual refresh triggered");
+    fetchEvents(); 
+  };
   window.__mapResetView = function(){ if(MAP.instance) MAP.instance.setView([40, 30], 3); };
 
   function activateMapView(){
@@ -784,5 +817,5 @@
 
   window.MAPAPI = { refresh: fetchEvents, state: MAP };
 
-  console.log("[WAR DESK] map-v11.1.js DEBUG geladen");
+  console.log("[WAR DESK] map-v11.3.js geladen");
 })();
