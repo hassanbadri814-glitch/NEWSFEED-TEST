@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v13.2 — COMPLETE CSS
-   Alle klassen voor: header, tabs, sheet, news, map, IPTV, VOD,
-   breaking banner, toast, debug, modals, skeletons, responsive.
+   WAR DESK v13.3 — COMPLETE CSS
+   - FIX: VOD sidebar horizontaal op mobiel
+   - FIX: IPTV forceer 2 kolommen op mobiel
+   - FIX: kleinere covers op mobiel
    ============================================================ */
 
 :root {
@@ -45,9 +46,7 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 input, textarea, select { font-family: inherit; font-size: inherit; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
 
-/* ============================================================
-   HEADER
-   ============================================================ */
+/* HEADER */
 .header {
   position: sticky; top: 0; z-index: 99;
   background: linear-gradient(180deg, var(--bg-2) 0%, rgba(13,21,34,.95) 100%);
@@ -97,9 +96,7 @@ html.light .header, body.light .header { background: linear-gradient(180deg, var
 .btn-mini:hover { border-color: var(--amber); color: var(--amber); }
 .btn-mini:active { transform: scale(.92); }
 
-/* ============================================================
-   MAIN / VIEWS
-   ============================================================ */
+/* MAIN */
 .main {
   max-width: 1400px; margin: 0 auto;
   padding: 1.25rem 1rem;
@@ -125,9 +122,7 @@ html.light .header, body.light .header { background: linear-gradient(180deg, var
 .section-head-actions { margin-left: auto; display: flex; align-items: center; gap: .5rem; }
 .section-head .btn-mini { width: 36px; height: 36px; font-size: 1rem; margin-left: .4rem; }
 
-/* ============================================================
-   NEWS
-   ============================================================ */
+/* NEWS */
 .feed-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -204,9 +199,7 @@ html.light .header, body.light .header { background: linear-gradient(180deg, var
 .empty-hint { font-size: .75rem; color: var(--ink-3); margin-top: .4rem; }
 .empty-context { display: block; margin-top: .35rem; color: var(--amber); font-weight: 600; }
 
-/* ============================================================
-   BOTTOM TABS
-   ============================================================ */
+/* BOTTOM TABS */
 .bottom-tabs {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 500;
   display: flex;
@@ -232,9 +225,7 @@ html.light .bottom-tabs { background: linear-gradient(180deg, rgba(255,255,255,.
 }
 .tab:active { transform: scale(.96); }
 
-/* ============================================================
-   SHEET / MENU
-   ============================================================ */
+/* SHEET */
 .sheet-overlay {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.6);
@@ -286,18 +277,15 @@ html.light .bottom-tabs { background: linear-gradient(180deg, rgba(255,255,255,.
 .sheet-item:hover, .sheet-item:active { border-color: var(--amber); color: var(--amber); transform: translateY(-1px); }
 .sheet-item.active { background: linear-gradient(135deg, var(--amber-2), var(--amber-3)); color: #070c16; border-color: var(--amber); font-weight: 700; }
 
-/* Chips-row */
 .chips-row { display: flex; gap: .4rem; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding-bottom: .15rem; margin: 0 -.15rem; padding-left: .15rem; padding-right: .15rem; }
 .chips-row::-webkit-scrollbar { display: none; }
 .chips-row .sheet-item { padding: .5rem .85rem; border-radius: 999px; white-space: nowrap; flex-shrink: 0; }
 
-/* Segmented */
 .segmented { display: flex; gap: .25rem; padding: .2rem; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 11px; }
 .segmented .sheet-item { flex: 1; padding: .55rem .6rem; background: transparent; border: 1px solid transparent; border-radius: 8px; text-align: center; justify-content: center; }
 .segmented .sheet-item.active { background: var(--card); border-color: var(--line-2); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-color: var(--amber); }
 
-/* Accent picker */
 .accent-picker-row { display: flex; align-items: center; gap: .6rem; padding: .7rem .8rem; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 10px; cursor: pointer; transition: all .15s; }
 .accent-picker-row:hover { border-color: var(--amber); }
 .accent-picker-row .accent-label { flex: 1; font-size: .85rem; font-weight: 600; color: var(--ink); }
@@ -326,7 +314,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .accent-preview[data-color="koraal"]  { background: radial-gradient(circle at 35% 30%, #ffc8cf 0%, #ff6b7a 45%, #7a1524 100%); }
 .accent-preview[data-color="parel"]   { background: radial-gradient(circle at 35% 30%, #ffffff 0%, #c8ccd8 45%, #4a5060 100%); }
 
-/* Toggle rows */
 .toggle-row { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 10px; margin-bottom: .4rem; cursor: pointer; transition: all .15s; user-select: none; }
 .toggle-row:hover { border-color: var(--amber); }
 .toggle-row:last-child { margin-bottom: 0; }
@@ -339,23 +326,18 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .toggle-row.active .toggle-switch { background: var(--amber); }
 .toggle-row.active .toggle-switch::after { transform: translateX(18px); }
 
-/* Search field */
 .search-field { position: relative; }
 .search-field .ic-search { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); color: var(--ink-3); width: 15px; height: 15px; pointer-events: none; }
 .search-field input { width: 100%; padding: .75rem .95rem .75rem 2.35rem; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--ink); border-radius: 10px; font-size: .9rem; outline: none; }
 .search-field input:focus { border-color: var(--amber); box-shadow: 0 0 0 3px var(--accent-glow); }
 
-/* Action row */
 .action-row { display: flex; gap: .4rem; flex-wrap: wrap; }
 .action-row .sheet-item { flex: 1; padding: .65rem .75rem; justify-content: center; }
 
-/* Sheet about */
 .sheet-about { font-size: .75rem; color: var(--ink-3); line-height: 1.6; text-align: center; padding: .6rem 0; }
 .sheet-about .version { color: var(--amber); font-weight: 700; letter-spacing: .05em; }
 
-/* ============================================================
-   BREAKING BANNER
-   ============================================================ */
+/* BREAKING */
 .breaking {
   position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
   background: linear-gradient(90deg, #c82641 0%, #8f1c2d 50%, #c82641 100%);
@@ -378,9 +360,7 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .breaking-close { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.35); color: #fff; width: 30px; height: 30px; border-radius: 50%; font-size: .85rem; flex-shrink: 0; display: grid; place-items: center; transition: all .18s; }
 .breaking-close:hover { background: rgba(255,255,255,.25); transform: rotate(90deg); }
 
-/* ============================================================
-   TOAST
-   ============================================================ */
+/* TOAST */
 .toast {
   position: fixed; bottom: calc(90px + env(safe-area-inset-bottom, 0)); left: 50%;
   transform: translateX(-50%) translateY(20px);
@@ -397,9 +377,7 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 }
 .toast.show { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
 
-/* ============================================================
-   IPTV
-   ============================================================ */
+/* IPTV */
 .iptv-setup { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem; margin-bottom: 1rem; box-shadow: var(--shadow-card); }
 .iptv-setup[hidden] { display: none; }
 .iptv-setup-title { font-size: .72rem; font-weight: 800; color: var(--ink-3); text-transform: uppercase; letter-spacing: .12em; margin-bottom: .75rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
@@ -421,7 +399,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .iptv-status.loading { color: var(--amber); border-left-color: var(--amber); background: rgba(226,168,87,.08); }
 .iptv-status.loading::before { content: "⏳ "; }
 
-/* IPTV search */
 .iptv-search-wrap { position: relative; margin-bottom: .75rem; }
 .iptv-search-wrap[hidden] { display: none; }
 .iptv-search-wrap input { width: 100%; padding: .8rem 2.6rem .8rem 2.4rem; background: var(--card); border: 1px solid var(--line-2); color: var(--ink); border-radius: 12px; font-size: .92rem; outline: none; }
@@ -431,7 +408,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .iptv-search-clear { position: absolute; right: .5rem; top: 50%; transform: translateY(-50%); width: 30px; height: 30px; background: transparent; border: none; color: var(--ink-3); border-radius: 50%; cursor: pointer; display: grid; place-items: center; padding: 0; }
 .iptv-search-clear svg { width: 14px; height: 14px; }
 
-/* IPTV pills */
 .iptv-pills { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .25rem 0 .75rem; width: 100%; }
 .iptv-pills-left { flex-shrink: 0; }
 .iptv-pills-right { flex-shrink: 0; margin-left: auto; }
@@ -443,7 +419,7 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .iptv-pill-allchannels { background: var(--bg-3); border-style: dashed; }
 .iptv-pill-allchannels.active { background: linear-gradient(135deg, var(--amber-2), var(--amber-3)); border-style: solid; color: #070c16; }
 
-/* IPTV grid */
+/* 🔧 FIX: IPTV grid — mobiel 2 kolommen */
 .iptv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: .6rem; }
 .iptv-ch {
   background: var(--card); border: 1px solid var(--line); border-left: 3px solid var(--ch-color, var(--line-2));
@@ -473,7 +449,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .iptv-load-more { display: block; margin: .75rem auto 0; padding: .6rem 1.2rem; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--amber); font-size: .8rem; font-weight: 700; border-radius: 10px; cursor: pointer; font-family: inherit; transition: all .15s; }
 .iptv-load-more:hover { border-color: var(--amber); background: var(--card-hover); }
 
-/* IPTV Player */
 .iptv-player {
   position: fixed; inset: 0; background: rgba(0,0,0,.94); z-index: 9500;
   display: none; align-items: center; justify-content: center; padding: .5rem;
@@ -501,7 +476,6 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .iptv-copy-btn:hover { border-color: var(--amber); color: var(--amber); }
 .iptv-copy-btn svg { width: 12px; height: 12px; }
 
-/* IPTV Groups Panel */
 .iptv-groups-panel { position: fixed; inset: 0; background: rgba(0,0,0,.75); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 9800; display: none; align-items: flex-end; justify-content: center; }
 .iptv-groups-panel.show { display: flex; }
 .iptv-groups-panel-box { background: var(--card); width: 100%; max-width: 560px; max-height: 82vh; border-top-left-radius: 20px; border-top-right-radius: 20px; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 -20px 60px rgba(0,0,0,.6); border: 1px solid var(--line); border-bottom: none; }
@@ -524,9 +498,7 @@ html[data-accent] .segmented .sheet-item.active { color: var(--amber); border-co
 .iptv-group-name { flex: 1; font-size: .87rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .iptv-group-count { font-size: .7rem; font-weight: 700; background: var(--bg-3); color: var(--ink-3); padding: .2rem .5rem; border-radius: 6px; flex-shrink: 0; }
 
-/* ============================================================
-   MAP
-   ============================================================ */
+/* MAP */
 .map-page { display: flex; flex-direction: column; gap: .85rem; animation: fadeIn .3s ease; }
 .map-wrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow-card); }
 #map { width: 100%; height: 55vh; min-height: 400px; background: var(--bg-2); }
@@ -561,7 +533,6 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 .map-wrap.fullscreen { position: fixed; inset: 0; z-index: 9990; border-radius: 0; border: none; }
 .map-wrap.fullscreen #map { height: 100vh; min-height: 100vh; }
 
-/* Live feed */
 .live-feed { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow-card); }
 .live-head { display: flex; align-items: center; justify-content: space-between; padding: .85rem 1rem; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, rgba(230,57,80,.06), transparent); }
 .live-title { display: flex; align-items: center; gap: .5rem; font-size: .7rem; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; color: var(--ink); }
@@ -582,7 +553,6 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 .live-event-loc { color: var(--amber); font-weight: 600; }
 .live-event-cat { padding: .1rem .4rem; border-radius: 5px; font-size: .55rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; background: var(--bg-3); color: var(--cat-color, var(--ink-3)); border: 1px solid currentColor; }
 
-/* Leaflet */
 .leaflet-container { background: var(--bg-2); font-family: inherit; }
 .leaflet-popup-content-wrapper { background: var(--card); color: var(--ink); border-radius: 12px; border: 1px solid rgba(226,168,87,.4); box-shadow: var(--shadow-deep); }
 .leaflet-popup-tip { background: var(--card); border: 1px solid rgba(226,168,87,.4); }
@@ -592,7 +562,6 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 .leaflet-popup-content .pop-meta { font-size: .62rem; color: var(--ink-3); font-weight: 600; margin-bottom: .4rem; }
 .leaflet-popup-content .pop-more { display: block; width: 100%; margin-top: .5rem; padding: .4rem .7rem; background: linear-gradient(135deg, var(--amber-2), var(--amber-3)); color: #070c16; border: none; border-radius: 6px; font-size: .7rem; font-weight: 700; cursor: pointer; text-align: center; }
 
-/* Markers/clusters */
 .marker-cluster-small, .marker-cluster-medium, .marker-cluster-large { background: transparent !important; }
 .marker-cluster-small div, .marker-cluster-medium div, .marker-cluster-large div {
   background: linear-gradient(135deg, #8a5c26, #e2a857) !important;
@@ -602,7 +571,6 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
   box-shadow: 0 2px 6px rgba(0,0,0,.4);
 }
 
-/* Map detail modal */
 .wd-detail-modal {
   position: fixed; inset: 0; z-index: 9600;
   background: rgba(0,0,0,.85);
@@ -624,9 +592,7 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 .wd-detail-btn.primary { background: linear-gradient(135deg, var(--amber-2), var(--amber-3)); color: #070c16; border-color: var(--amber); font-weight: 700; }
 .wd-detail-btn.primary:hover { filter: brightness(1.1); color: #070c16; }
 
-/* ============================================================
-   VOD
-   ============================================================ */
+/* VOD */
 .vod-search-wrap { position: relative; margin-bottom: .75rem; }
 .vod-search-icon { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); color: var(--ink-3); width: 15px; height: 15px; pointer-events: none; }
 .vod-search-wrap input { width: 100%; padding: .75rem 2.6rem .75rem 2.35rem; background: var(--card); border: 1px solid var(--line-2); color: var(--ink); border-radius: 10px; font-size: .88rem; outline: none; }
@@ -634,6 +600,7 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 .vod-search-clear { position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; background: transparent; border: none; color: var(--ink-3); border-radius: 50%; cursor: pointer; display: grid; place-items: center; padding: 0; font-size: 1.1rem; }
 .vod-search-clear:hover { background: var(--bg-3); color: var(--ink); }
 
+/* 🔧 FIX: VOD layout — desktop grid, mobiel column */
 .vod-page { display: grid; grid-template-columns: 130px 1fr; gap: .85rem; align-items: start; }
 .vod-sidebar { position: sticky; top: .5rem; max-height: calc(100vh - 200px); overflow-y: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: .4rem; }
 .vod-sidebar-group { margin-bottom: .85rem; }
@@ -671,7 +638,6 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 .vod-scroll-top.show { display: grid; }
 .vod-scroll-top:hover { border-color: var(--amber); transform: translateY(-2px); }
 
-/* VOD detail modal */
 .vod-detail-modal { position: fixed; inset: 0; z-index: 10060; background: rgba(0,0,0,.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; padding: 1rem; }
 .vod-detail-modal.show { display: flex; animation: fadeIn .2s ease; }
 .vod-detail-box { background: linear-gradient(180deg, var(--card), var(--card-hover)); border: 1px solid rgba(226,168,87,.4); border-radius: 16px; max-width: 560px; width: 100%; max-height: 88vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: var(--shadow-deep); }
@@ -694,10 +660,12 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 /* ============================================================
    RESPONSIVE
    ============================================================ */
+
 @media (max-width: 900px) {
   .map-page { flex-direction: column; }
-  .vod-page { grid-template-columns: minmax(150px, 180px) 1fr; }
 }
+
+/* 🔧 FIX: Op mobiel VOD sidebar horizontaal + IPTV 2 kolommen */
 @media (max-width: 640px) {
   body { font-size: 14px; }
   .header-inner { padding: .75rem .9rem; gap: .6rem; }
@@ -720,22 +688,54 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
   .map-legend { max-width: 150px; padding: .5rem .6rem; font-size: .6rem; }
   .live-list { max-height: 300px; }
 
-  .iptv-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .5rem; }
-  .iptv-ch { padding: .7rem .55rem .6rem; min-height: 110px; }
-  .iptv-ch-logo { width: 46px; height: 46px; font-size: 1.1rem; }
-  .iptv-ch-name { font-size: .72rem; }
+  /* 🔧 IPTV: forceer 2 kolommen op mobiel */
+  .iptv-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  .iptv-ch { padding: .7rem .5rem .6rem; min-height: 110px; }
+  .iptv-ch-logo { width: 44px; height: 44px; font-size: 1.1rem; }
+  .iptv-ch-name { font-size: .7rem; }
   .iptv-grid.list-mode .iptv-ch { padding: .45rem .65rem; min-height: 48px; }
   .iptv-grid.list-mode .iptv-ch-logo { width: 34px; height: 34px; }
   .iptv-grid.list-mode .iptv-ch-name { font-size: .8rem; }
   .iptv-player-box video { max-height: 45vh; }
 
-  .vod-page { grid-template-columns: 100px 1fr; gap: .55rem; }
-  .vod-sidebar { padding: .3rem; }
-  .vod-sidebar-item { padding: .45rem .4rem; font-size: .68rem; }
-  .vod-sidebar-title { font-size: .52rem; padding: .3rem .4rem; }
-  .vod-grid { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: .5rem; }
-  .vod-poster-body { padding: .4rem .45rem .5rem; min-height: 42px; }
-  .vod-poster-name { font-size: .68rem; }
+  /* 🔧 VOD: sidebar horizontaal op mobiel */
+  .vod-page { display: flex; flex-direction: column; gap: .5rem; }
+  .vod-sidebar {
+    position: static;
+    max-height: none;
+    display: flex;
+    flex-direction: row;
+    overflow-x: auto;
+    gap: .25rem;
+    padding: .4rem;
+    border-radius: 10px;
+    scrollbar-width: none;
+  }
+  .vod-sidebar::-webkit-scrollbar { display: none; }
+  .vod-sidebar-group {
+    display: flex;
+    flex-direction: row;
+    gap: .25rem;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+  .vod-sidebar-title { display: none; }
+  .vod-sidebar-item {
+    white-space: nowrap;
+    padding: .5rem .7rem;
+    font-size: .72rem;
+    margin-bottom: 0;
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    border-radius: 999px;
+  }
+  .vod-sidebar-item.active { border-color: var(--amber); }
+
+  /* 🔧 VOD grid: 3 kolommen op mobiel */
+  .vod-grid { grid-template-columns: repeat(3, 1fr); gap: .4rem; }
+  .vod-poster-body { padding: .35rem .4rem .45rem; min-height: 38px; }
+  .vod-poster-name { font-size: .65rem; }
+  .vod-poster-meta { font-size: .55rem; }
 
   .vod-detail-modal { padding: 0; }
   .vod-detail-box { max-width: 100%; max-height: 100vh; border-radius: 0; height: 100vh; }
@@ -745,6 +745,7 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
 }
 @media (max-width: 380px) {
   .iptv-grid { grid-template-columns: repeat(2, 1fr); }
+  .vod-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
