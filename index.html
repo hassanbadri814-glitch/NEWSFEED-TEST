@@ -64,9 +64,6 @@
 <link rel="stylesheet" href="styles.css?v=13.3">
 
 <style>
-/* ============================================================
-   INLINE — alleen data-attribute CSS die niet in styles.css zit
-   ============================================================ */
 html[data-font-size="small"]  { font-size: 14px; }
 html[data-font-size="medium"] { font-size: 16px; }
 html[data-font-size="large"]  { font-size: 18px; }
@@ -83,7 +80,6 @@ html[data-oled="true"] {
   --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808;
 }
 
-/* Debug */
 #wdDebugBtn, #wdDebugPanel { display: none !important; }
 html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:100px;right:15px;z-index:20000;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
 html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
@@ -100,7 +96,6 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 #wdDebugPanel .actions{padding:.5rem;background:#111;border-radius:6px;margin-bottom:.8rem;display:flex;gap:.5rem;flex-wrap:wrap}
 #wdDebugPanel .actions button{background:#333;color:#fff;border:none;padding:.4rem .7rem;border-radius:4px;font-family:monospace;font-size:10px;cursor:pointer}
 
-/* Refresh knop (door refresh-v12.js toegevoegd) */
 .btn-refresh { position:relative; width:40px; height:40px; border-radius:50%; background:linear-gradient(180deg,var(--bg-3),var(--bg-2)); border:1px solid var(--line-2); color:var(--ink-2); display:grid; place-items:center; cursor:pointer; transition:all .18s; padding:0; }
 .btn-refresh:hover { border-color:var(--amber); color:var(--amber); }
 .btn-refresh:active { transform:scale(.92); }
@@ -113,7 +108,6 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 .btn-refresh.done { color:#2dd4a8; border-color:#2dd4a8; }
 @keyframes spin { to { transform:rotate(360deg); } }
 
-/* SVG guard */
 svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .map-ctrl svg, .iptv-btn svg, .brand-mark svg { width:18px; height:18px; }
 .brand-mark svg { width:22px; height:22px; }
@@ -121,7 +115,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 </head>
 <body>
 
-<!-- BREAKING BANNER -->
 <div class="breaking" id="breakingBanner" role="button" tabindex="0" aria-label="Breaking news">
   <div class="breaking-icon">⚠️</div>
   <div class="breaking-text">
@@ -132,7 +125,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   <button class="breaking-close" id="breakingClose" aria-label="Sluiten">✕</button>
 </div>
 
-<!-- HEADER -->
 <header class="header">
   <div class="header-inner">
     <div class="brand">
@@ -163,10 +155,8 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </div>
 </header>
 
-<!-- MAIN -->
 <main class="main">
 
-  <!-- NEWS -->
   <section class="view" id="viewNews">
     <div class="section-head">
       <h2 id="newsTitle">Laatste berichten</h2>
@@ -177,7 +167,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     <div class="feed-grid" id="feedGrid"></div>
   </section>
 
-  <!-- MAP -->
   <section class="view" id="viewMap" hidden>
     <div class="map-page">
       <div class="map-wrap">
@@ -211,7 +200,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     </div>
   </section>
 
-  <!-- IPTV -->
   <section class="view" id="viewIptv" hidden>
     <div class="section-head">
       <h2>IPTV</h2>
@@ -261,7 +249,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     <div class="iptv-visible-count" id="iptvVisibleCount"></div>
   </section>
 
-  <!-- VOD -->
   <section class="view" id="viewVod" hidden>
     <div class="section-head">
       <h2>VOD</h2>
@@ -289,7 +276,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </section>
 </main>
 
-<!-- BOTTOM TABS -->
 <nav class="bottom-tabs" role="tablist">
   <button class="tab active" data-view="news" role="tab" aria-selected="true">
     <span class="tab-icon">📰</span><span class="tab-label">Nieuws</span>
@@ -305,7 +291,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </button>
 </nav>
 
-<!-- SHEET / MENU -->
 <div class="sheet-overlay" id="sheetOverlay"></div>
 <div class="sheet" id="sheet">
   <div class="sheet-handle"></div>
@@ -431,7 +416,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </div>
 </div>
 
-<!-- IPTV PLAYER -->
 <div class="iptv-player" id="iptvPlayer">
   <div class="iptv-player-box">
     <div class="iptv-player-head">
@@ -473,7 +457,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </div>
 </div>
 
-<!-- IPTV GROUPS PANEL -->
 <div class="iptv-groups-panel" id="iptvGroupsPanel">
   <div class="iptv-groups-panel-box">
     <div class="iptv-groups-panel-head">
@@ -495,7 +478,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </div>
 </div>
 
-<!-- VOD DETAIL MODAL -->
 <div class="vod-detail-modal" id="vodDetailModal">
   <div class="vod-detail-box">
     <div class="vod-detail-head">
@@ -519,10 +501,8 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   </div>
 </div>
 
-<!-- TOAST -->
 <div class="toast" id="toast" role="status" aria-live="polite">Klaar</div>
 
-<!-- DEBUG -->
 <button id="wdDebugBtn" title="Debug">🐞</button>
 <div id="wdDebugPanel">
   <div class="head">
@@ -537,9 +517,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   <div id="wdDebugLog"></div>
 </div>
 
-<!-- ============================================================
-     INLINE HELPERS — font-size, accent, OLED
-     ============================================================ -->
 <script>
 (function(){
   window.__setFontSize = function(size){
@@ -626,9 +603,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   });
 })();
 
-/* ============================================================
-   DEBUG PANEL
-   ============================================================ */
 (function(){
   "use strict";
   var DEBUG = /[?&]debug=1/.test(location.search);
@@ -695,9 +669,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   });
 })();
 
-/* ============================================================
-   IPTV TOGGLE SETUP KNOP
-   ============================================================ */
 document.addEventListener("DOMContentLoaded", function(){
   var tog = document.getElementById("iptvToggleSetup");
   if(tog){
@@ -709,15 +680,9 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 </script>
 
-<!-- ============================================================
-     EXTERNAL LIBRARIES
-     ============================================================ -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
-<!-- ============================================================
-     APP MODULES
-     ============================================================ -->
 <script src="config.js?v=13.3" defer></script>
 <script src="store.js?v=13.3" defer></script>
 <script src="news-v27.js?v=13.3" defer></script>
@@ -725,12 +690,9 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="persist-v4.js?v=13.3" defer></script>
 <script src="refresh-v12.js?v=13.3" defer></script>
 <script src="iptv-v8.js?v=13.3" defer></script>
-<script src="map-v11.4.js?v=13.3" defer></script>
+<script src="map-v11.5.js?v=13.3" defer></script>
 <script src="vod-v24.js?v=13.3" defer></script>
 
-<!-- ============================================================
-     BOOT — wacht tot modules geladen zijn
-     ============================================================ -->
 <script>
 (function(){
   function boot(){
