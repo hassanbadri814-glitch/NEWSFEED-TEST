@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.3</title>
+<title>WAR DESK v14.4</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -61,7 +61,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 
-<link rel="stylesheet" href="styles.css?v=14.3">
+<link rel="stylesheet" href="styles.css?v=14.4">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -81,8 +81,8 @@ html[data-oled="true"] {
 }
 
 #wdDebugBtn, #wdDebugPanel { display: none !important; }
-html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:100px;right:15px;z-index:20000;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
-html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:19999;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
+html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:80px;right:15px;z-index:999999;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
+html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:999998;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
 #wdDebugPanel .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;padding-bottom:.5rem;border-bottom:1px solid #333;position:sticky;top:0;background:rgba(0,0,0,.95);z-index:1}
 #wdDebugPanel h2{color:#e0a857;font-size:14px;margin:0}
 #wdDebugPanel .close{background:#e63950;color:#fff;border:none;padding:.4rem .8rem;border-radius:6px;font-family:monospace;font-weight:700;cursor:pointer}
@@ -113,33 +113,31 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .brand-mark svg { width:22px; height:22px; }
 
 /* ============================================================
-   FIXES VOOR LAYOUT, MENU EN ONDERBALK
+   FIXES: Onderbalk, VOD grid, Menu
    ============================================================ */
 
-/* 1. Onderste menubalk altijd zichtbaar en boven systeemnavigatie */
+/* Onderste menubalk - compact en boven systeemnavigatie */
 .bottom-tabs {
   position: fixed !important;
   bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
-  z-index: 99999 !important;
+  z-index: 9999 !important;
   display: flex !important;
   justify-content: space-around !important;
   background: var(--bg-2, #070c16) !important;
   border-top: 1px solid var(--line-2, #1a2332) !important;
-  padding: 8px 0 !important;
-  padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px)) !important;
+  padding: 4px 0 !important;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
   box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
-  min-height: 50px !important;
 }
 
-/* 2. Content niet achter de menubalk */
+/* Content niet achter de menubalk */
 #viewNews, #viewMap, #viewIptv, #viewVod {
-  padding-bottom: 90px !important; 
-  min-height: calc(100vh - 90px) !important;
+  padding-bottom: 70px !important;
 }
 
-/* 3. VOD Grid layout */
+/* VOD Grid */
 .vod-grid {
   display: grid !important;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
@@ -193,7 +191,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .vod-poster-name { font-size: 0.8rem !important; font-weight: 600 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: var(--ink-1, #fff) !important; margin-bottom: 2px !important; }
 .vod-poster-meta { font-size: 0.7rem !important; color: var(--ink-3, #888) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
 
-/* 4. Menu / Sheet z-index en werking */
+/* Menu / Sheet */
 .sheet-overlay {
   position: fixed !important;
   inset: 0 !important;
@@ -226,7 +224,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   bottom: 0 !important;
 }
 
-/* 5. VOD Detail Modal */
+/* VOD Detail Modal */
 .vod-detail-modal {
   position: fixed !important;
   inset: 0 !important;
@@ -276,7 +274,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.3</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.4</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -545,7 +543,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v14.3</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v14.4</span><br>
         Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD
       </div>
     </div>
@@ -841,10 +839,9 @@ document.addEventListener("DOMContentLoaded", function(){
   if(sheetClose) sheetClose.addEventListener("click", closeSheet);
   if(sheetOverlay) sheetOverlay.addEventListener("click", closeSheet);
 
-  // Sluit menu als je ergens in het menu klikt dat de sheet sluit
   document.querySelectorAll(".sheet-item").forEach(function(btn) {
     btn.addEventListener("click", function() {
-      if(btn.onclick) return; // Als er al een onclick is, laat die eerst werken
+      if(btn.onclick) return;
       closeSheet();
     });
   });
@@ -854,15 +851,15 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
-<script src="config.js?v=14.3" defer></script>
-<script src="store.js?v=14.3" defer></script>
-<script src="news-v27.js?v=14.3" defer></script>
-<script src="app-v12.js?v=14.3" defer></script>
-<script src="persist-v4.js?v=14.3" defer></script>
-<script src="refresh-v12.js?v=14.3" defer></script>
-<script src="iptv-v8.js?v=14.3" defer></script>
-<script src="map-v11.10.js?v=14.3" defer></script>
-<script src="vod-v24.js?v=14.3" defer></script>
+<script src="config.js?v=14.4" defer></script>
+<script src="store.js?v=14.4" defer></script>
+<script src="news-v27.js?v=14.4" defer></script>
+<script src="app-v12.js?v=14.4" defer></script>
+<script src="persist-v4.js?v=14.4" defer></script>
+<script src="refresh-v12.js?v=14.4" defer></script>
+<script src="iptv-v8.js?v=14.4" defer></script>
+<script src="map-v11.10.js?v=14.4" defer></script>
+<script src="vod-v24.js?v=14.4" defer></script>
 
 <script>
 (function(){
@@ -888,9 +885,6 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<!-- ============================================================
-     NIEUW SCRIPT: ONTHOUD ACTIEVE TABBLAD
-     ============================================================ -->
 <script>
 (function(){
   function loadSavedTab() {
