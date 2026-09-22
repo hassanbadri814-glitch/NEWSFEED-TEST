@@ -9,6 +9,10 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
+
+<!-- CONTENT SECURITY POLICY - VEILIGHEID -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://war-tracker.com https://tiles.stadiamaps.com https://newsfeed2.hassanbadri814.workers.dev https://api.mymemory.translated.net https://translate.googleapis.com https://v3-cinemeta.strem.io; manifest-src 'self';">
+
 <title>WAR DESK v12.0</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
@@ -46,6 +50,7 @@ try{
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="styles.css?v=12">
+
 <style>
 /* ============================================================
    FONT-SIZE
@@ -1294,7 +1299,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
         <input type="text" id="iptvUser" placeholder="Username" autocomplete="off">
         <div class="pw-wrap">
           <input type="password" id="iptvPass" placeholder="Password" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-          <button type="button" class="pw-toggle" id="iptvPwToggle" aria-label="Toon wachtwoord">👁</button>
+          <button type="button" class="pw-toggle" id="iptvPwToggle" aria-label="Toon wachtwoord"></button>
         </div>
       </div>
       <div class="iptv-row">
@@ -1872,6 +1877,7 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 })();
 console.log("%c WAR DESK %c v12.0 ","background:#e0a857;color:#070c16;font-weight:800;padding:2px 6px;border-radius:4px 0 0 4px;","background:#131e30;color:#e0a857;font-weight:800;padding:2px 6px;border-radius:0 4px 4px 0;");
 </script>
+
 <!-- MOBILE DEBUG CONSOLE -->
 <script src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js"></script>
 <script>
@@ -1883,5 +1889,6 @@ console.log("%c WAR DESK %c v12.0 ","background:#e0a857;color:#070c16;font-weigh
     }
   });
   window.vConsole = vConsole;
-</script></body>
+</script>
+</body>
 </html>
