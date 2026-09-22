@@ -22,9 +22,6 @@
 
   LOG("v11.10 geladen — alleen Midden-Oosten + retry + 2 artikelen per regio");
 
-  /* ============================================================
-     MIDDEN-OOSTEN LOCATIES
-     ============================================================ */
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
     "gaza":    { lat: 31.35, lng: 34.31, country: "Gaza" },
@@ -295,10 +292,6 @@
     }, 300);
   }
 
-  /* ============================================================
-     Event-generator: ALLEEN Midden-Oosten
-     AANGEPAST: Pakt de laatste 2 artikelen per regio
-     ============================================================ */
   function buildEventsFromNews(){
     if(!window.State || !State.items || !State.items.length){
       return null;
@@ -331,25 +324,22 @@
       var typeConfig = TYPES[filter];
       var items = byCat[cat];
 
-      // Sorteer op datum (nieuwste eerst)
       items.sort(function(a, b){
         var ta = new Date(a.date).getTime() || 0;
         var tb = new Date(b.date).getTime() || 0;
         return tb - ta;
       });
 
-      // Pak alleen de laatste 2 artikelen
       var top = items.slice(0, 2);
 
       top.forEach(function(it, index){
-        // Kleine offset toevoegen aan lat/lng zodat de 2 markers niet exact over elkaar heen vallen
         var offset = index * 0.15; 
 
         events.push({
-          id: "news-" + cat + "-" + index, // Uniek ID per artikel
+          id: "news-" + cat + "-" + index,
           lat: loc.lat + offset,
           lng: loc.lng + offset,
-          title: it.title || "Geen titel", // De titel van het artikel zelf
+          title: it.title || "Geen titel",
           fullDescription: "Land: " + loc.country + "\nCategorie: " + cat + "\n\n" + (it.title || "?") + "\n\n" + (it.description || ""),
           type: cat,
           typeConfig: typeConfig,
@@ -358,7 +348,7 @@
           url: it.link || "",
           source: it.source || "",
           confidence: "HIGH",
-          count: 1 // Elk event is nu 1 artikel
+          count: 1
         });
       });
     });
@@ -389,7 +379,6 @@
     return true;
   }
 
-  /* Wacht tot State.items gevuld is, retry elke seconde */
   function waitForNewsAndRefresh(){
     if(MAP._waitTimer) clearInterval(MAP._waitTimer);
     MAP._waitTries = 0;
@@ -411,7 +400,6 @@
       }
     }
     
-    /* Direct check */
     if(window.State && State.items && State.items.length){
       refreshFromNews();
       MAP._lastNewsCount = State.items.length;
