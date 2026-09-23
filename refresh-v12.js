@@ -128,7 +128,6 @@
         handleDone();
       });
       WarDesk.events.on("news:reload:done", function(){
-        // Extra bevestiging dat reload klaar is
         lastUpdate = Date.now();
         tickUpdate();
       });
@@ -166,10 +165,6 @@
     }
 
     refreshBtn.addEventListener("click", doRefresh);
-
-    /* ============================================================
-       v13.0: geen monkey-patch meer. We luisteren alleen naar events.
-       ============================================================ */
 
     var attempts = 0;
     var waitInit = setInterval(function(){
