@@ -1,16 +1,15 @@
 /* ============================================================
-   WAR DESK v14.14 — Configuratie
-   - Centrale APP_VERSION (één versie voor de hele app)
-   - Centrale wdLog functie (alleen in debug-modus)
+   WAR DESK v14.15 — Configuratie
+   - Centrale APP_VERSION
+   - Centrale wdLog functie
+   - FIX v14.15: WDStorage beschikbaar (storage.js moet voor config.js geladen)
    ============================================================ */
 
-window.APP_VERSION = "v14.14";
+window.APP_VERSION = "v14.15";
 window.TAGS_VERSION = "4";
 
 /* ============================================================
    CENTRALE DEBUG-LOGGER
-   - Alleen zichtbaar in console als ?debug=1 of localStorage
-   - Productie-gebruikers zien geen console-ruis
    ============================================================ */
 window.WD_DEBUG = (function(){
   try {
@@ -30,7 +29,6 @@ window.wdLog = {
     try { console.warn.apply(console, arguments); } catch(e){}
   },
   error: function(){
-    // Fouten worden ALTIJD getoond, ook zonder debug
     try { console.error.apply(console, arguments); } catch(e){}
   }
 };
@@ -51,7 +49,6 @@ window.CONFIG = {
   detailCacheMax: 500,
   detailCacheTTL: 7200000,
 
-  // Stadia key wordt niet meer gebruikt (kaart gebruikt OpenFreeMap sinds v11.12)
   get stadiaKey() {
     return "";
   },
