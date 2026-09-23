@@ -1,10 +1,11 @@
 /* ============================================================
-   WAR DESK v13.1 — App Orchestration (Touch Gestures)
+   WAR DESK v13.2 — App Orchestration (Touch Gestures)
    - FIX v12.6: N1 clock stop pagehide
    - FIX v12.7: scroll restoration per tab, haptic feedback
    - FIX v13.0: Service Worker registratie toegevoegd
-   - FIX v13.1: swipe-check op zowel touchstart als touchend
-                (voorkomt tab-wissel bij scrollen op categoriebalk)
+   - FIX v13.2: robuuste swipe-detectie — blokkeert tab-wissel
+                als de touch begint in een horizontaal scrollbaar
+                element (vod-sidebar, chips-row, iptv-pills, etc.)
    ============================================================ */
 
 (function(){
@@ -91,7 +92,6 @@
       vod: $("viewVod")
     };
 
-    /* FIX v12.7: scroll restoration per tab via sessionStorage */
     let currentView = "news";
 
     const saveScroll = (viewName) => {
@@ -295,59 +295,72 @@
     };
 
     /* ============================================================
-       v13.1: Swipe-wissel tussen tabs
-       - Check nu ZOWEL waar de touch begon als eindigde
-       - Voorkomt tab-wissel tijdens horizontaal scrollen van balken
+       v13.2: Swipe-wissel tussen tabs
+       - Dynamische detectie van horizontaal scrollbare voorouders
+       - Als de touch begint in zo'n element → geen tab-wissel
        ============================================================ */
     let touchStartX = 0;
     let touchStartY = 0;
-    let touchStartTarget = null;
+    let touchStartInScrollable = false;
+    let touchStartValid = false;
 
-    const SWIPE_EXCLUDE = '.vod-sidebar, .chips-row, .iptv-pills, .live-filters, .sheet, .iptv-groups-panel-list, [role="tablist"]';
+    function findScrollableAncestor(el){
+      while (el && el.nodeType === 1 && el !== document.body){
+        try {
+          var style = window.getComputedStyle(el);
+          var overflowX = style.overflowX;
+          if ((overflowX === "auto" || overflowX === "scroll") && el.scrollWidth > el.clientWidth + 1){
+            return el;
+          }
+        } catch(e){}
+        el = el.parentElement;
+      }
+      return null;
+    }
 
-    document.addEventListener('touchstart', e => {
+    document.addEventListener("touchstart", e => {
       if(!e.touches || !e.touches.length) return;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
-      touchStartTarget = e.target;
+      touchStartValid = true;
+      touchStartInScrollable = !!findScrollableAncestor(e.target);
     }, { passive: true });
 
-    document.addEventListener('touchend', e => {
-      if(!e.changedTouches || !e.changedTouches.length){
-        touchStartTarget = null;
+    document.addEventListener("touchend", e => {
+      if (!touchStartValid) return;
+      touchStartValid = false;
+
+      if (touchStartInScrollable) {
+        touchStartInScrollable = false;
         return;
       }
+
+      if (!e.changedTouches || !e.changedTouches.length) return;
+
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
-
       const deltaX = touchEndX - touchStartX;
       const deltaY = touchEndY - touchStartY;
 
-      if(Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50){
-        // Check of de touch begon OF eindigde in een scrollbare balk
-        const startIn = touchStartTarget && touchStartTarget.closest && touchStartTarget.closest(SWIPE_EXCLUDE);
-        const endIn = e.target && e.target.closest && e.target.closest(SWIPE_EXCLUDE);
-        touchStartTarget = null;
-
-        if (startIn || endIn) return;
+      if (Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50) {
+        // Extra check: eindigde de touch ook niet in een scrollable?
+        if (findScrollableAncestor(e.target)) return;
 
         const tabs = ['news', 'map', 'iptv', 'vod'];
         const currentTab = document.querySelector('.tab.active')?.dataset.view || 'news';
         const currentIndex = tabs.indexOf(currentTab);
 
         let newIndex;
-        if(deltaX > 0 && currentIndex > 0){
+        if (deltaX > 0 && currentIndex > 0) {
           newIndex = currentIndex - 1;
-        } else if(deltaX < 0 && currentIndex < tabs.length - 1){
+        } else if (deltaX < 0 && currentIndex < tabs.length - 1) {
           newIndex = currentIndex + 1;
         }
 
-        if(newIndex !== undefined){
+        if (newIndex !== undefined) {
           const tabBtn = document.querySelector(`.tab[data-view="${tabs[newIndex]}"]`);
-          if(tabBtn) tabBtn.click();
+          if (tabBtn) tabBtn.click();
         }
-      } else {
-        touchStartTarget = null;
       }
     }, { passive: true });
 
