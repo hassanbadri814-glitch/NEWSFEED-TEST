@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK v4.3 — State persistentie
+   WAR DESK v5.0 — State persistentie + EventBus
    - Start altijd op Nieuws (geen tab-herstel)
    - FIX v4.1: wdLog
    - FIX v4.2: WDStorage
    - FIX v4.3: dead code weg (B8) + currentSearch bewaren (B9)
+   - FIX v5.0: polling verwijderd → EventBus listener (news:loaded)
    ============================================================ */
 
 (function(){
@@ -64,6 +65,13 @@
     return true;
   }
 
+  function doRestore(){
+    restore();
+    applyToUI(load());
+    try{ if(window.NewsAPI && NewsAPI.render) NewsAPI.render(); }catch(e){}
+    wdLog.info("[WAR DESK] State hersteld (start altijd op Nieuws)");
+  }
+
   function initPersist(){
     var saved = load();
     if(saved){ restore(); applyToUI(saved); }
@@ -79,25 +87,62 @@
       if(document.hidden) save();
     });
 
-    var attempts = 0;
-    var waitInterval = setInterval(function(){
-      attempts++;
-      var ready = window.NewsAPI && window.State;
-      var hasItems = ready && State.items && State.items.length > 0;
-      var timedOut = attempts > 50;
-      if((ready && hasItems) || (ready && timedOut)){
-        clearInterval(waitInterval);
-        restore();
-        applyToUI(load());
-        try{ if(NewsAPI.render) NewsAPI.render(); }catch(e){}
-        wdLog.info("[WAR DESK] State hersteld (start altijd op Nieuws)");
-      }
-      if(attempts > 200) clearInterval(waitInterval);
-    }, 100);
+    /* ============================================================
+       v5.0: Wacht op nieuws via EventBus in plaats van polling
+       ============================================================ */
+
+    var didRun = false;
+
+    function runOnce(){
+      if(didRun) return;
+      didRun = true;
+      doRestore();
+    }
+
+    // Voorkeur: EventBus listener
+    if(window.WarDesk && WarDesk.events && WarDesk.events.once){
+      WarDesk.events.once("news:loaded", function(){
+        wdLog.info("[WAR DESK] persist-v4: news:loaded ontvangen → state herstellen");
+        runOnce();
+      });
+
+      // Fallback: als nieuws al klaar was voordat wij luisterden
+      // (bijv. bij herladen van de pagina), check na 500ms of items er al zijn
+      setTimeout(function(){
+        if(didRun) return;
+        if(window.NewsAPI && window.State && State.items && State.items.length > 0){
+          wdLog.info("[WAR DESK] persist-v4: nieuws al aanwezig → direct herstellen");
+          runOnce();
+        }
+      }, 500);
+
+      // Laatste redmiddel: timeout na 8 seconden
+      setTimeout(function(){
+        if(didRun) return;
+        wdLog.warn("[WAR DESK] persist-v4: timeout na 8s — state herstellen zonder nieuws-signaal");
+        runOnce();
+      }, 8000);
+
+    } else {
+      // Oude fallback (zonder EventBus) — blijft werken
+      wdLog.warn("[WAR DESK] persist-v4: EventBus niet beschikbaar — val terug op polling");
+      var attempts = 0;
+      var waitInterval = setInterval(function(){
+        attempts++;
+        var ready = window.NewsAPI && window.State;
+        var hasItems = ready && State.items && State.items.length > 0;
+        var timedOut = attempts > 50;
+        if((ready && hasItems) || (ready && timedOut)){
+          clearInterval(waitInterval);
+          runOnce();
+        }
+        if(attempts > 200) clearInterval(waitInterval);
+      }, 100);
+    }
   }
 
   if(document.readyState !== "loading") initPersist();
   else document.addEventListener("DOMContentLoaded", initPersist);
 
-  wdLog.info("[WAR DESK] persist-v4.js v4.3 geladen");
+  wdLog.info("[WAR DESK] persist-v4.js v5.0 geladen");
 })();
