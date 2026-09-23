@@ -1,21 +1,18 @@
 /* ============================================================
-   WAR DESK v8.0 — IPTV (High Performance)
+   WAR DESK v8.0.2 — IPTV (High Performance)
    - Chunked rendering voor 500+ kanalen
    - Geïntegreerd met window.appStore (Reactive)
    - Behoudt window.IPTVAPI voor compatibiliteit
    - FIX v8.0.1: state race condition verwijderd
+   - FIX v8.0.2: wdLog in plaats van console.log
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var LOG = function(){ try{ console.log.apply(console, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v8.0 geladen");
-
-  // IPTV heeft een eigen state object; window.State wordt niet direct gebruikt.
-  // (Oude regel `var state = window.appStore ? window.appStore.state : null;` verwijderd
-  //  omdat deze null werd als store.js nog niet geladen was.)
+  var LOG = function(){ try{ wdLog.info.apply(null, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
+  LOG("v8.0.2 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -774,7 +771,6 @@
     return list;
   }
 
-  // PERFORMANCE: Chunked rendering
   function renderChannelsChunked(list){
     var grid = $("iptvGrid");
     if(!grid) return;
@@ -1217,5 +1213,5 @@
   else document.addEventListener("DOMContentLoaded", function(){ setTimeout(start, 200); });
   window.addEventListener("load", function(){ setTimeout(start, 500); });
 
-  console.log("[WAR DESK] iptv-v8.js v8.0.1 geladen");
+  wdLog.info("[WAR DESK] iptv-v8.js v8.0.2 geladen");
 })();
