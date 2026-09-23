@@ -1,14 +1,14 @@
 /* ============================================================
-   WAR DESK v12.5 — App Orchestration (Touch Gestures)
-   - FIX v12.4: WDStorage
-   - FIX v12.5: A2 swipe-conflict met horizontale scroll-containers
+   WAR DESK v12.6 — App Orchestration (Touch Gestures)
+   - FIX v12.5: A2 swipe-conflict
+   - FIX v12.6: N1 clock stop bij pagehide
    ============================================================ */
 
 (function(){
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = window.APP_VERSION || "v14.17";
+  const APP_VERSION = window.APP_VERSION || "v14.20";
 
   const ready = (fn) => {
     if(document.readyState !== "loading") fn();
@@ -46,6 +46,9 @@
       if(document.hidden) stopClock();
       else startClock();
     });
+
+    window.addEventListener("pagehide", stopClock);
+    window.addEventListener("pageshow", startClock);
 
     startClock();
 
@@ -250,9 +253,6 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
-    // ============================================================
-    // A2 FIX: Swipe-navigatie negeert horizontale scroll-containers
-    // ============================================================
     let touchStartX = 0;
     let touchStartY = 0;
 
@@ -269,7 +269,6 @@
       const deltaY = touchEndY - touchStartY;
       
       if(Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50){
-        // A2: negeer als de swipe begon in een horizontale scroll-container
         const target = e.target.closest('.vod-sidebar, .chips-row, .iptv-pills, .live-filters, .sheet');
         if (target) return;
 
