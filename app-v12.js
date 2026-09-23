@@ -1,19 +1,23 @@
 /* ============================================================
-   WAR DESK v12.6 — App Orchestration (Touch Gestures)
-   - FIX v12.5: A2 swipe-conflict
-   - FIX v12.6: N1 clock stop bij pagehide
+   WAR DESK v12.7 — App Orchestration (Touch Gestures)
+   - FIX v12.6: N1 clock stop pagehide
+   - FIX v12.7: scroll restoration per tab, haptic feedback
    ============================================================ */
 
 (function(){
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = window.APP_VERSION || "v14.20";
+  const APP_VERSION = window.APP_VERSION || "v14.21";
 
   const ready = (fn) => {
     if(document.readyState !== "loading") fn();
     else document.addEventListener("DOMContentLoaded", fn);
   };
+
+  function haptic(ms){
+    try{ if(navigator.vibrate) navigator.vibrate(ms || 10); }catch(e){}
+  }
 
   ready(() => {
     if(document.documentElement.classList.contains("light")){
@@ -58,6 +62,7 @@
         const isLight = document.documentElement.classList.toggle("light");
         document.body.classList.toggle("light", isLight);
         if(window.WDStorage) WDStorage.set("theme", isLight ? "light" : "dark");
+        haptic(10);
       });
     }
 
@@ -68,19 +73,36 @@
       vod: $("viewVod")
     };
 
+    /* FIX v12.7: scroll restoration per tab via sessionStorage */
+    let currentView = "news";
+
+    const saveScroll = (viewName) => {
+      try{ sessionStorage.setItem("wardesk_scroll_" + viewName, String(window.scrollY || 0)); }catch(e){}
+    };
+
+    const restoreScroll = (viewName) => {
+      try{
+        const y = parseInt(sessionStorage.getItem("wardesk_scroll_" + viewName) || "0", 10);
+        if(y > 0) setTimeout(() => window.scrollTo(0, y), 50);
+      }catch(e){}
+    };
+
     const showView = (name) => {
+      if(currentView !== name) saveScroll(currentView);
+      currentView = name;
       Object.keys(views).forEach(k => {
         if(views[k]) views[k].hidden = (k !== name);
       });
       Array.from(document.querySelectorAll(".bottom-tabs .tab")).forEach(t => {
         t.classList.toggle("active", t.dataset.view === name);
       });
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      restoreScroll(name);
     };
 
     Array.from(document.querySelectorAll(".bottom-tabs .tab")).forEach(tab => {
       tab.addEventListener("click", () => {
         const view = tab.dataset.view;
+        if (currentView !== view) haptic(10);
         showView(view);
       });
     });
@@ -108,6 +130,7 @@
       sheet.classList.add("open");
       overlay.classList.add("open");
       document.body.style.overflow = "hidden";
+      haptic(8);
     };
     const closeSheet = () => {
       if(!sheet || !overlay) return;
