@@ -364,6 +364,5 @@
       }
     }, { passive: true });
 
-    wdLog.info("[WAR DESK] app-v12.js " + APP_VERSION + " geladen");
-  });
+    wdLog.info("[WAR DESK] app-v12.js v13.2 geladen (swipe-fix)");
 })();
