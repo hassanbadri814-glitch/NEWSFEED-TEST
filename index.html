@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.40</title>
+<title>WAR DESK v14.42</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -108,7 +108,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.41">
+<link rel="stylesheet" href="styles.css?v=14.42">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -160,16 +160,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .bottom-tabs { position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 9999999 !important; display: flex !important; justify-content: space-around !important; background: var(--bg-2, #070c16) !important; border-top: 1px solid var(--line-2, #1a2332) !important; padding: 4px 0 !important; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important; box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important; }
 #viewNews, #viewMap, #viewIptv, #viewVod { padding-bottom: 75px !important; min-height: auto !important; overflow-y: auto !important; }
 
-.vod-grid { display: grid !important; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important; gap: 12px !important; padding: 12px !important; width: 100% !important; }
-.vod-poster { display: flex !important; flex-direction: column !important; background: transparent !important; border: none !important; padding: 0 !important; cursor: pointer !important; text-align: left !important; transition: transform 0.2s !important; }
-.vod-poster:active { transform: scale(0.96) !important; }
-.vod-poster-img { width: 100% !important; aspect-ratio: 2 / 3 !important; border-radius: 8px !important; overflow: hidden !important; background: #222 !important; position: relative !important; border: 1px solid var(--line-2, #1a2332) !important; }
-.vod-poster-img img { width: 100% !important; height: 100% !important; object-fit: cover !important; display: block !important; }
-.vod-poster-fallback { position: absolute !important; inset: 0 !important; display: grid !important; place-items: center !important; font-size: 2rem !important; font-weight: 800 !important; color: #fff !important; background: linear-gradient(135deg, #1e3a5f, #3b6ba8) !important; }
-.vod-poster-body { padding: 6px 2px !important; }
-.vod-poster-name { font-size: 0.8rem !important; font-weight: 600 !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; color: var(--ink-1, #fff) !important; margin-bottom: 2px !important; }
-.vod-poster-meta { font-size: 0.7rem !important; color: var(--ink-3, #888) !important; white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
-
 .sheet-overlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,0.6) !important; z-index: 10000000 !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s !important; }
 .sheet-overlay.open { opacity: 1 !important; pointer-events: auto !important; }
 .sheet { position: fixed !important; bottom: -100% !important; left: 0 !important; right: 0 !important; z-index: 10000001 !important; background: var(--bg-2, #070c16) !important; border-radius: 20px 20px 0 0 !important; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; max-height: 85vh !important; overflow-y: auto !important; padding-bottom: env(safe-area-inset-bottom, 20px) !important; border-top: 1px solid var(--line-2, #1a2332) !important; box-shadow: 0 -10px 40px rgba(0,0,0,0.5) !important; }
@@ -209,7 +199,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.40</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.42</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -425,7 +415,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.40</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.42</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
     </div>
   </div>
 </div>
