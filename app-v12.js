@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK v13.3 — App Orchestration (simpel)
+   WAR DESK v13.3 — App Orchestration
    - v12.7 basis behouden
    - v13.0: Service Worker registratie
-   - v13.3: swipe-tussen-tabs verwijderd (veroorzaakte problemen)
+   - v13.3: swipe-tussen-tabs verwijderd
    ============================================================ */
 
 (function(){
@@ -25,7 +25,6 @@
       document.body.classList.add("light");
     }
 
-    /* Service Worker */
     if("serviceWorker" in navigator){
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js")
@@ -288,8 +287,6 @@
       clearTimeout(toastTimer);
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
-
-    /* GEEN swipe-tussen-tabs meer — veroorzaakte te veel problemen */
 
     wdLog.info("[WAR DESK] app-v12.js v13.3 geladen");
   });
