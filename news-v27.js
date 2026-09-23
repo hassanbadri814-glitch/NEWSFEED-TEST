@@ -1,14 +1,15 @@
 /* ============================================================
-   WAR DESK v27.2 — Nieuws Logica
+   WAR DESK v27.3 — Nieuws Logica
    - Intersection Observer voor lazy image loading
    - IndexedDB incrementeel + timers pauzeren op hidden
-   - FASE 4: wdLog in plaats van console.log/warn
+   - FASE 4 Deel 1: wdLog
+   - FASE 4 Deel 2: WDStorage
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.2";
+  window.__newsVersion = "v27.3";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -541,7 +542,7 @@
   };
   window.__setTranslate = (enabled) => {
     state.translateEnabled = !!enabled;
-    try{ localStorage.setItem("wardesk_translate", enabled ? "1" : "0"); }catch(e){}
+    if(window.WDStorage) WDStorage.set("translate", enabled ? "1" : "0");
     const btn = $("toggleTranslate");
     if(btn) btn.classList.toggle("toggle-on", enabled);
     state._lastRenderHash = "";
@@ -595,7 +596,7 @@
         return;
       }
       state.notificationsEnabled = true;
-      try{ localStorage.setItem("wardesk_notifications", "1"); }catch(e){}
+      if(window.WDStorage) WDStorage.set("notifications", "1");
       if(window.showToast) window.showToast("Breaking notificaties aan");
       try {
         new Notification("WAR DESK", {
@@ -607,7 +608,7 @@
       }catch(e){}
     } else {
       state.notificationsEnabled = false;
-      try{ localStorage.setItem("wardesk_notifications", "0"); }catch(e){}
+      if(window.WDStorage) WDStorage.set("notifications", "0");
       if(window.showToast) window.showToast("Notificaties uit");
     }
   };
@@ -1016,15 +1017,20 @@
     NewsDB.pruneOldReads().catch(() => {});
 
     try{
-      if(localStorage.getItem("wardesk_tags_version") !== window.TAGS_VERSION){
+      var storedTagsVersion = window.WDStorage ? WDStorage.get("tags_version") : null;
+      if(storedTagsVersion !== window.TAGS_VERSION){
         await NewsDB.saveItems([]);
-        localStorage.setItem("wardesk_tags_version", window.TAGS_VERSION);
+        if(window.WDStorage) WDStorage.set("tags_version", window.TAGS_VERSION);
         wdLog.info("[WAR DESK] Tags-versie gewijzigd — item-cache geleegd");
       }
     }catch(e){}
 
-    try { state.translateEnabled = localStorage.getItem("wardesk_translate") === "1"; }catch(e){}
-    try { state.notificationsEnabled = localStorage.getItem("wardesk_notifications") === "1"; }catch(e){}
+    try {
+      state.translateEnabled = (window.WDStorage ? WDStorage.get("translate") : null) === "1";
+    }catch(e){}
+    try {
+      state.notificationsEnabled = (window.WDStorage ? WDStorage.get("notifications") : null) === "1";
+    }catch(e){}
     state.health = {};
     state.disabled = {};
     state.readMap = await NewsDB.loadReadMap();
