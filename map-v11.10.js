@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v11.16 — Conflictkaart (OpenFreeMap, geen API key)
-   - FIX v11.15: prefers-reduced-motion voor marker pulse (B14)
+   WAR DESK v11.17 — Conflictkaart (OpenFreeMap, geen API key)
    - FIX v11.16: A8 cap op 500 events
+   - FIX v11.17: E8 cluster re-render na theme switch
    ============================================================ */
 
 (function(){
@@ -13,7 +13,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v11.16 geladen — OpenFreeMap tiles + Midden-Oosten filter");
+  LOG("v11.17 geladen — OpenFreeMap tiles + Midden-Oosten filter");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -114,6 +114,10 @@
             MAP.currentTheme = newTheme;
             switchTile(newTheme);
             updateMetaTheme();
+            /* E8: forceer marker re-render voor visuele consistentie */
+            if (MAP.events.length && MAP.cluster) {
+              setTimeout(function(){ renderMarkers(); }, 200);
+            }
           }
         }
       });
@@ -672,5 +676,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v11.16 geladen (OpenFreeMap tiles)");
+  wdLog.info("[WAR DESK] map-v11.10.js v11.17 geladen (OpenFreeMap tiles)");
 })();
