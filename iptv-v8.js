@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v8.0.5 — IPTV (High Performance)
-   - FIX v8.0.3: wdLog + WDStorage
-   - FIX v8.0.4: bindUI try/catch (B10) + VLC heuristiek (B20)
-   - FIX v8.0.5: A7 (HLS CDN vs browser onderscheiden)
+   WAR DESK v8.0.6 — IPTV (High Performance)
+   - FIX v8.0.5: A7 (HLS CDN vs browser)
+   - FIX v8.0.6: E4 (kwaliteitsgroep ranking), E7 (token check)
    ============================================================ */
 
 (function(){
@@ -10,7 +9,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v8.0.5 geladen");
+  LOG("v8.0.6 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -50,6 +49,7 @@
     return /\b(nl|nederland|netherlands|dutch|holland|hollanda|ned)\b/.test(t);
   }
 
+  /* E4: kwaliteits-ranking voor groepskeuze */
   function findDutchGroup(){
     if(!IPTV.channels || !IPTV.channels.length) return null;
     var matches = {};
@@ -62,7 +62,23 @@
     });
     var keys = Object.keys(matches);
     if(!keys.length) return null;
-    keys.sort(function(a, b){ return counts[b] - counts[a]; });
+
+    var qualityRank = { "8k": 4, "4k": 3, "fhd": 3, "hd": 2, "premium": 1 };
+    function rankOf(name){
+      var t = (name || "").toLowerCase();
+      var best = 0;
+      Object.keys(qualityRank).forEach(function(k){
+        if(t.indexOf(k) >= 0) best = Math.max(best, qualityRank[k]);
+      });
+      return best;
+    }
+    keys.sort(function(a, b){
+      var ra = rankOf(a);
+      var rb = rankOf(b);
+      if(ra !== rb) return rb - ra;
+      return counts[b] - counts[a];
+    });
+    LOG("Groep gekozen:", keys[0], "uit", keys.length, "NL groepen");
     return keys[0];
   }
 
@@ -1077,6 +1093,8 @@
 
     var markAndUpdate = function(){
       if(myToken !== IPTV._playToken) return;
+      /* E7: extra check dat currentChannel nog steeds dit kanaal is */
+      if(IPTV.currentChannel && IPTV.currentChannel.id !== ch.id) return;
       markWorking(ch);
       var btns = document.querySelectorAll(".iptv-ch");
       for(var i = 0; i < btns.length; i++){
@@ -1145,12 +1163,10 @@
             }
           });
         } else if(!ok){
-          /* A7: CDN's allemaal gefaald */
           if(spinner) spinner.classList.remove("show");
           if(status) status.textContent = "Kon HLS.js niet laden — check verbinding";
           if(window.showToast) window.showToast("Kon HLS.js niet laden. Controleer je verbinding.");
         } else {
-          /* HLS.js geladen maar browser ondersteunt het niet */
           if(spinner) spinner.classList.remove("show");
           if(status) status.textContent = "HLS niet ondersteund. Gebruik VLC.";
           if(window.showToast) window.showToast("HLS niet ondersteund. Gebruik VLC.");
@@ -1222,5 +1238,5 @@
   else document.addEventListener("DOMContentLoaded", function(){ setTimeout(start, 200); });
   window.addEventListener("load", function(){ setTimeout(start, 500); });
 
-  wdLog.info("[WAR DESK] iptv-v8.js v8.0.5 geladen");
+  wdLog.info("[WAR DESK] iptv-v8.js v8.0.6 geladen");
 })();
