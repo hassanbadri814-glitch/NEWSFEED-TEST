@@ -1,11 +1,11 @@
-
 /* ============================================================
-   WAR DESK v5.0 — State persistentie + EventBus
+   WAR DESK v5.1 — State persistentie + EventBus
    - Start altijd op Nieuws (geen tab-herstel)
    - FIX v4.1: wdLog
    - FIX v4.2: WDStorage
    - FIX v4.3: dead code weg (B8) + currentSearch bewaren (B9)
    - FIX v5.0: polling verwijderd → EventBus listener (news:loaded)
+   - FIX v5.1: timeout verwijderd, direct herstellen bij start
    ============================================================ */
 
 (function(){
@@ -66,17 +66,13 @@
     return true;
   }
 
-  function doRestore(){
-    restore();
-    applyToUI(load());
-    try{ if(window.NewsAPI && NewsAPI.render) NewsAPI.render(); }catch(e){}
-    wdLog.info("[WAR DESK] State hersteld (start altijd op Nieuws)");
-  }
-
   function initPersist(){
+    // Stap 1: Direct herstellen bij opstart (geen wachten nodig)
     var saved = load();
     if(saved){ restore(); applyToUI(saved); }
+    wdLog.info("[WAR DESK] State hersteld (start altijd op Nieuws)");
 
+    // Stap 2: Save-triggers
     document.addEventListener("click", function(e){
       var target = e.target.closest("[data-cat], #sortImportance, #sortNewest, #viewCards, #viewList");
       if(target){ setTimeout(save, 200); }
@@ -88,54 +84,23 @@
       if(document.hidden) save();
     });
 
-    /* ============================================================
-       v5.0: Wacht op nieuws via EventBus in plaats van polling
-       ============================================================ */
-
-    var didRun = false;
-
-    function runOnce(){
-      if(didRun) return;
-      didRun = true;
-      doRestore();
-    }
-
-    // Voorkeur: EventBus listener
+    // Stap 3: Als het nieuws klaar is, één keer opnieuw renderen
+    //         zodat de restored state zichtbaar wordt in de feed
     if(window.WarDesk && WarDesk.events && WarDesk.events.once){
       WarDesk.events.once("news:loaded", function(){
-        wdLog.info("[WAR DESK] persist-v4: news:loaded ontvangen → state herstellen");
-        runOnce();
+        wdLog.info("[WAR DESK] persist-v4: news:loaded ontvangen → feed opnieuw renderen");
+        try{ if(window.NewsAPI && NewsAPI.render) NewsAPI.render(); }catch(e){}
       });
-
-      // Fallback: als nieuws al klaar was voordat wij luisterden
-      // (bijv. bij herladen van de pagina), check na 500ms of items er al zijn
-      setTimeout(function(){
-        if(didRun) return;
-        if(window.NewsAPI && window.State && State.items && State.items.length > 0){
-          wdLog.info("[WAR DESK] persist-v4: nieuws al aanwezig → direct herstellen");
-          runOnce();
-        }
-      }, 500);
-
-      // Laatste redmiddel: timeout na 8 seconden
-      setTimeout(function(){
-        if(didRun) return;
-        wdLog.warn("[WAR DESK] persist-v4: timeout na 8s — state herstellen zonder nieuws-signaal");
-        runOnce();
-      }, 8000);
-
     } else {
-      // Oude fallback (zonder EventBus) — blijft werken
+      // Fallback zonder EventBus: korte polling (blijft werken)
       wdLog.warn("[WAR DESK] persist-v4: EventBus niet beschikbaar — val terug op polling");
       var attempts = 0;
       var waitInterval = setInterval(function(){
         attempts++;
-        var ready = window.NewsAPI && window.State;
-        var hasItems = ready && State.items && State.items.length > 0;
-        var timedOut = attempts > 50;
-        if((ready && hasItems) || (ready && timedOut)){
+        if(window.NewsAPI && window.State && State.items && State.items.length > 0){
           clearInterval(waitInterval);
-          runOnce();
+          try{ if(NewsAPI.render) NewsAPI.render(); }catch(e){}
+          wdLog.info("[WAR DESK] persist-v4: feed gerenderd na polling");
         }
         if(attempts > 200) clearInterval(waitInterval);
       }, 100);
@@ -145,5 +110,5 @@
   if(document.readyState !== "loading") initPersist();
   else document.addEventListener("DOMContentLoaded", initPersist);
 
-  wdLog.info("[WAR DESK] persist-v4.js v5.0 geladen");
+  wdLog.info("[WAR DESK] persist-v4.js v5.1 geladen");
 })();
