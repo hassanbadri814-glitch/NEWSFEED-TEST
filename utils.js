@@ -3,6 +3,7 @@
    - Behoudt bestaande WD.escapeHtml / getProxies / timeAgo
    - Nieuw: WarDesk namespace, EventBus, fetchJson, helpers
    - Geen breaking changes: alle bestaande calls blijven werken
+   - Log-regel stuurt naar Debug Panel (zichtbaar in de app)
    ============================================================ */
 
 (function(){
@@ -71,7 +72,6 @@
   }
 
   function showToast(msg){
-    // Gebruikt de bestaande DOM toast als die er is, anders fallback
     try{
       var t = document.getElementById("toast");
       if(!t) return;
@@ -210,7 +210,13 @@
   window.WD.fetchJson = fetchJson;
   window.WD.version = "v2.0";
 
-  if(DEBUG){
-    try{ console.log("[WAR DESK] utils.js v2.0 geladen — EventBus + helpers actief"); }catch(e){}
-  }
+  /* ============================================================
+     5. LOGBERICHT (zichtbaar in Debug Panel én console)
+     ============================================================ */
+
+  try{
+    var logFn = (typeof wdLog !== "undefined" && wdLog.info) ? wdLog.info : console.log;
+    logFn("[WAR DESK] utils.js " + window.WD.version + " geladen — EventBus + helpers actief");
+  }catch(e){}
+
 })();
