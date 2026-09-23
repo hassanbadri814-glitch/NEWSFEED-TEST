@@ -1,19 +1,21 @@
 /* ============================================================
-   WAR DESK v27.3 — Nieuws Logica
-   - Intersection Observer voor lazy image loading
-   - IndexedDB incrementeel + timers pauzeren op hidden
-   - FASE 4 Deel 1: wdLog
-   - FASE 4 Deel 2: WDStorage
+   WAR DESK v27.4 — Nieuws Logica
+   - FIX v27.3: wdLog + WDStorage
+   - FIX v27.4: dead code weg (B7), tag-versie fix (B12), state fallback (B5)
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.3";
+  window.__newsVersion = "v27.4";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
   const state = window.appStore ? window.appStore.state : window.State;
+  if (!state) {
+    try { console.error("[WAR DESK] news-v27.js: State ontbreekt — kan niet starten"); } catch(e){}
+    return;
+  }
 
   const tm = (d) => { const x = new Date(d); return isNaN(x) ? 0 : x.getTime(); };
   const ago = (d) => {
@@ -47,10 +49,7 @@
         observer.unobserve(img);
       }
     });
-  }, {
-    rootMargin: '200px 0px',
-    threshold: 0.01
-  });
+  }, { rootMargin: '200px 0px', threshold: 0.01 });
 
   // ==================== INDEXEDDB ====================
   const NewsDB = (function(){
@@ -134,10 +133,7 @@
       const max = window.CONFIG?.maxCacheItems ?? 3000;
       const topItems = items.slice(0, max);
 
-      const wantedLinks = new Set(
-        topItems.map(it => it.link).filter(Boolean)
-      );
-
+      const wantedLinks = new Set(topItems.map(it => it.link).filter(Boolean));
       const existingKeys = await getAllKeys("items");
       const existingSet = new Set(existingKeys);
 
@@ -145,13 +141,9 @@
         try{
           const tx = db.transaction("items", "readwrite");
           const store = tx.objectStore("items");
-
           for(const key of existingKeys){
-            if(!wantedLinks.has(key)){
-              store.delete(key);
-            }
+            if(!wantedLinks.has(key)) store.delete(key);
           }
-
           for(const it of topItems){
             if(!existingSet.has(it.link)){
               store.put({
@@ -161,10 +153,32 @@
               });
             }
           }
-
           tx.oncomplete = () => res();
           tx.onerror = () => res();
         }catch(e){ res(); }
+      });
+    }
+
+    // B12: herbereken tags voor alle items zonder ze te wissen
+    async function retagAll(extractFn){
+      if(!db) return 0;
+      const all = await getAll("items");
+      if(!all.length) return 0;
+      return new Promise(res => {
+        try{
+          const tx = db.transaction("items", "readwrite");
+          const store = tx.objectStore("items");
+          let count = 0;
+          all.forEach(it => {
+            try{
+              it.tags = extractFn(it.title || "", it.desc || "", it.cat || "");
+              store.put(it);
+              count++;
+            }catch(e){}
+          });
+          tx.oncomplete = () => res(count);
+          tx.onerror = () => res(0);
+        }catch(e){ res(0); }
       });
     }
 
@@ -193,7 +207,7 @@
       });
     }
     return {
-      open, put, del, get, getAll, getAllKeys, saveItems, pruneOldReads,
+      open, put, del, get, getAll, getAllKeys, saveItems, retagAll, pruneOldReads,
       loadItems: () => getAll("items").then(items => items.sort((a,b) => tm(b.date) - tm(a.date))),
       saveRead: (link) => put("meta", {k:"read_" + link, v: Date.now()}),
       loadReadMap: () => getAll("meta").then(all => {
@@ -202,7 +216,6 @@
         return map;
       }),
       saveHealth: (health) => put("meta", {k:"health", v: health}),
-      loadHealth: () => get("meta", "health").then(rec => rec?.v || {}),
       saveTranslation: (key, value) => put("translations", {k: key, v: value, t: Date.now()}),
       loadTranslation: (key) => get("translations", key).then(rec => rec?.v || null),
       saveFavorite: (link) => put("meta", {k:"fav_" + link, v: Date.now()}),
@@ -231,9 +244,7 @@
     const sportStrong = /\b(eredivisie|eerste divisie|knvb|johan cruijff schaal|champions league|europa league|conference league|wk voetbal|ek voetbal|formule 1|grand prix|motogp|tour de france|giro d'italia|vuelta|wimbledon|roland garros|us open tennis|australian open|olympische spelen|glory kickboxing|ufc|nba|nfl|nhl|mlb)\b/.test(t);
     const sportTeam = /\b(ajax|psv|feyenoord|az alkmaar|fc utrecht|fc twente|vitesse|sc heerenveen|sparta rotterdam|willem ii|go ahead eagles|pec zwolle|rkc waalwijk|fortuna sittard|excelsior|almere city|heracles|n\.e\.c\.|real madrid|barcelona|atletico madrid|manchester united|manchester city|liverpool|chelsea|arsenal|tottenham|juventus|inter milan|ac milan|bayern münchen|borussia dortmund|paris saint-germain|psg)\b/.test(t);
     const warBlock = /\b(airstrike|raketaanval|invasion|invasie|massacre|bloedbad|shelling|beschieting|offensief|oorlog|war)\b/.test(t);
-    if((sportStrong || sportTeam) && !warBlock && !tags.includes("sport")){
-      tags.push("sport");
-    }
+    if((sportStrong || sportTeam) && !warBlock && !tags.includes("sport")) tags.push("sport");
 
     const mideastContent = /\b(gaza|rafah|khan younis|hamas|hezbollah|idf|netanyahu|westelijke jordaanoever|palestijn|palestinian|israelisch|israeli|iran|irgc|tehran|khamenei|syrië|syria|damascus|assad|libanon|lebanon|beirut|jemen|yemen|houthi|irak|iraq|bagdad|saudi-arabië|riyadh|qatar|doha|aboe dhabi|dubai|jordanië|amman|jeruzalem|jerusalem|tel aviv|beiroet)\b/.test(t);
     if(mideastContent && !tags.includes("mideast")) tags.push("mideast");
@@ -454,7 +465,7 @@
     const cleanText = text.replace(/\s+/g, " ").trim().slice(0, 500);
     if(!cleanText) return null;
     try {
-      const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText)}&langpair=${encodeURIComponent(sourceLang || "en")}|nl` + (MYMEMORY_EMAIL ? `&de=${encodeURIComponent(MYMEMORY_EMAIL)}` : "");
+      const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText)}&langpair=${encodeURIComponent(sourceLang || "en")}|nl`;
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 8000);
       const r = await fetch(mmUrl, { signal: ctrl.signal });
@@ -545,7 +556,6 @@
     if(window.WDStorage) WDStorage.set("translate", enabled ? "1" : "0");
     const btn = $("toggleTranslate");
     if(btn) btn.classList.toggle("toggle-on", enabled);
-    state._lastRenderHash = "";
     renderNews();
     if(window.showToast) window.showToast(enabled ? "Vertaling aan" : "Vertaling uit");
     if(enabled){
@@ -567,10 +577,7 @@
       if(btnEl){ btnEl.classList.add("active"); btnEl.textContent = "★"; }
     }
     updateFavoritesCount();
-    if(state.currentCat === "favorites"){
-      state._lastRenderHash = "";
-      renderNews();
-    }
+    if(state.currentCat === "favorites") renderNews();
   };
   const updateFavoritesCount = () => {
     const el = $("favCount");
@@ -1016,12 +1023,14 @@
     await NewsDB.open();
     NewsDB.pruneOldReads().catch(() => {});
 
+    // B12: bij tag-versie wijziging → herbereken tags, niet wissen
     try{
       var storedTagsVersion = window.WDStorage ? WDStorage.get("tags_version") : null;
       if(storedTagsVersion !== window.TAGS_VERSION){
-        await NewsDB.saveItems([]);
+        wdLog.info("[WAR DESK] Tags-versie gewijzigd — tags herberekenen...");
+        await NewsDB.retagAll(extractTags);
         if(window.WDStorage) WDStorage.set("tags_version", window.TAGS_VERSION);
-        wdLog.info("[WAR DESK] Tags-versie gewijzigd — item-cache geleegd");
+        wdLog.info("[WAR DESK] Tags herberekend");
       }
     }catch(e){}
 
