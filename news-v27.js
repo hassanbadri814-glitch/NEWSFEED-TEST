@@ -151,14 +151,12 @@
       });
     }
 
-    /* C1: prune oudste items als quota vol is */
     async function pruneToQuota() {
       if (!db) return 0;
       const quota = await checkStorageQuota();
       if (quota.ok) return 0;
       const all = await getAll("items");
       if (!all.length) return 0;
-      // Sorteer op datum, verwijder oudste 30%
       all.sort((a, b) => tm(a.date) - tm(b.date));
       const toRemove = Math.floor(all.length * 0.3);
       return new Promise(res => {
@@ -179,17 +177,12 @@
 
     async function saveItems(items){
       if(!db) return;
-
-      // C1: check quota eerst, prune als nodig
       await pruneToQuota();
-
       const max = window.CONFIG?.maxCacheItems ?? 3000;
       const topItems = items.slice(0, max);
-
       const wantedLinks = new Set(topItems.map(it => it.link).filter(Boolean));
       const existingKeys = await getAllKeys("items");
       const existingSet = new Set(existingKeys);
-
       return new Promise(res => {
         try{
           const tx = db.transaction("items", "readwrite");
@@ -269,7 +262,7 @@
         return map;
       }),
       saveHealth: (health) => put("meta", {k:"health", v: health}),
-      loadHealth: () => get("meta", "health").then(rec => rec?.v || {}),  // C3: load functie
+      loadHealth: () => get("meta", "health").then(rec => rec?.v || {}),
       saveTranslation: (key, value) => put("translations", {k: key, v: value, t: Date.now()}),
       loadTranslation: (key) => get("translations", key).then(rec => rec?.v || null),
       saveFavorite: (link) => put("meta", {k:"fav_" + link, v: Date.now()}),
@@ -343,7 +336,6 @@
     return score;
   };
 
-  /* C2: herbereken alle scores (reset _score) */
   function refreshAllScores() {
     if (!state.items || !state.items.length) return;
     state.items.forEach(it => {
@@ -1087,11 +1079,8 @@
   async function initNews(){
     await NewsDB.open();
     NewsDB.pruneOldReads().catch(() => {});
-
-    // C1: prune bij opstart als quota vol
     NewsDB.pruneToQuota().catch(() => {});
 
-    // C4: bij tag-versie wijziging → herbereken in DB EN geheugen
     try{
       var storedTagsVersion = window.WDStorage ? WDStorage.get("tags_version") : null;
       if(storedTagsVersion !== window.TAGS_VERSION){
@@ -1109,7 +1098,6 @@
       state.notificationsEnabled = (window.WDStorage ? WDStorage.get("notifications") : null) === "1";
     }catch(e){}
 
-    // C3: laad health uit IndexedDB i.p.v. leegmaken
     try {
       state.health = await NewsDB.loadHealth();
       wdLog.info("[WAR DESK] Health geladen: " + Object.keys(state.health).length + " feeds");
@@ -1128,7 +1116,6 @@
     const cached = await NewsDB.loadItems();
     if(cached.length){
       state.items = ensureTags(cached);
-      // C2: bereken scores direct na laden uit cache
       refreshAllScores();
       const itemsEl = $("statItems");
       if(itemsEl) itemsEl.textContent = state.items.length;
@@ -1166,13 +1153,11 @@
     }
   };
 
-  // A5: prune-interval voor translations — elke 10 minuten
   setInterval(() => {
     if(document.hidden) return;
     pruneTranslations();
   }, 600000);
 
-  /* C2: herbereken scores elke 10 minuten */
   setInterval(() => {
     if(document.hidden) return;
     refreshAllScores();
