@@ -1,19 +1,20 @@
 /* ============================================================
-   WAR DESK v27.4 — Nieuws Logica
+   WAR DESK v27.5 — Nieuws Logica
    - FIX v27.3: wdLog + WDStorage
    - FIX v27.4: dead code weg (B7), tag-versie fix (B12), state fallback (B5)
+   - FIX v27.5: A1 scroll-jump, A5 translation limiet, A6 quota-monitoring
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.4";
+  window.__newsVersion = "v27.5";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
   const state = window.appStore ? window.appStore.state : window.State;
   if (!state) {
-    try { console.error("[WAR DESK] news-v27.js: State ontbreekt — kan niet starten"); } catch(e){}
+    try { console.error("[WAR DESK] news-v27.js: State ontbreekt — kan niet starten"); }catch(e){}
     return;
   }
 
@@ -50,6 +51,33 @@
       }
     });
   }, { rootMargin: '200px 0px', threshold: 0.01 });
+
+  // ==================== A5: LRU limiet voor translations ====================
+  const TRANSLATION_MAX = 500;
+  function pruneTranslations() {
+    const keys = Object.keys(state.translations || {});
+    if (keys.length <= TRANSLATION_MAX) return;
+    // Verwijder oudste 200 op basis van volgorde (object insertion order)
+    const toRemove = keys.slice(0, 200);
+    toRemove.forEach(k => { try{ delete state.translations[k]; }catch(e){} });
+    wdLog.info("[NEWS] Translations gepruned: " + toRemove.length + " verwijderd");
+  }
+
+  // ==================== A6: Quota-monitoring ====================
+  async function checkStorageQuota() {
+    try {
+      if (!navigator.storage || !navigator.storage.estimate) return { ok: true };
+      const est = await navigator.storage.estimate();
+      const usage = est.usage || 0;
+      const quota = est.quota || 0;
+      const pct = quota > 0 ? usage / quota : 0;
+      if (pct > 0.85) {
+        wdLog.warn("[NEWS] Storage bijna vol: " + Math.round(pct * 100) + "%");
+        return { ok: false, pct: pct };
+      }
+      return { ok: true, pct: pct };
+    } catch(e) { return { ok: true }; }
+  }
 
   // ==================== INDEXEDDB ====================
   const NewsDB = (function(){
@@ -130,6 +158,13 @@
     }
     async function saveItems(items){
       if(!db) return;
+      // A6: check quota voor we schrijven
+      const quota = await checkStorageQuota();
+      if (!quota.ok) {
+        wdLog.warn("[NEWS] Quota bijna vol — sla alleen top 100 op");
+        items = items.slice(0, 100);
+      }
+
       const max = window.CONFIG?.maxCacheItems ?? 3000;
       const topItems = items.slice(0, max);
 
@@ -159,7 +194,6 @@
       });
     }
 
-    // B12: herbereken tags voor alle items zonder ze te wissen
     async function retagAll(extractFn){
       if(!db) return 0;
       const all = await getAll("items");
@@ -508,6 +542,8 @@
     try {
       const translated = await fetchTranslation(item.title, item.lang);
       if(translated){
+        // A5: prune voor toevoegen
+        pruneTranslations();
         state.translations[key] = translated;
         NewsDB.saveTranslation(key, translated).catch(() => {});
         return translated;
@@ -650,6 +686,10 @@
 
     window.__wdDiagCount = 0;
     let lastProgressiveCount = 0;
+
+    /* ============================================================
+       A1 FIX: Progressive re-render alleen als gebruiker bovenaan staat
+       ============================================================ */
     const progressiveTimer = setInterval(() => {
       if(session !== state.loadSession || state._loadFeedsDone){
         clearInterval(progressiveTimer);
@@ -662,7 +702,8 @@
       state.items = merged;
       const itemsEl = $("statItems");
       if(itemsEl) itemsEl.textContent = state.items.length;
-      renderNews();
+      // A1: alleen renderen als gebruiker bovenaan staat (< 300px scroll)
+      if (window.scrollY < 300) renderNews();
     }, 1000);
 
     state._loadFeedsDone = false;
@@ -744,6 +785,7 @@
     const itemsEl = $("statItems");
     if(itemsEl) itemsEl.textContent = state.items.length;
 
+    // A6: sla op met quota-check
     NewsDB.saveItems(state.items);
     NewsDB.saveHealth(state.health);
 
@@ -1023,7 +1065,6 @@
     await NewsDB.open();
     NewsDB.pruneOldReads().catch(() => {});
 
-    // B12: bij tag-versie wijziging → herbereken tags, niet wissen
     try{
       var storedTagsVersion = window.WDStorage ? WDStorage.get("tags_version") : null;
       if(storedTagsVersion !== window.TAGS_VERSION){
@@ -1088,13 +1129,11 @@
     }
   };
 
+  // A5: prune-interval voor translations — elke 10 minuten
   setInterval(() => {
     if(document.hidden) return;
-    if(state.translations && Object.keys(state.translations).length > 1000){
-      state.translations = {};
-      wdLog.info('[NEWS] Translation cache cleared');
-    }
-  }, 3600000);
+    pruneTranslations();
+  }, 600000);
 
   window.NewsAPI = {
     init: initNews,
