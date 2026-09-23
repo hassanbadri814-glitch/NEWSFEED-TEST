@@ -1,11 +1,8 @@
 /* ============================================================
-   WAR DESK v11.14 — Conflictkaart (OpenFreeMap, geen API key)
-   - Wacht op State.items voordat events worden gebouwd
-   - Retry elke seconde tot max 30s
-   - Toont de laatste 2 artikelen per regio als aparte markers
-   - FASE 2: OpenFreeMap tiles
+   WAR DESK v11.15 — Conflictkaart (OpenFreeMap, geen API key)
    - FASE 4 Deel 1: wdLog
    - FASE 4 Deel 2: WDStorage
+   - FIX v11.15: prefers-reduced-motion voor marker pulse (B14)
    ============================================================ */
 
 (function(){
@@ -17,7 +14,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v11.14 geladen — OpenFreeMap tiles + Midden-Oosten filter");
+  LOG("v11.15 geladen — OpenFreeMap tiles + Midden-Oosten filter");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -34,17 +31,9 @@
   };
 
   var CATEGORY_FILTER = {
-    "mideast": "conflict",
-    "gaza":    "conflict",
-    "il":      "conflict",
-    "iran":    "conflict",
-    "iraq":    "conflict",
-    "yemen":   "conflict",
-    "sudan":   "conflict",
-    "qa":      "political",
-    "sa":      "political",
-    "ae":      "political",
-    "eg":      "political"
+    "mideast": "conflict","gaza": "conflict","il": "conflict","iran": "conflict",
+    "iraq": "conflict","yemen": "conflict","sudan": "conflict",
+    "qa": "political","sa": "political","ae": "political","eg": "political"
   };
 
   var TYPES = {
@@ -66,36 +55,18 @@
   }
 
   var MAP = {
-    instance: null,
-    cluster: null,
-    tileLayers: {},
-    events: [],
-    currentFilter: "all",
-    refreshTimer: null,
-    isFullscreen: false,
-    currentTheme: "dark",
-    themeObserver: null,
-    _timeModeInterval: null,
-    currentDetailEvent: null,
-    _lastNewsCount: 0,
-    _waitTimer: null,
-    _waitTries: 0
+    instance: null, cluster: null, tileLayers: {}, events: [],
+    currentFilter: "all", refreshTimer: null, isFullscreen: false,
+    currentTheme: "dark", themeObserver: null, _timeModeInterval: null,
+    currentDetailEvent: null, _lastNewsCount: 0, _waitTimer: null, _waitTries: 0
   };
 
   var TILES = {
-    dark: {
-      style: "https://tiles.openfreemap.org/styles/dark",
-      attribution: "© OpenFreeMap © OpenMapTiles © OpenStreetMap"
-    },
-    light: {
-      style: "https://tiles.openfreemap.org/styles/positron",
-      attribution: "© OpenFreeMap © OpenMapTiles © OpenStreetMap"
-    }
+    dark: { style: "https://tiles.openfreemap.org/styles/dark", attribution: "© OpenFreeMap © OpenMapTiles © OpenStreetMap" },
+    light: { style: "https://tiles.openfreemap.org/styles/positron", attribution: "© OpenFreeMap © OpenMapTiles © OpenStreetMap" }
   };
 
-  function detectTheme(){
-    return document.body.classList.contains("light") ? "light" : "dark";
-  }
+  function detectTheme(){ return document.body.classList.contains("light") ? "light" : "dark"; }
 
   function updateMetaTheme(){
     var meta = document.querySelector('meta[name="theme-color"]');
@@ -122,10 +93,7 @@
 
     if(!MAP.tileLayers[theme]){
       if(L.maplibreGL){
-        MAP.tileLayers[theme] = L.maplibreGL({
-          style: cfg.style,
-          attribution: cfg.attribution
-        });
+        MAP.tileLayers[theme] = L.maplibreGL({ style: cfg.style, attribution: cfg.attribution });
       } else {
         LOG("⚠️ MapLibre GL niet geladen — val terug op OSM raster tiles");
         MAP.tileLayers[theme] = L.tileLayer(
@@ -134,7 +102,6 @@
         );
       }
     }
-
     MAP.tileLayers[theme].addTo(MAP.instance);
   }
 
@@ -182,6 +149,9 @@
     }catch(e){}
   }
 
+  /* ============================================================
+     B14 FIX: prefers-reduced-motion voor marker pulse
+     ============================================================ */
   function injectMapStyles(){
     if($("wdMapStyles")) return;
     var s = document.createElement("style");
@@ -197,6 +167,7 @@
       ".wd-marker-icon svg{width:100%;height:100%;display:block;stroke:#070c16;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;}" +
       ".wd-marker-pulse{position:absolute;inset:0;border-radius:50%;background:currentColor;opacity:.22;z-index:1;animation:wdMarkerPulse 2.6s ease-out infinite}" +
       "@keyframes wdMarkerPulse{0%{transform:scale(.5);opacity:.35}100%{transform:scale(2.2);opacity:0}}" +
+      "@media (prefers-reduced-motion: reduce){.wd-marker-pulse{animation:none!important;opacity:.15!important}}" +
       ".marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background:transparent!important}" +
       ".marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background:linear-gradient(135deg,#1e3a5f,#3b6ba8)!important;color:#ffffff!important;font-weight:800!important;border:1px solid rgba(255,255,255,.75)!important;box-shadow:0 1px 3px rgba(0,0,0,.55),0 0 6px rgba(59,130,246,.3)!important;display:flex!important;align-items:center!important;justify-content:center!important;font-family:Inter,sans-serif!important;}" +
       ".marker-cluster-small, .marker-cluster-small div{width:18px!important;height:18px!important}" +
@@ -211,7 +182,8 @@
       ".wd-map-close{display:none!important;position:absolute;top:.8rem;right:.8rem;z-index:600;width:42px;height:42px;border-radius:50%;background:rgba(10,16,28,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);color:#e6ebf5;font-size:1.15rem;font-weight:400;line-height:1;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.6);transition:all .18s}" +
       ".wd-map-close:hover{background:rgba(20,28,44,.95);border-color:rgba(255,255,255,.25);transform:rotate(90deg)}" +
       ".map-wrap.fullscreen .wd-map-close{display:grid!important}" +
-      ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}";
+      ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}" +
+      "@media (prefers-reduced-motion: reduce){.wd-marker-pulse,.wd-map-close,.map-ctrl{transition:none!important;animation:none!important}}";
     document.head.appendChild(s);
   }
 
@@ -301,9 +273,7 @@
   }
 
   function buildEventsFromNews(){
-    if(!window.State || !State.items || !State.items.length){
-      return null;
-    }
+    if(!window.State || !State.items || !State.items.length) return null;
 
     LOG("Bouw events uit " + State.items.length + " nieuwsartikelen (filter: Midden-Oosten)");
 
@@ -345,18 +315,13 @@
 
         events.push({
           id: "news-" + cat + "-" + index,
-          lat: loc.lat + offset,
-          lng: loc.lng + offset,
+          lat: loc.lat + offset, lng: loc.lng + offset,
           title: it.title || "Geen titel",
           fullDescription: "Land: " + loc.country + "\nCategorie: " + cat + "\n\n" + (it.title || "?") + "\n\n" + (it.description || ""),
-          type: cat,
-          typeConfig: typeConfig,
-          country: loc.country,
+          type: cat, typeConfig: typeConfig, country: loc.country,
           date: it.date || new Date().toISOString(),
-          url: it.link || "",
-          source: it.source || "",
-          confidence: "HIGH",
-          count: 1
+          url: it.link || "", source: it.source || "",
+          confidence: "HIGH", count: 1
         });
       });
     });
@@ -367,10 +332,7 @@
 
   function refreshFromNews(){
     var events = buildEventsFromNews();
-    if(events === null){
-      LOG("State.items nog niet beschikbaar");
-      return false;
-    }
+    if(events === null){ LOG("State.items nog niet beschikbaar"); return false; }
     if(!events.length){
       LOG("Geen Midden-Oosten events gevonden in nieuwsfeed");
       var list = $("liveList");
@@ -434,9 +396,7 @@
               '<span class="wd-marker-pulse"></span>' +
               '<span class="wd-marker-icon">' + glyph + '</span>' +
               '</div>',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-        popupAnchor: [0, -10]
+        iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10]
       });
       var marker = L.marker([e.lat, e.lng], {icon: icon});
       var popupHtml =
@@ -541,26 +501,16 @@
     if(!mapEl) return;
     LOG("Init Leaflet map (OpenFreeMap)");
     MAP.instance = L.map("map", {
-      center: [29.5, 42.0],
-      zoom: 4,
-      minZoom: 2,
-      maxZoom: 18,
-      worldCopyJump: true,
-      zoomControl: false,
-      attributionControl: false,
+      center: [29.5, 42.0], zoom: 4, minZoom: 2, maxZoom: 18,
+      worldCopyJump: true, zoomControl: false, attributionControl: false,
       preferCanvas: true
     });
     MAP.currentTheme = detectTheme();
     switchTile(MAP.currentTheme);
     MAP.cluster = L.markerClusterGroup({
-      maxClusterRadius: 45,
-      spiderfyOnMaxZoom: true,
-      showCoverageOnHover: false,
-      zoomToBoundsOnClick: true,
-      disableClusteringAtZoom: 11,
-      chunkedLoading: true,
-      chunkInterval: 100,
-      chunkDelay: 50
+      maxClusterRadius: 45, spiderfyOnMaxZoom: true, showCoverageOnHover: false,
+      zoomToBoundsOnClick: true, disableClusteringAtZoom: 11,
+      chunkedLoading: true, chunkInterval: 100, chunkDelay: 50
     });
     MAP.instance.addLayer(MAP.cluster);
     observeThemeChanges();
@@ -629,10 +579,7 @@
   }
 
   function stopAutoRefresh(){
-    if(MAP.refreshTimer){
-      clearInterval(MAP.refreshTimer);
-      MAP.refreshTimer = null;
-    }
+    if(MAP.refreshTimer){ clearInterval(MAP.refreshTimer); MAP.refreshTimer = null; }
   }
 
   function hookViewSwitch(){
@@ -723,5 +670,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v11.14 geladen (OpenFreeMap tiles)");
+  wdLog.info("[WAR DESK] map-v11.10.js v11.15 geladen (OpenFreeMap tiles)");
 })();
