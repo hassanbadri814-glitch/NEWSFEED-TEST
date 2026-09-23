@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v4.0 — State persistentie
-   - v4: Start altijd op Nieuws (geen tab-herstel meer)
-   - VALID_CATS uitgebreid met maroc + vs
+   WAR DESK v4.1 — State persistentie
+   - Start altijd op Nieuws (geen tab-herstel)
+   - FIX v4.1: wdLog in plaats van console.log
    ============================================================ */
 
 (function(){
@@ -64,9 +64,7 @@
     return true;
   }
 
-  /* v4: restoreActiveView is niet meer in gebruik — app start altijd op Nieuws */
   function restoreActiveView(){
-    /* Bewust leeg: we forceren altijd de Nieuws-tab bij opstarten */
     return;
   }
 
@@ -102,8 +100,7 @@
         restore();
         applyToUI(load());
         try{ if(NewsAPI.render) NewsAPI.render(); }catch(e){}
-        /* v4: restoreActiveView() bewust NIET aangeroepen — altijd Nieuws */
-        console.log("[WAR DESK] State hersteld (start altijd op Nieuws)");
+        wdLog.info("[WAR DESK] State hersteld (start altijd op Nieuws)");
       }
       if(attempts > 200) clearInterval(waitInterval);
     }, 100);
@@ -112,5 +109,5 @@
   if(document.readyState !== "loading") initPersist();
   else document.addEventListener("DOMContentLoaded", initPersist);
 
-  console.log("[WAR DESK] persist-v4.js v4.0 geladen");
+  wdLog.info("[WAR DESK] persist-v4.js v4.1 geladen");
 })();
