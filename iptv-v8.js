@@ -807,7 +807,6 @@
         var c = list[i];
         var color = groupColor(c.group, c.name);
         var initial = (c.name || "?").charAt(0).toUpperCase();
-        /* N6: veiligere logo fallback */
         var hasLogo = !!c.logo;
         var logoHtml = '<span class="iptv-ch-initial" style="display:' + (hasLogo ? 'none' : 'grid') + '">' + esc(initial) + '</span>';
         if(hasLogo){
