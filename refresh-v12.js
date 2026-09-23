@@ -1,14 +1,15 @@
 /* ============================================================
-   WAR DESK v12.2 — Ronde verversingsknop
+   WAR DESK v13.0 — Ronde verversingsknop + EventBus
    - FIX v12.1: wdLog
    - FIX v12.2: E3 _wrapped guard robuuster
+   - FIX v13.0: monkey-patch verwijderd → EventBus listeners
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var APP_VERSION = window.APP_VERSION || "v14.18";
+  var APP_VERSION = window.APP_VERSION || "v14.21";
 
   function initRefresh(){
     var lastUpdate = null;
@@ -94,28 +95,54 @@
       circle.setAttribute("stroke-dashoffset", "106.8");
     }
 
-    document.addEventListener("wardesk:feedprogress", function(e){
-      var d = e.detail || {};
-      var pct = typeof d.pct === "number" ? d.pct : 0;
+    /* ============================================================
+       v13.0: EventBus listeners (geen monkey-patch meer)
+       ============================================================ */
 
-      if(d.done){
-        setProgress(100);
-        setTimeout(function(){
-          resetRing();
-          if(refreshBtn.classList.contains("loading")){
-            refreshBtn.classList.remove("loading");
-            refreshBtn.classList.add("done");
-            refreshBtn.disabled = false;
-            activeLoad = false;
-            setTimeout(function(){ refreshBtn.classList.remove("done"); }, 1400);
-          }
-        }, 400);
+    function handleProgress(pct){
+      setProgress(pct);
+    }
+
+    function handleDone(){
+      setProgress(100);
+      setTimeout(function(){
+        resetRing();
+        if(refreshBtn.classList.contains("loading")){
+          refreshBtn.classList.remove("loading");
+          refreshBtn.classList.add("done");
+          refreshBtn.disabled = false;
+          activeLoad = false;
+          setTimeout(function(){ refreshBtn.classList.remove("done"); }, 1400);
+        }
+      }, 400);
+      lastUpdate = Date.now();
+      tickUpdate();
+    }
+
+    // Voorkeur: EventBus
+    if(window.WarDesk && WarDesk.events && WarDesk.events.on){
+      WarDesk.events.on("news:progress", function(d){
+        if(d && typeof d.pct === "number") handleProgress(d.pct);
+      });
+      WarDesk.events.on("news:progress:done", function(){
+        handleDone();
+      });
+      WarDesk.events.on("news:reload:done", function(){
+        // Extra bevestiging dat reload klaar is
         lastUpdate = Date.now();
         tickUpdate();
-      } else {
-        setProgress(pct);
-      }
-    });
+      });
+      wdLog.info("[WAR DESK] refresh-v12: EventBus listeners actief");
+    } else {
+      // Fallback: oude CustomEvent
+      document.addEventListener("wardesk:feedprogress", function(e){
+        var d = e.detail || {};
+        var pct = typeof d.pct === "number" ? d.pct : 0;
+        if(d.done){ handleDone(); }
+        else { handleProgress(pct); }
+      });
+      wdLog.warn("[WAR DESK] refresh-v12: EventBus niet beschikbaar — val terug op CustomEvent");
+    }
 
     function doRefresh(){
       if(!window.NewsAPI || activeLoad) return;
@@ -141,33 +168,8 @@
     refreshBtn.addEventListener("click", doRefresh);
 
     /* ============================================================
-       E3 FIX: robuustere _wrapped guard
-       - Als al gewrapped → sla over
-       - Bewaar originele reload op vaste plek
+       v13.0: geen monkey-patch meer. We luisteren alleen naar events.
        ============================================================ */
-    if(window.NewsAPI && typeof NewsAPI.reload === "function"){
-      if(NewsAPI.__refreshHooked) {
-        wdLog.info("[WAR DESK] refresh-v12: reload al gehookt, skip");
-      } else {
-        var origReload = NewsAPI.reload;
-        NewsAPI.__originalReload = origReload;
-        NewsAPI.__refreshHooked = true;
-
-        NewsAPI.reload = function(){
-          var p = origReload.apply(this, arguments);
-          if(p && typeof p.then === "function"){
-            return p.then(function(result){
-              lastUpdate = Date.now();
-              tickUpdate();
-              return result;
-            });
-          }
-          return p;
-        };
-
-        wdLog.info("[WAR DESK] refresh-v12: reload gehookt");
-      }
-    }
 
     var attempts = 0;
     var waitInit = setInterval(function(){
