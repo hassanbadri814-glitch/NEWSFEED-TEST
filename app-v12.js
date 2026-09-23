@@ -1,17 +1,14 @@
 /* ============================================================
-   WAR DESK v12.4 — App Orchestration (Touch Gestures)
-   - Swipe navigation tussen tabs
-   - Klok pauzeert op achtergrond
-   - VOD-view + Escape fix
-   - FIX v12.3: wdLog in plaats van console.log
-   - FIX v12.4: WDStorage in plaats van localStorage (Fase 4 Deel 2)
+   WAR DESK v12.5 — App Orchestration (Touch Gestures)
+   - FIX v12.4: WDStorage
+   - FIX v12.5: A2 swipe-conflict met horizontale scroll-containers
    ============================================================ */
 
 (function(){
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = window.APP_VERSION || "v14.15";
+  const APP_VERSION = window.APP_VERSION || "v14.17";
 
   const ready = (fn) => {
     if(document.readyState !== "loading") fn();
@@ -253,6 +250,9 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
+    // ============================================================
+    // A2 FIX: Swipe-navigatie negeert horizontale scroll-containers
+    // ============================================================
     let touchStartX = 0;
     let touchStartY = 0;
 
@@ -269,6 +269,10 @@
       const deltaY = touchEndY - touchStartY;
       
       if(Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50){
+        // A2: negeer als de swipe begon in een horizontale scroll-container
+        const target = e.target.closest('.vod-sidebar, .chips-row, .iptv-pills, .live-filters, .sheet');
+        if (target) return;
+
         const tabs = ['news', 'map', 'iptv', 'vod'];
         const currentTab = document.querySelector('.tab.active')?.dataset.view || 'news';
         const currentIndex = tabs.indexOf(currentTab);
