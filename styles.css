@@ -1,10 +1,11 @@
 /* ============================================================
-   WAR DESK v13.7 — COMPLETE CSS
+   WAR DESK v13.8 — COMPLETE CSS
    - FIX v13.4: backdrop-filter uit op mobiel
    - FIX v13.5: .iptv-ch-initial
    - FIX v13.6: fonts genormaliseerd, header opgeruimd op mobiel
-   - FIX v13.7: overscroll-behavior-x om horizontale scroll-chaining
-                te stoppen (vod-sidebar, chips-row, iptv-pills, etc.)
+   - FIX v13.7: overscroll-behavior-x (te agressief)
+   - FIX v13.8: agressieve regels teruggedraaid — alleen
+                overscroll-behavior-x op scrollbare balken
    ============================================================ */
 
 :root {
@@ -48,27 +49,12 @@ button { font-family: inherit; cursor: pointer; border: none; background: none; 
 input, textarea, select { font-family: inherit; font-size: inherit; }
 :focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; border-radius: 6px; }
 
-/* ============================================================
-   v13.7: Voorkom horizontale scroll-chaining
-   ============================================================ */
-.main { overflow-x: hidden; }
-.vod-sidebar,
-.chips-row,
-.iptv-pills,
-.iptv-pills-left,
-.iptv-pills-right,
-.live-filters,
-.iptv-groups-panel-list,
-.iptv-grid,
-.vod-grid,
-.feed-grid {
-  overscroll-behavior-x: contain;
-}
+/* v13.8: Voorkom horizontale scroll-chaining (lichte versie) */
 .vod-sidebar,
 .chips-row,
 .iptv-pills,
 .live-filters {
-  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
 
 /* HEADER */
