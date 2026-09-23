@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.14</title>
+<title>WAR DESK v14.15</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -21,6 +21,7 @@
 <link rel="apple-touch-icon" sizes="144x144" href="./icons/icon-144.png">
 
 <script>
+// Theme/instellingen laden VOOR de rest van de pagina render
 (function(){
   try {
     var t = localStorage.getItem("wardesk_theme");
@@ -32,7 +33,7 @@
     var fs = localStorage.getItem("wardesk_font_size") || "medium";
     var ac = localStorage.getItem("wardesk_accent_color") || "goud";
     var map = { amber:"goud", blue:"saffier", green:"smaragd", red:"koraal", mono:"parel" };
-    if (map[ac]) { ac = map[ac]; localStorage.setItem("wardesk_accent_color", ac); }
+    if (map[ac]) { ac = map[ac]; try{ localStorage.setItem("wardesk_accent_color", ac); }catch(e){} }
     if (["goud","saffier","smaragd","kobalt","koraal","parel"].indexOf(ac) < 0) ac = "goud";
     if (["small","medium","large","xlarge"].indexOf(fs) < 0) fs = "medium";
     document.documentElement.setAttribute("data-font-size", fs);
@@ -298,7 +299,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.14</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.15</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -567,7 +568,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 
     <div class="sheet-section">
       <div class="sheet-about">
-        WAR DESK <span class="version" id="appVersionMenu">v14.14</span><br>
+        WAR DESK <span class="version" id="appVersionMenu">v14.15</span><br>
         Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD
       </div>
     </div>
@@ -681,7 +682,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   window.__setFontSize = function(size){
     if(["small","medium","large","xlarge"].indexOf(size) < 0) return;
     document.documentElement.setAttribute("data-font-size", size);
-    try { localStorage.setItem("wardesk_font_size", size); } catch(e){}
+    if(window.WDStorage) WDStorage.set("font_size", size);
     document.querySelectorAll("[data-font]").forEach(function(b){
       b.classList.toggle("active", b.dataset.font === size);
     });
@@ -689,7 +690,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   window.__setAccentColor = function(color){
     if(["goud","saffier","smaragd","kobalt","koraal","parel"].indexOf(color) < 0) return;
     document.documentElement.setAttribute("data-accent", color);
-    try { localStorage.setItem("wardesk_accent_color", color); } catch(e){}
+    if(window.WDStorage) WDStorage.set("accent_color", color);
     document.querySelectorAll("[data-color]").forEach(function(b){
       b.classList.toggle("active", b.dataset.color === color);
     });
@@ -705,7 +706,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     var on = !!enabled;
     if(on) document.documentElement.setAttribute("data-oled", "true");
     else document.documentElement.removeAttribute("data-oled");
-    try { localStorage.setItem("wardesk_oled_mode", on ? "1" : "0"); }catch(e){}
+    if(window.WDStorage) WDStorage.set("oled_mode", on ? "1" : "0");
     var row = document.getElementById("toggleOledRow");
     if(row) row.classList.toggle("active", on);
     if(window.__wdUpdateThemeColor) window.__wdUpdateThemeColor();
@@ -788,7 +789,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   }
   function escapeHtml(s){ return (s || "").replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
 
-  // Combineer met bestaande wdLog (uit config.js)
   var _wdLogBase = window.wdLog || { info:function(){}, warn:function(){}, error:function(){} };
   window.wdLog = {
     info: function(){
@@ -855,13 +855,8 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 
 // ============================================================
-// FIX v14.7:  Inline menu-handler VERWIJDERD.
-// FIX v14.8:  NewsAPI.init() alleen door index.html aangeroepen.
-// FIX v14.9:  styles.css versie verhoogd (Fase 3B).
-// FIX v14.10: vod-v24.js versie verhoogd (Fase 3C).
-// FIX v14.12: MapLibre GL + OpenFreeMap.
-// FIX v14.13: Content Security Policy toegevoegd.
-// FIX v14.14: Centrale wdLog via config.js (Fase 4 Deel 1).
+// v14.15: storage.js geïntroduceerd (Fase 4 Deel 2).
+//         Bestaande keys blijven gelijk → geen dataverlies.
 // ============================================================
 </script>
 
@@ -870,15 +865,16 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js" defer></script>
 
-<script src="config.js?v=14.14" defer></script>
-<script src="store.js?v=14.14" defer></script>
-<script src="news-v27.js?v=14.14" defer></script>
-<script src="app-v12.js?v=14.14" defer></script>
-<script src="persist-v4.js?v=14.14" defer></script>
-<script src="refresh-v12.js?v=14.14" defer></script>
-<script src="iptv-v8.js?v=14.14" defer></script>
-<script src="map-v11.10.js?v=14.14" defer></script>
-<script src="vod-v24.js?v=14.14" defer></script>
+<script src="storage.js?v=14.15" defer></script>
+<script src="config.js?v=14.15" defer></script>
+<script src="store.js?v=14.15" defer></script>
+<script src="news-v27.js?v=14.15" defer></script>
+<script src="app-v12.js?v=14.15" defer></script>
+<script src="persist-v4.js?v=14.15" defer></script>
+<script src="refresh-v12.js?v=14.15" defer></script>
+<script src="iptv-v8.js?v=14.15" defer></script>
+<script src="map-v11.10.js?v=14.15" defer></script>
+<script src="vod-v24.js?v=14.15" defer></script>
 
 <script>
 (function(){
@@ -909,15 +905,14 @@ document.addEventListener("DOMContentLoaded", function(){
   document.querySelectorAll('.bottom-tabs .tab').forEach(function(tab){
     tab.addEventListener('click', function(){
       var view = tab.getAttribute('data-view');
-      if (view) {
-        try { sessionStorage.setItem('wardesk_active_tab', view); } catch(e){}
+      if (view && window.WDStorage) {
+        WDStorage.session.set('active_tab', view);
       }
     });
   });
 
   function restoreTab(){
-    var savedTab;
-    try { savedTab = sessionStorage.getItem('wardesk_active_tab'); } catch(e){}
+    var savedTab = window.WDStorage ? WDStorage.session.get('active_tab') : null;
     if (savedTab && savedTab !== 'news') {
       setTimeout(function(){
         var tabBtn = document.querySelector('.bottom-tabs .tab[data-view="' + savedTab + '"]');
