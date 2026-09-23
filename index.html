@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.42</title>
+<title>WAR DESK v14.43</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -108,7 +108,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.42">
+<link rel="stylesheet" href="styles.css?v=14.43">
 
 <style>
 html[data-font-size="small"]  { font-size: 14px; }
@@ -158,7 +158,8 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
 .brand-mark svg { width:22px; height:22px; }
 
 .bottom-tabs { position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 9999999 !important; display: flex !important; justify-content: space-around !important; background: var(--bg-2, #070c16) !important; border-top: 1px solid var(--line-2, #1a2332) !important; padding: 4px 0 !important; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important; box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important; }
-#viewNews, #viewMap, #viewIptv, #viewVod { padding-bottom: 75px !important; min-height: auto !important; overflow-y: auto !important; }
+#viewNews, #viewMap, #viewIptv { padding-bottom: 75px !important; min-height: auto !important; overflow-y: auto !important; }
+#viewVod { padding-bottom: 75px !important; min-height: auto !important; }
 
 .sheet-overlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,0.6) !important; z-index: 10000000 !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s !important; }
 .sheet-overlay.open { opacity: 1 !important; pointer-events: auto !important; }
@@ -199,7 +200,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.42</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.43</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -415,7 +416,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.42</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.43</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
     </div>
   </div>
 </div>
