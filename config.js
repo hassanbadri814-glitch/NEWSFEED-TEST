@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK v14.19 — Configuratie
-   - FIX v14.18: E1 dead get stadiaKey() vervangen door property
-   - FIX v14.19: E6 meer breaking-news keywords
+   WAR DESK v14.21 — Configuratie
+   - Centrale APP_VERSION
+   - Centrale wdLog functie
    ============================================================ */
 
-window.APP_VERSION = "v14.19";
+window.APP_VERSION = "v14.21";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -111,7 +111,6 @@ window.HIGH_PRIORITY = [
   "NOS","NOS Sport","De Telegraaf","AD.nl","RTL Nieuws"
 ];
 
-/* E6: Uitgebreide high-priority keywords voor breaking-detectie */
 window.KEYWORDS_HIGH = [
   "killed","dead","deaths","massacre","nuclear","invasion",
   "airstrike","ceasefire","assassinated","declared war",
