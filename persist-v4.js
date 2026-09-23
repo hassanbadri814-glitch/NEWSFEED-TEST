@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK v4.2 — State persistentie
+   WAR DESK v4.3 — State persistentie
    - Start altijd op Nieuws (geen tab-herstel)
-   - FIX v4.1: wdLog in plaats van console.log
-   - FIX v4.2: WDStorage in plaats van localStorage (Fase 4 Deel 2)
+   - FIX v4.1: wdLog
+   - FIX v4.2: WDStorage
+   - FIX v4.3: dead code weg (B8) + currentSearch bewaren (B9)
    ============================================================ */
 
 (function(){
@@ -18,7 +19,8 @@
       WDStorage.setJSON("ui_state", {
         cat: State.currentCat,
         sort: State.currentSort,
-        view: State.viewMode
+        view: State.viewMode,
+        search: State.currentSearch || ""
       });
     }catch(e){}
   }
@@ -28,16 +30,6 @@
       if(!window.WDStorage) return null;
       return WDStorage.getJSON("ui_state", null);
     }catch(e){ return null; }
-  }
-
-  function saveView(viewName){
-    if(!window.WDStorage) return;
-    WDStorage.set("active_view", viewName);
-  }
-
-  function loadView(){
-    if(!window.WDStorage) return "news";
-    return WDStorage.get("active_view", "news");
   }
 
   function applyToUI(saved){
@@ -54,6 +46,12 @@
     var vc = $("viewCards"), vl = $("viewList");
     if(vc) vc.classList.toggle("active", (saved.view || "cards") === "cards");
     if(vl) vl.classList.toggle("active", (saved.view || "cards") === "list");
+
+    // B9: herstel zoekterm in UI
+    if(saved.search){
+      var sInput = $("searchInput");
+      if(sInput) sInput.value = saved.search;
+    }
   }
 
   function restore(){
@@ -62,11 +60,8 @@
     State.currentCat = VALID_CATS.indexOf(saved.cat) >= 0 ? saved.cat : "all";
     State.currentSort = VALID_SORTS.indexOf(saved.sort) >= 0 ? saved.sort : "importance";
     State.viewMode = VALID_VIEWS.indexOf(saved.view) >= 0 ? saved.view : "cards";
+    State.currentSearch = typeof saved.search === "string" ? saved.search : "";
     return true;
-  }
-
-  function restoreActiveView(){
-    return;
   }
 
   function initPersist(){
@@ -77,12 +72,6 @@
       var target = e.target.closest("[data-cat], #sortImportance, #sortNewest, #viewCards, #viewList");
       if(target){ setTimeout(save, 200); }
     }, true);
-
-    document.querySelectorAll(".bottom-tabs .tab").forEach(function(tab){
-      tab.addEventListener("click", function(){
-        if(tab.dataset.view) saveView(tab.dataset.view);
-      });
-    });
 
     window.addEventListener("pagehide", save);
     window.addEventListener("beforeunload", save);
@@ -110,5 +99,5 @@
   if(document.readyState !== "loading") initPersist();
   else document.addEventListener("DOMContentLoaded", initPersist);
 
-  wdLog.info("[WAR DESK] persist-v4.js v4.2 geladen");
+  wdLog.info("[WAR DESK] persist-v4.js v4.3 geladen");
 })();
