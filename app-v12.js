@@ -1,8 +1,10 @@
 /* ============================================================
-   WAR DESK v13.0 — App Orchestration (Touch Gestures)
+   WAR DESK v13.1 — App Orchestration (Touch Gestures)
    - FIX v12.6: N1 clock stop pagehide
    - FIX v12.7: scroll restoration per tab, haptic feedback
    - FIX v13.0: Service Worker registratie toegevoegd
+   - FIX v13.1: swipe-check op zowel touchstart als touchend
+                (voorkomt tab-wissel bij scrollen op categoriebalk)
    ============================================================ */
 
 (function(){
@@ -292,40 +294,60 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
+    /* ============================================================
+       v13.1: Swipe-wissel tussen tabs
+       - Check nu ZOWEL waar de touch begon als eindigde
+       - Voorkomt tab-wissel tijdens horizontaal scrollen van balken
+       ============================================================ */
     let touchStartX = 0;
     let touchStartY = 0;
+    let touchStartTarget = null;
+
+    const SWIPE_EXCLUDE = '.vod-sidebar, .chips-row, .iptv-pills, .live-filters, .sheet, .iptv-groups-panel-list, [role="tablist"]';
 
     document.addEventListener('touchstart', e => {
+      if(!e.touches || !e.touches.length) return;
       touchStartX = e.touches[0].clientX;
       touchStartY = e.touches[0].clientY;
+      touchStartTarget = e.target;
     }, { passive: true });
 
     document.addEventListener('touchend', e => {
+      if(!e.changedTouches || !e.changedTouches.length){
+        touchStartTarget = null;
+        return;
+      }
       const touchEndX = e.changedTouches[0].clientX;
       const touchEndY = e.changedTouches[0].clientY;
-      
+
       const deltaX = touchEndX - touchStartX;
       const deltaY = touchEndY - touchStartY;
-      
+
       if(Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50){
-        const target = e.target.closest('.vod-sidebar, .chips-row, .iptv-pills, .live-filters, .sheet');
-        if (target) return;
+        // Check of de touch begon OF eindigde in een scrollbare balk
+        const startIn = touchStartTarget && touchStartTarget.closest && touchStartTarget.closest(SWIPE_EXCLUDE);
+        const endIn = e.target && e.target.closest && e.target.closest(SWIPE_EXCLUDE);
+        touchStartTarget = null;
+
+        if (startIn || endIn) return;
 
         const tabs = ['news', 'map', 'iptv', 'vod'];
         const currentTab = document.querySelector('.tab.active')?.dataset.view || 'news';
         const currentIndex = tabs.indexOf(currentTab);
-        
+
         let newIndex;
         if(deltaX > 0 && currentIndex > 0){
           newIndex = currentIndex - 1;
         } else if(deltaX < 0 && currentIndex < tabs.length - 1){
           newIndex = currentIndex + 1;
         }
-        
+
         if(newIndex !== undefined){
           const tabBtn = document.querySelector(`.tab[data-view="${tabs[newIndex]}"]`);
           if(tabBtn) tabBtn.click();
         }
+      } else {
+        touchStartTarget = null;
       }
     }, { passive: true });
 
