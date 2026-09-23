@@ -1,14 +1,13 @@
 /* ============================================================
-   WAR DESK v27.5 — Nieuws Logica
-   - FIX v27.3: wdLog + WDStorage
-   - FIX v27.4: dead code weg (B7), tag-versie fix (B12), state fallback (B5)
-   - FIX v27.5: A1 scroll-jump, A5 translation limiet, A6 quota-monitoring
+   WAR DESK v27.6 — Nieuws Logica
+   - FIX v27.5: A1 scroll-jump, A5 translation limiet, A6 quota
+   - FIX v27.6: C1 quota prune, C2 score refresh, C3 health load, C4 tags sync
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.5";
+  window.__newsVersion = "v27.6";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -57,26 +56,21 @@
   function pruneTranslations() {
     const keys = Object.keys(state.translations || {});
     if (keys.length <= TRANSLATION_MAX) return;
-    // Verwijder oudste 200 op basis van volgorde (object insertion order)
     const toRemove = keys.slice(0, 200);
     toRemove.forEach(k => { try{ delete state.translations[k]; }catch(e){} });
     wdLog.info("[NEWS] Translations gepruned: " + toRemove.length + " verwijderd");
   }
 
-  // ==================== A6: Quota-monitoring ====================
+  // ==================== A6 + C1: Quota-monitoring ====================
   async function checkStorageQuota() {
     try {
-      if (!navigator.storage || !navigator.storage.estimate) return { ok: true };
+      if (!navigator.storage || !navigator.storage.estimate) return { ok: true, pct: 0 };
       const est = await navigator.storage.estimate();
       const usage = est.usage || 0;
       const quota = est.quota || 0;
       const pct = quota > 0 ? usage / quota : 0;
-      if (pct > 0.85) {
-        wdLog.warn("[NEWS] Storage bijna vol: " + Math.round(pct * 100) + "%");
-        return { ok: false, pct: pct };
-      }
-      return { ok: true, pct: pct };
-    } catch(e) { return { ok: true }; }
+      return { ok: pct < 0.85, pct: pct, usage: usage, quota: quota };
+    } catch(e) { return { ok: true, pct: 0 }; }
   }
 
   // ==================== INDEXEDDB ====================
@@ -156,14 +150,38 @@
         }catch(e){ res([]); }
       });
     }
+
+    /* C1: prune oudste items als quota vol is */
+    async function pruneToQuota() {
+      if (!db) return 0;
+      const quota = await checkStorageQuota();
+      if (quota.ok) return 0;
+      const all = await getAll("items");
+      if (!all.length) return 0;
+      // Sorteer op datum, verwijder oudste 30%
+      all.sort((a, b) => tm(a.date) - tm(b.date));
+      const toRemove = Math.floor(all.length * 0.3);
+      return new Promise(res => {
+        try{
+          const tx = db.transaction("items", "readwrite");
+          const store = tx.objectStore("items");
+          for (let i = 0; i < toRemove; i++) {
+            store.delete(all[i].link);
+          }
+          tx.oncomplete = () => {
+            wdLog.warn("[NEWS] Quota vol — " + toRemove + " oudste items verwijderd");
+            res(toRemove);
+          };
+          tx.onerror = () => res(0);
+        }catch(e){ res(0); }
+      });
+    }
+
     async function saveItems(items){
       if(!db) return;
-      // A6: check quota voor we schrijven
-      const quota = await checkStorageQuota();
-      if (!quota.ok) {
-        wdLog.warn("[NEWS] Quota bijna vol — sla alleen top 100 op");
-        items = items.slice(0, 100);
-      }
+
+      // C1: check quota eerst, prune als nodig
+      await pruneToQuota();
 
       const max = window.CONFIG?.maxCacheItems ?? 3000;
       const topItems = items.slice(0, max);
@@ -240,8 +258,9 @@
         }catch(e){ res(false); }
       });
     }
+
     return {
-      open, put, del, get, getAll, getAllKeys, saveItems, retagAll, pruneOldReads,
+      open, put, del, get, getAll, getAllKeys, saveItems, retagAll, pruneOldReads, pruneToQuota,
       loadItems: () => getAll("items").then(items => items.sort((a,b) => tm(b.date) - tm(a.date))),
       saveRead: (link) => put("meta", {k:"read_" + link, v: Date.now()}),
       loadReadMap: () => getAll("meta").then(all => {
@@ -250,6 +269,7 @@
         return map;
       }),
       saveHealth: (health) => put("meta", {k:"health", v: health}),
+      loadHealth: () => get("meta", "health").then(rec => rec?.v || {}),  // C3: load functie
       saveTranslation: (key, value) => put("translations", {k: key, v: value, t: Date.now()}),
       loadTranslation: (key) => get("translations", key).then(rec => rec?.v || null),
       saveFavorite: (link) => put("meta", {k:"fav_" + link, v: Date.now()}),
@@ -322,6 +342,15 @@
     score += Math.max(0, 40 - ageMin / 2);
     return score;
   };
+
+  /* C2: herbereken alle scores (reset _score) */
+  function refreshAllScores() {
+    if (!state.items || !state.items.length) return;
+    state.items.forEach(it => {
+      it._score = scoreArticle(it);
+    });
+    wdLog.info("[NEWS] Scores herberekend voor " + state.items.length + " items");
+  }
 
   const titleKey = (title) => (title || "").toLowerCase().replace(/[^\w\s]/g, "")
     .split(/\s+/).filter(w => w.length > 3)
@@ -542,7 +571,6 @@
     try {
       const translated = await fetchTranslation(item.title, item.lang);
       if(translated){
-        // A5: prune voor toevoegen
         pruneTranslations();
         state.translations[key] = translated;
         NewsDB.saveTranslation(key, translated).catch(() => {});
@@ -687,9 +715,6 @@
     window.__wdDiagCount = 0;
     let lastProgressiveCount = 0;
 
-    /* ============================================================
-       A1 FIX: Progressive re-render alleen als gebruiker bovenaan staat
-       ============================================================ */
     const progressiveTimer = setInterval(() => {
       if(session !== state.loadSession || state._loadFeedsDone){
         clearInterval(progressiveTimer);
@@ -702,7 +727,6 @@
       state.items = merged;
       const itemsEl = $("statItems");
       if(itemsEl) itemsEl.textContent = state.items.length;
-      // A1: alleen renderen als gebruiker bovenaan staat (< 300px scroll)
       if (window.scrollY < 300) renderNews();
     }, 1000);
 
@@ -785,7 +809,6 @@
     const itemsEl = $("statItems");
     if(itemsEl) itemsEl.textContent = state.items.length;
 
-    // A6: sla op met quota-check
     NewsDB.saveItems(state.items);
     NewsDB.saveHealth(state.health);
 
@@ -1065,6 +1088,10 @@
     await NewsDB.open();
     NewsDB.pruneOldReads().catch(() => {});
 
+    // C1: prune bij opstart als quota vol
+    NewsDB.pruneToQuota().catch(() => {});
+
+    // C4: bij tag-versie wijziging → herbereken in DB EN geheugen
     try{
       var storedTagsVersion = window.WDStorage ? WDStorage.get("tags_version") : null;
       if(storedTagsVersion !== window.TAGS_VERSION){
@@ -1081,8 +1108,16 @@
     try {
       state.notificationsEnabled = (window.WDStorage ? WDStorage.get("notifications") : null) === "1";
     }catch(e){}
-    state.health = {};
+
+    // C3: laad health uit IndexedDB i.p.v. leegmaken
+    try {
+      state.health = await NewsDB.loadHealth();
+      wdLog.info("[WAR DESK] Health geladen: " + Object.keys(state.health).length + " feeds");
+    } catch(e) {
+      state.health = {};
+    }
     state.disabled = {};
+
     state.readMap = await NewsDB.loadReadMap();
     state.favorites = await NewsDB.loadFavorites();
     updateFavoritesCount();
@@ -1093,6 +1128,8 @@
     const cached = await NewsDB.loadItems();
     if(cached.length){
       state.items = ensureTags(cached);
+      // C2: bereken scores direct na laden uit cache
+      refreshAllScores();
       const itemsEl = $("statItems");
       if(itemsEl) itemsEl.textContent = state.items.length;
       renderNews();
@@ -1133,6 +1170,12 @@
   setInterval(() => {
     if(document.hidden) return;
     pruneTranslations();
+  }, 600000);
+
+  /* C2: herbereken scores elke 10 minuten */
+  setInterval(() => {
+    if(document.hidden) return;
+    refreshAllScores();
   }, 600000);
 
   window.NewsAPI = {
