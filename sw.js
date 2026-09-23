@@ -1,11 +1,12 @@
 /* ============================================================
-   WAR DESK Service Worker v2.3
+   WAR DESK Service Worker v2.4
    - Network-first voor HTML/JS/CSS/JSON
    - Cache-first voor images/fonts/icons (eigen domein)
-   - CDN assets NIET cachen (voorkomt verouderde libraries)
+   - CDN assets NIET cachen
+   - utils.js toegevoegd aan precache
    ============================================================ */
 
-const CACHE_NAME = 'wardesk-v14.20';
+const CACHE_NAME = 'wardesk-v14.21';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
