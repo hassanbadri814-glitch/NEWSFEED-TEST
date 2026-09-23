@@ -1,18 +1,17 @@
 /* ============================================================
-   WAR DESK v12.3 — App Orchestration (Touch Gestures)
+   WAR DESK v12.4 — App Orchestration (Touch Gestures)
    - Swipe navigation tussen tabs
    - Klok pauzeert op achtergrond
    - VOD-view + Escape fix
-   - FIX v12.1: Dubbele VODAPI.init() aanroep verwijderd
-   - FIX v12.2: Dubbele NewsAPI.init() aanroep verwijderd (index.html regelt dit)
-   - FIX v12.3: wdLog in plaats van console.log/error
+   - FIX v12.3: wdLog in plaats van console.log
+   - FIX v12.4: WDStorage in plaats van localStorage (Fase 4 Deel 2)
    ============================================================ */
 
 (function(){
   "use strict";
 
   const $ = (id) => document.getElementById(id);
-  const APP_VERSION = window.APP_VERSION || "v14.14";
+  const APP_VERSION = window.APP_VERSION || "v14.15";
 
   const ready = (fn) => {
     if(document.readyState !== "loading") fn();
@@ -58,7 +57,7 @@
       themeBtn.addEventListener("click", () => {
         const isLight = document.documentElement.classList.toggle("light");
         document.body.classList.toggle("light", isLight);
-        try{ localStorage.setItem("wardesk_theme", isLight ? "light" : "dark"); }catch(e){}
+        if(window.WDStorage) WDStorage.set("theme", isLight ? "light" : "dark");
       });
     }
 
@@ -83,11 +82,9 @@
       tab.addEventListener("click", () => {
         const view = tab.dataset.view;
         showView(view);
-        // VODAPI.init() wordt NIET hier aangeroepen — vod-v24.js doet dit zelf via setupVodWatcher()
       });
     });
 
-    // URL parameter support
     try{
       const params = new URLSearchParams(location.search);
       const requestedTab = params.get("tab");
@@ -179,7 +176,6 @@
       });
     }
 
-    // Sheet swipe-to-close
     let startY = 0, currentY = 0, dragging = false, canSwipeClose = false;
     if(sheet){
       sheet.addEventListener("touchstart", e => {
@@ -257,7 +253,6 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
-    // TOUCH GESTURES: Swipe navigation
     let touchStartX = 0;
     let touchStartY = 0;
 
