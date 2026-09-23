@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v24.5 — VOD (Robust init + Click Fix + Back Button Fix)
-   - FIX v24.4: wdLog
+   WAR DESK v24.6 — VOD (Robust init + Click Fix + Back Button Fix)
    - FIX v24.5: A3 (history replaceState), A4 (lege ID fallback)
+   - FIX v24.6: E5 (zoek-debounce 250ms)
    ============================================================ */
 
 (function(){
@@ -9,7 +9,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v24.5 geladen");
+  LOG("v24.6 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -416,7 +416,7 @@
         var grid2 = $("vodGrid");
         if(grid2){ grid2.innerHTML = ""; showSkeletons(); }
         loadCatalog(false);
-      }, 500);
+      }, 250);
     });
 
     if(clearBtn){
@@ -464,7 +464,6 @@
 
     modal.classList.add("show");
 
-    /* A3: gebruik replaceState als we al in vodModal zijn */
     if (history.state && history.state.vodModal) {
       history.replaceState({ vodModal: true }, '');
     } else {
@@ -478,7 +477,6 @@
       type = item.type === "series" ? "series" : "movie";
     }
 
-    /* A4: check of er een ID is voor we fetchen */
     var metaId = item.imdb_id || item.id;
     if (!metaId) {
       LOG("Geen metaId beschikbaar voor:", item.name);
@@ -676,5 +674,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] vod-v24.js v24.5 geladen");
+  wdLog.info("[WAR DESK] vod-v24.js v24.6 geladen");
 })();
