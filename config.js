@@ -1,11 +1,39 @@
 /* ============================================================
-   WAR DESK v12.0 — Configuratie (Modernized & Secure)
-   - Gebruikt Optional Chaining (?.) en Nullish Coalescing (??)
-   - Beveiligt keys via getters
+   WAR DESK v14.14 — Configuratie
+   - Centrale APP_VERSION (één versie voor de hele app)
+   - Centrale wdLog functie (alleen in debug-modus)
    ============================================================ */
 
-window.APP_VERSION = "v12.0";
+window.APP_VERSION = "v14.14";
 window.TAGS_VERSION = "4";
+
+/* ============================================================
+   CENTRALE DEBUG-LOGGER
+   - Alleen zichtbaar in console als ?debug=1 of localStorage
+   - Productie-gebruikers zien geen console-ruis
+   ============================================================ */
+window.WD_DEBUG = (function(){
+  try {
+    if (localStorage.getItem("wardesk_debug") === "1") return true;
+    if (/[?&]debug=1/.test(location.search)) return true;
+  } catch(e) {}
+  return false;
+})();
+
+window.wdLog = {
+  info: function(){
+    if (!window.WD_DEBUG) return;
+    try { console.log.apply(console, arguments); } catch(e){}
+  },
+  warn: function(){
+    if (!window.WD_DEBUG) return;
+    try { console.warn.apply(console, arguments); } catch(e){}
+  },
+  error: function(){
+    // Fouten worden ALTIJD getoond, ook zonder debug
+    try { console.error.apply(console, arguments); } catch(e){}
+  }
+};
 
 window.CONFIG = {
   perFeed: 12,
@@ -22,10 +50,10 @@ window.CONFIG = {
   warTrackerLimit: 100,
   detailCacheMax: 500,
   detailCacheTTL: 7200000,
-  
-  // Veiligheid: Key wordt pas opgevraagd wanneer nodig
-  get stadiaKey() { 
-    return "6b91d05e-5862-449d-ab5d-a34a15e2112e"; 
+
+  // Stadia key wordt niet meer gebruikt (kaart gebruikt OpenFreeMap sinds v11.12)
+  get stadiaKey() {
+    return "";
   },
 
   iptvMaxRecent: 10,
@@ -110,7 +138,7 @@ window.FEEDS = [
   {n:"Glory Kickboxing",lang:"en",cat:"sport",url:"https://glorykickboxing.com/rss"},
   {n:"MMA DNA",lang:"nl",cat:"sport",url:"https://mmadna.nl/feed/"},
 
-  /* ===== BELGIË (→ Europa) ===== */
+  /* ===== BELGIË ===== */
   {n:"HLN",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:hln.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"Nieuwsblad",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:nieuwsblad.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"De Standaard",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:standaard.be&hl=nl&gl=BE&ceid=BE:nl"},
@@ -118,7 +146,7 @@ window.FEEDS = [
   {n:"De Morgen",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:demorgen.be&hl=nl&gl=BE&ceid=BE:nl"},
   {n:"De Tijd",lang:"nl",cat:"be",url:"https://news.google.com/rss/search?q=site:tijd.be&hl=nl&gl=BE&ceid=BE:nl"},
 
-  /* ===== DUITSLAND (→ Europa) ===== */
+  /* ===== DUITSLAND ===== */
   {n:"Spiegel",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:spiegel.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Bild",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:bild.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Zeit",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:zeit.de&hl=de&gl=DE&ceid=DE:de"},
@@ -127,18 +155,18 @@ window.FEEDS = [
   {n:"Tagesschau",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:tagesschau.de&hl=de&gl=DE&ceid=DE:de"},
   {n:"Die Welt",lang:"de",cat:"de",url:"https://news.google.com/rss/search?q=site:welt.de&hl=de&gl=DE&ceid=DE:de"},
 
-  /* ===== FRANKRIJK (→ Europa) ===== */
+  /* ===== FRANKRIJK ===== */
   {n:"Le Monde",lang:"fr",cat:"fr",url:"https://www.lemonde.fr/rss/une.xml"},
   {n:"FranceInfo",lang:"fr",cat:"fr",url:"https://www.franceinfo.fr/titres.rss"},
   {n:"Libération",lang:"fr",cat:"fr",url:"https://www.liberation.fr/rss/"},
 
-  /* ===== ITALIË (→ Europa) ===== */
+  /* ===== ITALIË ===== */
   {n:"Corriere della Sera",lang:"it",cat:"it",url:"https://www.corriere.it/rss/homepage.xml"},
   {n:"Repubblica",lang:"it",cat:"it",url:"https://www.repubblica.it/rss/homepage/rss2.0.xml"},
   {n:"ANSA",lang:"it",cat:"it",url:"https://www.ansa.it/sito/ansait_rss.xml"},
   {n:"La Stampa",lang:"it",cat:"it",url:"https://www.lastampa.it/rss/homepage.xml"},
 
-  /* ===== VK (→ Europa) ===== */
+  /* ===== VK ===== */
   {n:"BBC UK",lang:"en",cat:"uk",url:"https://feeds.bbci.co.uk/news/uk/rss.xml"},
   {n:"Guardian UK",lang:"en",cat:"uk",url:"https://www.theguardian.com/uk-news/rss"},
   {n:"Telegraph",lang:"en",cat:"uk",url:"https://www.telegraph.co.uk/rss.xml"},
@@ -189,7 +217,7 @@ window.FEEDS = [
   {n:"Enab Baladi",lang:"en",cat:"mideast",url:"https://english.enabbaladi.net/feed/"},
   {n:"Sudan Tribune",lang:"en",cat:"mideast",url:"https://sudantribune.com/feed/"},
 
-  /* ===== OEKRAÏNE / RUSLAND (→ Oorlog) ===== */
+  /* ===== OEKRAÏNE / RUSLAND ===== */
   {n:"Kyiv Independent",lang:"en",cat:"ukraine",url:"https://kyivindependent.com/feed/"},
   {n:"Ukrinform",lang:"en",cat:"ukraine",url:"https://www.ukrinform.net/rss"},
   {n:"RT News",lang:"en",cat:"war",url:"https://www.rt.com/rss/"},
@@ -214,4 +242,4 @@ window.FEEDS = [
   {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"}
 ];
 
-console.log(`[WAR DESK] config.js ${window.APP_VERSION} geladen — ${window.FEEDS.length} feeds`);
+wdLog.info(`[WAR DESK] config.js ${window.APP_VERSION} geladen — ${window.FEEDS.length} feeds`);
