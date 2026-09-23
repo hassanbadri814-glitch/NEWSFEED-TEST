@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK v14.3 — COMPLETE CSS
-   - FIX v14.0: VOD-sidebar verticaal op mobiel
-   - FIX v14.1: VOD kleinere covers
-   - FIX v14.3: sidebar sticky (position: sticky) — blijft staan
-                bij scrollen nu #viewVod geen overflow heeft
+   WAR DESK v14.2 — COMPLETE CSS
+   - FIX v13.4: backdrop-filter uit op mobiel
+   - FIX v13.5: .iptv-ch-initial
+   - FIX v13.6: fonts genormaliseerd, header opgeruimd op mobiel
+   - FIX v14.0: VOD-sidebar verticaal links op mobiel
+   - FIX v14.2: VOD-sidebar blijft zichtbaar bij scrollen
    ============================================================ */
 
 :root {
@@ -645,4 +646,126 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
   .btn-mini { width: 36px; height: 36px; font-size: .95rem; }
   .main { padding: 1rem .85rem; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0)); }
   .section-head h2 { font-size: 1rem; }
-  .section-head { margin-bottom: 1rem; padding-bottom: .7
+  .section-head { margin-bottom: 1rem; padding-bottom: .7rem; }
+  .feed-grid { grid-template-columns: 1fr; gap: 1rem; }
+  .feed-grid.list-mode .card-thumb { width: 90px; min-width: 90px; }
+  .sheet-content { padding: 1rem 1rem 1.5rem; }
+  .sheet-item { padding: .6rem .75rem; font-size: .82rem; }
+  .tab-label { font-size: .7rem; }
+  .tab-icon { font-size: 1.15rem; }
+
+  .hstat-sources,
+  .hstat-events,
+  .hstat-items { display: none; }
+  .hstat-clock { display: flex; }
+  .header-stats { gap: .8rem; }
+
+  #map { height: 48vh; min-height: 340px; }
+  .map-ctrl { width: 34px; height: 34px; font-size: 1rem; }
+  .map-legend { max-width: 150px; padding: .5rem .6rem; font-size: .7rem; }
+  .live-list { max-height: 300px; }
+
+  .iptv-grid { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  .iptv-ch { padding: .7rem .5rem .6rem; min-height: 110px; }
+  .iptv-ch-logo { width: 44px; height: 44px; font-size: 1.1rem; }
+  .iptv-ch-name { font-size: .78rem; }
+  .iptv-grid.list-mode .iptv-ch { padding: .45rem .65rem; min-height: 48px; }
+  .iptv-grid.list-mode .iptv-ch-logo { width: 34px; height: 34px; }
+  .iptv-grid.list-mode .iptv-ch-name { font-size: .82rem; }
+  .iptv-player-box video { max-height: 45vh; }
+
+  /* ============================================================
+     v14.2: VOD verticaal — sidebar blijft altijd zichtbaar
+     ============================================================ */
+  .vod-page {
+    display: block;
+    padding-left: 96px;
+  }
+  .vod-sidebar {
+    position: fixed;
+    top: 56px;
+    left: .85rem;
+    width: 88px;
+    max-height: calc(100vh - 140px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: block;
+    padding: .25rem;
+    border-radius: 8px;
+    z-index: 5;
+    background: var(--card);
+    border: 1px solid var(--line);
+    box-sizing: border-box;
+    scrollbar-width: thin;
+  }
+  .vod-sidebar-group { display: block; margin-bottom: .5rem; }
+  .vod-sidebar-group:last-child { margin-bottom: 0; }
+  .vod-sidebar-title {
+    display: block;
+    font-size: .6rem;
+    padding: .25rem .35rem;
+    letter-spacing: .04em;
+  }
+  .vod-sidebar-item {
+    width: 100%;
+    white-space: normal;
+    padding: .4rem .4rem;
+    font-size: .68rem;
+    line-height: 1.2;
+    margin-bottom: .1rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    text-align: left;
+    justify-content: flex-start;
+  }
+  .vod-sidebar-item.active {
+    background: rgba(224,168,87,.16);
+    border-color: transparent;
+    font-weight: 700;
+  }
+  .vod-sidebar-dot { display: none; }
+
+  .vod-content { min-width: 0; }
+  .vod-grid { grid-template-columns: repeat(2, 1fr); gap: .35rem; }
+  .vod-poster-body { padding: .3rem .3rem .35rem; min-height: 34px; }
+  .vod-poster-name { font-size: .68rem; line-height: 1.2; }
+  .vod-poster-meta { font-size: .6rem; }
+
+  .vod-detail-modal { padding: 0; }
+  .vod-detail-box { max-width: 100%; max-height: 100vh; border-radius: 0; height: 100vh; }
+  .vod-detail-body { padding: 1rem; flex: 1; overflow-y: auto; }
+  .vod-detail-foot { flex-direction: column; }
+  .vod-detail-btn.secondary { width: 100%; }
+}
+@media (max-width: 380px) {
+  .iptv-grid { grid-template-columns: repeat(2, 1fr); }
+  .vod-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+/* Mobiel: backdrop-filter uitschakelen (GPU-ontlasting) */
+@media (max-width: 640px) {
+  .header,
+  .bottom-tabs,
+  .sheet-overlay,
+  .map-ctrl,
+  .map-legend,
+  .wd-detail-modal,
+  .vod-detail-modal,
+  .iptv-groups-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .header { background: var(--bg-2) !important; }
+  .bottom-tabs { background: var(--bg-2) !important; }
+  .sheet-overlay { background: rgba(0,0,0,0.75) !important; }
+  .map-ctrl { background: rgba(13,21,34,0.96) !important; }
+  .map-legend { background: rgba(13,21,34,0.96) !important; }
+  html.light .map-legend { background: rgba(255,255,255,0.98) !important; }
+  .wd-detail-modal,
+  .vod-detail-modal { background: rgba(0,0,0,0.92) !important; }
+  .iptv-groups-panel { background: rgba(0,0,0,0.88) !important; }
+}
