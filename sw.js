@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK Service Worker v2.1
-   - Network-first voor HTML/JS/CSS/JSON (updates komen door)
-   - Cache-first voor images/fonts/icons (snelheid)
-   - Fallback naar cache als netwerk faalt
-   - FIX v2.1: precache alleen essentieel, versie gelijk aan app (B6+B18)
+   WAR DESK Service Worker v2.2
+   - Network-first voor HTML/JS/CSS/JSON
+   - Cache-first voor images/fonts/icons
+   - FIX v2.2: E2 CartoDB uit isAsset regex, OpenFreeMap erin
    ============================================================ */
 
 const CACHE_NAME = 'wardesk-v14.18';
@@ -53,8 +52,9 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(req.url);
 
+  // E2: alleen bekende CDN's cachen — CartoDB eruit, OpenFreeMap erin
   if (url.origin !== location.origin) {
-    const isAsset = /fonts\.(googleapis|gstatic)\.com|unpkg\.com|jsdelivr\.net|cdnjs\.cloudflare\.com|tiles\.openfreemap\.org|basemaps\.cartocdn\.com/.test(url.host);
+    const isAsset = /fonts\.(googleapis|gstatic)\.com|unpkg\.com|jsdelivr\.net|cdnjs\.cloudflare\.com|tiles\.openfreemap\.org/.test(url.host);
     if (!isAsset) return;
   }
 
