@@ -1,42 +1,43 @@
 /* ============================================================
-   WAR DESK v4.1 — State persistentie
+   WAR DESK v4.2 — State persistentie
    - Start altijd op Nieuws (geen tab-herstel)
    - FIX v4.1: wdLog in plaats van console.log
+   - FIX v4.2: WDStorage in plaats van localStorage (Fase 4 Deel 2)
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var KEY = "wardesk_ui_state_v1";
-  var VIEW_KEY = "wardesk_active_view_v1";
   var VALID_CATS = ["all","war","mideast","europe","nl","maroc","vs","sport","favorites"];
   var VALID_SORTS = ["importance","newest"];
   var VALID_VIEWS = ["cards","list"];
 
   function save(){
     try{
-      if(!window.State) return;
-      localStorage.setItem(KEY, JSON.stringify({
+      if(!window.State || !window.WDStorage) return;
+      WDStorage.setJSON("ui_state", {
         cat: State.currentCat,
         sort: State.currentSort,
         view: State.viewMode
-      }));
+      });
     }catch(e){}
   }
 
   function load(){
     try{
-      var raw = localStorage.getItem(KEY);
-      return raw ? JSON.parse(raw) : null;
+      if(!window.WDStorage) return null;
+      return WDStorage.getJSON("ui_state", null);
     }catch(e){ return null; }
   }
 
   function saveView(viewName){
-    try{ localStorage.setItem(VIEW_KEY, viewName); }catch(e){}
+    if(!window.WDStorage) return;
+    WDStorage.set("active_view", viewName);
   }
 
   function loadView(){
-    try{ return localStorage.getItem(VIEW_KEY) || "news"; }catch(e){ return "news"; }
+    if(!window.WDStorage) return "news";
+    return WDStorage.get("active_view", "news");
   }
 
   function applyToUI(saved){
@@ -109,5 +110,5 @@
   if(document.readyState !== "loading") initPersist();
   else document.addEventListener("DOMContentLoaded", initPersist);
 
-  wdLog.info("[WAR DESK] persist-v4.js v4.1 geladen");
+  wdLog.info("[WAR DESK] persist-v4.js v4.2 geladen");
 })();
