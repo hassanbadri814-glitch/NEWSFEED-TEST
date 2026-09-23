@@ -1,10 +1,8 @@
 /* ============================================================
-   WAR DESK v8.0.2 — IPTV (High Performance)
+   WAR DESK v8.0.3 — IPTV (High Performance)
    - Chunked rendering voor 500+ kanalen
-   - Geïntegreerd met window.appStore (Reactive)
-   - Behoudt window.IPTVAPI voor compatibiliteit
-   - FIX v8.0.1: state race condition verwijderd
-   - FIX v8.0.2: wdLog in plaats van console.log
+   - FASE 4 Deel 1: wdLog
+   - FASE 4 Deel 2: WDStorage
    ============================================================ */
 
 (function(){
@@ -12,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v8.0.2 geladen");
+  LOG("v8.0.3 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -40,10 +38,6 @@
     _saveCredsTimer: null,
     _renderChunkTimer: null
   };
-
-  var VOLUME_STORAGE_KEY = "wardesk_iptv_volume";
-  var MUTE_STORAGE_KEY = "wardesk_iptv_mute";
-  var VIEW_STORAGE_KEY = "wardesk_iptv_view";
 
   function cfg(key, fallback){
     if(window.CONFIG && CONFIG[key] !== undefined) return CONFIG[key];
@@ -161,12 +155,11 @@
     if(!ch || !ch.id) return;
     IPTV.workingChannels[ch.id] = Date.now();
     pruneWorking();
-    try { localStorage.setItem("wardesk_iptv_working", JSON.stringify(IPTV.workingChannels)); }catch(e){}
+    if(window.WDStorage) WDStorage.setJSON("iptv_working", IPTV.workingChannels);
   }
   function loadWorking(){
     try {
-      var raw = localStorage.getItem("wardesk_iptv_working");
-      var parsed = raw ? JSON.parse(raw) : {};
+      var parsed = window.WDStorage ? WDStorage.getJSON("iptv_working", {}) : {};
       IPTV.workingChannels = Object.create(null);
       if(parsed && typeof parsed === "object"){
         Object.keys(parsed).forEach(function(k){ IPTV.workingChannels[k] = parsed[k]; });
@@ -184,8 +177,8 @@
         changed = true;
       }
     });
-    if(changed){
-      try { localStorage.setItem("wardesk_iptv_working", JSON.stringify(IPTV.workingChannels)); }catch(e){}
+    if(changed && window.WDStorage){
+      WDStorage.setJSON("iptv_working", IPTV.workingChannels);
     }
   }
   function isWorking(ch){
@@ -197,12 +190,12 @@
 
   function loadViewMode(){
     try {
-      var v = localStorage.getItem(VIEW_STORAGE_KEY);
+      var v = window.WDStorage ? WDStorage.get("iptv_view") : null;
       if(v === "grid" || v === "list") IPTV.viewMode = v;
     } catch(e){}
   }
   function saveViewMode(){
-    try { localStorage.setItem(VIEW_STORAGE_KEY, IPTV.viewMode); }catch(e){}
+    if(window.WDStorage) WDStorage.set("iptv_view", IPTV.viewMode);
   }
 
   function buildUrl(action){
@@ -352,7 +345,7 @@
     closeGroupsPanel();
     await dbDelete("creds");
     await dbDelete("channels");
-    try { localStorage.removeItem("wardesk_iptv_working"); }catch(e){}
+    if(window.WDStorage) WDStorage.remove("iptv_working");
     IPTV.workingChannels = Object.create(null);
     IPTV.server = ""; IPTV.user = ""; IPTV.pass = ""; IPTV.channels = [];
     IPTV.currentChannel = null;
@@ -719,15 +712,17 @@
 
     var video = $("iptvVideo");
     if(video){
-      var savedVol = parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY) || "1");
-      var savedMute = localStorage.getItem(MUTE_STORAGE_KEY) === "1";
+      var savedVolStr = window.WDStorage ? WDStorage.get("iptv_volume", "1") : "1";
+      var savedMuteStr = window.WDStorage ? WDStorage.get("iptv_mute", "0") : "0";
+      var savedVol = parseFloat(savedVolStr);
+      var savedMute = savedMuteStr === "1";
       if(!isNaN(savedVol)) video.volume = Math.max(0, Math.min(1, savedVol));
       video.muted = savedMute;
       video.addEventListener("volumechange", function(){
-        try {
-          localStorage.setItem(VOLUME_STORAGE_KEY, String(video.volume));
-          localStorage.setItem(MUTE_STORAGE_KEY, video.muted ? "1" : "0");
-        }catch(e){}
+        if(window.WDStorage){
+          WDStorage.set("iptv_volume", String(video.volume));
+          WDStorage.set("iptv_mute", video.muted ? "1" : "0");
+        }
       });
       video.addEventListener("play", updatePlayBtn);
       video.addEventListener("pause", updatePlayBtn);
@@ -1213,5 +1208,5 @@
   else document.addEventListener("DOMContentLoaded", function(){ setTimeout(start, 200); });
   window.addEventListener("load", function(){ setTimeout(start, 500); });
 
-  wdLog.info("[WAR DESK] iptv-v8.js v8.0.2 geladen");
+  wdLog.info("[WAR DESK] iptv-v8.js v8.0.3 geladen");
 })();
