@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK v8.0.4 — IPTV (High Performance)
-   - Chunked rendering voor 500+ kanalen
+   WAR DESK v8.0.5 — IPTV (High Performance)
    - FIX v8.0.3: wdLog + WDStorage
    - FIX v8.0.4: bindUI try/catch (B10) + VLC heuristiek (B20)
+   - FIX v8.0.5: A7 (HLS CDN vs browser onderscheiden)
    ============================================================ */
 
 (function(){
@@ -10,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v8.0.4 geladen");
+  LOG("v8.0.5 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -459,9 +459,6 @@
     saveCredsNow();
   }
 
-  /* ============================================================
-     B10 FIX: bindUI try/catch — één falende listener blokkeert niet de rest
-     ============================================================ */
   function bindUI(){
     try {
       LOG("bindUI start");
@@ -980,7 +977,10 @@
           document.head.appendChild(s);
         });
       }
-      return tryLoad(0);
+      return tryLoad(0).then(function(result){
+        if (!result) LOG("⚠️ Alle HLS.js CDNs faalden");
+        return result;
+      });
     })();
 
     return IPTV.hlsPromise;
@@ -1013,9 +1013,6 @@
     }
   }
 
-  /* ============================================================
-     B20 FIX: vlcDidHide heuristiek — 3.5s i.p.v. 2s
-     ============================================================ */
   document.addEventListener("visibilitychange", function(){
     if(document.hidden){
       saveCredsImmediate();
@@ -1147,7 +1144,13 @@
               if(window.showToast) window.showToast("Streamfout: " + data.details);
             }
           });
+        } else if(!ok){
+          /* A7: CDN's allemaal gefaald */
+          if(spinner) spinner.classList.remove("show");
+          if(status) status.textContent = "Kon HLS.js niet laden — check verbinding";
+          if(window.showToast) window.showToast("Kon HLS.js niet laden. Controleer je verbinding.");
         } else {
+          /* HLS.js geladen maar browser ondersteunt het niet */
           if(spinner) spinner.classList.remove("show");
           if(status) status.textContent = "HLS niet ondersteund. Gebruik VLC.";
           if(window.showToast) window.showToast("HLS niet ondersteund. Gebruik VLC.");
@@ -1219,5 +1222,5 @@
   else document.addEventListener("DOMContentLoaded", function(){ setTimeout(start, 200); });
   window.addEventListener("load", function(){ setTimeout(start, 500); });
 
-  wdLog.info("[WAR DESK] iptv-v8.js v8.0.4 geladen");
+  wdLog.info("[WAR DESK] iptv-v8.js v8.0.5 geladen");
 })();
