@@ -1,10 +1,11 @@
 /* ============================================================
-   WAR DESK v11.13 — Conflictkaart (OpenFreeMap, geen API key)
+   WAR DESK v11.14 — Conflictkaart (OpenFreeMap, geen API key)
    - Wacht op State.items voordat events worden gebouwd
    - Retry elke seconde tot max 30s
    - Toont de laatste 2 artikelen per regio als aparte markers
    - FASE 2: OpenFreeMap tiles
-   - FASE 4: wdLog in plaats van console.log
+   - FASE 4 Deel 1: wdLog
+   - FASE 4 Deel 2: WDStorage
    ============================================================ */
 
 (function(){
@@ -16,7 +17,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v11.13 geladen — OpenFreeMap tiles + Midden-Oosten filter");
+  LOG("v11.14 geladen — OpenFreeMap tiles + Midden-Oosten filter");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -158,7 +159,10 @@
     if(document.hidden) return;
     if(!window.CONFIG || !CONFIG.themeAutoSwitch) return;
     var manualUntil = 0;
-    try { manualUntil = parseInt(localStorage.getItem("wardesk_theme_manual_until") || "0", 10); }catch(e){}
+    try {
+      var stored = window.WDStorage ? WDStorage.get("theme_manual_until", "0") : "0";
+      manualUntil = parseInt(stored, 10) || 0;
+    }catch(e){}
     if(Date.now() < manualUntil) return;
     var hour = new Date().getHours();
     var shouldBeLight = hour >= CONFIG.themeLightStart && hour < CONFIG.themeDarkStart;
@@ -166,7 +170,7 @@
     if(shouldBeLight !== isLight){
       document.documentElement.classList.toggle("light", shouldBeLight);
       document.body.classList.toggle("light", shouldBeLight);
-      try { localStorage.setItem("wardesk_theme", shouldBeLight ? "light" : "dark"); }catch(e){}
+      if(window.WDStorage) WDStorage.set("theme", shouldBeLight ? "light" : "dark");
       updateMetaTheme();
     }
   }
@@ -174,7 +178,7 @@
   function markManualTheme(){
     try{
       var until = Date.now() + 8 * 3600 * 1000;
-      localStorage.setItem("wardesk_theme_manual_until", String(until));
+      if(window.WDStorage) WDStorage.set("theme_manual_until", until);
     }catch(e){}
   }
 
@@ -590,7 +594,7 @@
         document.querySelectorAll(".live-filter").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
         MAP.currentFilter = btn.dataset.cat;
-        try { localStorage.setItem("wardesk_map_filter", MAP.currentFilter); }catch(e){}
+        if(window.WDStorage) WDStorage.set("map_filter", MAP.currentFilter);
         renderMarkers();
         renderLiveList();
       });
@@ -599,7 +603,7 @@
 
   function restoreFilter(){
     try {
-      var saved = localStorage.getItem("wardesk_map_filter");
+      var saved = window.WDStorage ? WDStorage.get("map_filter") : null;
       if(saved && ["all","conflict","political","other"].indexOf(saved) >= 0){
         MAP.currentFilter = saved;
         document.querySelectorAll(".live-filter").forEach(function(b){
@@ -719,5 +723,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v11.13 geladen (OpenFreeMap tiles)");
+  wdLog.info("[WAR DESK] map-v11.10.js v11.14 geladen (OpenFreeMap tiles)");
 })();
