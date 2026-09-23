@@ -1,7 +1,9 @@
 /* ============================================================
-   WAR DESK v11.17 — Conflictkaart (OpenFreeMap, geen API key)
+   WAR DESK v12.0 — Conflictkaart (OpenFreeMap, geen API key) + EventBus
    - FIX v11.16: A8 cap op 500 events
    - FIX v11.17: E8 cluster re-render na theme switch
+   - FIX v12.0: polling verwijderd → EventBus listeners
+                (news:loaded + news:progress met throttle)
    ============================================================ */
 
 (function(){
@@ -13,7 +15,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v11.17 geladen — OpenFreeMap tiles + Midden-Oosten filter");
+  LOG("v12.0 geladen — OpenFreeMap tiles + EventBus");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -57,7 +59,8 @@
     instance: null, cluster: null, tileLayers: {}, events: [],
     currentFilter: "all", refreshTimer: null, isFullscreen: false,
     currentTheme: "dark", themeObserver: null, _timeModeInterval: null,
-    currentDetailEvent: null, _lastNewsCount: 0, _waitTimer: null, _waitTries: 0
+    currentDetailEvent: null, _lastNewsCount: 0, _busBound: false,
+    _lastRenderTime: 0
   };
 
   var TILES = {
@@ -310,7 +313,7 @@
       var top = items.slice(0, 2);
 
       top.forEach(function(it, index){
-        var offset = index * 0.15; 
+        var offset = index * 0.15;
 
         events.push({
           id: "news-" + cat + "-" + index,
@@ -353,34 +356,48 @@
     return true;
   }
 
-  function waitForNewsAndRefresh(){
-    if(MAP._waitTimer) clearInterval(MAP._waitTimer);
-    MAP._waitTries = 0;
-    
-    function check(){
-      MAP._waitTries++;
-      if(window.State && State.items && State.items.length){
-        clearInterval(MAP._waitTimer);
-        MAP._waitTimer = null;
-        LOG("Nieuws binnen (" + State.items.length + " items) → kaart vullen");
-        refreshFromNews();
-        MAP._lastNewsCount = State.items.length;
-      } else if(MAP._waitTries > 30){
-        clearInterval(MAP._waitTimer);
-        MAP._waitTimer = null;
-        LOG("Timeout na 30s — nieuws nog steeds niet beschikbaar");
-        var list = $("liveList");
-        if(list) list.innerHTML = '<div class="live-empty">Wachten op nieuws...</div>';
-      }
-    }
-    
+  /* ============================================================
+     v12.0: EventBus listeners (geen polling meer)
+     ============================================================ */
+
+  var _progressThrottle = 0;
+  var PROGRESS_THROTTLE_MS = 2500;
+
+  function isMapActive(){
+    var mapTab = document.querySelector('.tab[data-view="map"]');
+    return mapTab && mapTab.classList.contains("active");
+  }
+
+  function onNewsProgress(d){
+    if(!isMapActive()) return;
+    var now = Date.now();
+    if(now - _progressThrottle < PROGRESS_THROTTLE_MS) return;
+    _progressThrottle = now;
     if(window.State && State.items && State.items.length){
-      refreshFromNews();
       MAP._lastNewsCount = State.items.length;
-    } else {
-      LOG("State.items leeg — wacht op nieuws...");
-      MAP._waitTimer = setInterval(check, 1000);
+      refreshFromNews();
     }
+  }
+
+  function onNewsLoaded(d){
+    if(window.State && State.items && State.items.length){
+      MAP._lastNewsCount = State.items.length;
+    }
+    if(isMapActive()){
+      refreshFromNews();
+    }
+  }
+
+  function bindEventBus(){
+    if(MAP._busBound) return;
+    if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on){
+      LOG("⚠️ EventBus niet beschikbaar — kaart-updates alleen via tab-activatie");
+      return;
+    }
+    MAP._busBound = true;
+    WarDesk.events.on("news:progress", onNewsProgress);
+    WarDesk.events.on("news:loaded", onNewsLoaded);
+    LOG("EventBus listeners actief (news:progress, news:loaded)");
   }
 
   function renderMarkers(){
@@ -570,7 +587,11 @@
   window.__mapRefresh = function(){
     LOG("Handmatige refresh");
     MAP._lastNewsCount = 0;
-    waitForNewsAndRefresh();
+    if(window.State && State.items && State.items.length){
+      refreshFromNews();
+    } else {
+      LOG("Nog geen items beschikbaar");
+    }
   };
   window.__mapResetView = function(){ if(MAP.instance) MAP.instance.setView([29.5, 42.0], 4); };
 
@@ -579,11 +600,10 @@
     initMap();
     ensureFullscreenClose();
     if(MAP.instance) setTimeout(function(){ if(MAP.instance) MAP.instance.invalidateSize(); }, 350);
-    waitForNewsAndRefresh();
-  }
-
-  function stopAutoRefresh(){
-    if(MAP.refreshTimer){ clearInterval(MAP.refreshTimer); MAP.refreshTimer = null; }
+    // Direct renderen als items al beschikbaar zijn
+    if(window.State && State.items && State.items.length){
+      refreshFromNews();
+    }
   }
 
   function hookViewSwitch(){
@@ -591,28 +611,11 @@
       tab.addEventListener("click", function(){
         if(tab.dataset.view === "map"){
           setTimeout(activateMapView, 200);
-          startAutoRefresh();
         } else {
           if(MAP.isFullscreen) exitFullscreen();
-          stopAutoRefresh();
         }
       });
     });
-  }
-
-  function startAutoRefresh(){
-    stopAutoRefresh();
-    MAP.refreshTimer = setInterval(function(){
-      if(document.hidden) return;
-      if(!window.State) return;
-      var currentCount = State.items.length;
-      if(currentCount !== MAP._lastNewsCount && currentCount > 0){
-        MAP._lastNewsCount = currentCount;
-        LOG("Nieuwsfeed gewijzigd (" + currentCount + ") → kaart updaten");
-        var mapTab = document.querySelector('.tab[data-view="map"]');
-        if(mapTab && mapTab.classList.contains("active")) refreshFromNews();
-      }
-    }, 5000);
   }
 
   function initMapModule(){
@@ -624,7 +627,7 @@
     bindFilters();
     hookViewSwitch();
     restoreFilter();
-    startAutoRefresh();
+    bindEventBus();
 
     var themeBtn = $("btnTheme");
     if(themeBtn){
@@ -674,5 +677,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v11.17 geladen (OpenFreeMap tiles)");
+  wdLog.info("[WAR DESK] map-v11.10.js v12.0 geladen (OpenFreeMap tiles + EventBus)");
 })();
