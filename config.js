@@ -1,38 +1,63 @@
 /* ============================================================
-   WAR DESK v14.15 — Configuratie
+   WAR DESK v14.16 — Configuratie
    - Centrale APP_VERSION
-   - Centrale wdLog functie
-   - FIX v14.15: WDStorage beschikbaar (storage.js moet voor config.js geladen)
+   - Centrale wdLog functie (uniform, met buffer + listener)
+   - FIX v14.16: geen dubbele wdLog definities meer (B1)
    ============================================================ */
 
-window.APP_VERSION = "v14.15";
+window.APP_VERSION = "v14.16";
 window.TAGS_VERSION = "4";
 
-/* ============================================================
-   CENTRALE DEBUG-LOGGER
-   ============================================================ */
-window.WD_DEBUG = (function(){
-  try {
-    if (localStorage.getItem("wardesk_debug") === "1") return true;
-    if (/[?&]debug=1/.test(location.search)) return true;
-  } catch(e) {}
-  return false;
-})();
+/* ===== Debug status ===== */
+if (typeof window.WD_DEBUG === "undefined") {
+  window.WD_DEBUG = (function(){
+    try {
+      if (localStorage.getItem("wardesk_debug") === "1") return true;
+      if (/[?&]debug=1/.test(location.search)) return true;
+    } catch(e) {}
+    return false;
+  })();
+}
 
+/* ===== Log buffer + listener patroon ===== */
+window.__wdLogBuffer = window.__wdLogBuffer || [];
+window.__wdLogListener = window.__wdLogListener || null;
+
+/* ===== Uniforme wdLog ===== */
 window.wdLog = {
   info: function(){
-    if (!window.WD_DEBUG) return;
-    try { console.log.apply(console, arguments); } catch(e){}
+    var args = Array.prototype.slice.call(arguments);
+    if (window.WD_DEBUG) { try{ console.log.apply(console, args); }catch(e){} }
+    if (window.__wdLogListener) {
+      try{ window.__wdLogListener("info", args); }catch(e){}
+    } else {
+      try{ window.__wdLogBuffer.push({type:"info", msg: args.join(" "), t: Date.now()}); }catch(e){}
+    }
   },
   warn: function(){
-    if (!window.WD_DEBUG) return;
-    try { console.warn.apply(console, arguments); } catch(e){}
+    var args = Array.prototype.slice.call(arguments);
+    if (window.WD_DEBUG) { try{ console.warn.apply(console, args); }catch(e){} }
+    if (window.__wdLogListener) {
+      try{ window.__wdLogListener("warn", args); }catch(e){}
+    } else {
+      try{ window.__wdLogBuffer.push({type:"warn", msg: args.join(" "), t: Date.now()}); }catch(e){}
+    }
   },
   error: function(){
-    try { console.error.apply(console, arguments); } catch(e){}
+    var args = Array.prototype.slice.call(arguments);
+    try{ console.error.apply(console, args); }catch(e){}
+    if (window.__wdLogListener) {
+      try{ window.__wdLogListener("err", args); }catch(e){}
+    } else {
+      try{ window.__wdLogBuffer.push({type:"err", msg: args.join(" "), t: Date.now()}); }catch(e){}
+    }
+  },
+  err: function(){
+    window.wdLog.error.apply(null, arguments);
   }
 };
 
+/* ===== CONFIG ===== */
 window.CONFIG = {
   perFeed: 12,
   autoRefreshMs: 0,
