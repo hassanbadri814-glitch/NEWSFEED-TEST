@@ -1,14 +1,11 @@
 /* ============================================================
-   WAR DESK v14.16 — Configuratie
-   - Centrale APP_VERSION
-   - Centrale wdLog functie (uniform, met buffer + listener)
-   - FIX v14.16: geen dubbele wdLog definities meer (B1)
+   WAR DESK v14.18 — Configuratie
+   - FIX v14.18: E1 dead get stadiaKey() vervangen door property
    ============================================================ */
 
-window.APP_VERSION = "v14.16";
+window.APP_VERSION = "v14.18";
 window.TAGS_VERSION = "4";
 
-/* ===== Debug status ===== */
 if (typeof window.WD_DEBUG === "undefined") {
   window.WD_DEBUG = (function(){
     try {
@@ -19,11 +16,9 @@ if (typeof window.WD_DEBUG === "undefined") {
   })();
 }
 
-/* ===== Log buffer + listener patroon ===== */
 window.__wdLogBuffer = window.__wdLogBuffer || [];
 window.__wdLogListener = window.__wdLogListener || null;
 
-/* ===== Uniforme wdLog ===== */
 window.wdLog = {
   info: function(){
     var args = Array.prototype.slice.call(arguments);
@@ -57,7 +52,6 @@ window.wdLog = {
   }
 };
 
-/* ===== CONFIG ===== */
 window.CONFIG = {
   perFeed: 12,
   autoRefreshMs: 0,
@@ -74,9 +68,8 @@ window.CONFIG = {
   detailCacheMax: 500,
   detailCacheTTL: 7200000,
 
-  get stadiaKey() {
-    return "";
-  },
+  // E1: was get stadiaKey() — nu gewone lege property voor backward compat
+  stadiaKey: "",
 
   iptvMaxRecent: 10,
   iptvChannelsDisplayMax: 500,
