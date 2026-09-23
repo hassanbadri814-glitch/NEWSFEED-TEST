@@ -448,9 +448,6 @@
     checkScroll();
   }
 
-  /* ============================================================
-     A3 + A4 FIX in openDetail
-     ============================================================ */
   async function openDetail(item){
     var modal = $("vodDetailModal");
     if(!modal) return;
