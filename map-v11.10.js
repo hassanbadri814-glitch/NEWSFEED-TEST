@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v11.15 — Conflictkaart (OpenFreeMap, geen API key)
-   - FASE 4 Deel 1: wdLog
-   - FASE 4 Deel 2: WDStorage
+   WAR DESK v11.16 — Conflictkaart (OpenFreeMap, geen API key)
    - FIX v11.15: prefers-reduced-motion voor marker pulse (B14)
+   - FIX v11.16: A8 cap op 500 events
    ============================================================ */
 
 (function(){
@@ -14,7 +13,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v11.15 geladen — OpenFreeMap tiles + Midden-Oosten filter");
+  LOG("v11.16 geladen — OpenFreeMap tiles + Midden-Oosten filter");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -149,9 +148,6 @@
     }catch(e){}
   }
 
-  /* ============================================================
-     B14 FIX: prefers-reduced-motion voor marker pulse
-     ============================================================ */
   function injectMapStyles(){
     if($("wdMapStyles")) return;
     var s = document.createElement("style");
@@ -325,6 +321,12 @@
         });
       });
     });
+
+    /* A8: cap op 500 events om memory te besparen */
+    if (events.length > 500) {
+      LOG("⚠️ " + events.length + " events — cap op 500");
+      events = events.slice(0, 500);
+    }
 
     LOG("Events gegenereerd: " + events.length);
     return events;
@@ -670,5 +672,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v11.15 geladen (OpenFreeMap tiles)");
+  wdLog.info("[WAR DESK] map-v11.10.js v11.16 geladen (OpenFreeMap tiles)");
 })();
