@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK v13.2 — App Orchestration (Touch Gestures)
-   - FIX v12.6: N1 clock stop pagehide
-   - FIX v12.7: scroll restoration per tab, haptic feedback
-   - FIX v13.0: Service Worker registratie toegevoegd
-   - FIX v13.2: robuuste swipe-detectie
+   WAR DESK v13.3 — App Orchestration (simpel)
+   - v12.7 basis behouden
+   - v13.0: Service Worker registratie
+   - v13.3: swipe-tussen-tabs verwijderd (veroorzaakte problemen)
    ============================================================ */
 
 (function(){
@@ -26,6 +25,7 @@
       document.body.classList.add("light");
     }
 
+    /* Service Worker */
     if("serviceWorker" in navigator){
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js")
@@ -165,7 +165,7 @@
         closeSheet();
         Array.from(document.querySelectorAll(".sheet-item[data-cat]")).forEach(b => b.classList.remove("active"));
         btn.classList.add("active");
-        try{ if(window.NewsAPI) NewsAPI.setCat(btn.dataset.cat); }catch(err){ wdLog.error("[WAR DESK] setCat fout:", err); }
+        try{ if(window.NewsAPI) NewsAPI.setCat(btn.dataset.cat); }catch(err){}
       });
     });
 
@@ -289,70 +289,8 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let touchStartInScrollable = false;
-    let touchStartValid = false;
+    /* GEEN swipe-tussen-tabs meer — veroorzaakte te veel problemen */
 
-    function findScrollableAncestor(el){
-      while (el && el.nodeType === 1 && el !== document.body){
-        try {
-          var style = window.getComputedStyle(el);
-          var overflowX = style.overflowX;
-          if ((overflowX === "auto" || overflowX === "scroll") && el.scrollWidth > el.clientWidth + 1){
-            return el;
-          }
-        } catch(e){}
-        el = el.parentElement;
-      }
-      return null;
-    }
-
-    document.addEventListener("touchstart", e => {
-      if(!e.touches || !e.touches.length) return;
-      touchStartX = e.touches[0].clientX;
-      touchStartY = e.touches[0].clientY;
-      touchStartValid = true;
-      touchStartInScrollable = !!findScrollableAncestor(e.target);
-    }, { passive: true });
-
-    document.addEventListener("touchend", e => {
-      if (!touchStartValid) return;
-      touchStartValid = false;
-
-      if (touchStartInScrollable) {
-        touchStartInScrollable = false;
-        return;
-      }
-
-      if (!e.changedTouches || !e.changedTouches.length) return;
-
-      const touchEndX = e.changedTouches[0].clientX;
-      const touchEndY = e.changedTouches[0].clientY;
-      const deltaX = touchEndX - touchStartX;
-      const deltaY = touchEndY - touchStartY;
-
-      if (Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50) {
-        if (findScrollableAncestor(e.target)) return;
-
-        const tabs = ['news', 'map', 'iptv', 'vod'];
-        const currentTab = document.querySelector('.tab.active')?.dataset.view || 'news';
-        const currentIndex = tabs.indexOf(currentTab);
-
-        let newIndex;
-        if (deltaX > 0 && currentIndex > 0) {
-          newIndex = currentIndex - 1;
-        } else if (deltaX < 0 && currentIndex < tabs.length - 1) {
-          newIndex = currentIndex + 1;
-        }
-
-        if (newIndex !== undefined) {
-          const tabBtn = document.querySelector(`.tab[data-view="${tabs[newIndex]}"]`);
-          if(tabBtn) tabBtn.click();
-        }
-      }
-    }, { passive: true });
-
-    wdLog.info("[WAR DESK] app-v12.js v13.2 geladen (swipe-fix)");
+    wdLog.info("[WAR DESK] app-v12.js v13.3 geladen");
   });
 })();
