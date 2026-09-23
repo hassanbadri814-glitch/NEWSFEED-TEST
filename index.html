@@ -11,7 +11,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.16</title>
+<title>WAR DESK v14.17</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -43,7 +43,6 @@
     }
   } catch(e) {}
 
-  // ===== Vroege debug setup =====
   window.__wdLogBuffer = window.__wdLogBuffer || [];
   window.__wdLogListener = window.__wdLogListener || null;
 
@@ -53,7 +52,6 @@
     } catch(e) { window.WD_DEBUG = false; }
   }
 
-  // Fallback wdLog voor scripts die vóór config.js draaien
   window.wdLog = window.wdLog || {
     info: function(){
       var a = Array.prototype.slice.call(arguments);
@@ -199,7 +197,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.16</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.17</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -415,7 +413,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.16</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.17</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
     </div>
   </div>
 </div>
@@ -579,7 +577,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   });
 })();
 
-// ===== Debug-panel: buffer + listener (B1 fix) =====
+// ===== Debug-panel: buffer + listener =====
 (function(){
   "use strict";
 
@@ -588,9 +586,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
   var logEl = null, panel = null;
   var MAX_ENTRIES = 500;
 
-  function fmtTime(){
-    return new Date().toTimeString().slice(0,8);
-  }
+  function fmtTime(){ return new Date().toTimeString().slice(0,8); }
 
   function add(type, msg){
     var entry = { time: fmtTime(), type: type, msg: typeof msg === "string" ? msg : String(msg) };
@@ -616,12 +612,10 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     });
   }
 
-  // ===== LUISTER NAAR ALLE wdLog AANROEPEN =====
   window.__wdLogListener = function(type, args){
     add(type, args.join(" "));
   };
 
-  // ===== LEEG DE VROEGE BUFFER =====
   if (window.__wdLogBuffer && window.__wdLogBuffer.length) {
     for (var i = 0; i < window.__wdLogBuffer.length; i++) {
       var e = window.__wdLogBuffer[i];
@@ -630,7 +624,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     window.__wdLogBuffer = [];
   }
 
-  // ===== GLOBAL ERROR / REJECTION =====
   window.addEventListener("error", function(e){
     var msg = (e.error && e.error.message) || e.message || "onbekende fout";
     var src = e.filename ? " (" + e.filename.split("/").pop() + ":" + e.lineno + ")" : "";
@@ -642,7 +635,6 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
     add("err", "Promise: " + msg);
   });
 
-  // ===== PANEL SETUP =====
   document.addEventListener("DOMContentLoaded", function(){
     if(DEBUG){
       document.documentElement.classList.add("wd-debug-on");
@@ -705,8 +697,8 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="app-v12.js?v=14.16" defer></script>
 <script src="persist-v4.js?v=14.16" defer></script>
 <script src="refresh-v12.js?v=14.16" defer></script>
-<script src="iptv-v8.js?v=14.16" defer></script>
-<script src="map-v11.10.js?v=14.16" defer></script>
+<script src="iptv-v8.js?v=14.17" defer></script>
+<script src="map-v11.10.js?v=14.17" defer></script>
 <script src="vod-v24.js?v=14.16" defer></script>
 
 <script>
