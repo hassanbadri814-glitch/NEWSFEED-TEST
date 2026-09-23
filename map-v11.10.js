@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK v11.12 — Conflictkaart (OpenFreeMap, geen API key)
+   WAR DESK v11.13 — Conflictkaart (OpenFreeMap, geen API key)
    - Wacht op State.items voordat events worden gebouwd
    - Retry elke seconde tot max 30s
    - Toont de laatste 2 artikelen per regio als aparte markers
-   - FASE 2: Stadia/CartoDB vervangen door OpenFreeMap (gratis, geen account)
-   - Vector tiles via MapLibre GL + Leaflet plugin
+   - FASE 2: OpenFreeMap tiles
+   - FASE 4: wdLog in plaats van console.log
    ============================================================ */
 
 (function(){
@@ -13,16 +13,10 @@
   var $ = function(id){ return document.getElementById(id); };
 
   var LOG = function(){
-    var args = Array.prototype.slice.call(arguments);
-    try{ console.log.apply(console, ["[MAP]"].concat(args)); }catch(e){}
-    try{
-      if(window.wdLog && window.wdLog.info){
-        window.wdLog.info("[MAP] " + args.join(" "));
-      }
-    }catch(e){}
+    try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v11.12 geladen — OpenFreeMap tiles + Midden-Oosten filter");
+  LOG("v11.13 geladen — OpenFreeMap tiles + Midden-Oosten filter");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -87,11 +81,6 @@
     _waitTries: 0
   };
 
-  /* ============================================================
-     FASE 2: OpenFreeMap vector tiles (gratis, geen API key)
-     - dark = donker thema
-     - positron = licht thema
-     ============================================================ */
   var TILES = {
     dark: {
       style: "https://tiles.openfreemap.org/styles/dark",
@@ -123,7 +112,6 @@
     if(!MAP.instance) return;
     var cfg = TILES[theme] || TILES.dark;
 
-    // Verwijder bestaande lagen
     if(MAP.tileLayers.dark && MAP.instance.hasLayer(MAP.tileLayers.dark)){
       MAP.instance.removeLayer(MAP.tileLayers.dark);
     }
@@ -131,7 +119,6 @@
       MAP.instance.removeLayer(MAP.tileLayers.light);
     }
 
-    // Maak nieuwe laag aan
     if(!MAP.tileLayers[theme]){
       if(L.maplibreGL){
         MAP.tileLayers[theme] = L.maplibreGL({
@@ -732,5 +719,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  console.log("[WAR DESK] map-v11.10.js v11.12 geladen (OpenFreeMap tiles)");
+  wdLog.info("[WAR DESK] map-v11.10.js v11.13 geladen (OpenFreeMap tiles)");
 })();
