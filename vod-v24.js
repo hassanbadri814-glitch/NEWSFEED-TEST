@@ -1,17 +1,17 @@
 /* ============================================================
-   WAR DESK v24.3 — VOD (Robust init + Click Fix + Back Button Fix)
-   - Meerdere manieren om te initialiseren (tab-click, observer, polling)
+   WAR DESK v24.4 — VOD (Robust init + Click Fix + Back Button Fix)
    - Chunked rendering voor grote catalogi
    - Terug-knop sluit modal, niet de app
-   - FASE 3C: polling interval 500ms → 1000ms, max 60 pogingen (was 600)
+   - Polling interval 1000ms, max 60 pogingen
+   - FASE 4: wdLog in plaats van console.log
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var LOG = function(){ try{ console.log.apply(console, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v24.3 geladen");
+  var LOG = function(){ try{ wdLog.info.apply(null, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
+  LOG("v24.4 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -586,10 +586,6 @@
   
   window.VODAPI = { init: init, state: VOD };
 
-  /* ============================================================
-     ROBUST INIT: 4 manieren om VOD te initialiseren
-     FASE 3C: polling interval 1000ms (was 500ms), max 60 pogingen (was 600)
-     ============================================================ */
   function setupVodWatcher() {
     var vodView = document.getElementById("viewVod");
     if (!vodView) {
@@ -598,7 +594,6 @@
     }
     LOG("setupVodWatcher - wacht op VOD tab");
 
-    // 1. MutationObserver - detecteert wanneer hidden/class/style verandert
     try {
       var observer = new MutationObserver(function() {
         if (!vodView.hidden && getComputedStyle(vodView).display !== "none") {
@@ -616,7 +611,6 @@
       LOG("MutationObserver faalde:", e.message);
     }
 
-    // 2. Click listener op de VOD tab
     document.querySelectorAll(".bottom-tabs .tab").forEach(function(tab){
       tab.addEventListener("click", function(){
         if (tab.dataset.view === "vod") {
@@ -630,7 +624,6 @@
       });
     });
 
-    // 3. Polling fallback — FASE 3C: 1000ms interval, max 60 pogingen (1 min)
     var checkCount = 0;
     var MAX_CHECKS = 60;
     var POLL_INTERVAL_MS = 1000;
@@ -653,7 +646,6 @@
       }
     }, POLL_INTERVAL_MS);
 
-    // 4. Directe check (als view al zichtbaar is)
     if (!vodView.hidden && getComputedStyle(vodView).display !== "none") {
       LOG("🚀 VOD view al zichtbaar - init direct");
       init();
@@ -668,5 +660,5 @@
     });
   }
 
-  console.log("[WAR DESK] vod-v24.js v24.3 geladen");
+  wdLog.info("[WAR DESK] vod-v24.js v24.4 geladen");
 })();
