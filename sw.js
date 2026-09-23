@@ -5,7 +5,7 @@
    - FIX v2.2: E2 CartoDB uit isAsset regex, OpenFreeMap erin
    ============================================================ */
 
-const CACHE_NAME = 'wardesk-v14.19';
+const CACHE_NAME = 'wardesk-v14.20';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
