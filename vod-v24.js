@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK v24.4 — VOD (Robust init + Click Fix + Back Button Fix)
-   - Chunked rendering voor grote catalogi
-   - Terug-knop sluit modal, niet de app
-   - Polling interval 1000ms, max 60 pogingen
-   - FASE 4: wdLog in plaats van console.log
+   WAR DESK v24.5 — VOD (Robust init + Click Fix + Back Button Fix)
+   - FIX v24.4: wdLog
+   - FIX v24.5: A3 (history replaceState), A4 (lege ID fallback)
    ============================================================ */
 
 (function(){
@@ -11,7 +9,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v24.4 geladen");
+  LOG("v24.5 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -450,6 +448,9 @@
     checkScroll();
   }
 
+  /* ============================================================
+     A3 + A4 FIX in openDetail
+     ============================================================ */
   async function openDetail(item){
     var modal = $("vodDetailModal");
     if(!modal) return;
@@ -466,7 +467,10 @@
 
     modal.classList.add("show");
 
-    if (!history.state || !history.state.vodModal) {
+    /* A3: gebruik replaceState als we al in vodModal zijn */
+    if (history.state && history.state.vodModal) {
+      history.replaceState({ vodModal: true }, '');
+    } else {
       history.pushState({ vodModal: true }, '');
     }
 
@@ -477,7 +481,22 @@
       type = item.type === "series" ? "series" : "movie";
     }
 
-    var metaUrl = buildMetaUrl(type, item.imdb_id || item.id);
+    /* A4: check of er een ID is voor we fetchen */
+    var metaId = item.imdb_id || item.id;
+    if (!metaId) {
+      LOG("Geen metaId beschikbaar voor:", item.name);
+      $("vodDetailMeta").textContent = item.releaseInfo || item.year || "";
+      $("vodDetailText").textContent = item.description || "(geen beschrijving beschikbaar)";
+      var dlBtn0 = $("vodDetailOpenStremio");
+      if(dlBtn0){
+        dlBtn0.onclick = function(){
+          if(window.showToast) window.showToast("Geen Stremio-link beschikbaar");
+        };
+      }
+      return;
+    }
+
+    var metaUrl = buildMetaUrl(type, metaId);
 
     try{
       var data = await fetchJson(metaUrl);
@@ -511,7 +530,7 @@
       $("vodDetailMeta").textContent = "";
       $("vodDetailText").textContent = item.description || "(geen beschrijving)";
       if(window.showToast) window.showToast("Kon details niet laden.");
-      var dl2 = buildStremioLink(type, item.imdb_id || item.id);
+      var dl2 = buildStremioLink(type, metaId);
       var dlBtn2 = $("vodDetailOpenStremio");
       if(dlBtn2){
         dlBtn2.onclick = function(){
@@ -660,5 +679,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] vod-v24.js v24.4 geladen");
+  wdLog.info("[WAR DESK] vod-v24.js v24.5 geladen");
 })();
