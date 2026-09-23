@@ -1,24 +1,19 @@
 /* ============================================================
-   WAR DESK v27.1 — Nieuws Logica (Ultimate Performance)
+   WAR DESK v27.2 — Nieuws Logica
    - Intersection Observer voor lazy image loading
-   - Modern JavaScript syntax (optional chaining, nullish coalescing)
-   - Memory management & cleanup
-   - Geïntegreerd met window.appStore (Reactive)
-   - Behoudt window.NewsAPI voor compatibiliteit
-   - FIX v27.1: incrementele IndexedDB save + timers pauzeren op hidden
+   - IndexedDB incrementeel + timers pauzeren op hidden
+   - FASE 4: wdLog in plaats van console.log/warn
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.1";
-  const MYMEMORY_EMAIL = ""; // Fase 2: e-mail verwijderd. Wordt later vervangen door Worker.
+  window.__newsVersion = "v27.2";
+  const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
-  // Gebruik de store (via de Brug)
   const state = window.appStore ? window.appStore.state : window.State;
 
-  // ==================== HULPFUNCTIES (Modernized) ====================
   const tm = (d) => { const x = new Date(d); return isNaN(x) ? 0 : x.getTime(); };
   const ago = (d) => {
     const t = tm(d); if(!t) return "";
@@ -40,7 +35,6 @@
     }catch(e){}
   };
 
-  // ==================== INTERSECTION OBSERVER (Lazy Loading) ====================
   const imageObserver = new IntersectionObserver((entries, observer) => {
     entries.forEach(entry => {
       if (entry.isIntersecting) {
@@ -123,7 +117,6 @@
         }catch(e){ res([]); }
       });
     }
-    // NIEUW: alleen keys ophalen (sneller dan getAll voor grote stores)
     function getAllKeys(store){
       if(!db) return Promise.resolve([]);
       return new Promise(res => {
@@ -135,19 +128,15 @@
         }catch(e){ res([]); }
       });
     }
-
-    // FASE 3: Incrementele save — geen clear() + herinsert meer
     async function saveItems(items){
       if(!db) return;
       const max = window.CONFIG?.maxCacheItems ?? 3000;
       const topItems = items.slice(0, max);
 
-      // Welke links moeten in de DB staan?
       const wantedLinks = new Set(
         topItems.map(it => it.link).filter(Boolean)
       );
 
-      // Haal bestaande keys op
       const existingKeys = await getAllKeys("items");
       const existingSet = new Set(existingKeys);
 
@@ -156,14 +145,12 @@
           const tx = db.transaction("items", "readwrite");
           const store = tx.objectStore("items");
 
-          // Verwijder items die niet meer in topItems zitten
           for(const key of existingKeys){
             if(!wantedLinks.has(key)){
               store.delete(key);
             }
           }
 
-          // Voeg alleen NIEUWE items toe (bestaande overslaan = sneller)
           for(const it of topItems){
             if(!existingSet.has(it.link)){
               store.put({
@@ -635,7 +622,7 @@
         badge: "./icons/icon-96.png"
       });
       notif.onclick = () => { try { window.focus(); }catch(e){} notif.close(); };
-    }catch(e) { console.warn("[WAR DESK] notificatie fout:", e); }
+    }catch(e) { wdLog.warn("[WAR DESK] notificatie fout:", e); }
   };
 
   // ==================== LOAD ALL FEEDS ====================
@@ -656,14 +643,13 @@
     window.__wdDiagCount = 0;
     let lastProgressiveCount = 0;
     const progressiveTimer = setInterval(() => {
-      // FASE 3: robuustere cleanup
       if(session !== state.loadSession || state._loadFeedsDone){
         clearInterval(progressiveTimer);
         return;
       }
       if(collected.length <= lastProgressiveCount) return;
       lastProgressiveCount = collected.length;
-      const merged = dedupe([...collected, ...itemsAtStart]);
+      let merged = dedupe([...collected, ...itemsAtStart]);
       if(merged.length < minKeep) merged = [...itemsAtStart];
       state.items = merged;
       const itemsEl = $("statItems");
@@ -671,7 +657,6 @@
       renderNews();
     }, 1000);
 
-    // Zorg dat we de timer altijd opruimen, ook bij een crash
     state._loadFeedsDone = false;
 
     async function processOne(f){
@@ -703,10 +688,10 @@
             added++;
           }
         });
-        if(window.__wdDebug && window.__wdDiagCount < 5 && window.wdLog){
+        if(window.WD_DEBUG && window.__wdDiagCount < 5){
           window.__wdDiagCount++;
           const pTag = proxyIdx === 0 ? "p1" : ("p" + (proxyIdx + 1));
-          window.wdLog.info(`${f.n} [${shape}/${pTag}] items=${items.length} nieuw=${added}`);
+          wdLog.info(`${f.n} [${shape}/${pTag}] items=${items.length} nieuw=${added}`);
         }
         state.loadedSources++;
         if(state.health[f.n]) state.health[f.n].fails = 0;
@@ -751,7 +736,6 @@
     const itemsEl = $("statItems");
     if(itemsEl) itemsEl.textContent = state.items.length;
 
-    // FASE 3: incrementele save (geen clear + herinsert meer)
     NewsDB.saveItems(state.items);
     NewsDB.saveHealth(state.health);
 
@@ -772,10 +756,10 @@
       if(window.showToast) window.showToast("Geen nieuwsbronnen beschikbaar.");
     }
 
-    if(window.__wdDebug && window.wdLog){
-      window.wdLog[state.items.length ? "ok" : "warn"](
-        `loadAllFeeds klaar - ${state.items.length} items uit ${state.loadedSources}/${state.totalSources} bronnen`
-      );
+    if(state.items.length){
+      wdLog.info(`loadAllFeeds klaar - ${state.items.length} items uit ${state.loadedSources}/${state.totalSources} bronnen`);
+    } else {
+      wdLog.warn(`loadAllFeeds klaar - 0 items uit ${state.loadedSources}/${state.totalSources} bronnen`);
     }
   }
 
@@ -1033,10 +1017,9 @@
 
     try{
       if(localStorage.getItem("wardesk_tags_version") !== window.TAGS_VERSION){
-        // FASE 3: bij tag-versie wijziging alleen items wissen, niet hele DB
         await NewsDB.saveItems([]);
         localStorage.setItem("wardesk_tags_version", window.TAGS_VERSION);
-        console.log("[WAR DESK] Tags-versie gewijzigd — item-cache geleegd");
+        wdLog.info("[WAR DESK] Tags-versie gewijzigd — item-cache geleegd");
       }
     }catch(e){}
 
@@ -1085,21 +1068,19 @@
       await window.NewsAPI.reload();
       if(window.showToast) window.showToast("Verversen klaar");
     }catch(e){
-      console.error("[WAR DESK] hard refresh fout:", e);
+      wdLog.error("[WAR DESK] hard refresh fout:", e);
       if(window.showToast) window.showToast("Verversen mislukt");
     }
   };
 
-  // ==================== FASE 3: TRANSLATION CACHE PAUZEERT OP ACHTERGROND ====================
   setInterval(() => {
-    if(document.hidden) return; // niet draaien als tab verborgen
+    if(document.hidden) return;
     if(state.translations && Object.keys(state.translations).length > 1000){
       state.translations = {};
-      console.log('[NEWS] Translation cache cleared');
+      wdLog.info('[NEWS] Translation cache cleared');
     }
   }, 3600000);
 
-  // DE BRUG: NewsAPI voor compatibiliteit
   window.NewsAPI = {
     init: initNews,
     reload: loadAllFeeds,
@@ -1110,5 +1091,5 @@
     render: renderNews
   };
 
-  console.log("[WAR DESK] news-v27.js " + window.__newsVersion + " geladen");
+  wdLog.info("[WAR DESK] news-v27.js " + window.__newsVersion + " geladen");
 })();
