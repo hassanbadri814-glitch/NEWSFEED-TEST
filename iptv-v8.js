@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v8.0.6 — IPTV (High Performance)
+   WAR DESK v8.0.7 — IPTV (High Performance)
    - FIX v8.0.5: A7 (HLS CDN vs browser)
    - FIX v8.0.6: E4 (kwaliteitsgroep ranking), E7 (token check)
+   - FIX v8.0.7: N6 (veiligere logo fallback)
    ============================================================ */
 
 (function(){
@@ -9,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v8.0.6 geladen");
+  LOG("v8.0.7 geladen");
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -49,7 +50,6 @@
     return /\b(nl|nederland|netherlands|dutch|holland|hollanda|ned)\b/.test(t);
   }
 
-  /* E4: kwaliteits-ranking voor groepskeuze */
   function findDutchGroup(){
     if(!IPTV.channels || !IPTV.channels.length) return null;
     var matches = {};
@@ -807,11 +807,11 @@
         var c = list[i];
         var color = groupColor(c.group, c.name);
         var initial = (c.name || "?").charAt(0).toUpperCase();
-        var logoHtml;
-        if(c.logo){
-          logoHtml = '<img src="' + esc(c.logo) + '" loading="lazy" alt="" data-initial="' + esc(initial) + '" onerror="this.replaceWith(document.createTextNode(this.dataset.initial))">';
-        } else {
-          logoHtml = esc(initial);
+        /* N6: veiligere logo fallback */
+        var hasLogo = !!c.logo;
+        var logoHtml = '<span class="iptv-ch-initial" style="display:' + (hasLogo ? 'none' : 'grid') + '">' + esc(initial) + '</span>';
+        if(hasLogo){
+          logoHtml += '<img src="' + esc(c.logo) + '" loading="lazy" alt="" onerror="this.style.display=\'none\'; var p=this.previousElementSibling; if(p) p.style.display=\'grid\'; return false;">';
         }
         var workingDot = isWorking(c) ? '<span class="iptv-ch-working" title="Recent werkend"></span>' : '';
         var html = '<button class="iptv-ch" data-idx="' + i + '" style="--ch-color:' + color + '">';
@@ -1093,7 +1093,6 @@
 
     var markAndUpdate = function(){
       if(myToken !== IPTV._playToken) return;
-      /* E7: extra check dat currentChannel nog steeds dit kanaal is */
       if(IPTV.currentChannel && IPTV.currentChannel.id !== ch.id) return;
       markWorking(ch);
       var btns = document.querySelectorAll(".iptv-ch");
@@ -1238,5 +1237,5 @@
   else document.addEventListener("DOMContentLoaded", function(){ setTimeout(start, 200); });
   window.addEventListener("load", function(){ setTimeout(start, 500); });
 
-  wdLog.info("[WAR DESK] iptv-v8.js v8.0.6 geladen");
+  wdLog.info("[WAR DESK] iptv-v8.js v8.0.7 geladen");
 })();
