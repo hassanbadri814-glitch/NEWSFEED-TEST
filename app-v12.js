@@ -3,9 +3,7 @@
    - FIX v12.6: N1 clock stop pagehide
    - FIX v12.7: scroll restoration per tab, haptic feedback
    - FIX v13.0: Service Worker registratie toegevoegd
-   - FIX v13.2: robuuste swipe-detectie — blokkeert tab-wissel
-                als de touch begint in een horizontaal scrollbaar
-                element (vod-sidebar, chips-row, iptv-pills, etc.)
+   - FIX v13.2: robuuste swipe-detectie
    ============================================================ */
 
 (function(){
@@ -28,9 +26,6 @@
       document.body.classList.add("light");
     }
 
-    /* ============================================================
-       v13.0: Service Worker registratie
-       ============================================================ */
     if("serviceWorker" in navigator){
       window.addEventListener("load", () => {
         navigator.serviceWorker.register("./sw.js")
@@ -294,11 +289,6 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
-    /* ============================================================
-       v13.2: Swipe-wissel tussen tabs
-       - Dynamische detectie van horizontaal scrollbare voorouders
-       - Als de touch begint in zo'n element → geen tab-wissel
-       ============================================================ */
     let touchStartX = 0;
     let touchStartY = 0;
     let touchStartInScrollable = false;
@@ -343,7 +333,6 @@
       const deltaY = touchEndY - touchStartY;
 
       if (Math.abs(deltaX) > 100 && Math.abs(deltaY) < 50) {
-        // Extra check: eindigde de touch ook niet in een scrollable?
         if (findScrollableAncestor(e.target)) return;
 
         const tabs = ['news', 'map', 'iptv', 'vod'];
@@ -359,10 +348,11 @@
 
         if (newIndex !== undefined) {
           const tabBtn = document.querySelector(`.tab[data-view="${tabs[newIndex]}"]`);
-          if (tabBtn) tabBtn.click();
+          if(tabBtn) tabBtn.click();
         }
       }
     }, { passive: true });
 
     wdLog.info("[WAR DESK] app-v12.js v13.2 geladen (swipe-fix)");
+  });
 })();
