@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK v14.18 — Configuratie
+   WAR DESK v14.19 — Configuratie
    - FIX v14.18: E1 dead get stadiaKey() vervangen door property
+   - FIX v14.19: E6 meer breaking-news keywords
    ============================================================ */
 
-window.APP_VERSION = "v14.18";
+window.APP_VERSION = "v14.19";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -68,7 +69,6 @@ window.CONFIG = {
   detailCacheMax: 500,
   detailCacheTTL: 7200000,
 
-  // E1: was get stadiaKey() — nu gewone lege property voor backward compat
   stadiaKey: "",
 
   iptvMaxRecent: 10,
@@ -111,10 +111,16 @@ window.HIGH_PRIORITY = [
   "NOS","NOS Sport","De Telegraaf","AD.nl","RTL Nieuws"
 ];
 
+/* E6: Uitgebreide high-priority keywords voor breaking-detectie */
 window.KEYWORDS_HIGH = [
   "killed","dead","deaths","massacre","nuclear","invasion",
-  "airstrike","ceasefire","assassinated","declared war"
+  "airstrike","ceasefire","assassinated","declared war",
+  "explosion","bombing","missile","rocket attack","shooting",
+  "hostage","emergency","evacuation","collapse","crash",
+  "state of emergency","martial law","coup","terrorist",
+  "earthquake","tsunami","pandemic","outbreak","cyberattack"
 ];
+
 window.KEYWORDS_MED = [
   "explosion","missile","bombing","hostage","shooting",
   "crash","collapse","wounded","injured"
