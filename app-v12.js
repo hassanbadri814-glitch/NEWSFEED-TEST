@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v12.7 — App Orchestration (Touch Gestures)
+   WAR DESK v13.0 — App Orchestration (Touch Gestures)
    - FIX v12.6: N1 clock stop pagehide
    - FIX v12.7: scroll restoration per tab, haptic feedback
+   - FIX v13.0: Service Worker registratie toegevoegd
    ============================================================ */
 
 (function(){
@@ -22,6 +23,21 @@
   ready(() => {
     if(document.documentElement.classList.contains("light")){
       document.body.classList.add("light");
+    }
+
+    /* ============================================================
+       v13.0: Service Worker registratie
+       ============================================================ */
+    if("serviceWorker" in navigator){
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js")
+          .then(reg => {
+            try{ wdLog.info("[WAR DESK] Service Worker geregistreerd: " + (reg.scope || "")); }catch(e){}
+          })
+          .catch(err => {
+            try{ wdLog.warn("[WAR DESK] Service Worker registratie mislukt: " + err.message); }catch(e){}
+          });
+      });
     }
 
     let clockTimer = null;
