@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK v14.0 — COMPLETE CSS
+   WAR DESK v14.1 — COMPLETE CSS
    - FIX v13.4: backdrop-filter uit op mobiel
    - FIX v13.5: .iptv-ch-initial
    - FIX v13.6: fonts genormaliseerd, header opgeruimd op mobiel
    - FIX v14.0: VOD-sidebar verticaal links op mobiel
+   - FIX v14.1: VOD kleinere covers (3 kolommen) + sticky sidebar
    ============================================================ */
 
 :root {
@@ -674,55 +675,58 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
   .iptv-player-box video { max-height: 45vh; }
 
   /* ============================================================
-     v14.0: VOD verticaal — sidebar links, content rechts
+     v14.1: VOD verticaal — sidebar links, kleinere covers
      ============================================================ */
   .vod-page {
     display: grid;
-    grid-template-columns: 100px 1fr;
-    gap: .5rem;
+    grid-template-columns: 88px 1fr;
+    gap: .4rem;
     align-items: start;
   }
   .vod-sidebar {
     position: sticky;
-    top: .5rem;
-    max-height: calc(100vh - 180px);
+    top: 56px;
+    max-height: calc(100vh - 70px);
     overflow-y: auto;
     overflow-x: hidden;
     display: block;
-    padding: .3rem;
-    border-radius: 10px;
+    padding: .25rem;
+    border-radius: 8px;
+    z-index: 5;
     scrollbar-width: thin;
   }
-  .vod-sidebar-group { display: block; margin-bottom: .6rem; }
+  .vod-sidebar-group { display: block; margin-bottom: .5rem; }
   .vod-sidebar-group:last-child { margin-bottom: 0; }
   .vod-sidebar-title {
     display: block;
-    font-size: .62rem;
-    padding: .3rem .4rem;
-    letter-spacing: .05em;
+    font-size: .6rem;
+    padding: .25rem .35rem;
+    letter-spacing: .04em;
   }
   .vod-sidebar-item {
     width: 100%;
     white-space: normal;
-    padding: .45rem .5rem;
-    font-size: .72rem;
-    margin-bottom: .15rem;
+    padding: .4rem .4rem;
+    font-size: .68rem;
+    line-height: 1.2;
+    margin-bottom: .1rem;
     background: transparent;
     border: 1px solid transparent;
-    border-radius: 6px;
+    border-radius: 5px;
     text-align: left;
     justify-content: flex-start;
   }
   .vod-sidebar-item.active {
-    background: rgba(224,168,87,.14);
+    background: rgba(224,168,87,.16);
     border-color: transparent;
+    font-weight: 700;
   }
   .vod-sidebar-dot { display: none; }
 
-  .vod-grid { grid-template-columns: repeat(2, 1fr); gap: .4rem; }
-  .vod-poster-body { padding: .35rem .4rem .45rem; min-height: 38px; }
-  .vod-poster-name { font-size: .72rem; }
-  .vod-poster-meta { font-size: .65rem; }
+  .vod-grid { grid-template-columns: repeat(3, 1fr); gap: .35rem; }
+  .vod-poster-body { padding: .3rem .3rem .35rem; min-height: 34px; }
+  .vod-poster-name { font-size: .68rem; line-height: 1.2; }
+  .vod-poster-meta { font-size: .6rem; }
 
   .vod-detail-modal { padding: 0; }
   .vod-detail-box { max-width: 100%; max-height: 100vh; border-radius: 0; height: 100vh; }
