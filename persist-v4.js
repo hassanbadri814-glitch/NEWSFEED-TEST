@@ -1,3 +1,4 @@
+
 /* ============================================================
    WAR DESK v5.0 — State persistentie + EventBus
    - Start altijd op Nieuws (geen tab-herstel)
