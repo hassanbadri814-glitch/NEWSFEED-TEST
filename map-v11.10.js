@@ -114,7 +114,6 @@
             MAP.currentTheme = newTheme;
             switchTile(newTheme);
             updateMetaTheme();
-            /* E8: forceer marker re-render voor visuele consistentie */
             if (MAP.events.length && MAP.cluster) {
               setTimeout(function(){ renderMarkers(); }, 200);
             }
@@ -326,7 +325,6 @@
       });
     });
 
-    /* A8: cap op 500 events om memory te besparen */
     if (events.length > 500) {
       LOG("⚠️ " + events.length + " events — cap op 500");
       events = events.slice(0, 500);
