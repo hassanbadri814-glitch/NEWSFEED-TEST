@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v13.3 — App Orchestration
-   - v12.7 basis behouden
-   - v13.0: Service Worker registratie
-   - v13.3: swipe-tussen-tabs verwijderd
+   WAR DESK v13.4 — App Orchestration
+   - v13.3 basis (zonder swipe)
+   - v13.4: AI view toegevoegd aan views object
    ============================================================ */
 
 (function(){
@@ -83,7 +82,8 @@
       news: $("viewNews"),
       map: $("viewMap"),
       iptv: $("viewIptv"),
-      vod: $("viewVod")
+      vod: $("viewVod"),
+      ai: $("viewAi")
     };
 
     let currentView = "news";
@@ -122,7 +122,7 @@
     try{
       const params = new URLSearchParams(location.search);
       const requestedTab = params.get("tab");
-      if(requestedTab && ["news","map","iptv","vod"].includes(requestedTab)){
+      if(requestedTab && ["news","map","iptv","vod","ai"].includes(requestedTab)){
         setTimeout(() => {
           const tabBtn = document.querySelector(`.bottom-tabs .tab[data-view="${requestedTab}"]`);
           if(tabBtn) tabBtn.click();
@@ -288,6 +288,6 @@
       toastTimer = setTimeout(() => { t.classList.remove("show"); }, 2200);
     };
 
-    wdLog.info("[WAR DESK] app-v12.js v13.3 geladen");
+    wdLog.info("[WAR DESK] app-v12.js v13.4 geladen");
   });
 })();
