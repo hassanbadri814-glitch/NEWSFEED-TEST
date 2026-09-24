@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v1.1 — AI Chat Module
-   - Slimmere artikel-selectie op basis van vraag-keywords
-   - Datum-context meesturen
-   - Volledige artikel-tekst (500-800 chars)
+   WAR DESK v1.2 — AI Chat Module
+   - v1.1 basis (slimme artikel-selectie, markdown)
+   - v1.2: Client-side retry + betere foutmeldingen
    ============================================================ */
 
 (function(){
@@ -10,10 +9,11 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.1 geladen");
+  LOG("v1.2 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 10;
+  var CLIENT_RETRIES = 2;
 
   var AI = {
     initialized: false,
@@ -21,10 +21,9 @@
     history: []
   };
 
-  // Nederlandse + Engelse stopwoorden
   var STOPWORDS = {
     "de":1,"het":1,"een":1,"en":1,"of":1,"maar":1,"dus":1,"want":1,"omdat":1,
-    "als":1,"dan":1,"ook":1,"nog":1,"al":1,"maar":1,"wel":1,"niet":1,"geen":1,
+    "als":1,"dan":1,"ook":1,"nog":1,"al":1,"wel":1,"niet":1,"geen":1,
     "wat":1,"wie":1,"waar":1,"wanneer":1,"waarom":1,"hoe":1,"welke":1,
     "is":1,"was":1,"zijn":1,"wordt":1,"worden":1,"kan":1,"kunnen":1,"zal":1,
     "heeft":1,"hebben":1,"had":1,"hadden":1,"doet":1,"doen":1,"deed":1,
@@ -32,7 +31,7 @@
     "ik":1,"jij":1,"je":1,"hij":1,"zij":1,"ze":1,"wij":1,"we":1,"jullie":1,
     "mij":1,"mijn":1,"jouw":1,"uw":1,"ons":1,"onze":1,
     "in":1,"op":1,"aan":1,"bij":1,"van":1,"voor":1,"met":1,"naar":1,"uit":1,
-    "over":1,"onder":1,"tussen":1,"tegen":1,"zonder":1,"tijdens":1,"na":1,"voor":1,
+    "over":1,"onder":1,"tussen":1,"tegen":1,"zonder":1,"tijdens":1,"na":1,
     "the":1,"a":1,"an":1,"is":1,"are":1,"was":1,"were":1,"and":1,"or":1,"but":1,
     "what":1,"who":1,"where":1,"when":1,"why":1,"how":1,"which":1,
     "this":1,"that":1,"these":1,"those":1,"i":1,"you":1,"he":1,"she":1,"we":1,"they":1
@@ -52,7 +51,6 @@
       .filter(function(w){
         return w.length >= 3 && !STOPWORDS[w];
       });
-    // Unieke woorden
     var seen = {};
     var out = [];
     words.forEach(function(w){
@@ -75,9 +73,7 @@
       if (cat.indexOf(kw) >= 0) score += 8;
     });
 
-    // Baseline-belangrijkheid erbij
     score += Math.min(article._score || 0, 50) * 0.3;
-
     return score;
   }
 
@@ -86,7 +82,7 @@
       if (!window.State || !State.items || !State.items.length) return [];
 
       var keywords = extractKeywords(userQuestion);
-      LOG("Keywords uit vraag:", keywords.slice(0, 8).join(", "));
+      LOG("Keywords:", keywords.slice(0, 8).join(", "));
 
       var scored = State.items.map(function(it){
         return {
@@ -99,8 +95,6 @@
         return b.relevance - a.relevance;
       });
 
-      // Als de vraag keywords heeft: gebruik relevantie
-      // Als geen keywords: gebruik de standaard top-score
       var selected = scored.slice(0, MAX_ARTICLES).map(function(s){
         return s.item;
       });
@@ -129,7 +123,7 @@
         '<div class="ai-welcome">' +
           '<div class="ai-welcome-icon">🤖</div>' +
           '<div class="ai-welcome-title">WAR DESK AI</div>' +
-          '<div class="ai-welcome-text">Stel een vraag over het nieuws, of vraag om uitleg over een onderwerp. Ik gebruik jouw nieuwsfeed als context.</div>' +
+          '<div class="ai-welcome-text">Stel een vraag over het nieuws, of vraag om uitleg over een onderwerp.</div>' +
           '<div class="ai-suggestions">' +
             '<button class="ai-sugg" data-q="Wat is het belangrijkste nieuws vandaag?">Belangrijkste nieuws vandaag</button>' +
             '<button class="ai-sugg" data-q="Vat het nieuws over het Midden-Oosten samen">Midden-Oosten samenvatting</button>' +
@@ -162,22 +156,15 @@
     scrollToBottom();
   }
 
-  // Simpele markdown-renderer voor AI-antwoorden
   function renderMarkdown(text){
     var s = esc(text || "");
-    // Code blocks ```code```
     s = s.replace(/```([\s\S]*?)```/g, '<code>$1</code>');
-    // Koppen ### / ## / #
     s = s.replace(/^### (.+)$/gm, '<strong style="display:block;margin:.5rem 0 .25rem;color:var(--amber)">$1</strong>');
     s = s.replace(/^## (.+)$/gm, '<strong style="display:block;margin:.5rem 0 .25rem;color:var(--amber);font-size:1.05em">$1</strong>');
     s = s.replace(/^# (.+)$/gm, '<strong style="display:block;margin:.5rem 0 .25rem;color:var(--amber);font-size:1.1em">$1</strong>');
-    // Vet **tekst**
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    // Cursief *tekst*
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-    // Lijsten - of *
     s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<span style="display:block;padding-left:1rem;text-indent:-1rem">• $1</span>');
-    // Nieuwe regels
     s = s.replace(/\n/g, "<br>");
     return s;
   }
@@ -197,6 +184,43 @@
         if (q) sendMessage(q);
       });
     });
+  }
+
+  /* Client-side fetch met retry */
+  async function fetchWithRetry(url, options){
+    var lastStatus = 0;
+    var lastText = "";
+
+    for (var i = 0; i < CLIENT_RETRIES; i++){
+      try {
+        var r = await fetch(url, options);
+
+        // Succes
+        if (r.ok) return r;
+
+        lastStatus = r.status;
+        lastText = await r.text();
+
+        // 502/503/429 = tijdelijk → wacht en probeer opnieuw
+        if ((r.status === 502 || r.status === 503 || r.status === 429) && i < CLIENT_RETRIES - 1){
+          var wait = 2500 * (i + 1);
+          LOG("Poging " + (i+1) + " faalde (" + r.status + "), opnieuw in " + wait + "ms");
+          await new Promise(function(res){ setTimeout(res, wait); });
+          continue;
+        }
+
+        // Andere fout → stop
+        return new Response(lastText, { status: lastStatus });
+      } catch(e){
+        LOG("Fetch fout (poging " + (i+1) + "):", e.message);
+        if (i < CLIENT_RETRIES - 1){
+          await new Promise(function(res){ setTimeout(res, 2500 * (i + 1)); });
+          continue;
+        }
+        throw e;
+      }
+    }
+    return new Response(lastText, { status: lastStatus });
   }
 
   async function sendMessage(text){
@@ -225,7 +249,7 @@
       var articles = buildArticleContext(message);
       LOG("Verstuur met", articles.length, "artikelen");
 
-      var r = await fetch(WORKER_URL, {
+      var r = await fetchWithRetry(WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -242,11 +266,6 @@
         try {
           var errData = JSON.parse(errText);
           if (errData.error) friendly = errData.error;
-          if (r.status === 503 || (errData.detail && errData.detail.indexOf("503") >= 0)){
-            friendly = "De AI is even druk. Wacht 30 seconden en probeer opnieuw.";
-          } else if (r.status === 429){
-            friendly = "Te veel vragen in korte tijd. Wacht even en probeer opnieuw.";
-          }
         } catch(e){}
         throw new Error(friendly);
       }
@@ -256,13 +275,13 @@
 
       var responseText = data.response || "(geen antwoord)";
       AI.history.push({ role: "ai", text: responseText });
-      LOG("Antwoord ontvangen van", data.model || "?");
+      LOG("Antwoord via", data.provider || "?", "/", data.model || "?");
 
     } catch(e) {
       LOG("Fout:", e.message);
       AI.history.push({
         role: "ai",
-        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nControleer je internet en probeer opnieuw."
+        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw."
       });
     } finally {
       AI.sending = false;
@@ -349,5 +368,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.1 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.2 geladen");
 })();
