@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.4</title>
+<title>WAR DESK v14.5</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -108,7 +108,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.4">
+<link rel="stylesheet" href="styles.css?v=14.5">
 
 <style>
 /* ============================================================
@@ -124,7 +124,7 @@
   box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
 }
 #viewNews, #viewMap, #viewIptv { padding-bottom: 75px !important; min-height: auto !important; overflow-y: auto !important; }
-#viewVod { padding-bottom: 75px !important; min-height: auto !important; }
+#viewVod, #viewAi { padding-bottom: 75px !important; min-height: auto !important; }
 
 .sheet-overlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,0.6) !important; z-index: 10000000 !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s !important; }
 .sheet-overlay.open { opacity: 1 !important; pointer-events: auto !important; }
@@ -165,7 +165,7 @@
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.4</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.5</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -253,6 +253,20 @@
     <div class="iptv-visible-count" id="iptvVisibleCount"></div>
   </section>
 
+  <section class="view" id="viewAi" hidden>
+    <div class="section-head">
+      <h2>AI Assistent</h2>
+      <button class="btn-mini" id="aiClearBtn" aria-label="Gesprek wissen">🗑</button>
+    </div>
+    <div class="ai-chat">
+      <div class="ai-messages" id="aiMessages"></div>
+      <div class="ai-input-wrap">
+        <textarea id="aiInput" placeholder="Stel een vraag over het nieuws..." rows="1"></textarea>
+        <button class="ai-send-btn" id="aiSendBtn" aria-label="Versturen">➤</button>
+      </div>
+    </div>
+  </section>
+
   <section class="view" id="viewVod" hidden>
     <div class="section-head"><h2>VOD</h2><span class="section-count" id="vodCount">Films &amp; Series</span></div>
     <div class="vod-search-wrap">
@@ -277,6 +291,7 @@
   <button class="tab" data-view="map" role="tab" aria-selected="false"><span class="tab-icon">🗺️</span><span class="tab-label">Kaart</span></button>
   <button class="tab" data-view="iptv" role="tab" aria-selected="false"><span class="tab-icon">📡</span><span class="tab-label">IPTV</span></button>
   <button class="tab" data-view="vod" role="tab" aria-selected="false"><span class="tab-icon">🎬</span><span class="tab-label">VOD</span></button>
+  <button class="tab" data-view="ai" role="tab" aria-selected="false"><span class="tab-icon">🤖</span><span class="tab-label">AI</span></button>
 </nav>
 
 <div class="sheet-overlay" id="sheetOverlay"></div>
@@ -381,7 +396,7 @@
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.4</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.5</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -661,12 +676,13 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="utils.js?v=14.30" defer></script>
 <script src="store.js?v=14.30" defer></script>
 <script src="news-v27.js?v=14.4" defer></script>
-<script src="app-v12.js?v=14.40" defer></script>
+<script src="app-v12.js?v=14.5" defer></script>
 <script src="persist-v4.js?v=14.30" defer></script>
 <script src="refresh-v12.js?v=14.4" defer></script>
 <script src="iptv-v8.js?v=14.30" defer></script>
 <script src="map-v11.10.js?v=14.30" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
+<script src="ai-chat.js?v=14.5" defer></script>
 
 <script>
 (function(){
