@@ -26,7 +26,12 @@ html.light {
   --ink:#131721; --ink-2:#4a5165; --ink-3:#7a8295;
 }
 
-html[data-oled="true"] {/* ============================================================
+html[data-oled="true"] {
+  --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808;
+  --card-hover:#141414; --line:#141414; --line-2:#242424;
+}
+
+/* ============================================================
    v14.4 — Regels verplaatst uit index.html inline style
    ============================================================ */
 
@@ -78,9 +83,6 @@ html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inse
 #wdDebugPanel .empty{color:#666;text-align:center;padding:2rem 1rem}
 #wdDebugPanel .actions{padding:.5rem;background:#111;border-radius:6px;margin-bottom:.8rem;display:flex;gap:.5rem;flex-wrap:wrap}
 #wdDebugPanel .actions button{background:#333;color:#fff;border:none;padding:.4rem .7rem;border-radius:4px;font-family:monospace;font-size:10px;cursor:pointer}
-  --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808;
-  --card-hover:#141414; --line:#141414; --line-2:#242424;
-}
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 html, body { height: 100%; }
@@ -725,9 +727,6 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
   .iptv-grid.list-mode .iptv-ch-name { font-size: .82rem; }
   .iptv-player-box video { max-height: 45vh; }
 
-  /* ============================================================
-     v14.2: VOD verticaal — sidebar blijft altijd zichtbaar
-     ============================================================ */
   .vod-page {
     display: block;
     padding-left: 96px;
