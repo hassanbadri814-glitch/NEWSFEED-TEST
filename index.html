@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.43</title>
+<title>WAR DESK v14.4</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -108,56 +108,21 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.43">
+<link rel="stylesheet" href="styles.css?v=14.4">
 
 <style>
-html[data-font-size="small"]  { font-size: 14px; }
-html[data-font-size="medium"] { font-size: 16px; }
-html[data-font-size="large"]  { font-size: 18px; }
-html[data-font-size="xlarge"] { font-size: 20px; }
+/* ============================================================
+   v14.4 — Alleen layout-kritieke fallback regels
+   Alle algemene styling staat in styles.css
+   ============================================================ */
 
-html[data-accent="goud"]    { --amber:#e0a857; --amber-2:#f0c78a; --amber-3:#8a5c26; --accent-glow:rgba(224,168,87,.35); }
-html[data-accent="saffier"] { --amber:#5b9dff; --amber-2:#93c2ff; --amber-3:#1e40af; --accent-glow:rgba(91,157,255,.35); }
-html[data-accent="smaragd"] { --amber:#2dd4a8; --amber-2:#6ee7c8; --amber-3:#065f46; --accent-glow:rgba(45,212,168,.35); }
-html[data-accent="kobalt"]  { --amber:#8b7fff; --amber-2:#b3aaff; --amber-3:#3a2a99; --accent-glow:rgba(139,127,255,.35); }
-html[data-accent="koraal"]  { --amber:#ff6b7a; --amber-2:#ff9ba6; --amber-3:#991b2c; --accent-glow:rgba(255,107,122,.35); }
-html[data-accent="parel"]   { --amber:#e8eaf0; --amber-2:#ffffff; --amber-3:#6b7280; --accent-glow:rgba(232,234,240,.35); }
-
-html[data-oled="true"] { --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808; }
-
-#wdDebugBtn, #wdDebugPanel { display: none !important; }
-html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:80px;right:15px;z-index:9999999;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
-html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:99999999;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
-#wdDebugPanel .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;padding-bottom:.5rem;border-bottom:1px solid #333;position:sticky;top:0;background:rgba(0,0,0,.95);z-index:1}
-#wdDebugPanel h2{color:#e0a857;font-size:14px;margin:0}
-#wdDebugPanel .close{background:#e63950;color:#fff;border:none;padding:.4rem .8rem;border-radius:6px;font-family:monospace;font-weight:700;cursor:pointer}
-#wdDebugPanel .entry{padding:.5rem;margin-bottom:.4rem;border-left:3px solid #0f0;background:rgba(255,255,255,.03);word-break:break-all;white-space:pre-wrap}
-#wdDebugPanel .entry.err{border-left-color:#e63950;color:#ff7b8b}
-#wdDebugPanel .entry.warn{border-left-color:#f59e0b;color:#f0c78a}
-#wdDebugPanel .entry.info{border-left-color:#3b82f6;color:#8ab4f8}
-#wdDebugPanel .entry.ok{border-left-color:#10b981;color:#5eead4}
-#wdDebugPanel .time{color:#666;font-size:10px;display:block;margin-bottom:.2rem}
-#wdDebugPanel .empty{color:#666;text-align:center;padding:2rem 1rem}
-#wdDebugPanel .actions{padding:.5rem;background:#111;border-radius:6px;margin-bottom:.8rem;display:flex;gap:.5rem;flex-wrap:wrap}
-#wdDebugPanel .actions button{background:#333;color:#fff;border:none;padding:.4rem .7rem;border-radius:4px;font-family:monospace;font-size:10px;cursor:pointer}
-
-.btn-refresh { position:relative; width:40px; height:40px; border-radius:50%; background:linear-gradient(180deg,var(--bg-3),var(--bg-2)); border:1px solid var(--line-2); color:var(--ink-2); display:grid; place-items:center; cursor:pointer; transition:all .18s; padding:0; }
-.btn-refresh:hover { border-color:var(--amber); color:var(--amber); }
-.btn-refresh:active { transform:scale(.92); }
-.btn-refresh:disabled { cursor:default; opacity:.9; }
-.btn-refresh .refresh-ring { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-.btn-refresh .refresh-progress { transition:stroke-dashoffset .25s cubic-bezier(.4,.9,.6,1); }
-.btn-refresh .refresh-icon { position:relative; z-index:1; width:18px; height:18px; }
-.btn-refresh.loading .refresh-icon { animation:spin .8s linear infinite; }
-.btn-refresh.loading { color:var(--amber); border-color:var(--amber); }
-.btn-refresh.done { color:#2dd4a8; border-color:#2dd4a8; }
-@keyframes spin { to { transform:rotate(360deg); } }
-
-svg { max-width:100%; max-height:100%; flex-shrink:0; }
-.map-ctrl svg, .iptv-btn svg, .brand-mark svg { width:18px; height:18px; }
-.brand-mark svg { width:22px; height:22px; }
-
-.bottom-tabs { position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 9999999 !important; display: flex !important; justify-content: space-around !important; background: var(--bg-2, #070c16) !important; border-top: 1px solid var(--line-2, #1a2332) !important; padding: 4px 0 !important; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important; box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important; }
+.bottom-tabs {
+  position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+  z-index: 9999999 !important; display: flex !important; justify-content: space-around !important;
+  background: var(--bg-2, #070c16) !important; border-top: 1px solid var(--line-2, #1a2332) !important;
+  padding: 4px 0 !important; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
+}
 #viewNews, #viewMap, #viewIptv { padding-bottom: 75px !important; min-height: auto !important; overflow-y: auto !important; }
 #viewVod { padding-bottom: 75px !important; min-height: auto !important; }
 
@@ -200,7 +165,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.43</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.4</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -416,7 +381,7 @@ svg { max-width:100%; max-height:100%; flex-shrink:0; }
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.43</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.4</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD</div>
     </div>
   </div>
 </div>
