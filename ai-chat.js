@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v1.6 — AI Chat Module
-   - v1.5 basis (synoniemen, stemming)
-   - v1.6: esc() functie hersteld (was per ongeluk verwijderd)
+   WAR DESK v1.7 — AI Chat Module
+   - v1.6 basis (esc functie hersteld)
+   - v1.7: Debug-log voor artikel-titels (om te zien welke artikelen
+           worden meegestuurd naar de AI)
    ============================================================ */
 
 (function(){
@@ -9,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.6 geladen");
+  LOG("v1.7 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 8;
@@ -24,7 +25,7 @@
   };
 
   /* ============================================================
-     HTML escape — VOOR renderMarkdown en renderSources
+     HTML escape
      ============================================================ */
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
@@ -420,6 +421,9 @@
     try {
       var articles = buildArticleContext(message);
       LOG("Verstuur met", articles.length, "artikelen");
+      if (articles.length){
+        LOG("Titels:", articles.map(function(a){ return (a.source || "?") + ": " + (a.title || "").slice(0, 50); }).join(" | "));
+      }
 
       var r = await fetchWithRetry(WORKER_URL, {
         method: "POST",
@@ -561,5 +565,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.6 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.7 geladen");
 })();
