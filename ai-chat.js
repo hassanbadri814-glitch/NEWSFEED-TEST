@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v1.5 — AI Chat Module
-   - v1.4 basis
-   - v1.5: Stemming + synoniemen voor betere artikel-selectie
+   WAR DESK v1.6 — AI Chat Module
+   - v1.5 basis (synoniemen, stemming)
+   - v1.6: esc() functie hersteld (was per ongeluk verwijderd)
    ============================================================ */
 
 (function(){
@@ -9,7 +9,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.5 geladen");
+  LOG("v1.6 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 8;
@@ -24,7 +24,16 @@
   };
 
   /* ============================================================
-     Stopwoorden — uitgebreid
+     HTML escape — VOOR renderMarkdown en renderSources
+     ============================================================ */
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  /* ============================================================
+     Stopwoorden
      ============================================================ */
   var STOPWORDS = {
     "de":1,"het":1,"een":1,"en":1,"of":1,"maar":1,"dus":1,"want":1,"omdat":1,
@@ -43,10 +52,9 @@
   };
 
   /* ============================================================
-     Synoniemen-mapping — kern van de verbetering
+     Synoniemen-mapping
      ============================================================ */
   var SYNONYMS = {
-    // Landen / regio's
     "nl": ["nederland","nederlands","dutch","holland","amsterdam","rotterdam","den haag"],
     "nederland": ["nederland","nederlands","dutch","holland"],
     "marokko": ["marokko","marokkaans","marokkaanse","morocco","maroc","rabat","casablanca"],
@@ -57,14 +65,10 @@
     "iran": ["iran","iraans","tehran","khamenei"],
     "oekraine": ["oekraine","oekraïne","ukraine","kyiv","kiev","zelensky"],
     "rusland": ["rusland","russisch","russia","moskou","poetin","putin","kremlin"],
-
-    // Conflicten / actualiteit
     "gaza": ["gaza","rafah","hamas","palestijn"],
     "conflict": ["conflict","oorlog","strijd","geweld","aanval"],
     "oorlog": ["oorlog","conflict","strijd","geweld","aanval"],
     "aanval": ["aanval","aanslag","raketaanval","bombardement","luchtaanval"],
-
-    // Algemene termen
     "nieuws": ["nieuws","actualiteit","bericht"],
     "belangrijk": ["belangrijk","groot","ernstig"],
     "vandaag": ["vandaag","vandaag"],
@@ -72,23 +76,17 @@
   };
 
   /* ============================================================
-     Stemming — basis Nederlands
+     Stemming
      ============================================================ */
   function stem(word){
     var w = word.toLowerCase();
     if (w.length <= 4) return w;
-
-    // Verwijder meervoud / vervoeging
     if (w.endsWith("en") && w.length > 5) w = w.slice(0, -2);
     else if (w.endsWith("s") && w.length > 4) w = w.slice(0, -1);
     else if (w.endsWith("e") && w.length > 4) w = w.slice(0, -1);
-
     return w;
   }
 
-  /* ============================================================
-     Keyword extraction met synoniemen
-     ============================================================ */
   function extractKeywords(text){
     if (!text) return [];
     var words = String(text).toLowerCase()
@@ -102,7 +100,6 @@
       var stemmed = stem(w);
       expanded.add(stemmed);
 
-      // Voeg synoniemen toe
       if (SYNONYMS[w]){
         SYNONYMS[w].forEach(function(s){ expanded.add(s); });
       }
@@ -114,16 +111,12 @@
     return Array.from(expanded);
   }
 
-  /* ============================================================
-     Artikel-score met synoniemen
-     ============================================================ */
   function scoreArticleForQuery(article, keywords){
     if (!keywords.length) return article._score || 0;
 
     var title = (article.title || "").toLowerCase();
     var desc = (article.desc || "").toLowerCase();
     var cat = (article.cat || "").toLowerCase();
-    var combined = title + " " + desc + " " + cat;
 
     var score = 0;
     var matches = 0;
@@ -136,19 +129,14 @@
       else if (cat.indexOf(kw) >= 0) { score += 15; matches++; }
     });
 
-    // Bonus als er meerdere treffers zijn (relevantie)
     if (matches >= 3) score += 20;
     else if (matches >= 2) score += 10;
 
-    // Basis-belangrijkheid
     score += Math.min(article._score || 0, 50) * 0.3;
 
     return score;
   }
 
-  /* ============================================================
-     Bouw artikel-context (met source-diversiteit)
-     ============================================================ */
   function buildArticleContext(userQuestion){
     try {
       if (!window.State || !State.items || !State.items.length) return [];
@@ -165,7 +153,6 @@
 
       scored.sort(function(a, b){ return b.relevance - a.relevance; });
 
-      // Source-diversiteit: max 2 artikelen per bron
       var sourceCount = {};
       var selected = [];
       for (var i = 0; i < scored.length && selected.length < MAX_ARTICLES; i++){
@@ -397,9 +384,6 @@
     try { localStorage.removeItem(STORAGE_KEY); }catch(e){}
   }
 
-  /* ============================================================
-     Fetch
-     ============================================================ */
   async function fetchWithRetry(url, options){
     for (var i = 0; i < CLIENT_RETRIES; i++){
       try {
@@ -577,5 +561,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.5 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.6 geladen");
 })();
