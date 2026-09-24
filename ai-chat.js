@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v1.4 — AI Chat Module
-   - v1.3 basis (geschiedenis, bronlinks, knoppen)
-   - v1.4: Client retry uit (Worker handelt fallback af)
+   WAR DESK v1.5 — AI Chat Module
+   - v1.4 basis
+   - v1.5: Stemming + synoniemen voor betere artikel-selectie
    ============================================================ */
 
 (function(){
@@ -9,10 +9,10 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.4 geladen");
+  LOG("v1.5 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
-  var MAX_ARTICLES = 10;
+  var MAX_ARTICLES = 8;
   var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
   var STORAGE_MAX_MSGS = 40;
@@ -23,6 +23,9 @@
     history: []
   };
 
+  /* ============================================================
+     Stopwoorden — uitgebreid
+     ============================================================ */
   var STOPWORDS = {
     "de":1,"het":1,"een":1,"en":1,"of":1,"maar":1,"dus":1,"want":1,"omdat":1,
     "als":1,"dan":1,"ook":1,"nog":1,"al":1,"wel":1,"niet":1,"geen":1,
@@ -39,44 +42,52 @@
     "this":1,"that":1,"these":1,"those":1,"i":1,"you":1,"he":1,"she":1,"we":1,"they":1
   };
 
-  function esc(s){
-    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
-
   /* ============================================================
-     Geschiedenis opslaan / laden
+     Synoniemen-mapping — kern van de verbetering
      ============================================================ */
-  function saveHistory(){
-    try {
-      var toSave = AI.history.slice(-STORAGE_MAX_MSGS);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-    } catch(e){
-      LOG("Kon geschiedenis niet opslaan:", e.message);
-    }
-  }
+  var SYNONYMS = {
+    // Landen / regio's
+    "nl": ["nederland","nederlands","dutch","holland","amsterdam","rotterdam","den haag"],
+    "nederland": ["nederland","nederlands","dutch","holland"],
+    "marokko": ["marokko","marokkaans","marokkaanse","morocco","maroc","rabat","casablanca"],
+    "vs": ["vs","verenigde staten","amerika","amerikaans","usa","washington","trump","biden"],
+    "amerika": ["vs","verenigde staten","amerika","usa","washington"],
+    "israel": ["israel","israelisch","israeli","jeruzalem","tel aviv","netanyahu"],
+    "palestina": ["palestijn","palestijns","palestinian","westelijke jordaanoever"],
+    "iran": ["iran","iraans","tehran","khamenei"],
+    "oekraine": ["oekraine","oekraïne","ukraine","kyiv","kiev","zelensky"],
+    "rusland": ["rusland","russisch","russia","moskou","poetin","putin","kremlin"],
 
-  function loadHistory(){
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      var parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length){
-        AI.history = parsed.slice(-STORAGE_MAX_MSGS);
-        LOG("Geschiedenis hersteld:", AI.history.length, "berichten");
-      }
-    } catch(e){
-      LOG("Kon geschiedenis niet laden:", e.message);
-    }
-  }
+    // Conflicten / actualiteit
+    "gaza": ["gaza","rafah","hamas","palestijn"],
+    "conflict": ["conflict","oorlog","strijd","geweld","aanval"],
+    "oorlog": ["oorlog","conflict","strijd","geweld","aanval"],
+    "aanval": ["aanval","aanslag","raketaanval","bombardement","luchtaanval"],
 
-  function clearHistoryStorage(){
-    try { localStorage.removeItem(STORAGE_KEY); }catch(e){}
+    // Algemene termen
+    "nieuws": ["nieuws","actualiteit","bericht"],
+    "belangrijk": ["belangrijk","groot","ernstig"],
+    "vandaag": ["vandaag","vandaag"],
+    "sport": ["sport","voetbal","eredivisie","ajax","psv","feyenoord"]
+  };
+
+  /* ============================================================
+     Stemming — basis Nederlands
+     ============================================================ */
+  function stem(word){
+    var w = word.toLowerCase();
+    if (w.length <= 4) return w;
+
+    // Verwijder meervoud / vervoeging
+    if (w.endsWith("en") && w.length > 5) w = w.slice(0, -2);
+    else if (w.endsWith("s") && w.length > 4) w = w.slice(0, -1);
+    else if (w.endsWith("e") && w.length > 4) w = w.slice(0, -1);
+
+    return w;
   }
 
   /* ============================================================
-     Artikel-selectie
+     Keyword extraction met synoniemen
      ============================================================ */
   function extractKeywords(text){
     if (!text) return [];
@@ -84,42 +95,93 @@
       .replace(/[^\w\sàáâãäåçèéêëìíîïñòóôõöùúûüýÿ]/gi, " ")
       .split(/\s+/)
       .filter(function(w){ return w.length >= 3 && !STOPWORDS[w]; });
-    var seen = {}, out = [];
+
+    var expanded = new Set();
     words.forEach(function(w){
-      if (!seen[w]){ seen[w] = 1; out.push(w); }
+      expanded.add(w);
+      var stemmed = stem(w);
+      expanded.add(stemmed);
+
+      // Voeg synoniemen toe
+      if (SYNONYMS[w]){
+        SYNONYMS[w].forEach(function(s){ expanded.add(s); });
+      }
+      if (SYNONYMS[stemmed]){
+        SYNONYMS[stemmed].forEach(function(s){ expanded.add(s); });
+      }
     });
-    return out;
+
+    return Array.from(expanded);
   }
 
+  /* ============================================================
+     Artikel-score met synoniemen
+     ============================================================ */
   function scoreArticleForQuery(article, keywords){
     if (!keywords.length) return article._score || 0;
+
     var title = (article.title || "").toLowerCase();
     var desc = (article.desc || "").toLowerCase();
     var cat = (article.cat || "").toLowerCase();
+    var combined = title + " " + desc + " " + cat;
+
     var score = 0;
+    var matches = 0;
+
     keywords.forEach(function(kw){
-      if (title.indexOf(kw) >= 0) score += 15;
-      if (desc.indexOf(kw) >= 0) score += 5;
-      if (cat.indexOf(kw) >= 0) score += 8;
+      if (!kw || kw.length < 3) return;
+
+      if (title.indexOf(kw) >= 0) { score += 25; matches++; }
+      else if (desc.indexOf(kw) >= 0) { score += 8; matches++; }
+      else if (cat.indexOf(kw) >= 0) { score += 15; matches++; }
     });
+
+    // Bonus als er meerdere treffers zijn (relevantie)
+    if (matches >= 3) score += 20;
+    else if (matches >= 2) score += 10;
+
+    // Basis-belangrijkheid
     score += Math.min(article._score || 0, 50) * 0.3;
+
     return score;
   }
 
+  /* ============================================================
+     Bouw artikel-context (met source-diversiteit)
+     ============================================================ */
   function buildArticleContext(userQuestion){
     try {
       if (!window.State || !State.items || !State.items.length) return [];
+
       var keywords = extractKeywords(userQuestion);
-      LOG("Keywords:", keywords.slice(0, 8).join(", "));
+      LOG("Keywords:", keywords.slice(0, 10).join(", "));
+
       var scored = State.items.map(function(it){
-        return { item: it, relevance: scoreArticleForQuery(it, keywords) };
+        return {
+          item: it,
+          relevance: scoreArticleForQuery(it, keywords)
+        };
       });
+
       scored.sort(function(a, b){ return b.relevance - a.relevance; });
-      var selected = scored.slice(0, MAX_ARTICLES).map(function(s){ return s.item; });
+
+      // Source-diversiteit: max 2 artikelen per bron
+      var sourceCount = {};
+      var selected = [];
+      for (var i = 0; i < scored.length && selected.length < MAX_ARTICLES; i++){
+        var item = scored[i].item;
+        var src = item.source || "?";
+        sourceCount[src] = (sourceCount[src] || 0);
+        if (sourceCount[src] < 2){
+          sourceCount[src]++;
+          selected.push(item);
+        }
+      }
+
       return selected.map(function(it){
         return {
           title: it.title || "",
-          desc: (it.desc || "").slice(0, 600),
+          desc: (it.desc || "").slice(0, 400),
           source: it.source || "",
           cat: it.cat || "",
           date: it.date || "",
@@ -149,7 +211,7 @@
             '<button class="ai-sugg" data-q="Wat is het belangrijkste nieuws vandaag?">Belangrijkste nieuws vandaag</button>' +
             '<button class="ai-sugg" data-q="Vat het nieuws over het Midden-Oosten samen">Midden-Oosten samenvatting</button>' +
             '<button class="ai-sugg" data-q="Wat gebeurt er in Nederland?">Nederland vandaag</button>' +
-            '<button class="ai-sugg" data-q="Wat is de Straat van Hormuz en waarom is het belangrijk?">Wat is de Straat van Hormuz?</button>' +
+            '<button class="ai-sugg" data-q="Wat gebeurt er in Marokko?">Marokko update</button>' +
           '</div>' +
         '</div>';
       bindSuggestions();
@@ -180,7 +242,7 @@
         html += '<div class="ai-msg-actions">';
         html += '<button class="ai-action-btn" data-action="copy" data-idx="' + idx + '" title="Kopieer">📋</button>';
         if (idx === lastAiIndex && !AI.sending){
-          html += '<button class="ai-action-btn" data-action="regenerate" data-idx="' + idx + '" title="Opnieuw genereren">🔄</button>';
+          html += '<button class="ai-action-btn" data-action="regenerate" data-idx="' + idx + '" title="Opnieuw">🔄</button>';
         }
         html += '</div>';
       }
@@ -226,8 +288,7 @@
       html += '<span class="ai-source-title">' + esc(title) + '</span>';
       html += (link ? '</a>' : '</div>');
     });
-    html += '</div>';
-    html += '</details>';
+    html += '</div></details>';
     return html;
   }
 
@@ -275,9 +336,6 @@
     });
   }
 
-  /* ============================================================
-     Copy + Regenerate
-     ============================================================ */
   function copyMessage(idx, btn){
     var msg = AI.history[idx];
     if (!msg || !msg.text) return;
@@ -313,23 +371,40 @@
     var userText = AI.history[userIdx].text;
     AI.history = AI.history.slice(0, userIdx);
     renderMessages();
-
     setTimeout(function(){ sendMessage(userText); }, 50);
   }
 
+  function saveHistory(){
+    try {
+      var toSave = AI.history.slice(-STORAGE_MAX_MSGS);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+    } catch(e){ LOG("Kon geschiedenis niet opslaan:", e.message); }
+  }
+
+  function loadHistory(){
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length){
+        AI.history = parsed.slice(-STORAGE_MAX_MSGS);
+        LOG("Geschiedenis hersteld:", AI.history.length, "berichten");
+      }
+    } catch(e){ LOG("Kon geschiedenis niet laden:", e.message); }
+  }
+
+  function clearHistoryStorage(){
+    try { localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  }
+
   /* ============================================================
-     Fetch — geen retry, Worker doet de fallback
+     Fetch
      ============================================================ */
   async function fetchWithRetry(url, options){
-    var lastStatus = 0;
-    var lastText = "";
     for (var i = 0; i < CLIENT_RETRIES; i++){
       try {
         var r = await fetch(url, options);
-        if (r.ok) return r;
-        lastStatus = r.status;
-        lastText = await r.text();
-        return new Response(lastText, { status: lastStatus });
+        return r;
       } catch(e){
         LOG("Fetch fout:", e.message);
         if (i < CLIENT_RETRIES - 1){
@@ -339,31 +414,22 @@
         throw e;
       }
     }
-    return new Response(lastText, { status: lastStatus });
   }
 
-  /* ============================================================
-     Bericht sturen
-     ============================================================ */
   async function sendMessage(text){
     if (AI.sending) return;
     if (!text || !text.trim()) return;
 
     var message = text.trim();
     AI.history.push({ role: "user", text: message });
-    if (AI.history.length > 80){
-      AI.history = AI.history.slice(-80);
-    }
+    if (AI.history.length > 80) AI.history = AI.history.slice(-80);
     saveHistory();
 
     AI.sending = true;
     renderMessages();
 
     var input = $("aiInput");
-    if (input){
-      input.value = "";
-      input.style.height = "auto";
-    }
+    if (input){ input.value = ""; input.style.height = "auto"; }
     var sendBtn = $("aiSendBtn");
     if (sendBtn) sendBtn.disabled = true;
 
@@ -388,6 +454,9 @@
         try {
           var errData = JSON.parse(errText);
           if (errData.error) friendly = errData.error;
+          if (errData.attempts && errData.attempts.length){
+            LOG("Worker attempts:", errData.attempts.join(" | "));
+          }
         } catch(e){}
         throw new Error(friendly);
       }
@@ -398,11 +467,7 @@
       var responseText = data.response || "(geen antwoord)";
 
       var sources = articles.slice(0, 5).map(function(a){
-        return {
-          title: a.title,
-          link: a.link,
-          source: a.source
-        };
+        return { title: a.title, link: a.link, source: a.source };
       });
 
       AI.history.push({
@@ -413,9 +478,7 @@
         model: data.model || ""
       });
 
-      if (AI.history.length > 80){
-        AI.history = AI.history.slice(-80);
-      }
+      if (AI.history.length > 80) AI.history = AI.history.slice(-80);
       saveHistory();
       LOG("Antwoord via", data.provider || "?", "/", data.model || "?");
 
@@ -423,7 +486,7 @@
       LOG("Fout:", e.message);
       AI.history.push({
         role: "ai",
-        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 60 seconden opnieuw.",
+        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
         error: true
       });
       saveHistory();
@@ -434,9 +497,6 @@
     }
   }
 
-  /* ============================================================
-     Wissen
-     ============================================================ */
   function clearChat(){
     if (!AI.history.length) return;
     if (!confirm("Gesprek wissen?")) return;
@@ -445,9 +505,6 @@
     renderMessages();
   }
 
-  /* ============================================================
-     UI
-     ============================================================ */
   function bindUI(){
     var input = $("aiInput");
     var sendBtn = $("aiSendBtn");
@@ -472,9 +529,7 @@
       });
     }
 
-    if (clearBtn){
-      clearBtn.addEventListener("click", clearChat);
-    }
+    if (clearBtn) clearBtn.addEventListener("click", clearChat);
   }
 
   function init(){
@@ -490,7 +545,9 @@
     init: init,
     send: sendMessage,
     clear: clearChat,
-    state: AI
+    state: AI,
+    _extractKeywords: extractKeywords,
+    _buildArticleContext: buildArticleContext
   };
 
   function setupWatcher(){
@@ -520,5 +577,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.4 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.5 geladen");
 })();
