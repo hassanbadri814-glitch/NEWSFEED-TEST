@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK v13.0 — Ronde verversingsknop + EventBus
+   WAR DESK v13.1 — Ronde verversingsknop + EventBus
    - FIX v12.1: wdLog
    - FIX v12.2: E3 _wrapped guard robuuster
    - FIX v13.0: monkey-patch verwijderd → EventBus listeners
+   - FIX v13.1: A.4 — CustomEvent fallback verwijderd
    ============================================================ */
 
 (function(){
@@ -96,7 +97,7 @@
     }
 
     /* ============================================================
-       v13.0: EventBus listeners (geen monkey-patch meer)
+       v13.1: EventBus listeners (geen monkey-patch, geen CustomEvent)
        ============================================================ */
 
     function handleProgress(pct){
@@ -119,7 +120,6 @@
       tickUpdate();
     }
 
-    // Voorkeur: EventBus
     if(window.WarDesk && WarDesk.events && WarDesk.events.on){
       WarDesk.events.on("news:progress", function(d){
         if(d && typeof d.pct === "number") handleProgress(d.pct);
@@ -133,14 +133,7 @@
       });
       wdLog.info("[WAR DESK] refresh-v12: EventBus listeners actief");
     } else {
-      // Fallback: oude CustomEvent
-      document.addEventListener("wardesk:feedprogress", function(e){
-        var d = e.detail || {};
-        var pct = typeof d.pct === "number" ? d.pct : 0;
-        if(d.done){ handleDone(); }
-        else { handleProgress(pct); }
-      });
-      wdLog.warn("[WAR DESK] refresh-v12: EventBus niet beschikbaar — val terug op CustomEvent");
+      wdLog.warn("[WAR DESK] refresh-v12: EventBus ontbreekt — progress ring werkt niet");
     }
 
     function doRefresh(){
