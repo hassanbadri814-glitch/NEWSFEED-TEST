@@ -26,7 +26,58 @@ html.light {
   --ink:#131721; --ink-2:#4a5165; --ink-3:#7a8295;
 }
 
-html[data-oled="true"] {
+html[data-oled="true"] {/* ============================================================
+   v14.4 — Regels verplaatst uit index.html inline style
+   ============================================================ */
+
+/* Font-size schaal */
+html[data-font-size="small"]  { font-size: 14px; }
+html[data-font-size="medium"] { font-size: 16px; }
+html[data-font-size="large"]  { font-size: 18px; }
+html[data-font-size="xlarge"] { font-size: 20px; }
+
+/* Accentkleuren */
+html[data-accent="goud"]    { --amber:#e0a857; --amber-2:#f0c78a; --amber-3:#8a5c26; --accent-glow:rgba(224,168,87,.35); }
+html[data-accent="saffier"] { --amber:#5b9dff; --amber-2:#93c2ff; --amber-3:#1e40af; --accent-glow:rgba(91,157,255,.35); }
+html[data-accent="smaragd"] { --amber:#2dd4a8; --amber-2:#6ee7c8; --amber-3:#065f46; --accent-glow:rgba(45,212,168,.35); }
+html[data-accent="kobalt"]  { --amber:#8b7fff; --amber-2:#b3aaff; --amber-3:#3a2a99; --accent-glow:rgba(139,127,255,.35); }
+html[data-accent="koraal"]  { --amber:#ff6b7a; --amber-2:#ff9ba6; --amber-3:#991b2c; --accent-glow:rgba(255,107,122,.35); }
+html[data-accent="parel"]   { --amber:#e8eaf0; --amber-2:#ffffff; --amber-3:#6b7280; --accent-glow:rgba(232,234,240,.35); }
+
+/* SVG-formaat */
+svg { max-width:100%; max-height:100%; flex-shrink:0; }
+.map-ctrl svg, .iptv-btn svg, .brand-mark svg { width:18px; height:18px; }
+.brand-mark svg { width:22px; height:22px; }
+
+/* Refresh-knop */
+.btn-refresh { position:relative; width:40px; height:40px; border-radius:50%; background:linear-gradient(180deg,var(--bg-3),var(--bg-2)); border:1px solid var(--line-2); color:var(--ink-2); display:grid; place-items:center; cursor:pointer; transition:all .18s; padding:0; }
+.btn-refresh:hover { border-color:var(--amber); color:var(--amber); }
+.btn-refresh:active { transform:scale(.92); }
+.btn-refresh:disabled { cursor:default; opacity:.9; }
+.btn-refresh .refresh-ring { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.btn-refresh .refresh-progress { transition:stroke-dashoffset .25s cubic-bezier(.4,.9,.6,1); }
+.btn-refresh .refresh-icon { position:relative; z-index:1; width:18px; height:18px; }
+.btn-refresh.loading .refresh-icon { animation:spin .8s linear infinite; }
+.btn-refresh.loading { color:var(--amber); border-color:var(--amber); }
+.btn-refresh.done { color:#2dd4a8; border-color:#2dd4a8; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Debug panel */
+#wdDebugBtn, #wdDebugPanel { display: none !important; }
+html.wd-debug-on #wdDebugBtn{display:grid !important;position:fixed;bottom:80px;right:15px;z-index:9999999;width:44px;height:44px;border-radius:50%;background:#e63950;color:#fff;border:2px solid #fff;font-size:1.2rem;font-weight:800;box-shadow:0 4px 14px rgba(0,0,0,.6);cursor:pointer;place-items:center;font-family:monospace}
+html.wd-debug-on #wdDebugPanel.show{display:block !important;position:fixed;inset:0;z-index:99999999;background:rgba(0,0,0,.95);color:#0f0;font-family:monospace;font-size:11px;padding:1rem;overflow-y:auto;line-height:1.5}
+#wdDebugPanel .head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem;padding-bottom:.5rem;border-bottom:1px solid #333;position:sticky;top:0;background:rgba(0,0,0,.95);z-index:1}
+#wdDebugPanel h2{color:#e0a857;font-size:14px;margin:0}
+#wdDebugPanel .close{background:#e63950;color:#fff;border:none;padding:.4rem .8rem;border-radius:6px;font-family:monospace;font-weight:700;cursor:pointer}
+#wdDebugPanel .entry{padding:.5rem;margin-bottom:.4rem;border-left:3px solid #0f0;background:rgba(255,255,255,.03);word-break:break-all;white-space:pre-wrap}
+#wdDebugPanel .entry.err{border-left-color:#e63950;color:#ff7b8b}
+#wdDebugPanel .entry.warn{border-left-color:#f59e0b;color:#f0c78a}
+#wdDebugPanel .entry.info{border-left-color:#3b82f6;color:#8ab4f8}
+#wdDebugPanel .entry.ok{border-left-color:#10b981;color:#5eead4}
+#wdDebugPanel .time{color:#666;font-size:10px;display:block;margin-bottom:.2rem}
+#wdDebugPanel .empty{color:#666;text-align:center;padding:2rem 1rem}
+#wdDebugPanel .actions{padding:.5rem;background:#111;border-radius:6px;margin-bottom:.8rem;display:flex;gap:.5rem;flex-wrap:wrap}
+#wdDebugPanel .actions button{background:#333;color:#fff;border:none;padding:.4rem .7rem;border-radius:4px;font-family:monospace;font-size:10px;cursor:pointer}
   --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808;
   --card-hover:#141414; --line:#141414; --line-2:#242424;
 }
