@@ -819,3 +819,198 @@ html.light .map-legend { background: rgba(255,255,255,.95); border-color: rgba(0
   .vod-detail-modal { background: rgba(0,0,0,0.92) !important; }
   .iptv-groups-panel { background: rgba(0,0,0,0.88) !important; }
 }
+/* ============================================================
+   v14.5 — AI Chat
+   ============================================================ */
+
+.ai-chat {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 220px);
+  min-height: 400px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+
+.ai-msg {
+  max-width: 85%;
+  padding: .65rem .9rem;
+  border-radius: 14px;
+  font-size: .88rem;
+  line-height: 1.5;
+  word-wrap: break-word;
+}
+
+.ai-msg-user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--amber-2), var(--amber-3));
+  color: #070c16;
+  border-bottom-right-radius: 4px;
+}
+
+.ai-msg-ai {
+  align-self: flex-start;
+  background: var(--bg-3);
+  color: var(--ink);
+  border: 1px solid var(--line-2);
+  border-bottom-left-radius: 4px;
+}
+
+.ai-msg-label {
+  font-size: .68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  opacity: .7;
+  margin-bottom: .25rem;
+}
+
+.ai-msg-user .ai-msg-label { color: rgba(7,12,22,.7); }
+.ai-msg-ai .ai-msg-label { color: var(--amber); }
+
+.ai-msg-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-msg-loading { opacity: .8; }
+
+.ai-typing {
+  display: inline-flex;
+  gap: .25rem;
+  align-items: center;
+  padding: .35rem 0;
+}
+
+.ai-typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: aiTyping 1.2s infinite;
+}
+.ai-typing span:nth-child(2) { animation-delay: .2s; }
+.ai-typing span:nth-child(3) { animation-delay: .4s; }
+
+@keyframes aiTyping {
+  0%, 60%, 100% { transform: translateY(0); opacity: .4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.ai-welcome {
+  text-align: center;
+  padding: 2rem 1rem;
+  color: var(--ink-3);
+}
+
+.ai-welcome-icon {
+  font-size: 3rem;
+  margin-bottom: .5rem;
+}
+
+.ai-welcome-title {
+  font-family: "Playfair Display", serif;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: .5rem;
+}
+
+.ai-welcome-text {
+  font-size: .85rem;
+  line-height: 1.5;
+  max-width: 320px;
+  margin: 0 auto 1.5rem;
+}
+
+.ai-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.ai-sugg {
+  padding: .65rem .9rem;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  border-radius: 10px;
+  color: var(--ink-2);
+  font-size: .82rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+}
+
+.ai-sugg:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+  transform: translateY(-1px);
+}
+
+.ai-input-wrap {
+  display: flex;
+  gap: .5rem;
+  padding: .75rem;
+  background: var(--bg-2);
+  border-top: 1px solid var(--line);
+  align-items: flex-end;
+}
+
+.ai-input-wrap textarea {
+  flex: 1;
+  resize: none;
+  padding: .65rem .85rem;
+  background: var(--bg-3);
+  border: 1px solid var(--line-2);
+  color: var(--ink);
+  border-radius: 12px;
+  font-size: .88rem;
+  font-family: inherit;
+  outline: none;
+  max-height: 100px;
+  line-height: 1.4;
+}
+
+.ai-input-wrap textarea:focus {
+  border-color: var(--amber);
+}
+
+.ai-send-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber-2), var(--amber-3));
+  color: #070c16;
+  border: none;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: all .15s;
+}
+
+.ai-send-btn:hover { filter: brightness(1.1); }
+.ai-send-btn:active { transform: scale(.92); }
+.ai-send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .ai-chat { height: calc(100vh - 200px); }
+  .ai-msg { max-width: 90%; }
+}
