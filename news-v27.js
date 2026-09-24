@@ -1,14 +1,15 @@
 /* ============================================================
-   WAR DESK v27.7 — Nieuws Logica + EventBus
+   WAR DESK v27.8 — Nieuws Logica + EventBus
    - FIX v27.5: A1 scroll-jump, A5 translation limiet, A6 quota
    - FIX v27.6: C1 quota prune, C2 score refresh, C3 health load, C4 tags sync
-   - FIX v27.7: EventBus notificaties (news:loaded, news:progress, etc.)
+   - FIX v27.7: EventBus notificaties
+   - FIX v27.8: A.4 — CustomEvent verwijderd, alleen EventBus
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.7";
+  window.__newsVersion = "v27.8";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -33,10 +34,6 @@
 
   const emitProgress = (pct, done) => {
     var detail = { pct: Math.max(0, Math.min(100, Math.round(pct))), done: !!done };
-    try{
-      document.dispatchEvent(new CustomEvent("wardesk:feedprogress", { detail: detail }));
-    }catch(e){}
-    // Nieuw v27.7: ook via WarDesk EventBus
     try{
       if(window.WarDesk && WarDesk.events){
         WarDesk.events.emit(done ? "news:progress:done" : "news:progress", detail);
@@ -698,7 +695,6 @@
   // ==================== LOAD ALL FEEDS ====================
   async function loadAllFeeds(){
     const session = ++state.loadSession;
-    // Nieuw v27.7: EventBus notificatie
     try{
       if(window.WarDesk && WarDesk.events){
         WarDesk.events.emit("news:reload:start", { session: session });
@@ -839,7 +835,6 @@
       wdLog.warn(`loadAllFeeds klaar - 0 items uit ${state.loadedSources}/${state.totalSources} bronnen`);
     }
 
-    // Nieuw v27.7: EventBus notificatie dat alles klaar is
     try{
       if(window.WarDesk && WarDesk.events){
         WarDesk.events.emit("news:loaded", {
