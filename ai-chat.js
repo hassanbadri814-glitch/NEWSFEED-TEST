@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v1.0 — AI Chat Module
-   - Chat interface met Gemini via Cloudflare Worker
-   - Gebruikt State.items als context
+   WAR DESK v1.1 — AI Chat Module
+   - Slimmere artikel-selectie op basis van vraag-keywords
+   - Datum-context meesturen
+   - Volledige artikel-tekst (500-800 chars)
    ============================================================ */
 
 (function(){
@@ -9,15 +10,32 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.0 geladen");
+  LOG("v1.1 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
-  var MAX_ARTICLES = 15;
+  var MAX_ARTICLES = 10;
 
   var AI = {
     initialized: false,
     sending: false,
     history: []
+  };
+
+  // Nederlandse + Engelse stopwoorden
+  var STOPWORDS = {
+    "de":1,"het":1,"een":1,"en":1,"of":1,"maar":1,"dus":1,"want":1,"omdat":1,
+    "als":1,"dan":1,"ook":1,"nog":1,"al":1,"maar":1,"wel":1,"niet":1,"geen":1,
+    "wat":1,"wie":1,"waar":1,"wanneer":1,"waarom":1,"hoe":1,"welke":1,
+    "is":1,"was":1,"zijn":1,"wordt":1,"worden":1,"kan":1,"kunnen":1,"zal":1,
+    "heeft":1,"hebben":1,"had":1,"hadden":1,"doet":1,"doen":1,"deed":1,
+    "er":1,"daar":1,"hier":1,"dit":1,"dat":1,"deze":1,"die":1,
+    "ik":1,"jij":1,"je":1,"hij":1,"zij":1,"ze":1,"wij":1,"we":1,"jullie":1,
+    "mij":1,"mijn":1,"jouw":1,"uw":1,"ons":1,"onze":1,
+    "in":1,"op":1,"aan":1,"bij":1,"van":1,"voor":1,"met":1,"naar":1,"uit":1,
+    "over":1,"onder":1,"tussen":1,"tegen":1,"zonder":1,"tijdens":1,"na":1,"voor":1,
+    "the":1,"a":1,"an":1,"is":1,"are":1,"was":1,"were":1,"and":1,"or":1,"but":1,
+    "what":1,"who":1,"where":1,"when":1,"why":1,"how":1,"which":1,
+    "this":1,"that":1,"these":1,"those":1,"i":1,"you":1,"he":1,"she":1,"we":1,"they":1
   };
 
   function esc(s){
@@ -26,22 +44,78 @@
     });
   }
 
-  function buildArticleContext(){
+  function extractKeywords(text){
+    if (!text) return [];
+    var words = String(text).toLowerCase()
+      .replace(/[^\w\sàáâãäåçèéêëìíîïñòóôõöùúûüýÿ]/gi, " ")
+      .split(/\s+/)
+      .filter(function(w){
+        return w.length >= 3 && !STOPWORDS[w];
+      });
+    // Unieke woorden
+    var seen = {};
+    var out = [];
+    words.forEach(function(w){
+      if (!seen[w]){ seen[w] = 1; out.push(w); }
+    });
+    return out;
+  }
+
+  function scoreArticleForQuery(article, keywords){
+    if (!keywords.length) return article._score || 0;
+
+    var title = (article.title || "").toLowerCase();
+    var desc = (article.desc || "").toLowerCase();
+    var cat = (article.cat || "").toLowerCase();
+    var score = 0;
+
+    keywords.forEach(function(kw){
+      if (title.indexOf(kw) >= 0) score += 15;
+      if (desc.indexOf(kw) >= 0) score += 5;
+      if (cat.indexOf(kw) >= 0) score += 8;
+    });
+
+    // Baseline-belangrijkheid erbij
+    score += Math.min(article._score || 0, 50) * 0.3;
+
+    return score;
+  }
+
+  function buildArticleContext(userQuestion){
     try {
       if (!window.State || !State.items || !State.items.length) return [];
-      var sorted = State.items.slice().sort(function(a, b){
-        return (b._score || 0) - (a._score || 0);
+
+      var keywords = extractKeywords(userQuestion);
+      LOG("Keywords uit vraag:", keywords.slice(0, 8).join(", "));
+
+      var scored = State.items.map(function(it){
+        return {
+          item: it,
+          relevance: scoreArticleForQuery(it, keywords)
+        };
       });
-      return sorted.slice(0, MAX_ARTICLES).map(function(it){
+
+      scored.sort(function(a, b){
+        return b.relevance - a.relevance;
+      });
+
+      // Als de vraag keywords heeft: gebruik relevantie
+      // Als geen keywords: gebruik de standaard top-score
+      var selected = scored.slice(0, MAX_ARTICLES).map(function(s){
+        return s.item;
+      });
+
+      return selected.map(function(it){
         return {
           title: it.title || "",
-          desc: (it.desc || "").slice(0, 250),
+          desc: (it.desc || "").slice(0, 600),
           source: it.source || "",
           cat: it.cat || "",
           date: it.date || ""
         };
       });
     } catch(e){
+      LOG("buildArticleContext fout:", e.message);
       return [];
     }
   }
@@ -55,12 +129,12 @@
         '<div class="ai-welcome">' +
           '<div class="ai-welcome-icon">🤖</div>' +
           '<div class="ai-welcome-title">WAR DESK AI</div>' +
-          '<div class="ai-welcome-text">Stel een vraag over het nieuws. Ik gebruik de nieuwste artikelen uit jouw feed om antwoord te geven.</div>' +
+          '<div class="ai-welcome-text">Stel een vraag over het nieuws, of vraag om uitleg over een onderwerp. Ik gebruik jouw nieuwsfeed als context.</div>' +
           '<div class="ai-suggestions">' +
             '<button class="ai-sugg" data-q="Wat is het belangrijkste nieuws vandaag?">Belangrijkste nieuws vandaag</button>' +
             '<button class="ai-sugg" data-q="Vat het nieuws over het Midden-Oosten samen">Midden-Oosten samenvatting</button>' +
             '<button class="ai-sugg" data-q="Wat gebeurt er in Nederland?">Nederland vandaag</button>' +
-            '<button class="ai-sugg" data-q="Wat is er in Gaza gebeurd?">Gaza update</button>' +
+            '<button class="ai-sugg" data-q="Wat is de Straat van Hormuz en waarom is het belangrijk?">Wat is de Straat van Hormuz?</button>' +
           '</div>' +
         '</div>';
       bindSuggestions();
@@ -73,7 +147,7 @@
       var roleLabel = msg.role === "user" ? "Jij" : "AI";
       html += '<div class="ai-msg ' + roleClass + '">';
       html += '<div class="ai-msg-label">' + roleLabel + '</div>';
-      html += '<div class="ai-msg-text">' + esc(msg.text).replace(/\n/g, "<br>") + '</div>';
+      html += '<div class="ai-msg-text">' + renderMarkdown(msg.text) + '</div>';
       html += '</div>';
     });
 
@@ -86,6 +160,26 @@
 
     container.innerHTML = html;
     scrollToBottom();
+  }
+
+  // Simpele markdown-renderer voor AI-antwoorden
+  function renderMarkdown(text){
+    var s = esc(text || "");
+    // Code blocks ```code```
+    s = s.replace(/```([\s\S]*?)```/g, '<code>$1</code>');
+    // Koppen ### / ## / #
+    s = s.replace(/^### (.+)$/gm, '<strong style="display:block;margin:.5rem 0 .25rem;color:var(--amber)">$1</strong>');
+    s = s.replace(/^## (.+)$/gm, '<strong style="display:block;margin:.5rem 0 .25rem;color:var(--amber);font-size:1.05em">$1</strong>');
+    s = s.replace(/^# (.+)$/gm, '<strong style="display:block;margin:.5rem 0 .25rem;color:var(--amber);font-size:1.1em">$1</strong>');
+    // Vet **tekst**
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Cursief *tekst*
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    // Lijsten - of *
+    s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<span style="display:block;padding-left:1rem;text-indent:-1rem">• $1</span>');
+    // Nieuwe regels
+    s = s.replace(/\n/g, "<br>");
+    return s;
   }
 
   function scrollToBottom(){
@@ -128,8 +222,8 @@
     if (sendBtn) sendBtn.disabled = true;
 
     try {
-      var articles = buildArticleContext();
-      LOG("Verstuur:", message.slice(0, 50) + "...", "met", articles.length, "artikelen");
+      var articles = buildArticleContext(message);
+      LOG("Verstuur met", articles.length, "artikelen");
 
       var r = await fetch(WORKER_URL, {
         method: "POST",
@@ -137,13 +231,24 @@
         body: JSON.stringify({
           message: message,
           articles: articles,
-          history: AI.history.slice(-6)
+          history: AI.history.slice(-6),
+          clientDate: new Date().toISOString()
         })
       });
 
       if (!r.ok){
         var errText = await r.text();
-        throw new Error("HTTP " + r.status + ": " + errText.slice(0, 100));
+        var friendly = "Er ging iets mis bij de AI.";
+        try {
+          var errData = JSON.parse(errText);
+          if (errData.error) friendly = errData.error;
+          if (r.status === 503 || (errData.detail && errData.detail.indexOf("503") >= 0)){
+            friendly = "De AI is even druk. Wacht 30 seconden en probeer opnieuw.";
+          } else if (r.status === 429){
+            friendly = "Te veel vragen in korte tijd. Wacht even en probeer opnieuw.";
+          }
+        } catch(e){}
+        throw new Error(friendly);
       }
 
       var data = await r.json();
@@ -151,13 +256,13 @@
 
       var responseText = data.response || "(geen antwoord)";
       AI.history.push({ role: "ai", text: responseText });
-      LOG("Antwoord ontvangen");
+      LOG("Antwoord ontvangen van", data.model || "?");
 
     } catch(e) {
       LOG("Fout:", e.message);
       AI.history.push({
         role: "ai",
-        text: "⚠️ Er is een fout opgetreden: " + (e.message || "onbekende fout") + "\n\nControleer je internetverbinding en probeer opnieuw."
+        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nControleer je internet en probeer opnieuw."
       });
     } finally {
       AI.sending = false;
@@ -244,5 +349,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.0 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.1 geladen");
 })();
