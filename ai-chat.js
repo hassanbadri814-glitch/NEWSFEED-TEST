@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK v1.3 — AI Chat Module
-   - v1.2 basis (slimme selectie, markdown, retry)
-   - v1.3: Geschiedenis opslaan (localStorage)
-           Bronlinks tonen per AI-antwoord
-           Kopieer + Opnieuw knoppen
+   WAR DESK v1.4 — AI Chat Module
+   - v1.3 basis (geschiedenis, bronlinks, knoppen)
+   - v1.4: Client retry uit (Worker handelt fallback af)
    ============================================================ */
 
 (function(){
@@ -11,11 +9,11 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.3 geladen");
+  LOG("v1.4 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 10;
-  var CLIENT_RETRIES = 2;
+  var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
   var STORAGE_MAX_MSGS = 40;
 
@@ -174,12 +172,10 @@
       html += '<div class="ai-msg-label">' + roleLabel + '</div>';
       html += '<div class="ai-msg-text">' + renderMarkdown(msg.text) + '</div>';
 
-      // Bronnen (alleen voor AI-antwoorden die niet error zijn)
       if (msg.role === "ai" && msg.sources && msg.sources.length){
         html += renderSources(msg.sources);
       }
 
-      // Actieknoppen (alleen voor AI-antwoorden)
       if (msg.role === "ai" && !msg.error){
         html += '<div class="ai-msg-actions">';
         html += '<button class="ai-action-btn" data-action="copy" data-idx="' + idx + '" title="Kopieer">📋</button>';
@@ -205,7 +201,6 @@
   }
 
   function renderSources(sources){
-    // Verwijder dubbele (zelfde link)
     var seen = {};
     var unique = [];
     sources.forEach(function(s){
@@ -298,7 +293,6 @@
         if (window.showToast) window.showToast("Kopiëren mislukt");
       });
     } else {
-      // Fallback voor oudere browsers
       var ta = document.createElement("textarea");
       ta.value = msg.text;
       document.body.appendChild(ta);
@@ -310,7 +304,6 @@
 
   function regenerateMessage(aiIdx){
     if (AI.sending) return;
-    // Zoek de user message vóór deze AI message
     var userIdx = -1;
     for (var i = aiIdx - 1; i >= 0; i--){
       if (AI.history[i].role === "user"){ userIdx = i; break; }
@@ -318,16 +311,14 @@
     if (userIdx < 0) return;
 
     var userText = AI.history[userIdx].text;
-    // Verwijder alles vanaf de user message (inclusief oude AI antwoord)
     AI.history = AI.history.slice(0, userIdx);
     renderMessages();
 
-    // Verstuur opnieuw (sendMessage voegt user + AI opnieuw toe)
     setTimeout(function(){ sendMessage(userText); }, 50);
   }
 
   /* ============================================================
-     Fetch met retry
+     Fetch — geen retry, Worker doet de fallback
      ============================================================ */
   async function fetchWithRetry(url, options){
     var lastStatus = 0;
@@ -338,17 +329,11 @@
         if (r.ok) return r;
         lastStatus = r.status;
         lastText = await r.text();
-        if ((r.status === 502 || r.status === 503 || r.status === 429) && i < CLIENT_RETRIES - 1){
-          var wait = 2500 * (i + 1);
-          LOG("Poging " + (i+1) + " faalde (" + r.status + "), opnieuw in " + wait + "ms");
-          await new Promise(function(res){ setTimeout(res, wait); });
-          continue;
-        }
         return new Response(lastText, { status: lastStatus });
       } catch(e){
-        LOG("Fetch fout (poging " + (i+1) + "):", e.message);
+        LOG("Fetch fout:", e.message);
         if (i < CLIENT_RETRIES - 1){
-          await new Promise(function(res){ setTimeout(res, 2500 * (i + 1)); });
+          await new Promise(function(res){ setTimeout(res, 2000); });
           continue;
         }
         throw e;
@@ -412,7 +397,6 @@
 
       var responseText = data.response || "(geen antwoord)";
 
-      // Bewaar top 5 bronnen die relevant zijn
       var sources = articles.slice(0, 5).map(function(a){
         return {
           title: a.title,
@@ -439,7 +423,7 @@
       LOG("Fout:", e.message);
       AI.history.push({
         role: "ai",
-        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
+        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 60 seconden opnieuw.",
         error: true
       });
       saveHistory();
@@ -536,5 +520,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.3 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.4 geladen");
 })();
