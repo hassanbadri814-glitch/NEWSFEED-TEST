@@ -765,26 +765,18 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<!-- ==== C2 VERIFICATIE: CACHE CHECK ==== -->
+<!-- ==== C2 VERIFICATIE: CACHE CHECK (ALERT VERSIE) ==== -->
 <script>
 (function(){
   if ('caches' in window) {
     caches.keys().then(function(names) {
       var cacheList = names.join(', ');
-      // Stuur het resultaat naar het Debug Panel (als wdLog beschikbaar is)
-      if (typeof wdLog === 'function') {
-        wdLog.info('[C2 CHECK] Actieve caches: ' + cacheList);
-      } else {
-        // Fallback als wdLog nog niet geladen is
-        setTimeout(function(){
-          if (typeof wdLog === 'function') wdLog.info('[C2 CHECK] Actieve caches: ' + cacheList);
-        }, 1000);
-      }
+      alert('[C2 CHECK] Actieve caches: ' + cacheList);
     }).catch(function(err) {
-      if (typeof wdLog === 'function') wdLog.warn('[C2 CHECK] Fout bij ophalen caches: ' + err.message);
+      alert('[C2 CHECK] Fout bij ophalen caches: ' + err.message);
     });
   } else {
-    if (typeof wdLog === 'function') wdLog.warn('[C2 CHECK] Cache API niet ondersteund in deze browser.');
+    alert('[C2 CHECK] Cache API niet ondersteund in deze browser.');
   }
 })();
 </script>
