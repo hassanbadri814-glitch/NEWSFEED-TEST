@@ -1,18 +1,13 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.0
+   WAR DESK — ai-ui.js v1.1
    AI Fase 1 Orchestrator
-   - Luistert naar news:loaded + state:items
-   - Polling fallback (bulletproof tegen event-timing)
-   - Roept TrendingEngine + RankingEngine aan
-   - Rendert trending-balk
-   - Herordent feed (scroll-safe)
-   - Trackt kliks
+   - v1.1: DEBOUNCE — wacht tot feed "stabiel" is voor trigger
+   - Fix: "undefined items" → Object.keys(used).length
    ============================================================ */
 
 (function(){
   "use strict";
 
-  // ============ HELPERS ============
   function getBus() {
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
@@ -68,7 +63,7 @@
     trendingContainer.style.display = "flex";
   }
 
-  // ============ FEED HERORDENEN (scroll-safe) ============
+  // ============ FEED HERORDENEN ============
   var isScrolling = false;
   var scrollTimer = null;
 
@@ -104,18 +99,20 @@
     }
 
     if (!Object.keys(byId).length) {
-      if (window.wdLog) wdLog.warn("[AI-UI] Geen data-article-id in feed — skip reorder");
+      if (window.wdLog) wdLog.warn("[AI-UI] Geen data-article-id in DOM — skip reorder");
       return;
     }
 
     var fragment = document.createDocumentFragment();
     var used = {};
+    var usedCount = 0;
 
     for (var j = 0; j < rankedArticles.length; j++) {
       var aid = String(rankedArticles[j].id || rankedArticles[j].link || "");
       if (aid && byId[aid] && !used[aid]) {
         fragment.appendChild(byId[aid]);
         used[aid] = true;
+        usedCount++;
       }
     }
     for (var k = 0; k < children.length; k++) {
@@ -123,12 +120,13 @@
       if (kid && !used[kid]) {
         fragment.appendChild(children[k]);
         used[kid] = true;
+        usedCount++;
       }
     }
 
     while (feed.firstChild) feed.removeChild(feed.firstChild);
     feed.appendChild(fragment);
-    if (window.wdLog) wdLog.info("[AI-UI] Feed herordend (" + used.length + " items)");
+    if (window.wdLog) wdLog.info("[AI-UI] Feed herordend (" + usedCount + " items)");
   }
 
   // ============ CLICK TRACKING ============
@@ -156,6 +154,8 @@
     return null;
   }
 
+  var lastTriggeredCount = 0;
+
   function onNewsLoaded(payload) {
     var articles = extractItems(payload);
     if (!articles || !articles.length) {
@@ -165,14 +165,18 @@
     }
     if (!articles || !articles.length) return;
 
+    // Voorkom dubbele triggers voor exact hetzelfde aantal
+    if (articles.length === lastTriggeredCount) return;
+    lastTriggeredCount = articles.length;
+
     if (window.wdLog) wdLog.info("[AI-UI] Trigger met " + articles.length + " artikelen");
 
+    // Trending (heeft eigen throttle)
     if (window.TrendingEngine) {
       window.TrendingEngine.run(articles);
-    } else if (window.wdLog) {
-      wdLog.warn("[AI-UI] TrendingEngine ontbreekt");
     }
 
+    // Ranking + reorder
     if (window.RankingEngine) {
       var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
       idle(function(){
@@ -183,8 +187,6 @@
           });
         });
       }, { timeout: 2000 });
-    } else if (window.wdLog) {
-      wdLog.warn("[AI-UI] RankingEngine ontbreekt");
     }
   }
 
@@ -192,7 +194,7 @@
   function init() {
     var bus = getBus();
     if (!bus) {
-      if (window.wdLog) wdLog.warn("[AI-UI] EventBus niet gevonden — AI UI uit");
+      if (window.wdLog) wdLog.warn("[AI-UI] EventBus niet gevonden");
       return;
     }
 
@@ -202,41 +204,41 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.0 geladen — trending + ranking + click tracking actief");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.1 geladen");
 
     // ============================================================
-    // BULLETPROOF POLLING
-    // Check elke 3 sec of State.items is gevuld/veranderd.
-    // Werkt ongeacht event-timing of payload-structuur.
-    // Stopt automatisch na 2 minuten.
+    // DEBOUNCE POLLING
+    // - Check elke 2 sec of State.items groeit
+    // - Pas triggeren als het aantal 4 sec STABIEL is gebleven
+    // - Dit voorkomt 11x triggeren tijdens progressief laden
     // ============================================================
-    var lastCount = 0;
+    var lastSeenCount = 0;
+    var stableTimer = null;
+    var STABLE_DELAY = 4000; // 4 seconden stilte = klaar
+
     var pollTimer = setInterval(function(){
       try {
         var items = (window.State && Array.isArray(window.State.items)) ? window.State.items : null;
         if (!items || !items.length) return;
-        if (items.length !== lastCount) {
-          lastCount = items.length;
-          if (window.wdLog) wdLog.info("[AI-UI] Poll: " + items.length + " items in State");
-          onNewsLoaded({ items: items });
+
+        if (items.length !== lastSeenCount) {
+          lastSeenCount = items.length;
+          // Reset de stabiliteits-timer
+          if (stableTimer) clearTimeout(stableTimer);
+          stableTimer = setTimeout(function(){
+            if (window.wdLog) wdLog.info("[AI-UI] Feed stabiel op " + lastSeenCount + " items — trigger");
+            onNewsLoaded({ items: window.State.items });
+          }, STABLE_DELAY);
         }
       } catch(e) {
         if (window.wdLog) wdLog.warn("[AI-UI] Poll fout: " + e.message);
       }
-    }, 3000);
+    }, 2000);
 
     setTimeout(function(){
       clearInterval(pollTimer);
-      if (window.wdLog) wdLog.info("[AI-UI] Polling gestopt");
+      if (window.wdLog) wdLog.info("[AI-UI] Polling gestopt (2 min)");
     }, 120000);
-
-    // Direct eerste check (State kan al gevuld zijn)
-    setTimeout(function(){
-      if (window.State && Array.isArray(window.State.items) && window.State.items.length) {
-        lastCount = window.State.items.length;
-        onNewsLoaded({ items: window.State.items });
-      }
-    }, 1500);
   }
 
   if (document.readyState === "loading") {
