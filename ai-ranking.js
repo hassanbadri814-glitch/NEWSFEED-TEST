@@ -69,3 +69,4 @@ export const RankingEngine = (() => {
 
   return { trackClick, trackIgnore, rank };
 })();
+window.RankingEngine = RankingEngine;
