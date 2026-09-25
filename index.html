@@ -674,7 +674,7 @@ document.addEventListener("DOMContentLoaded", function(){
 </script>
 
 <!-- ============================================================
-     EXTERNAL LIBS (Leaflet, MapLibre) — blijven ongewijzigd
+     EXTERNAL LIBS (Leaflet, MapLibre) — ONGEWIJZIGD
      ============================================================ -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
@@ -683,9 +683,11 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <!-- ============================================================
      WAR DESK APP SCRIPTS — LAADVOLGORDE IS KRITIEK
-     - "defer" zorgt dat scripts in volgorde uitgevoerd worden
-     - AI engines MOETEN vóór store.js
-     - ai-ui.js MOET helemaal laatste
+     1. Core
+     2. AI Engines (vóór ai-ui.js)
+     3. State & Feed
+     4. Feature modules
+     5. AI UI Hooks (laatste — luistert naar events)
      ============================================================ -->
 
 <!-- 1. CORE -->
@@ -693,7 +695,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="config.js?v=14.30" defer></script>
 <script src="utils.js?v=14.30" defer></script>
 
-<!-- 2. AI ENGINES (vóór store.js) -->
+<!-- 2. AI ENGINES -->
 <script src="ai-trending.js?v=1.0" defer></script>
 <script src="ai-ranking.js?v=1.0" defer></script>
 
@@ -710,7 +712,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=14.57" defer></script>
 
-<!-- 5. AI UI HOOKS (altijd laatste) -->
+<!-- 5. AI UI HOOKS -->
 <script src="ai-ui.js?v=1.0" defer></script>
 
 <script>
