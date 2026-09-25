@@ -310,7 +310,11 @@ window.FEEDS = [
   {n:"SABA Yemen",lang:"en",cat:"yemen",url:"https://www.saba.ye/en/rsscatfeed14.htm"},
   {n:"Mehr News Iran",lang:"en",cat:"iran",url:"https://en.mehrnews.com/rss"},
   {n:"Middle East Monitor",lang:"en",cat:"gaza",url:"https://www.middleeastmonitor.com/feed/"},
-  {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"}
+  {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"},
+
+  /* ===== TEST: X / Twitter via FxTwitter ===== */
+  {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://fxtwitter.com/ajarabic/feed.xml"},
+  {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://fxtwitter.com/AlArabiya/feed.xml"}
 ];
 
 wdLog.info(`[WAR DESK] config.js ${window.APP_VERSION} geladen — ${window.FEEDS.length} feeds`);
