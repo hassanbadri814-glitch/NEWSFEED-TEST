@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-map.js v1.4
+   WAR DESK — ai-map.js v1.5
+   - v1.5: getEventsSync() voor AI-chat fallback
    - v1.4: max-age filter (skip artikelen > 30 dagen oud)
    - v1.3: getTimestamp pakt JONGSTE datum + hotspot drempel 1
-   - v1.2: Region hotspots
-   - v1.1: Unix timestamp fix
    ============================================================ */
 
 (function(){
@@ -11,7 +10,7 @@
 
   var MAX_EVENTS = 100;
   var MIN_CONFIDENCE = 4;
-  var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // v1.4: 30 dagen
+  var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var MILITARY_KEYWORDS = {
     "raketaanval":1, "raket":1, "raketten":1, "drone":1, "drones":1, "bomaanslag":1,
@@ -296,7 +295,6 @@
       var classification = classifyArticle(article);
       if (!classification) continue;
       var ts = getTimestamp(article) || Date.now();
-      // v1.4: skip artikelen ouder dan 30 dagen
       if (Date.now() - ts > MAX_AGE_MS) { skippedOld++; continue; }
       var subtype = classification.subtype;
       var loc = classification.location;
@@ -328,34 +326,21 @@
 
   function calculateHotspots(events) {
     if (!events || !events.length) return [];
-
     var now = Date.now();
     var dayAgo = now - 24 * 60 * 60 * 1000;
-
     var byCountry = {};
-    var allRecent = [];
-
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
       var t = new Date(e.date).getTime();
       if (t < dayAgo) continue;
-      allRecent.push(e);
-
       var cKey = e.country || "Onbekend";
       if (!byCountry[cKey]) {
-        byCountry[cKey] = {
-          country: cKey,
-          region: e.region || "",
-          count: 0,
-          latSum: 0, lngSum: 0
-        };
+        byCountry[cKey] = { country: cKey, region: e.region || "", count: 0, latSum: 0, lngSum: 0 };
       }
       byCountry[cKey].count++;
       byCountry[cKey].latSum += e.lat;
       byCountry[cKey].lngSum += e.lng;
     }
-
-    // Drempel 1: elk land met events wordt hotspot
     var landHotspots = [];
     for (var c in byCountry) {
       var item = byCountry[c];
@@ -370,11 +355,7 @@
         });
       }
     }
-
-    // Sorteer landen op count (hoogste eerst)
     landHotspots.sort(function(a, b){ return b.count - a.count; });
-
-    // Dedup + max 5
     var seen = {};
     var result = [];
     for (var k = 0; k < landHotspots.length; k++) {
@@ -383,7 +364,6 @@
       result.push(landHotspots[k]);
       if (result.length >= 5) break;
     }
-
     return result;
   }
 
@@ -409,11 +389,24 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.4 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.5 geladen");
   }
 
+  // v1.5: sync API voor AI-chat
   window.MapAI = {
     run: run,
+    getEventsSync: function(){
+      try {
+        lastHash = "";
+        var events = buildMilitaryEvents();
+        if (Array.isArray(events) && events.length) {
+          return events;
+        }
+        return [];
+      } catch(e){
+        return [];
+      }
+    },
     calculateHotspots: function(){
       if (!window.State || !window.State.items) return [];
       var events = buildMilitaryEvents() || [];
