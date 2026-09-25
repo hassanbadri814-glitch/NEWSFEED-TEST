@@ -1,21 +1,19 @@
 /* ============================================================
-   WAR DESK v13.3 — Conflictkaart (OpenFreeMap) + Military Events
-   - v13.3: versie-bump voor cache-busting
-   - v13.2: Legend klikbaar (subfilter) + auto-zoom
-   - v13.1: typeConfig fallback
-   - v13.0: Militaire events + hotspot strip
+   WAR DESK v13.4 — Conflictkaart + Military Events
+   - v13.4: verfijnde hotspot pills
+   - v13.3: versie-bump
+   - v13.2: Legend klikbaar + auto-zoom
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-
   var LOG = function(){
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.3 geladen — subfilter + auto-zoom");
+  LOG("v13.4 geladen — verfijnde hotspots");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -86,8 +84,8 @@
   };
 
   var TILES = {
-    dark: { style: "https://tiles.openfreemap.org/styles/dark", attribution: "© OpenFreeMap © OpenMapTiles © OpenStreetMap" },
-    light: { style: "https://tiles.openfreemap.org/styles/positron", attribution: "© OpenFreeMap © OpenMapTiles © OpenStreetMap" }
+    dark: { style: "https://tiles.openfreemap.org/styles/dark", attribution: "© OpenFreeMap" },
+    light: { style: "https://tiles.openfreemap.org/styles/positron", attribution: "© OpenFreeMap" }
   };
 
   function detectTheme(){ return document.body.classList.contains("light") ? "light" : "dark"; }
@@ -97,11 +95,7 @@
     if(!meta) return;
     var oled = document.documentElement.getAttribute("data-oled") === "true";
     var light = document.body.classList.contains("light");
-    var color;
-    if(oled) color = "#000000";
-    else if(light) color = "#f6f4ee";
-    else color = "#070c16";
-    meta.setAttribute("content", color);
+    meta.setAttribute("content", oled ? "#000000" : (light ? "#f6f4ee" : "#070c16"));
   }
 
   function switchTile(theme){
@@ -113,10 +107,7 @@
       if(L.maplibreGL){
         MAP.tileLayers[theme] = L.maplibreGL({ style: cfg.style, attribution: cfg.attribution });
       } else {
-        MAP.tileLayers[theme] = L.tileLayer(
-          "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-          { maxZoom: 19, attribution: "© OpenStreetMap" }
-        );
+        MAP.tileLayers[theme] = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 });
       }
     }
     MAP.tileLayers[theme].addTo(MAP.instance);
@@ -132,9 +123,7 @@
             MAP.currentTheme = newTheme;
             switchTile(newTheme);
             updateMetaTheme();
-            if (MAP.events.length && MAP.cluster) {
-              setTimeout(function(){ renderMarkers(); }, 200);
-            }
+            if (MAP.events.length && MAP.cluster) setTimeout(renderMarkers, 200);
           }
         }
       });
@@ -200,27 +189,48 @@
       ".wd-map-close:hover{background:rgba(20,28,44,.95);border-color:rgba(255,255,255,.25);transform:rotate(90deg)}" +
       ".map-wrap.fullscreen .wd-map-close{display:grid!important}" +
       ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}" +
-      "@media (prefers-reduced-motion: reduce){.wd-marker-pulse,.wd-map-close,.map-ctrl{transition:none!important;animation:none!important}}" +
 
-      ".wd-hotspot-strip{display:none;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;padding:10px 14px;margin:0;background:rgba(0,0,0,0.25);border-bottom:1px solid rgba(255,255,255,0.05);scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;position:relative;z-index:5}" +
+      /* ============================================================
+         v13.4: PROFESSIONELE HOTSPOT PILLS
+         ============================================================ */
+      ".wd-hotspot-strip{display:none;align-items:center;gap:10px;overflow-x:auto;overflow-y:hidden;padding:12px 16px;margin:0;background:linear-gradient(180deg,rgba(255,60,60,0.03) 0%,rgba(0,0,0,0.15) 100%);border-bottom:1px solid rgba(255,255,255,0.05);scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;position:relative;z-index:5}" +
       ".wd-hotspot-strip::-webkit-scrollbar{display:none}" +
       ".wd-hotspot-strip.show{display:flex}" +
-      "body.light .wd-hotspot-strip{background:rgba(0,0,0,0.04);border-bottom-color:rgba(0,0,0,0.08)}" +
-      ".wd-hotspot-label{position:sticky;left:0;flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:6px 12px 6px 0;margin-right:2px;font-size:9.5px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:rgba(255,80,80,0.85);background:var(--bg-1,#070c16);white-space:nowrap;border-right:1px solid rgba(255,80,80,0.15);z-index:2}" +
-      "body.light .wd-hotspot-label{background:#f5f5f7;color:rgba(200,40,40,0.9)}" +
-      ".wd-hotspot-label svg{width:10px;height:10px;fill:currentColor;opacity:0.85}" +
-      ".wd-hotspot-pill{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:18px;border:1px solid transparent;color:#fff;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);-webkit-tap-highlight-color:transparent;font-family:inherit;position:relative;overflow:hidden}" +
-      ".wd-hotspot-pill:hover{transform:translateY(-1px);filter:brightness(1.1)}" +
-      ".wd-hotspot-pill:active{transform:translateY(0)}" +
-      ".wd-hotspot-pill .wd-hs-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 5px;background:rgba(0,0,0,0.25);border-radius:8px;font-size:10px;font-weight:700}" +
-      ".wd-hotspot-pill[data-type='region'] .wd-hs-count{background:rgba(0,0,0,0.35)}" +
-      ".wd-hotspot-pill[data-intensity='1']{background:linear-gradient(135deg,rgba(255,122,26,0.7),rgba(230,90,26,0.85));border-color:rgba(255,140,60,0.5)}" +
-      ".wd-hotspot-pill[data-intensity='2']{background:linear-gradient(135deg,rgba(255,60,60,0.85),rgba(220,40,40,0.95));border-color:rgba(255,80,80,0.6)}" +
-      ".wd-hotspot-pill[data-intensity='3']{background:linear-gradient(135deg,rgba(255,40,40,1),rgba(200,20,20,1));border-color:rgba(255,60,60,0.7);box-shadow:0 0 12px rgba(255,40,40,0.5)}" +
-      ".wd-hotspot-pill[data-intensity='4']{background:linear-gradient(135deg,rgba(255,20,20,1),rgba(180,0,0,1));border-color:rgba(255,0,0,0.8);box-shadow:0 0 16px rgba(255,0,0,0.7);animation:wdPulse 1.6s ease-in-out infinite}" +
-      "@keyframes wdPulse{0%,100%{box-shadow:0 0 16px rgba(255,0,0,0.7)}50%{box-shadow:0 0 24px rgba(255,0,0,0.9)}}" +
-      "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']{animation:none}}" +
+      "body.light .wd-hotspot-strip{background:linear-gradient(180deg,rgba(255,60,60,0.04) 0%,rgba(0,0,0,0.02) 100%);border-bottom-color:rgba(0,0,0,0.06)}" +
+      ".wd-hotspot-strip::after{content:'';position:sticky;right:0;flex-shrink:0;width:30px;height:100%;background:linear-gradient(to right,transparent,var(--bg-2,#0b1220) 90%);margin-left:-30px;pointer-events:none}" +
+      "body.light .wd-hotspot-strip::after{background:linear-gradient(to right,transparent,#f5f5f7 90%)}" +
 
+      ".wd-hotspot-label{position:sticky;left:0;z-index:3;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:4px 14px 4px 0;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,80,80,0.9);background:var(--bg-2,#0b1220);border-right:1px solid rgba(255,80,80,0.2);margin-right:4px;white-space:nowrap;user-select:none}" +
+      "body.light .wd-hotspot-label{background:#f5f5f7;color:rgba(200,40,40,0.9);border-right-color:rgba(200,40,40,0.2)}" +
+      ".wd-hotspot-label svg{width:11px;height:11px;fill:currentColor;opacity:0.9;flex-shrink:0}" +
+
+      ".wd-hotspot-pill{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:20px;color:rgba(255,255,255,0.92);font-size:12.5px;font-weight:500;letter-spacing:0.1px;white-space:nowrap;cursor:pointer;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);-webkit-tap-highlight-color:transparent;font-family:inherit;position:relative}" +
+      "body.light .wd-hotspot-pill{background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.08);color:#1a1f2b}" +
+      ".wd-hotspot-pill:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.15);transform:translateY(-1px)}" +
+      "body.light .wd-hotspot-pill:hover{background:rgba(0,0,0,0.06)}" +
+      ".wd-hotspot-pill:active{transform:translateY(0)}" +
+
+      /* Kleur-dot links */
+      ".wd-hotspot-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;flex-shrink:0}" +
+
+      /* Count badge */
+      ".wd-hs-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:rgba(255,255,255,0.06);border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0;transition:all 0.2s}" +
+      "body.light .wd-hs-count{background:rgba(0,0,0,0.06)}" +
+      ".wd-hotspot-pill:hover .wd-hs-count{background:rgba(255,255,255,0.12)}" +
+      "body.light .wd-hotspot-pill:hover .wd-hs-count{background:rgba(0,0,0,0.1)}" +
+
+      /* Intensiteit = kleur via data-intensity */
+      ".wd-hotspot-pill[data-intensity='1']{color:#ff9544}" +
+      ".wd-hotspot-pill[data-intensity='2']{color:#ff6b4a}" +
+      ".wd-hotspot-pill[data-intensity='3']{color:#ff3d3d}" +
+      ".wd-hotspot-pill[data-intensity='3']::before{box-shadow:0 0 10px currentColor,0 0 3px currentColor}" +
+      ".wd-hotspot-pill[data-intensity='4']{color:#ff1f1f;border-color:rgba(255,31,31,0.35)}" +
+      ".wd-hotspot-pill[data-intensity='4']::before{animation:wdHsPulse 1.8s ease-in-out infinite}" +
+      ".wd-hotspot-pill[data-intensity='4'] .wd-hs-count{background:rgba(255,31,31,0.15);color:#ff4040}" +
+      "@keyframes wdHsPulse{0%,100%{opacity:1;box-shadow:0 0 8px currentColor}50%{opacity:0.6;box-shadow:0 0 16px currentColor}}" +
+      "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']::before{animation:none}}" +
+
+      /* Legend klikbaar */
       ".wd-map-legend .legend-item{cursor:pointer;transition:all 0.15s;border-radius:6px;padding:3px 6px;margin:0 -6px;-webkit-tap-highlight-color:transparent}" +
       ".wd-map-legend .legend-item:hover{background:rgba(255,255,255,0.05)}" +
       ".wd-map-legend .legend-item.active{background:rgba(224,168,87,0.15);box-shadow:inset 0 0 0 1px rgba(224,168,87,0.4)}" +
@@ -251,16 +261,12 @@
   }
   function ensureFullscreenClose(){
     var wrap = document.querySelector(".map-wrap");
-    if(!wrap) return;
-    if(wrap.querySelector(".wd-map-close")) return;
+    if(!wrap || wrap.querySelector(".wd-map-close")) return;
     var btn = document.createElement("button");
     btn.className = "wd-map-close";
     btn.setAttribute("aria-label", "Sluiten");
     btn.textContent = "✕";
-    btn.addEventListener("click", function(e){
-      e.stopPropagation();
-      exitFullscreen();
-    });
+    btn.addEventListener("click", function(e){ e.stopPropagation(); exitFullscreen(); });
     wrap.appendChild(btn);
   }
 
@@ -270,24 +276,11 @@
     modal.id = "wdDetailModal";
     modal.className = "wd-detail-modal";
     modal.innerHTML =
-      '<div class="wd-detail-box">' +
-        '<div class="wd-detail-head">' +
-          '<span class="wd-detail-type" id="wdDetailType">—</span>' +
-          '<button class="wd-detail-close" id="wdDetailClose" aria-label="Sluiten">✕</button>' +
-        '</div>' +
-        '<div class="wd-detail-body">' +
-          '<div class="wd-detail-meta" id="wdDetailMeta">—</div>' +
-          '<div class="wd-detail-text" id="wdDetailText">—</div>' +
-        '</div>' +
-        '<div class="wd-detail-foot">' +
-          '<button class="wd-detail-btn primary" id="wdDetailShowOnMap">Toon op kaart</button>' +
-          '<button class="wd-detail-btn" id="wdDetailCloseBtn">Sluiten</button>' +
-        '</div>' +
-      '</div>';
+      '<div class="wd-detail-box"><div class="wd-detail-head"><span class="wd-detail-type" id="wdDetailType">—</span><button class="wd-detail-close" id="wdDetailClose" aria-label="Sluiten">✕</button></div>' +
+      '<div class="wd-detail-body"><div class="wd-detail-meta" id="wdDetailMeta">—</div><div class="wd-detail-text" id="wdDetailText">—</div></div>' +
+      '<div class="wd-detail-foot"><button class="wd-detail-btn primary" id="wdDetailShowOnMap">Toon op kaart</button><button class="wd-detail-btn" id="wdDetailCloseBtn">Sluiten</button></div></div>';
     document.body.appendChild(modal);
-    modal.addEventListener("click", function(e){
-      if(e.target === modal) closeDetail();
-    });
+    modal.addEventListener("click", function(e){ if(e.target === modal) closeDetail(); });
     $("wdDetailClose").addEventListener("click", closeDetail);
     $("wdDetailCloseBtn").addEventListener("click", closeDetail);
     $("wdDetailShowOnMap").addEventListener("click", function(){
@@ -299,9 +292,8 @@
     ensureDetailModal();
     MAP.currentDetailEvent = event;
     var typeConf = resolveTypeConfig(event);
-    var color = typeConf.color;
     $("wdDetailType").textContent = typeConf.label;
-    $("wdDetailType").style.background = color;
+    $("wdDetailType").style.background = typeConf.color;
     $("wdDetailMeta").textContent = (event.country || "Onbekend") + " · " + timeAgo(event.date) + (event.source ? " · " + event.source : "");
     $("wdDetailText").textContent = event.fullDescription || event.title || "(geen beschrijving)";
     $("wdDetailModal").classList.add("show");
@@ -335,7 +327,7 @@
       var loc = LOCATIONS[cat];
       var filter = CATEGORY_FILTER[cat] || "other";
       var typeConfig = TYPES[filter];
-      var items = byCat[cat].sort(function(a, b){
+      var items = byCat[cat].sort(function(a,b){
         return (new Date(b.date).getTime()||0) - (new Date(a.date).getTime()||0);
       }).slice(0, 2);
       items.forEach(function(it, i){
@@ -363,21 +355,12 @@
       if(MAP.currentFilter === "military") return e.isMilitary === true;
       return !e.isMilitary && resolveTypeConfig(e).filter === MAP.currentFilter;
     });
-    if (MAP.currentSubtype) {
-      visible = visible.filter(function(e){ return e.subtype === MAP.currentSubtype; });
-    }
-    if (!visible.length) {
-      MAP.instance.setView([29.5, 42.0], 4);
-      return;
-    }
-    if (visible.length === 1) {
-      MAP.instance.setView([visible[0].lat, visible[0].lng], 6);
-      return;
-    }
+    if (MAP.currentSubtype) visible = visible.filter(function(e){ return e.subtype === MAP.currentSubtype; });
+    if (!visible.length) { MAP.instance.setView([29.5, 42.0], 4); return; }
+    if (visible.length === 1) { MAP.instance.setView([visible[0].lat, visible[0].lng], 6); return; }
     try {
       var bounds = L.latLngBounds(visible.map(function(e){ return [e.lat, e.lng]; }));
       MAP.instance.fitBounds(bounds, { padding: [40, 40], maxZoom: 6 });
-      LOG("Auto-zoom naar " + visible.length + " markers");
     } catch(e){}
   }
 
@@ -399,10 +382,7 @@
       MAP.events = [];
       var statEl = $("statEvents");
       if(statEl) statEl.textContent = "0";
-      renderMarkers();
-      renderLegend();
-      renderLiveList();
-      renderHotspots();
+      renderMarkers(); renderLegend(); renderLiveList(); renderHotspots();
       if (MAP.instance) MAP.instance.setView([29.5, 42.0], 4);
       return true;
     }
@@ -410,17 +390,13 @@
     MAP.events = events;
     var statEl2 = $("statEvents");
     if(statEl2) statEl2.textContent = events.length;
-    renderMarkers();
-    renderLegend();
-    renderLiveList();
-    renderHotspots();
+    renderMarkers(); renderLegend(); renderLiveList(); renderHotspots();
 
     var zoomHash = MAP.events.map(function(e){ return e.id; }).join("|").slice(0, 200);
     if (zoomHash !== MAP._lastZoomHash) {
       MAP._lastZoomHash = zoomHash;
       setTimeout(fitToMarkers, 200);
     }
-
     LOG("✅ " + events.length + " events op kaart");
     return true;
   }
@@ -438,10 +414,7 @@
     }
 
     var hotspots = MAP.hotspots || [];
-    if (!hotspots.length) {
-      strip.classList.remove("show");
-      return;
-    }
+    if (!hotspots.length) { strip.classList.remove("show"); return; }
 
     var flameSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c.8 3.6-1.5 5.6-2.4 8.4-.4 1.3-.3 2.6.4 3.6.6-.6 1-1.6 1-2.8 1.4 1 2.2 2.8 2.2 4.6 0 1.7-1.1 3.1-2.6 3.7.9.3 1.9.5 2.9.5 3.9 0 6.5-2.6 6.5-6.5 0-4.5-4.6-6.4-5.2-10.9-1.2.4-2.3 1-2.8 1.4zM12 23c-3.9 0-7-3.1-7-7 0-2.5 1.5-4.3 2.5-6.2C8.5 8 9 6.5 9 4.5 6 6 3 9.5 3 14c0 5 4 9 9 9z"/></svg>';
 
@@ -450,12 +423,7 @@
       var h = hotspots[i];
       var intensity = h.count >= 15 ? 4 : (h.count >= 8 ? 3 : (h.count >= 4 ? 2 : 1));
       var label = h.label || h.country || h.region || "?";
-      html += '<button class="wd-hotspot-pill" data-intensity="' + intensity + '" ' +
-              'data-type="' + (h.type || "country") + '" ' +
-              'data-lat="' + h.lat + '" data-lng="' + h.lng + '" type="button">' +
-              escapeHtml(label) +
-              '<span class="wd-hs-count">' + h.count + '</span>' +
-              '</button>';
+      html += '<button class="wd-hotspot-pill" data-intensity="' + intensity + '" data-type="' + (h.type || "country") + '" data-lat="' + h.lat + '" data-lng="' + h.lng + '" type="button">' + escapeHtml(label) + '<span class="wd-hs-count">' + h.count + '</span></button>';
     }
     strip.innerHTML = html;
     strip.classList.add("show");
@@ -463,8 +431,7 @@
     var pills = strip.querySelectorAll(".wd-hotspot-pill");
     for (var j = 0; j < pills.length; j++) {
       pills[j].addEventListener("click", function(e){
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         var lat = parseFloat(this.getAttribute("data-lat"));
         var lng = parseFloat(this.getAttribute("data-lng"));
         if (MAP.instance && !isNaN(lat) && !isNaN(lng)) {
@@ -486,10 +453,7 @@
       if(MAP.currentFilter === "other") return !e.isMilitary && resolveTypeConfig(e).filter === "other";
       return true;
     });
-
-    if (MAP.currentSubtype) {
-      filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
-    }
+    if (MAP.currentSubtype) filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
 
     var markers = [];
     filtered.forEach(function(e){
@@ -498,17 +462,11 @@
       var glyph = iconFor(typeConf.filter, e.subtype);
       var icon = L.divIcon({
         className: "wd-marker",
-        html: '<div class="wd-marker-inner" style="color:' + color + '">' +
-              '<span class="wd-marker-pulse"></span>' +
-              '<span class="wd-marker-icon">' + glyph + '</span>' +
-              '</div>',
+        html: '<div class="wd-marker-inner" style="color:' + color + '"><span class="wd-marker-pulse"></span><span class="wd-marker-icon">' + glyph + '</span></div>',
         iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10]
       });
       var marker = L.marker([e.lat, e.lng], {icon: icon});
-
-      var sourceLine = "";
-      if (e.source) sourceLine = '<div class="pop-meta">' + escapeHtml(e.source) + '</div>';
-
+      var sourceLine = e.source ? '<div class="pop-meta">' + escapeHtml(e.source) + '</div>' : '';
       var popupHtml =
         '<div class="pop-cat" style="--cat-color:' + color + '">' + typeConf.label + '</div>' +
         '<div class="pop-title">' + escapeHtml(e.title) + '</div>' +
@@ -519,13 +477,7 @@
       marker.on("popupopen", function(){
         setTimeout(function(){
           var btn = document.querySelector('.pop-more[data-id="' + e.id + '"]');
-          if(btn){
-            btn.onclick = function(ev){
-              ev.preventDefault();
-              ev.stopPropagation();
-              openDetail(e);
-            };
-          }
+          if(btn) btn.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); openDetail(e); };
         }, 50);
       });
       markers.push(marker);
@@ -558,19 +510,14 @@
 
     el.innerHTML = rows.map(function(r){
       var active = (MAP.currentSubtype === r.key) ? " active" : "";
-      return '<div class="legend-item' + active + '" data-subtype="' + r.key + '">' +
-        '<span class="legend-dot" style="background:' + r.color + '"></span>' +
-        '<span>' + r.label + '</span>' +
-        '<span class="legend-num">' + counts[r.key] + '</span></div>';
+      return '<div class="legend-item' + active + '" data-subtype="' + r.key + '"><span class="legend-dot" style="background:' + r.color + '"></span><span>' + r.label + '</span><span class="legend-num">' + counts[r.key] + '</span></div>';
     }).join("");
 
     Array.prototype.forEach.call(el.querySelectorAll(".legend-item"), function(item){
       item.addEventListener("click", function(e){
-        e.preventDefault();
-        e.stopPropagation();
+        e.preventDefault(); e.stopPropagation();
         var subtype = this.getAttribute("data-subtype");
         if (!subtype) return;
-
         if (MAP.currentSubtype === subtype) {
           MAP.currentSubtype = null;
           if (window.showToast) window.showToast("Subfilter gewist");
@@ -578,8 +525,7 @@
           MAP.currentSubtype = subtype;
           if (window.showToast) window.showToast("Filter: " + subtype);
         }
-        renderMarkers();
-        renderLegend();
+        renderMarkers(); renderLegend();
         if (MAP.currentSubtype) setTimeout(fitToMarkers, 200);
       });
     });
@@ -597,29 +543,14 @@
       if(MAP.currentFilter === "other") return !e.isMilitary && resolveTypeConfig(e).filter === "other";
       return true;
     });
-
-    if (MAP.currentSubtype) {
-      filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
-    }
-
+    if (MAP.currentSubtype) filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
     if(countEl) countEl.textContent = filtered.length;
-    if(!filtered.length){
-      list.innerHTML = '<div class="live-empty">Geen events in deze categorie</div>';
-      return;
-    }
+    if(!filtered.length){ list.innerHTML = '<div class="live-empty">Geen events in deze categorie</div>'; return; }
     list.innerHTML = filtered.map(function(e){
       var typeConf = resolveTypeConfig(e);
       var color = typeConf.color;
       var milBadge = e.isMilitary ? '<span class="live-event-mil">MIL</span>' : '';
-      return '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '">' +
-        '<div class="live-event-body">' +
-        '<div class="live-event-title">' + escapeHtml(e.title) + milBadge + '</div>' +
-        '<div class="live-event-meta">' +
-        '<span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span>' +
-        '<span>·</span>' +
-        '<span>' + timeAgo(e.date) + '</span>' +
-        '<span class="live-event-cat" style="--cat-color:' + color + '">' + typeConf.label + '</span>' +
-        '</div></div></div>';
+      return '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '"><div class="live-event-body"><div class="live-event-title">' + escapeHtml(e.title) + milBadge + '</div><div class="live-event-meta"><span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span><span>·</span><span>' + timeAgo(e.date) + '</span><span class="live-event-cat" style="--cat-color:' + color + '">' + typeConf.label + '</span></div></div></div>';
     }).join("");
     Array.prototype.forEach.call(list.querySelectorAll(".live-event"), function(el){
       el.addEventListener("click", function(){
@@ -650,7 +581,6 @@
     if(MAP.instance || typeof L === "undefined") return;
     var mapEl = $("map");
     if(!mapEl) return;
-    LOG("Init Leaflet map (OpenFreeMap)");
     MAP.instance = L.map("map", {
       center: [29.5, 42.0], zoom: 4, minZoom: 2, maxZoom: 18,
       worldCopyJump: true, zoomControl: false, attributionControl: false,
@@ -675,17 +605,14 @@
     if(full){
       full.setAttribute("data-role", "full");
       full.addEventListener("click", function(){
-        if(MAP.isFullscreen) exitFullscreen();
-        else enterFullscreen();
+        if(MAP.isFullscreen) exitFullscreen(); else enterFullscreen();
       });
     }
     if(loc) loc.addEventListener("click", function(){
       if(!navigator.geolocation){ if(window.showToast) window.showToast("Locatie niet ondersteund"); return; }
       navigator.geolocation.getCurrentPosition(function(p){
         if(MAP.instance) MAP.instance.setView([p.coords.latitude, p.coords.longitude], 8);
-      }, function(){
-        if(window.showToast) window.showToast("Locatie niet beschikbaar");
-      }, {timeout: 8000});
+      }, function(){ if(window.showToast) window.showToast("Locatie niet beschikbaar"); }, {timeout: 8000});
     });
   }
 
@@ -697,9 +624,7 @@
         MAP.currentFilter = btn.dataset.cat;
         MAP.currentSubtype = null;
         if(window.WDStorage) WDStorage.set("map_filter", MAP.currentFilter);
-        renderMarkers();
-        renderLiveList();
-        renderLegend();
+        renderMarkers(); renderLiveList(); renderLegend();
         setTimeout(fitToMarkers, 200);
       });
     });
@@ -718,7 +643,6 @@
   }
 
   window.__mapRefresh = function(){
-    LOG("Handmatige refresh");
     MAP._lastNewsCount = 0;
     MAP._lastZoomHash = "";
     if (window.MapAI) window.MapAI.run();
@@ -726,33 +650,24 @@
   window.__mapResetView = function(){ if(MAP.instance) MAP.instance.setView([29.5, 42.0], 4); };
 
   function activateMapView(){
-    LOG("activateMapView");
     initMap();
     ensureFullscreenClose();
     if(MAP.instance) setTimeout(function(){ if(MAP.instance) MAP.instance.invalidateSize(); }, 350);
-    if(window.State && State.items && State.items.length){
-      refreshFromNews();
-    }
+    if(window.State && State.items && State.items.length) refreshFromNews();
   }
 
   function hookViewSwitch(){
     document.querySelectorAll(".bottom-tabs .tab").forEach(function(tab){
       tab.addEventListener("click", function(){
-        if(tab.dataset.view === "map"){
-          setTimeout(activateMapView, 200);
-        } else {
-          if(MAP.isFullscreen) exitFullscreen();
-        }
+        if(tab.dataset.view === "map") setTimeout(activateMapView, 200);
+        else if(MAP.isFullscreen) exitFullscreen();
       });
     });
   }
 
   function bindEventBus(){
     if(MAP._busBound) return;
-    if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on){
-      LOG("⚠️ EventBus niet beschikbaar");
-      return;
-    }
+    if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
     MAP._busBound = true;
 
     WarDesk.events.on("map:military-events", function(events){
@@ -760,17 +675,14 @@
       LOG("Militaire events ontvangen: " + MAP.militaryEvents.length);
       if (isMapActive()) refreshFromNews();
     });
-
     WarDesk.events.on("map:hotspots", function(hotspots){
       MAP.hotspots = hotspots || [];
       LOG("Hotspots ontvangen: " + MAP.hotspots.length);
       renderHotspots();
     });
-
     WarDesk.events.on("news:loaded", function(){
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
-
     LOG("EventBus listeners actief");
   }
 
@@ -780,7 +692,6 @@
   }
 
   function initMapModule(){
-    LOG("initMapModule");
     injectMapStyles();
     ensureDetailModal();
     ensureFullscreenClose();
@@ -791,24 +702,14 @@
     bindEventBus();
 
     var themeBtn = $("btnTheme");
-    if(themeBtn){
-      themeBtn.addEventListener("click", function(){
-        markManualTheme();
-        setTimeout(updateMetaTheme, 50);
-      });
-    }
+    if(themeBtn) themeBtn.addEventListener("click", function(){ markManualTheme(); setTimeout(updateMetaTheme, 50); });
 
     observeThemeChanges();
     checkTimeMode();
     updateMetaTheme();
-
     if(!MAP._timeModeInterval){
-      MAP._timeModeInterval = setInterval(function(){
-        if(document.hidden) return;
-        checkTimeMode();
-      }, 60000);
+      MAP._timeModeInterval = setInterval(function(){ if(!document.hidden) checkTimeMode(); }, 60000);
     }
-
     var mapTab = document.querySelector('.tab[data-view="map"]');
     var viewMap = document.getElementById("viewMap");
     var isMapTabActive = (mapTab && mapTab.classList.contains("active")) || (viewMap && !viewMap.hidden);
@@ -829,14 +730,10 @@
     if(e.key !== "Escape") return;
     if(document.querySelector("#sheet.open")) return;
     var modal = $("wdDetailModal");
-    if(modal && modal.classList.contains("show")){
-      closeDetail();
-    } else if(MAP.isFullscreen){
-      exitFullscreen();
-    }
+    if(modal && modal.classList.contains("show")) closeDetail();
+    else if(MAP.isFullscreen) exitFullscreen();
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-
-  wdLog.info("[WAR DESK] map-v11.10.js v13.3 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.4 geladen");
 })();
