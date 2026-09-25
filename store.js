@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v2.1 — Reactive State Store + EventBus
+   WAR DESK v2.2 — Reactive State Store + EventBus
    - FIX v2.0: State wijzigingen zenden events uit
    - FIX v2.1: Event batching (minder bus.emit calls)
+   - FIX v2.2: AI Integratie (Fase 1: Trending + Ranking)
    ============================================================ */
 
 (function(){
@@ -138,6 +139,44 @@
     window.WarDesk.store = appStore;
   }
 
-  wdLog.info("[WAR DESK] store.js v2.1 geladen — State events + batching actief");
+  // ============================================================
+  // AI INTEGRATIE (FASE 1: TRENDING + RANKING)
+  // ============================================================
+  // We luisteren naar 'state:items', want dit is het event dat 
+  // door de Proxy wordt afgevuurd zodra de artikelen binnenkomen.
+  // ============================================================
+  var bus = (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
+  
+  if (bus) {
+    bus.on('state:items', function(event) {
+      var articles = event.value;
+      if (!articles || articles.length === 0) return;
+
+      // 1. Start Trending Engine (throttled, draait op de achtergrond)
+      if (window.TrendingEngine) {
+        window.TrendingEngine.run(articles);
+      }
+
+      // 2. Start Ranking Engine (idle, niet-blokkerend voor de UI)
+      var idle = window.requestIdleCallback || function(cb) { return setTimeout(cb, 1); };
+      
+      idle(function() {
+        try {
+          if (window.RankingEngine) {
+            var ranked = window.RankingEngine.rank(articles);
+            
+            // Stuur de nieuwe volgorde naar de UI (news-v27.js)
+            bus.emit('news:ranked', ranked);
+            
+            wdLog.info("[Store] Ranking toegepast op " + ranked.length + " artikelen");
+          }
+        } catch (e) {
+          wdLog.error("[Store] Ranking mislukt:", e);
+        }
+      }, { timeout: 2000 });
+    });
+  }
+
+  wdLog.info("[WAR DESK] store.js v2.2 geladen — State events + batching + AI actief");
 
 })();
