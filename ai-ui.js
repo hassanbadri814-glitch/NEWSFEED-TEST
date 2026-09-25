@@ -1,6 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.5
-   - v1.5: Compactere pills + sticky TRENDING label + betere fade
+   WAR DESK — ai-ui.js v1.6
+   - v1.6: Dedup integratie (verberg duplicaten, badge op main)
    ============================================================ */
 
 (function(){
@@ -30,143 +30,89 @@
     style.id = "wd-trending-styles";
     style.textContent = `
       #trending-container {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        overflow-x: auto;
-        overflow-y: hidden;
-        padding: 10px 0 12px;
-        margin: 0 0 2px;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        display: flex; align-items: center; gap: 8px;
+        overflow-x: auto; overflow-y: hidden;
+        padding: 10px 0 12px; margin: 0 0 2px;
+        scrollbar-width: none; -ms-overflow-style: none;
         -webkit-overflow-scrolling: touch;
         position: relative;
         border-bottom: 1px solid rgba(255,255,255,0.04);
-        scroll-padding-left: 90px;
       }
       #trending-container::-webkit-scrollbar { display: none; }
       #trending-container.wd-hidden { display: none; }
-
-      /* Fade aan rechterkant om scrollbaarheid aan te geven */
       #trending-container::after {
-        content: '';
-        position: sticky;
-        right: 0;
-        flex-shrink: 0;
-        width: 24px;
-        height: 100%;
+        content: ''; position: sticky; right: 0; flex-shrink: 0;
+        width: 24px; height: 100%;
         background: linear-gradient(to right, transparent, var(--bg-1, #070c16) 90%);
-        pointer-events: none;
-        margin-left: -24px;
+        pointer-events: none; margin-left: -24px;
       }
-
       .wd-trend-label {
-        position: sticky;
-        left: 0;
-        z-index: 2;
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-        padding: 6px 12px 6px 0;
-        margin-right: 2px;
-        font-size: 9.5px;
-        font-weight: 800;
-        letter-spacing: 1.3px;
-        text-transform: uppercase;
-        color: rgba(224,168,87,0.85);
-        background: var(--bg-1, #070c16);
-        user-select: none;
-        white-space: nowrap;
+        position: sticky; left: 0; z-index: 2; flex-shrink: 0;
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 6px 12px 6px 0; margin-right: 2px;
+        font-size: 9.5px; font-weight: 800; letter-spacing: 1.3px;
+        text-transform: uppercase; color: rgba(224,168,87,0.85);
+        background: var(--bg-1, #070c16); user-select: none; white-space: nowrap;
         border-right: 1px solid rgba(224,168,87,0.15);
-        margin-left: 0;
       }
-      .wd-trend-label svg {
-        width: 10px;
-        height: 10px;
-        fill: currentColor;
-        stroke: none;
-        opacity: 0.85;
-        flex-shrink: 0;
-      }
-
+      .wd-trend-label svg { width: 10px; height: 10px; fill: currentColor; opacity: 0.85; }
       .wd-trend-pill {
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
+        flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
         padding: 6px 10px 6px 12px;
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.08);
         color: var(--ink-1, #e8e8e8);
-        border-radius: 18px;
-        font-size: 12.5px;
-        font-weight: 500;
-        letter-spacing: 0.1px;
-        white-space: nowrap;
-        cursor: pointer;
+        border-radius: 18px; font-size: 12.5px; font-weight: 500;
+        white-space: nowrap; cursor: pointer;
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
         font-family: inherit;
-        position: relative;
-        overflow: hidden;
-      }
-      .wd-trend-pill::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background: linear-gradient(135deg, rgba(224,168,87,0.08), transparent 60%);
-        opacity: 0;
-        transition: opacity 0.2s;
-        pointer-events: none;
       }
       .wd-trend-pill:hover {
         border-color: rgba(224,168,87,0.35);
         background: rgba(224,168,87,0.06);
         transform: translateY(-1px);
       }
-      .wd-trend-pill:hover::before { opacity: 1; }
-      .wd-trend-pill:active {
-        transform: translateY(0);
-        transition: transform 0.08s;
-      }
       .wd-trend-pill.active {
         background: linear-gradient(135deg, #e8b366 0%, #c4913f 100%);
-        border-color: #e8b366;
-        color: #0d1420;
-        box-shadow: 0 3px 14px rgba(224,168,87,0.3);
-        font-weight: 600;
+        border-color: #e8b366; color: #0d1420;
+        box-shadow: 0 3px 14px rgba(224,168,87,0.3); font-weight: 600;
       }
-      .wd-trend-pill.active::before { opacity: 0; }
-
       .wd-trend-count {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 18px;
-        height: 16px;
-        padding: 0 5px;
-        background: rgba(255,255,255,0.05);
-        border-radius: 8px;
-        font-size: 10px;
-        font-weight: 600;
-        letter-spacing: 0;
-        color: rgba(255,255,255,0.5);
-        transition: all 0.2s;
-      }
-      .wd-trend-pill:hover .wd-trend-count {
-        background: rgba(224,168,87,0.15);
-        color: rgba(255,255,255,0.8);
+        display: inline-flex; align-items: center; justify-content: center;
+        min-width: 18px; height: 16px; padding: 0 5px;
+        background: rgba(255,255,255,0.05); border-radius: 8px;
+        font-size: 10px; font-weight: 600; color: rgba(255,255,255,0.5);
       }
       .wd-trend-pill.active .wd-trend-count {
-        background: rgba(13,20,32,0.2);
-        color: rgba(13,20,32,0.85);
+        background: rgba(13,20,32,0.2); color: rgba(13,20,32,0.85);
+      }
+
+      /* Dedup */
+      .wd-dedup-hidden { display: none !important; }
+      .wd-dedup-badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        margin-top: 8px; padding: 5px 10px;
+        background: rgba(224,168,87,0.08);
+        border: 1px solid rgba(224,168,87,0.22);
+        border-radius: 14px; color: rgba(224,168,87,0.9);
+        font-size: 11px; font-weight: 600; cursor: pointer;
+        transition: all 0.15s;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .wd-dedup-badge:hover {
+        background: rgba(224,168,87,0.15);
+        border-color: rgba(224,168,87,0.4);
+      }
+      .wd-dedup-badge svg {
+        width: 11px; height: 11px;
+        fill: none; stroke: currentColor;
+        stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
       }
     `;
     document.head.appendChild(style);
   }
 
+  // ============ TRENDING ============
   var trendingContainer = null;
   var activeTrendTopic = null;
 
@@ -178,7 +124,6 @@
       if (pillEl) pillEl.classList.remove("active");
       if (searchInput) searchInput.value = "";
       if (window.NewsAPI && window.NewsAPI.setSearch) window.NewsAPI.setSearch("");
-      if (window.wdLog) wdLog.info("[AI-UI] Trend filter gewist");
       return;
     }
 
@@ -190,7 +135,6 @@
     if (pillEl) pillEl.classList.add("active");
     if (searchInput) searchInput.value = topic;
     if (window.NewsAPI && window.NewsAPI.setSearch) window.NewsAPI.setSearch(topic);
-    if (window.wdLog) wdLog.info("[AI-UI] Trend filter: " + topic);
     try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch(e){ window.scrollTo(0,0); }
   }
 
@@ -210,18 +154,15 @@
       trendingContainer.classList.add("wd-hidden");
       return;
     }
-
     trendingContainer.classList.remove("wd-hidden");
 
     var flameSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c.8 3.6-1.5 5.6-2.4 8.4-.4 1.3-.3 2.6.4 3.6.6-.6 1-1.6 1-2.8 1.4 1 2.2 2.8 2.2 4.6 0 1.7-1.1 3.1-2.6 3.7.9.3 1.9.5 2.9.5 3.9 0 6.5-2.6 6.5-6.5 0-4.5-4.6-6.4-5.2-10.9-1.2.4-2.3 1-2.8 1.4zM12 23c-3.9 0-7-3.1-7-7 0-2.5 1.5-4.3 2.5-6.2C8.5 8 9 6.5 9 4.5 6 6 3 9.5 3 14c0 5 4 9 9 9z"/></svg>';
-
     var html = '<div class="wd-trend-label">' + flameSvg + '<span>Trending</span></div>';
     for (var i = 0; i < trends.length; i++) {
       var t = trends[i];
       var isActive = (activeTrendTopic === t.topic);
       html += '<button class="wd-trend-pill' + (isActive ? ' active' : '') + '"' +
-              ' data-topic="' + escapeHtml(t.topic) + '"' +
-              ' type="button" aria-label="Filter op ' + escapeHtml(t.topic) + '">' +
+              ' data-topic="' + escapeHtml(t.topic) + '" type="button">' +
               '<span>' + escapeHtml(t.topic) + '</span>' +
               '<span class="wd-trend-count">' + t.count + '</span>' +
               '</button>';
@@ -233,12 +174,12 @@
       pills[j].addEventListener("click", function(e){
         e.preventDefault();
         e.stopPropagation();
-        var topic = this.getAttribute("data-topic");
-        applyTrendFilter(topic, this);
+        applyTrendFilter(this.getAttribute("data-topic"), this);
       });
     }
   }
 
+  // ============ FEED HERORDENEN ============
   var isScrolling = false;
   var scrollTimer = null;
 
@@ -258,7 +199,6 @@
   function reorderFeed(rankedArticles) {
     var feed = getFeedContainer();
     if (!feed || !rankedArticles || !rankedArticles.length) return;
-
     if (isScrolling) {
       setTimeout(function(){ reorderFeed(rankedArticles); }, 500);
       return;
@@ -272,11 +212,7 @@
       var id = getArticleId(children[i]);
       if (id) byId[id] = children[i];
     }
-
-    if (!Object.keys(byId).length) {
-      if (window.wdLog) wdLog.warn("[AI-UI] Geen data-article-id in DOM — skip reorder");
-      return;
-    }
+    if (!Object.keys(byId).length) return;
 
     var fragment = document.createDocumentFragment();
     var used = {};
@@ -298,14 +234,72 @@
         usedCount++;
       }
     }
-
     while (feed.firstChild) feed.removeChild(feed.firstChild);
     feed.appendChild(fragment);
-    if (window.wdLog) wdLog.info("[AI-UI] Feed herordend (" + usedCount + " items)");
   }
 
+  // ============ DEDUP RENDERING ============
+  function applyDedup(clusters) {
+    var feed = getFeedContainer();
+    if (!feed) return;
+
+    // Reset eerdere dedup state
+    var oldHidden = feed.querySelectorAll(".wd-dedup-hidden");
+    for (var r = 0; r < oldHidden.length; r++) oldHidden[r].classList.remove("wd-dedup-hidden");
+    var oldBadges = feed.querySelectorAll(".wd-dedup-badge");
+    for (var b = 0; b < oldBadges.length; b++) oldBadges[b].remove();
+
+    if (!clusters || !clusters.length) return;
+
+    var chevronSvg = '<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>';
+
+    for (var i = 0; i < clusters.length; i++) {
+      var c = clusters[i];
+      var mainEl = feed.querySelector('[data-article-id="' + c.mainId + '"],[data-id="' + c.mainId + '"]');
+      if (!mainEl) continue;
+
+      // Verberg duplicaten
+      for (var j = 0; j < c.duplicateIds.length; j++) {
+        var dupId = c.duplicateIds[j];
+        var dupEl = feed.querySelector('[data-article-id="' + dupId + '"],[data-id="' + dupId + '"]');
+        if (dupEl) dupEl.classList.add("wd-dedup-hidden");
+      }
+
+      // Voeg badge toe aan main
+      var badge = document.createElement("button");
+      badge.type = "button";
+      badge.className = "wd-dedup-badge";
+      badge.innerHTML = chevronSvg + '<span>+' + c.duplicateIds.length + ' bron' + (c.duplicateIds.length > 1 ? 'nen' : '') + '</span>';
+      badge.setAttribute("data-expanded", "false");
+      badge.addEventListener("click", function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var expanded = this.getAttribute("data-expanded") === "true";
+        var clusterMain = this.parentNode;
+        var dupIds = JSON.parse(this.getAttribute("data-dups") || "[]");
+        for (var d = 0; d < dupIds.length; d++) {
+          var dEl = feed.querySelector('[data-article-id="' + dupIds[d] + '"],[data-id="' + dupIds[d] + '"]');
+          if (dEl) {
+            if (expanded) dEl.classList.add("wd-dedup-hidden");
+            else dEl.classList.remove("wd-dedup-hidden");
+          }
+        }
+        this.setAttribute("data-expanded", expanded ? "false" : "true");
+        this.querySelector("span").textContent = expanded
+          ? "+" + dupIds.length + " bron" + (dupIds.length > 1 ? "nen" : "")
+          : "−" + dupIds.length + " verberg";
+      });
+      badge.setAttribute("data-dups", JSON.stringify(c.duplicateIds));
+
+      mainEl.appendChild(badge);
+    }
+
+    if (window.wdLog) wdLog.info("[AI-UI] Dedup toegepast op " + clusters.length + " clusters");
+  }
+
+  // ============ CLICK TRACKING ============
   document.addEventListener("click", function(e){
-    if (e.target.closest && e.target.closest("#trending-container")) return;
+    if (e.target.closest && (e.target.closest("#trending-container") || e.target.closest(".wd-dedup-badge"))) return;
 
     var el = e.target.closest && e.target.closest("[data-article-id],[data-id]");
     if (!el) return;
@@ -321,6 +315,7 @@
     } catch(err){}
   }, true);
 
+  // ============ ORCHESTRATIE ============
   function extractItems(payload) {
     if (!payload) return null;
     if (Array.isArray(payload)) return payload;
@@ -340,7 +335,6 @@
       }
     }
     if (!articles || !articles.length) return;
-
     if (articles.length === lastTriggeredCount) return;
     lastTriggeredCount = articles.length;
 
@@ -355,6 +349,11 @@
         requestAnimationFrame(function(){
           requestAnimationFrame(function(){
             reorderFeed(ranked);
+            // Dedup pas na reorder, idle
+            if (window.DedupEngine) {
+              var idle2 = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
+              idle2(function(){ window.DedupEngine.process(articles); }, { timeout: 3000 });
+            }
           });
         });
       }, { timeout: 2000 });
@@ -363,18 +362,14 @@
 
   function init() {
     var bus = getBus();
-    if (!bus) {
-      if (window.wdLog) wdLog.warn("[AI-UI] EventBus niet gevonden");
-      return;
-    }
-
+    if (!bus) return;
     injectStyles();
 
     bus.on("trending:update", renderTrending);
+    bus.on("dedup:clusters", applyDedup);
 
     bus.on("news:loaded", function(payload){
       hasReceivedNewsLoaded = true;
-      if (window.wdLog) wdLog.info("[AI-UI] news:loaded ontvangen — trigger");
       onNewsLoaded(payload);
     });
 
@@ -382,7 +377,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.5 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.6 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
@@ -391,29 +386,22 @@
     var pollTimer = setInterval(function(){
       if (hasReceivedNewsLoaded) {
         clearInterval(pollTimer);
-        if (window.wdLog) wdLog.info("[AI-UI] Polling gestopt (news:loaded actief)");
         return;
       }
       try {
         var items = (window.State && Array.isArray(window.State.items)) ? window.State.items : null;
         if (!items || !items.length) return;
-
         if (items.length !== lastSeenCount) {
           lastSeenCount = items.length;
           if (stableTimer) clearTimeout(stableTimer);
           stableTimer = setTimeout(function(){
-            if (window.wdLog) wdLog.info("[AI-UI] Feed stabiel op " + lastSeenCount + " items — trigger (fallback)");
             onNewsLoaded({ items: window.State.items });
           }, STABLE_DELAY);
         }
-      } catch(e) {
-        if (window.wdLog) wdLog.warn("[AI-UI] Poll fout: " + e.message);
-      }
+      } catch(e){}
     }, 2000);
 
-    setTimeout(function(){
-      clearInterval(pollTimer);
-    }, 120000);
+    setTimeout(function(){ clearInterval(pollTimer); }, 120000);
 
     setTimeout(function(){
       if (window.State && Array.isArray(window.State.items) && window.State.items.length) {
