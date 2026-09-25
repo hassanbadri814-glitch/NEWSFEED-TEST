@@ -14,8 +14,6 @@
 
     /* ============================================================
        Batch 2B: Event batching
-       - Verzamel events in een microtask
-       - Emit 1x per key met laatste value
        ============================================================ */
     var pendingEvents = [];
     var batchScheduled = false;
@@ -26,7 +24,6 @@
       pendingEvents = [];
       if (!bus || !events.length) return;
 
-      // Groepeer per key: eerste prev, laatste value
       var byKey = {};
       var order = [];
       events.forEach(function(e) {
@@ -38,17 +35,11 @@
         }
       });
 
-      // Emit specifieke events per key
       order.forEach(function(k) {
-        try {
-          bus.emit('state:' + k, byKey[k]);
-        } catch(e){}
+        try { bus.emit('state:' + k, byKey[k]); } catch(e){}
       });
 
-      // Emit generieke changed event
-      try {
-        bus.emit('state:changed', events[events.length - 1]);
-      } catch(e){}
+      try { bus.emit('state:changed', events[events.length - 1]); } catch(e){}
     }
 
     function scheduleFlush() {
@@ -67,7 +58,6 @@
         if (prev === value) return true;
         target[key] = value;
 
-        // 1. Interne subscribers (blijven synchroon)
         if (listeners[key]) {
           listeners[key].forEach(function(fn) {
             try { fn(value); }
@@ -81,7 +71,6 @@
           });
         }
 
-        // 2. EventBus broadcast (BATCHED via microtask)
         if (bus) {
           pendingEvents.push({ key: key, value: value, prev: prev });
           scheduleFlush();
@@ -142,9 +131,6 @@
   // ============================================================
   // AI INTEGRATIE (FASE 1: TRENDING + RANKING)
   // ============================================================
-  // We luisteren naar 'state:items', want dit is het event dat 
-  // door de Proxy wordt afgevuurd zodra de artikelen binnenkomen.
-  // ============================================================
   var bus = (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   
   if (bus) {
@@ -152,22 +138,17 @@
       var articles = event.value;
       if (!articles || articles.length === 0) return;
 
-      // 1. Start Trending Engine (throttled, draait op de achtergrond)
       if (window.TrendingEngine) {
         window.TrendingEngine.run(articles);
       }
 
-      // 2. Start Ranking Engine (idle, niet-blokkerend voor de UI)
       var idle = window.requestIdleCallback || function(cb) { return setTimeout(cb, 1); };
       
       idle(function() {
         try {
           if (window.RankingEngine) {
             var ranked = window.RankingEngine.rank(articles);
-            
-            // Stuur de nieuwe volgorde naar de UI (news-v27.js)
             bus.emit('news:ranked', ranked);
-            
             wdLog.info("[Store] Ranking toegepast op " + ranked.length + " artikelen");
           }
         } catch (e) {
