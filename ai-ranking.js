@@ -17,11 +17,14 @@ export const RankingEngine = (() => {
   }
 
   function saveProfile() {
-    // Batch writes: wacht 5 seconden voordat we daadwerkelijk opslaan
     if (writeTimeout) clearTimeout(writeTimeout);
     writeTimeout = setTimeout(() => {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-    }, 5000);
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+      } catch (e) {
+        console.warn('[RankingEngine] Kon profiel niet opslaan:', e);
+      }
+    }, 5000); // Batch write na 5 seconden
   }
 
   function applyDecay() {
@@ -29,7 +32,6 @@ export const RankingEngine = (() => {
     const now = Date.now();
     if (now - p.lastDecay < DECAY_INTERVAL) return;
 
-    // Decay alle gewichten richting 1.0
     Object.keys(p.categories).forEach(k => {
       p.categories[k] = 1.0 + (p.categories[k] - 1.0) * 0.9;
     });
@@ -57,7 +59,7 @@ export const RankingEngine = (() => {
     applyDecay();
     const p = loadProfile();
     
-    // Maak een kopie en sorteer
+    // Kopieer en sorteer op basis van profielgewichten
     return [...articles].sort((a, b) => {
       const scoreA = (p.categories[a.category] || 1.0) * (p.sources[a.source] || 1.0);
       const scoreB = (p.categories[b.category] || 1.0) * (p.sources[b.source] || 1.0);
