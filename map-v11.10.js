@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v13.1 — Conflictkaart (OpenFreeMap) + Military Events
-   - v13.1: FIX typeConfig fallback (TYPES[subtype/type])
-   - v13.0: Militaire events via MapAI + hotspot strip
+   WAR DESK v13.2 — Conflictkaart (OpenFreeMap) + Military Events
+   - v13.2: Legend klikbaar (subfilter) + auto-zoom naar markers
+   - v13.1: typeConfig fallback
+   - v13.0: Militaire events + hotspot strip
    ============================================================ */
 
 (function(){
@@ -13,9 +14,8 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.1 geladen — militaire events + hotspot strip");
+  LOG("v13.2 geladen — subfilter + auto-zoom");
 
-  // ============ FALLBACK LOCATIES ============
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
     "gaza":    { lat: 31.35, lng: 34.31, country: "Gaza" },
@@ -36,13 +36,10 @@
     "qa": "political","sa": "political","ae": "political","eg": "political"
   };
 
-  // ============ TYPES ============
   var TYPES = {
-    // Politiek / fallback
     "conflict":  { color: "#e63950", filter: "conflict",  label: "Conflict" },
     "political": { color: "#3b82f6", filter: "political", label: "Politiek" },
     "other":     { color: "#6b7a93", filter: "other",     label: "Overig" },
-    // Militaire subtypes
     "aanval":     { color: "#ff2e3e", filter: "military", label: "Aanval" },
     "offensief":  { color: "#ff7a1a", filter: "military", label: "Offensief" },
     "defensief":  { color: "#22c55e", filter: "military", label: "Defensief" },
@@ -50,7 +47,6 @@
     "actief":     { color: "#facc15", filter: "military", label: "Actief conflict" }
   };
 
-  // ============ ICONS ============
   var ICONS = {
     conflict:  '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 21 L2 21 Z"/></svg>',
     political: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 8 L22 10 L2 10 L2 8 Z M4 12 L4 20 L8 20 L8 12 Z M10 12 L10 20 L14 20 L14 12 Z M16 12 L16 20 L20 20 L20 12 Z M2 20 L22 20 L22 22 L2 22 Z"/></svg>',
@@ -69,23 +65,23 @@
     return ICONS.other;
   }
 
-  // v13.1: veilige typeConfig resolver
   function resolveTypeConfig(e){
     if (!e) return TYPES.other;
     if (e.typeConfig && e.typeConfig.color) return e.typeConfig;
     if (e.subtype && TYPES[e.subtype]) return TYPES[e.subtype];
     if (e.type && TYPES[e.type]) return TYPES[e.type];
-    if (e.type && e.type.indexOf("mil-") === 0) return TYPES.actief;
     return TYPES.other;
   }
 
   var MAP = {
     instance: null, cluster: null, tileLayers: {}, events: [],
     militaryEvents: [], hotspots: [],
-    currentFilter: "all", refreshTimer: null, isFullscreen: false,
+    currentFilter: "all", currentSubtype: null,  // v13.2
+    refreshTimer: null, isFullscreen: false,
     currentTheme: "dark", themeObserver: null, _timeModeInterval: null,
     currentDetailEvent: null, _lastNewsCount: 0, _busBound: false,
-    _lastRenderTime: 0
+    _lastRenderTime: 0,
+    _lastZoomHash: ""  // v13.2
   };
 
   var TILES = {
@@ -110,14 +106,8 @@
   function switchTile(theme){
     if(!MAP.instance) return;
     var cfg = TILES[theme] || TILES.dark;
-
-    if(MAP.tileLayers.dark && MAP.instance.hasLayer(MAP.tileLayers.dark)){
-      MAP.instance.removeLayer(MAP.tileLayers.dark);
-    }
-    if(MAP.tileLayers.light && MAP.instance.hasLayer(MAP.tileLayers.light)){
-      MAP.instance.removeLayer(MAP.tileLayers.light);
-    }
-
+    if(MAP.tileLayers.dark && MAP.instance.hasLayer(MAP.tileLayers.dark)) MAP.instance.removeLayer(MAP.tileLayers.dark);
+    if(MAP.tileLayers.light && MAP.instance.hasLayer(MAP.tileLayers.light)) MAP.instance.removeLayer(MAP.tileLayers.light);
     if(!MAP.tileLayers[theme]){
       if(L.maplibreGL){
         MAP.tileLayers[theme] = L.maplibreGL({ style: cfg.style, attribution: cfg.attribution });
@@ -223,12 +213,20 @@
       ".wd-hotspot-pill:hover{transform:translateY(-1px);filter:brightness(1.1)}" +
       ".wd-hotspot-pill:active{transform:translateY(0)}" +
       ".wd-hotspot-pill .wd-hs-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 5px;background:rgba(0,0,0,0.25);border-radius:8px;font-size:10px;font-weight:700}" +
+      ".wd-hotspot-pill[data-type='region'] .wd-hs-count{background:rgba(0,0,0,0.35)}" +
       ".wd-hotspot-pill[data-intensity='1']{background:linear-gradient(135deg,rgba(255,122,26,0.7),rgba(230,90,26,0.85));border-color:rgba(255,140,60,0.5)}" +
       ".wd-hotspot-pill[data-intensity='2']{background:linear-gradient(135deg,rgba(255,60,60,0.85),rgba(220,40,40,0.95));border-color:rgba(255,80,80,0.6)}" +
       ".wd-hotspot-pill[data-intensity='3']{background:linear-gradient(135deg,rgba(255,40,40,1),rgba(200,20,20,1));border-color:rgba(255,60,60,0.7);box-shadow:0 0 12px rgba(255,40,40,0.5)}" +
       ".wd-hotspot-pill[data-intensity='4']{background:linear-gradient(135deg,rgba(255,20,20,1),rgba(180,0,0,1));border-color:rgba(255,0,0,0.8);box-shadow:0 0 16px rgba(255,0,0,0.7);animation:wdPulse 1.6s ease-in-out infinite}" +
       "@keyframes wdPulse{0%,100%{box-shadow:0 0 16px rgba(255,0,0,0.7)}50%{box-shadow:0 0 24px rgba(255,0,0,0.9)}}" +
       "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']{animation:none}}" +
+
+      /* v13.2: Legend klikbaar */
+      ".wd-map-legend .legend-item{cursor:pointer;transition:all 0.15s;border-radius:6px;padding:3px 6px;margin:0 -6px;-webkit-tap-highlight-color:transparent}" +
+      ".wd-map-legend .legend-item:hover{background:rgba(255,255,255,0.05)}" +
+      ".wd-map-legend .legend-item.active{background:rgba(224,168,87,0.15);box-shadow:inset 0 0 0 1px rgba(224,168,87,0.4)}" +
+      ".wd-map-legend .legend-item.active .legend-num{color:#e0a857;font-weight:800}" +
+      "body.light .wd-map-legend .legend-item.active{background:rgba(200,140,40,0.15)}" +
 
       ".wd-detail-type{text-transform:uppercase;letter-spacing:.5px;font-size:10px;font-weight:800}" +
       ".live-event-mil{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(255,60,60,0.15);color:#ff5050;font-size:9.5px;font-weight:700;letter-spacing:0.5px}" +
@@ -298,7 +296,6 @@
     });
   }
 
-  // v13.1: veilige typeConfig
   function openDetail(event){
     ensureDetailModal();
     MAP.currentDetailEvent = event;
@@ -342,7 +339,6 @@
       var items = byCat[cat].sort(function(a, b){
         return (new Date(b.date).getTime()||0) - (new Date(a.date).getTime()||0);
       }).slice(0, 2);
-
       items.forEach(function(it, i){
         var off = i * 0.15;
         events.push({
@@ -359,6 +355,32 @@
     });
     if (events.length > 500) events = events.slice(0, 500);
     return events;
+  }
+
+  // v13.2: auto-zoom naar markers
+  function fitToMarkers(){
+    if(!MAP.instance) return;
+    var visible = MAP.events.filter(function(e){
+      if(MAP.currentFilter === "all") return true;
+      if(MAP.currentFilter === "military") return e.isMilitary === true;
+      return !e.isMilitary && resolveTypeConfig(e).filter === MAP.currentFilter;
+    });
+    if (MAP.currentSubtype) {
+      visible = visible.filter(function(e){ return e.subtype === MAP.currentSubtype; });
+    }
+    if (!visible.length) {
+      MAP.instance.setView([29.5, 42.0], 4);
+      return;
+    }
+    if (visible.length === 1) {
+      MAP.instance.setView([visible[0].lat, visible[0].lng], 6);
+      return;
+    }
+    try {
+      var bounds = L.latLngBounds(visible.map(function(e){ return [e.lat, e.lng]; }));
+      MAP.instance.fitBounds(bounds, { padding: [40, 40], maxZoom: 6 });
+      LOG("Auto-zoom naar " + visible.length + " markers");
+    } catch(e){}
   }
 
   function refreshFromNews(){
@@ -383,6 +405,7 @@
       renderLegend();
       renderLiveList();
       renderHotspots();
+      if (MAP.instance) MAP.instance.setView([29.5, 42.0], 4);
       return true;
     }
 
@@ -393,6 +416,14 @@
     renderLegend();
     renderLiveList();
     renderHotspots();
+
+    // v13.2: auto-zoom als de events-set significant is veranderd
+    var zoomHash = MAP.events.map(function(e){ return e.id; }).join("|").slice(0, 200);
+    if (zoomHash !== MAP._lastZoomHash) {
+      MAP._lastZoomHash = zoomHash;
+      setTimeout(fitToMarkers, 200);
+    }
+
     LOG("✅ " + events.length + " events op kaart");
     return true;
   }
@@ -422,9 +453,11 @@
     for (var i = 0; i < hotspots.length; i++) {
       var h = hotspots[i];
       var intensity = h.count >= 15 ? 4 : (h.count >= 8 ? 3 : (h.count >= 4 ? 2 : 1));
+      var label = h.label || h.country || h.region || "?";
       html += '<button class="wd-hotspot-pill" data-intensity="' + intensity + '" ' +
+              'data-type="' + (h.type || "country") + '" ' +
               'data-lat="' + h.lat + '" data-lng="' + h.lng + '" type="button">' +
-              escapeHtml(h.country) +
+              escapeHtml(label) +
               '<span class="wd-hs-count">' + h.count + '</span>' +
               '</button>';
     }
@@ -446,7 +479,7 @@
     }
   }
 
-  // ============ MARKERS (v13.1 — veilige typeConfig) ============
+  // ============ MARKERS ============
   function renderMarkers(){
     if(!MAP.cluster) return;
     MAP.cluster.clearLayers();
@@ -458,6 +491,12 @@
       if(MAP.currentFilter === "other") return !e.isMilitary && resolveTypeConfig(e).filter === "other";
       return true;
     });
+
+    // v13.2: subfilter op subtype
+    if (MAP.currentSubtype) {
+      filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
+    }
+
     var markers = [];
     filtered.forEach(function(e){
       var typeConf = resolveTypeConfig(e);
@@ -501,6 +540,7 @@
     LOG("Markers gerenderd: " + markers.length);
   }
 
+  // ============ LEGEND (v13.2 klikbaar) ============
   function renderLegend(){
     var el = $("legendItems");
     if(!el) return;
@@ -522,15 +562,39 @@
     ].filter(function(r){ return counts[r.key] > 0; });
 
     if(!rows.length){ el.innerHTML = '<div class="legend-item">Geen data</div>'; return; }
+
     el.innerHTML = rows.map(function(r){
-      return '<div class="legend-item">' +
+      var active = (MAP.currentSubtype === r.key) ? " active" : "";
+      return '<div class="legend-item' + active + '" data-subtype="' + r.key + '">' +
         '<span class="legend-dot" style="background:' + r.color + '"></span>' +
         '<span>' + r.label + '</span>' +
         '<span class="legend-num">' + counts[r.key] + '</span></div>';
     }).join("");
+
+    // v13.2: click handlers
+    Array.prototype.forEach.call(el.querySelectorAll(".legend-item"), function(item){
+      item.addEventListener("click", function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var subtype = this.getAttribute("data-subtype");
+        if (!subtype) return;
+
+        if (MAP.currentSubtype === subtype) {
+          MAP.currentSubtype = null;
+          if (window.showToast) window.showToast("Subfilter gewist");
+        } else {
+          MAP.currentSubtype = subtype;
+          if (window.showToast) window.showToast("Filter: " + subtype);
+        }
+        renderMarkers();
+        renderLegend();
+        // Zoom in op gefilterde markers
+        if (MAP.currentSubtype) setTimeout(fitToMarkers, 200);
+      });
+    });
   }
 
-  // ============ LIVE LIST (v13.1 — veilige typeConfig) ============
+  // ============ LIVE LIST ============
   function renderLiveList(){
     var list = $("liveList");
     var countEl = $("liveCount");
@@ -543,6 +607,12 @@
       if(MAP.currentFilter === "other") return !e.isMilitary && resolveTypeConfig(e).filter === "other";
       return true;
     });
+
+    // v13.2: subfilter
+    if (MAP.currentSubtype) {
+      filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
+    }
+
     if(countEl) countEl.textContent = filtered.length;
     if(!filtered.length){
       list.innerHTML = '<div class="live-empty">Geen events in deze categorie</div>';
@@ -636,9 +706,13 @@
         document.querySelectorAll(".live-filter").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
         MAP.currentFilter = btn.dataset.cat;
+        // Bij filterwijziging: subfilter wissen
+        MAP.currentSubtype = null;
         if(window.WDStorage) WDStorage.set("map_filter", MAP.currentFilter);
         renderMarkers();
         renderLiveList();
+        renderLegend();
+        setTimeout(fitToMarkers, 200);
       });
     });
   }
@@ -658,6 +732,7 @@
   window.__mapRefresh = function(){
     LOG("Handmatige refresh");
     MAP._lastNewsCount = 0;
+    MAP._lastZoomHash = "";
     if (window.MapAI) window.MapAI.run();
   };
   window.__mapResetView = function(){ if(MAP.instance) MAP.instance.setView([29.5, 42.0], 4); };
@@ -684,7 +759,6 @@
     });
   }
 
-  // ============ EVENTBUS ============
   function bindEventBus(){
     if(MAP._busBound) return;
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on){
@@ -709,7 +783,7 @@
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
 
-    LOG("EventBus listeners actief (map:military-events, map:hotspots, news:loaded)");
+    LOG("EventBus listeners actief");
   }
 
   function isMapActive(){
@@ -776,5 +850,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v13.1 geladen (militaire events + hotspots)");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.2 geladen");
 })();
