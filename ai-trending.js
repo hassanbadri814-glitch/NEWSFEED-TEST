@@ -1,6 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-trending.js v1.7
-   - v1.7: reset throttle bij news:reload:done (handmatige refresh)
+   WAR DESK — ai-trending.js v1.8
+   - v1.8: gebruikt AIShared voor STOP_WORDS, getTimestamp, jaccard
+           (fallback naar eigen implementatie als AIShared ontbreekt)
+   - v1.7: reset throttle bij news:reload:done
    - v1.6: case-insensitive merge
    ============================================================ */
 
@@ -15,37 +17,43 @@
   var lastProducedTopics = 0;
   var lastArticleCount = 0;
 
-  var STOP_WORDS = {};
-  ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
-   "ook","als","maar","bij","of","uit","dan","naar","nog","wel","geen","kan","meer","wordt",
-   "door","over","ze","zich","niet","heeft","hebben","worden","deze","dit","tot","je","u",
-   "we","ik","hij","zij","jij","mijn","jouw","ons","onze","the","and","for","with","that",
-   "this","from","have","has","are","was","were","will","been","they","their","you","your",
-   "says","said","say","after","before","during","about","into","under","more","less",
-   "just","also","new","two","three","first","last","next","back","against",
-   "between","through","which","what","when","where","who","how","why","than","then","very",
-   "much","many","some","only","even","still","being","does","did","done",
-   "via","per","alweer","hadden","zullen","zou","kunnen","moet","moeten","mag","mogen",
-   "laat","laten","gaat","gaan","komt","komen","weer","toch","want","omdat",
-   "terwijl","tijdens","volgens","binnen","buiten","tussen","tegen","zonder",
-   "speech","handen","hand","thing","things","people","man","woman","day","days",
-   "year","years","week","month","today","tomorrow","yesterday","time","times",
-   "make","made","take","took","give","gave","come","came","look","looked",
-   "think","thought","know","knew","want","wanted","need","needed","find","found",
-   "video","videos","photo","photos","report","reports","update","updates",
-   "nieuws","video","foto","fotos","bericht","berichten",
-   "minister","president","prime","premier","king","queen","leader","chief",
-   "official","officials","spokesman","spokesperson","general","doctor","dr",
-   "mr","mrs","ms","lord","sir","uncle","aunt","brother","sister",
-   "says","told","called","asked","urged","warned","claimed","denied",
-   "confirmed","announced","declared","stated","reported","added"]
-    .forEach(function(w){ STOP_WORDS[w] = true; });
+  /* ============================================================
+     v1.8: gebruik AIShared waar beschikbaar, anders eigen code
+     ============================================================ */
+  var AS = window.AIShared || null;
 
-  function getBus() {
-    return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
-  }
+  // STOP_WORDS — prefer shared
+  var STOP_WORDS = AS ? AS.STOP_WORDS : (function(){
+    var s = {};
+    ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
+     "ook","als","maar","bij","of","uit","dan","naar","nog","wel","geen","kan","meer","wordt",
+     "door","over","ze","zich","niet","heeft","hebben","worden","deze","dit","tot","je","u",
+     "we","ik","hij","zij","jij","mijn","jouw","ons","onze","the","and","for","with","that",
+     "this","from","have","has","are","was","were","will","been","they","their","you","your",
+     "says","said","say","after","before","during","about","into","under","more","less",
+     "just","also","new","two","three","first","last","next","back","against",
+     "between","through","which","what","when","where","who","how","why","than","then","very",
+     "much","many","some","only","even","still","being","does","did","done",
+     "via","per","alweer","hadden","zullen","zou","kunnen","moet","moeten","mag","mogen",
+     "laat","laten","gaat","gaan","komt","komen","weer","toch","want","omdat",
+     "terwijl","tijdens","volgens","binnen","buiten","tussen","tegen","zonder",
+     "speech","handen","hand","thing","things","people","man","woman","day","days",
+     "year","years","week","month","today","tomorrow","yesterday","time","times",
+     "make","made","take","took","give","gave","come","came","look","looked",
+     "think","thought","know","knew","want","wanted","need","needed","find","found",
+     "video","videos","photo","photos","report","reports","update","updates",
+     "nieuws","foto","fotos","bericht","berichten",
+     "minister","president","prime","premier","king","queen","leader","chief",
+     "official","officials","spokesman","spokesperson","general","doctor","dr",
+     "mr","mrs","ms","lord","sir","uncle","aunt","brother","sister",
+     "told","called","asked","urged","warned","claimed","denied",
+     "confirmed","announced","declared","stated","reported","added"]
+      .forEach(function(w){ s[w] = true; });
+    return s;
+  })();
 
-  function getTimestamp(a) {
+  // getTimestamp — prefer shared
+  var getTimestamp = AS ? AS.getTimestamp : function(a){
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
     var candidates = [];
@@ -65,6 +73,33 @@
     if (!candidates.length) return 0;
     candidates.sort(function(x, y){ return y - x; });
     return candidates[0];
+  };
+
+  // jaccard — prefer shared
+  var jaccard = AS ? AS.jaccard : function(setA, setB){
+    var inter = 0;
+    for (var k in setA) if (setB[k]) inter++;
+    var union = 0;
+    for (var k2 in setA) union++;
+    for (var k3 in setB) if (!setA[k3]) union++;
+    return union === 0 ? 0 : inter / union;
+  };
+
+  // containment — prefer shared
+  var containment = AS ? AS.containment : function(small, big){
+    var total = 0, found = 0;
+    for (var k in small) {
+      total++;
+      if (big[k]) found++;
+    }
+    return total === 0 ? 0 : found / total;
+  };
+
+  /* ============================================================
+     Eigen helpers (niet in AIShared)
+     ============================================================ */
+  function getBus() {
+    return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
   function tokenize(title) {
@@ -73,24 +108,6 @@
     return t.split(/\s+/).filter(function(w) {
       return w.length > 3 && !STOP_WORDS[w];
     });
-  }
-
-  function jaccard(setA, setB) {
-    var inter = 0;
-    for (var k in setA) if (setB[k]) inter++;
-    var union = 0;
-    for (var k2 in setA) union++;
-    for (var k3 in setB) if (!setA[k3]) union++;
-    return union === 0 ? 0 : inter / union;
-  }
-
-  function containment(small, big) {
-    var total = 0, found = 0;
-    for (var k in small) {
-      total++;
-      if (big[k]) found++;
-    }
-    return total === 0 ? 0 : found / total;
   }
 
   function bump(store, key, displayForm, weight, isProperNoun) {
@@ -265,7 +282,6 @@
     }, { timeout: 2000 });
   }
 
-  // v1.7: reset throttle bij handmatige refresh
   function forceRun(articles) {
     lastRun = 0;
     lastProducedTopics = 0;
@@ -285,7 +301,6 @@
       if (items && items.length) run(items);
     });
 
-    /* v1.7: bij handmatige reload — forceer trending */
     bus.on("news:reload:done", function(){
       var items = window.State && window.State.items;
       if (items && items.length) forceRun(items);
@@ -297,7 +312,9 @@
       }
     }, 2000);
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.7 geladen");
+    if (window.wdLog) {
+      wdLog.info("[WAR DESK] ai-trending.js v1.8 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
+    }
   }
 
   window.TrendingEngine = { run: run, forceRun: forceRun };
