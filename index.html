@@ -99,7 +99,6 @@
 })();
 </script>
 
-<!-- ==== BATCH 1: PRE-CONNECT & DNS-PREFETCH ==== -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://unpkg.com">
@@ -107,7 +106,6 @@
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
-<!-- ==== BATCH 1: FONTS GEOPTIMALISEERD ==== -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -139,6 +137,62 @@
 .vod-detail-modal.show .vod-detail-box { transform: translateY(0) !important; }
 .vod-detail-body { padding: 16px !important; display: flex !important; flex-direction: column !important; gap: 12px !important; }
 .vod-detail-poster img { max-width: 120px !important; border-radius: 8px !important; display: block !important; }
+
+/* ==== C6: PWA banners ==== */
+.wd-banner-offline{position:fixed;top:0;left:0;right:0;z-index:10000003;
+  background:#3a3a3a;color:#fff;padding:8px 12px;font-size:13px;
+  text-align:center;font-weight:500;
+  transform:translateY(-100%);transition:transform .3s;
+  border-bottom:1px solid #555}
+.wd-banner-offline.show{transform:translateY(0)}
+.wd-banner-offline .dot{display:inline-block;width:8px;height:8px;
+  border-radius:50%;background:#ff9800;margin-right:6px;
+  animation:wdPulse 1.5s infinite}
+@keyframes wdPulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+.wd-banner-update{position:fixed;top:0;left:0;right:0;z-index:10000003;
+  background:linear-gradient(90deg,#e0a857,#f0c074);color:#070c16;
+  padding:10px 12px;font-size:13px;font-weight:600;
+  display:flex;align-items:center;gap:10px;
+  transform:translateY(-100%);transition:transform .3s;
+  box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+.wd-banner-update.show{transform:translateY(0)}
+.wd-banner-update .msg{flex:1;min-width:0}
+.wd-banner-update button{background:#070c16;color:#e0a857;
+  border:0;border-radius:6px;padding:6px 12px;font-size:12px;
+  font-weight:600;cursor:pointer}
+.wd-banner-update button.dismiss{background:transparent;
+  color:#070c16;padding:6px 8px;opacity:.7}
+
+.wd-banner-install{position:fixed;
+  left:8px;right:8px;
+  bottom:calc(70px + env(safe-area-inset-bottom,0px));
+  z-index:10000002;
+  background:linear-gradient(135deg,#e0a857,#f0c074);
+  color:#070c16;border-radius:14px;padding:14px;
+  display:flex;align-items:center;gap:12px;
+  box-shadow:0 8px 32px rgba(224,168,87,0.35),
+             0 4px 12px rgba(0,0,0,0.4);
+  transform:translateY(150%);
+  transition:transform .4s cubic-bezier(0.4,0,0.2,1);
+  max-width:500px;margin:0 auto}
+.wd-banner-install.show{transform:translateY(0)}
+.wd-banner-install .icon{font-size:26px;flex-shrink:0;line-height:1}
+.wd-banner-install .text{flex:1;min-width:0}
+.wd-banner-install .title{font-size:14px;font-weight:700;margin-bottom:2px}
+.wd-banner-install .sub{font-size:11px;opacity:.75;line-height:1.3}
+.wd-banner-install .actions{display:flex;gap:6px;flex-shrink:0}
+.wd-banner-install button{background:#070c16;color:#e0a857;
+  border:0;border-radius:8px;padding:8px 14px;font-size:12px;
+  font-weight:700;cursor:pointer}
+.wd-banner-install button.dismiss{background:rgba(7,12,22,0.15);
+  color:#070c16;padding:8px 10px}
+
+body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
+
+@media (min-width:900px){
+  .wd-banner-install{display:none!important}
+}
 </style>
 </head>
 <body>
@@ -376,6 +430,22 @@
         <div class="toggle-switch" id="toggleTranslate"></div>
       </div>
     </div>
+
+    <!-- ==== C6: App-sectie ==== -->
+    <div class="sheet-section">
+      <div class="sheet-title">App</div>
+      <div class="toggle-row" id="togglePwaInstallRow">
+        <svg class="toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18"/></svg>
+        <span class="toggle-label">Installatie-banner tonen</span>
+        <div class="toggle-switch" id="togglePwaInstall"></div>
+      </div>
+      <div class="action-row" style="margin-top:.5rem">
+        <button class="sheet-item" id="pwaInstallNowBtn">📲 Installeer nu</button>
+        <button class="sheet-item" id="pwaCheckUpdateBtn">🔄 Check update</button>
+      </div>
+      <div id="pwaInstallStatus" style="font-size:.75rem;opacity:.6;padding:.5rem .25rem">Status: —</div>
+    </div>
+
     <div class="sheet-section">
       <div class="sheet-title">Kaart</div>
       <div class="action-row">
@@ -668,24 +738,15 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 </script>
 
-<!-- ============================================================
-     EXTERNAL LIBS (Leaflet, MapLibre) — ONGEWIJZIGD
-     ============================================================ -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js" defer></script>
 
-<!-- ============================================================
-     WAR DESK APP SCRIPTS — LAADVOLGORDE IS KRITIEK
-     ============================================================ -->
-
-<!-- 1. CORE -->
 <script src="storage.js?v=14.30" defer></script>
 <script src="config.js?v=14.22" defer></script>
 <script src="utils.js?v=14.30" defer></script>
 
-<!-- 2. AI ENGINES -->
 <script src="ai-shared.js?v=1.0" defer></script>
 <script src="ai-trending.js?v=1.8" defer></script>
 <script src="ai-ranking.js?v=1.0" defer></script>
@@ -693,20 +754,17 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="ai-summary.js?v=1.2" defer></script>
 <script src="ai-map.js?v=1.7" defer></script>
 
-<!-- 3. STATE & FEED -->
 <script src="store.js?v=14.5" defer></script>
 <script src="news-v27.js?v=27.10" defer></script>
 <script src="app-v12.js?v=14.5" defer></script>
 <script src="persist-v4.js?v=14.30" defer></script>
 <script src="refresh-v12.js?v=14.4" defer></script>
 
-<!-- 4. FEATURE MODULES -->
 <script src="iptv-v8.js?v=14.30" defer></script>
 <script src="map-v11.10.js?v=13.5" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=1.17" defer></script>
 
-<!-- 5. AI UI HOOKS -->
 <script src="ai-ui.js?v=2.1" defer></script>
 
 <script>
@@ -762,6 +820,330 @@ document.addEventListener("DOMContentLoaded", function(){
   } else {
     restoreTab();
   }
+})();
+</script>
+
+<!-- ==== C6: PWA module ==== -->
+<script>
+(function(){
+  "use strict";
+  var LOG = function(){ try{ wdLog.info.apply(null, ["[PWA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
+  LOG("module geladen");
+
+  var PWA = {
+    deferredPrompt: null,
+    isStandalone: false,
+    updateReady: false,
+    updateSWReg: null,
+    installed: false
+  };
+
+  var LS_KEYS = {
+    dismissCount: "wardesk_pwa_dismiss_count",
+    dismissTime: "wardesk_pwa_dismiss_time",
+    installedFlag: "wardesk_pwa_installed",
+    bannerDisabled: "wardesk_pwa_banner_disabled"
+  };
+
+  function lsGet(k, d){ try{ var v = localStorage.getItem(k); return v == null ? d : v; }catch(e){ return d; } }
+  function lsSet(k, v){ try{ localStorage.setItem(k, String(v)); }catch(e){} }
+
+  function checkStandalone(){
+    PWA.isStandalone =
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true ||
+      document.referrer.indexOf("android-app://") === 0;
+    return PWA.isStandalone;
+  }
+
+  /* ===== Offline banner ===== */
+  var offlineEl = null;
+  function ensureOfflineEl(){
+    if (offlineEl) return offlineEl;
+    offlineEl = document.createElement("div");
+    offlineEl.className = "wd-banner-offline";
+    offlineEl.innerHTML = '<span class="dot"></span>Offline modus — je ziet gecachte artikelen';
+    document.body.appendChild(offlineEl);
+    return offlineEl;
+  }
+  function showOffline(){
+    ensureOfflineEl().classList.add("show");
+    document.body.classList.add("wd-has-top-banner");
+  }
+  function hideOffline(){
+    if (offlineEl) offlineEl.classList.remove("show");
+    updateTopBannerClass();
+  }
+  function updateTopBannerClass(){
+    var any = (offlineEl && offlineEl.classList.contains("show")) ||
+              (updateEl && updateEl.classList.contains("show"));
+    if (any) document.body.classList.add("wd-has-top-banner");
+    else document.body.classList.remove("wd-has-top-banner");
+  }
+
+  /* ===== Update banner ===== */
+  var updateEl = null;
+  function ensureUpdateEl(){
+    if (updateEl) return updateEl;
+    updateEl = document.createElement("div");
+    updateEl.className = "wd-banner-update";
+    updateEl.innerHTML =
+      '<span>🔄</span>' +
+      '<span class="msg">Nieuwe versie beschikbaar</span>' +
+      '<button class="apply">Herladen</button>' +
+      '<button class="dismiss" aria-label="Later">Later</button>';
+    document.body.appendChild(updateEl);
+    updateEl.querySelector(".apply").addEventListener("click", function(){
+      LOG("Gebruiker accepteert update");
+      PWA.updateReady = false;
+      if (PWA.updateSWReg && PWA.updateSWReg.waiting){
+        try{ PWA.updateSWReg.waiting.postMessage({ type: "SKIP_WAITING" }); }catch(e){}
+      }
+      setTimeout(function(){ location.reload(); }, 250);
+    });
+    updateEl.querySelector(".dismiss").addEventListener("click", function(){
+      LOG("Gebruiker stelt update uit");
+      hideUpdate();
+    });
+    return updateEl;
+  }
+  function showUpdate(){
+    ensureUpdateEl().classList.add("show");
+    document.body.classList.add("wd-has-top-banner");
+  }
+  function hideUpdate(){
+    if (updateEl) updateEl.classList.remove("show");
+    updateTopBannerClass();
+  }
+
+  /* ===== Online/Offline ===== */
+  function refreshNetworkBanner(){
+    if (navigator.onLine){
+      hideOffline();
+      if (PWA.updateReady) showUpdate();
+    } else {
+      showOffline();
+      hideUpdate();
+    }
+  }
+  window.addEventListener("online", function(){
+    LOG("Online");
+    refreshNetworkBanner();
+  });
+  window.addEventListener("offline", function(){
+    LOG("Offline");
+    refreshNetworkBanner();
+  });
+
+  /* ===== Install banner ===== */
+  var installEl = null;
+  function ensureInstallEl(){
+    if (installEl) return installEl;
+    installEl = document.createElement("div");
+    installEl.className = "wd-banner-install";
+    installEl.innerHTML =
+      '<div class="icon">📲</div>' +
+      '<div class="text">' +
+        '<div class="title">Installeer WAR DESK</div>' +
+        '<div class="sub">Sneller, offline, als echte app</div>' +
+      '</div>' +
+      '<div class="actions">' +
+        '<button class="dismiss" aria-label="Later">Later</button>' +
+        '<button class="install">✓</button>' +
+      '</div>';
+    document.body.appendChild(installEl);
+
+    installEl.querySelector(".install").addEventListener("click", async function(){
+      if (!PWA.deferredPrompt){
+        LOG("Geen deferredPrompt beschikbaar");
+        hideInstall();
+        return;
+      }
+      LOG("Install prompt getoond");
+      PWA.deferredPrompt.prompt();
+      try {
+        var choice = await PWA.deferredPrompt.userChoice;
+        LOG("Install keuze:", choice.outcome);
+        if (choice.outcome === "accepted"){
+          lsSet(LS_KEYS.installedFlag, "1");
+          PWA.installed = true;
+        }
+      } catch(e){}
+      PWA.deferredPrompt = null;
+      hideInstall();
+      updateInstallStatus();
+    });
+
+    installEl.querySelector(".dismiss").addEventListener("click", function(){
+      LOG("Gebruiker klikt later");
+      var cnt = parseInt(lsGet(LS_KEYS.dismissCount, "0"), 10) + 1;
+      lsSet(LS_KEYS.dismissCount, cnt);
+      lsSet(LS_KEYS.dismissTime, Date.now());
+      hideInstall();
+      updateInstallStatus();
+    });
+    return installEl;
+  }
+
+  function shouldShowInstall(){
+    if (lsGet(LS_KEYS.bannerDisabled, "0") === "1") return false;
+    if (PWA.installed) return false;
+    if (lsGet(LS_KEYS.installedFlag, "0") === "1") return false;
+    if (checkStandalone()) return false;
+    if (!PWA.deferredPrompt) return false;
+    var cnt = parseInt(lsGet(LS_KEYS.dismissCount, "0"), 10);
+    if (cnt >= 3) return false;
+    var t = parseInt(lsGet(LS_KEYS.dismissTime, "0"), 10);
+    if (t && (Date.now() - t) < 7 * 24 * 60 * 60 * 1000) return false;
+    return true;
+  }
+
+  function showInstall(){ ensureInstallEl().classList.add("show"); }
+  function hideInstall(){ if (installEl) installEl.classList.remove("show"); }
+
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault();
+    PWA.deferredPrompt = e;
+    LOG("beforeinstallprompt ontvangen");
+    if (shouldShowInstall()){
+      setTimeout(function(){
+        if (shouldShowInstall()) showInstall();
+      }, 30000);
+    }
+    updateInstallStatus();
+  });
+
+  window.addEventListener("appinstalled", function(){
+    LOG("App geïnstalleerd!");
+    PWA.installed = true;
+    lsSet(LS_KEYS.installedFlag, "1");
+    hideInstall();
+    updateInstallStatus();
+    if (window.showToast) window.showToast("WAR DESK geïnstalleerd! 🎉");
+  });
+
+  /* ===== SW update ===== */
+  if ("serviceWorker" in navigator){
+    navigator.serviceWorker.ready.then(function(reg){
+      PWA.updateSWReg = reg;
+      if (reg.waiting && navigator.serviceWorker.controller){
+        PWA.updateReady = true;
+        LOG("Waiting SW gedetecteerd — update klaar");
+        if (navigator.onLine) showUpdate();
+      }
+      reg.addEventListener("updatefound", function(){
+        var newSW = reg.installing;
+        if (!newSW) return;
+        LOG("Nieuwe SW wordt geïnstalleerd");
+        newSW.addEventListener("statechange", function(){
+          if (newSW.state === "installed" && navigator.serviceWorker.controller){
+            PWA.updateReady = true;
+            LOG("Update klaar — wacht op gebruiker");
+            if (navigator.onLine) showUpdate();
+          }
+        });
+      });
+    });
+    navigator.serviceWorker.addEventListener("controllerchange", function(){
+      LOG("SW controller veranderd");
+    });
+  }
+
+  /* ===== Menu wiring ===== */
+  function updateInstallStatus(){
+    var el = document.getElementById("pwaInstallStatus");
+    if (!el) return;
+    if (PWA.installed || lsGet(LS_KEYS.installedFlag, "0") === "1"){
+      el.textContent = "Status: ✓ Geïnstalleerd";
+    } else if (checkStandalone()){
+      el.textContent = "Status: draait standalone";
+    } else if (PWA.deferredPrompt){
+      el.textContent = "Status: klaar om te installeren";
+    } else {
+      el.textContent = "Status: niet installeerbaar in deze browser";
+    }
+    var installBtn = document.getElementById("pwaInstallNowBtn");
+    if (installBtn){
+      if (PWA.deferredPrompt) installBtn.style.opacity = "1";
+      else installBtn.style.opacity = ".5";
+    }
+    var toggle = document.getElementById("togglePwaInstall");
+    var row = document.getElementById("togglePwaInstallRow");
+    if (toggle && row){
+      var dis = lsGet(LS_KEYS.bannerDisabled, "0") === "1";
+      row.classList.toggle("active", !dis);
+    }
+  }
+
+  function bindMenu(){
+    var installBtn = document.getElementById("pwaInstallNowBtn");
+    if (installBtn){
+      installBtn.addEventListener("click", function(){
+        if (!PWA.deferredPrompt){
+          if (window.showToast) window.showToast("Installatie niet beschikbaar — gebruik Chrome menu");
+          return;
+        }
+        PWA.deferredPrompt.prompt();
+        PWA.deferredPrompt.userChoice.then(function(c){
+          LOG("Menu install keuze:", c.outcome);
+          PWA.deferredPrompt = null;
+          updateInstallStatus();
+        });
+      });
+    }
+    var checkBtn = document.getElementById("pwaCheckUpdateBtn");
+    if (checkBtn){
+      checkBtn.addEventListener("click", function(){
+        if (PWA.updateSWReg){
+          PWA.updateSWReg.update().then(function(){
+            if (window.showToast) window.showToast("Gecheckt op updates");
+          }).catch(function(){
+            if (window.showToast) window.showToast("Check mislukt");
+          });
+        }
+      });
+    }
+    var row = document.getElementById("togglePwaInstallRow");
+    if (row){
+      row.addEventListener("click", function(){
+        var dis = lsGet(LS_KEYS.bannerDisabled, "0") === "1";
+        var newDis = !dis;
+        lsSet(LS_KEYS.bannerDisabled, newDis ? "1" : "0");
+        row.classList.toggle("active", !newDis);
+        if (newDis){
+          hideInstall();
+          if (window.showToast) window.showToast("Installatie-banner uit");
+        } else {
+          if (window.showToast) window.showToast("Installatie-banner aan");
+          if (shouldShowInstall()) showInstall();
+        }
+      });
+    }
+    updateInstallStatus();
+  }
+
+  function init(){
+    checkStandalone();
+    LOG("Init — standalone:", PWA.isStandalone, "online:", navigator.onLine);
+    refreshNetworkBanner();
+    document.addEventListener("visibilitychange", function(){
+      if (document.visibilityState === "visible") checkStandalone();
+    });
+    if (document.readyState === "loading"){
+      document.addEventListener("DOMContentLoaded", bindMenu);
+    } else {
+      bindMenu();
+    }
+  }
+
+  if (document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+
+  window.WDPWA = PWA;
+  wdLog.info("[PWA] module actief");
 })();
 </script>
 
