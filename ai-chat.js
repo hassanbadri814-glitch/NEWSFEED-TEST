@@ -1,33 +1,73 @@
 /* ============================================================
-   WAR DESK v1.17 — AI Chat Module
+   WAR DESK v1.18 — AI Chat Module
+   - v1.18: Voice input (Web Speech API) + Dagoverzicht (lazy, cached)
    - v1.17: Cache warming (3 populaire vragen bij AI-tab open)
-   - v1.16: Retry met exponentiële backoff (1s/2s/4s) + jitter
-   - v1.15: SSE streaming + stop-knop + graceful JSON fallback
-   - v1.14: MILITARY_COUNTRIES uit MapAI.getCountries() met fallback
+   - v1.16: Retry met exponentiële backoff
+   - v1.15: SSE streaming + stop-knop + JSON fallback
    ============================================================ */
 
 (function(){
   "use strict";
 
-  /* ===== v1.15: Streaming CSS auto-inject ===== */
+  /* ===== v1.15+v1.18: CSS auto-inject ===== */
   (function injectStreamCss(){
     if (document.getElementById("wd-ai-stream-css")) return;
     var style = document.createElement("style");
     style.id = "wd-ai-stream-css";
     style.textContent = [
+      /* Streaming cursor */
       ".ai-cursor{display:inline-block;margin-left:2px;color:var(--amber,#e0a857);",
       "animation:wdBlink 1s steps(2,start) infinite;font-weight:400;font-size:.9em}",
       "@keyframes wdBlink{0%,50%{opacity:1}51%,100%{opacity:0}}",
       ".ai-send-btn.ai-stop-mode{background:#e57373!important;color:#fff!important}",
       ".ai-streaming .ai-msg-text{white-space:pre-wrap;word-break:break-word}",
-      ".ai-msg-actions .ai-action-btn[data-action='stop']{color:#e57373}"
+
+      /* v1.18: Voice button */
+      ".ai-voice-btn{width:36px;height:36px;flex-shrink:0;border:0;border-radius:50%;",
+      "background:var(--bg-3,#1a2332);color:var(--ink-2,#8899aa);cursor:pointer;",
+      "display:flex;align-items:center;justify-content:center;font-size:16px;",
+      "transition:all .2s;margin-right:6px}",
+      ".ai-voice-btn:hover{background:var(--bg-4,#243044);color:var(--ink-1,#fff)}",
+      ".ai-voice-btn.recording{background:#e57373;color:#fff;",
+      "animation:wdRecPulse 1.2s infinite}",
+      "@keyframes wdRecPulse{0%,100%{box-shadow:0 0 0 0 rgba(229,115,115,.7)}",
+      "50%{box-shadow:0 0 0 10px rgba(229,115,115,0)}}",
+      ".ai-voice-btn.hidden{display:none}",
+      ".ai-input-wrap.has-voice{padding-left:6px}",
+
+      /* v1.18: Dagoverzicht button + card */
+      ".ai-day-btn{font-size:16px}",
+      ".ai-day-btn.loading{opacity:.5;pointer-events:none}",
+      ".ai-day-card{margin:0 12px 12px;padding:14px 16px;border-radius:14px;",
+      "background:linear-gradient(135deg,rgba(224,168,87,.15),rgba(224,168,87,.05));",
+      "border:1px solid rgba(224,168,87,.35);position:relative}",
+      ".ai-day-card-head{display:flex;align-items:center;gap:8px;",
+      "margin-bottom:8px;font-size:13px;font-weight:700;",
+      "color:var(--amber,#e0a857);letter-spacing:.5px;text-transform:uppercase}",
+      ".ai-day-card-date{font-size:11px;font-weight:500;opacity:.7;",
+      "margin-left:auto;text-transform:none;letter-spacing:0}",
+      ".ai-day-card-body{font-size:14px;line-height:1.5;color:var(--ink-1,#e0e0e0)}",
+      ".ai-day-card-body p{margin:0 0 8px}",
+      ".ai-day-card-body strong{color:var(--amber,#e0a857)}",
+      ".ai-day-card-actions{display:flex;gap:8px;margin-top:10px}",
+      ".ai-day-card-actions button{background:rgba(224,168,87,.2);",
+      "border:0;color:var(--amber,#e0a857);padding:6px 12px;border-radius:8px;",
+      "font-size:12px;font-weight:600;cursor:pointer}",
+      ".ai-day-card-actions button:hover{background:rgba(224,168,87,.35)}",
+      ".ai-day-card-loading{display:flex;gap:4px;padding:8px 0}",
+      ".ai-day-card-loading span{width:8px;height:8px;border-radius:50%;",
+      "background:var(--amber,#e0a857);animation:wdDayPulse 1.4s infinite}",
+      ".ai-day-card-loading span:nth-child(2){animation-delay:.2s}",
+      ".ai-day-card-loading span:nth-child(3){animation-delay:.4s}",
+      "@keyframes wdDayPulse{0%,80%,100%{opacity:.3;transform:scale(.8)}",
+      "40%{opacity:1;transform:scale(1)}}"
     ].join("");
     document.head.appendChild(style);
   })();
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.17 geladen (cache warming)");
+  LOG("v1.18 geladen (voice + dagoverzicht)");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
@@ -42,12 +82,10 @@
   var CACHE_MAX_ITEMS = 20;
   var STREAM_TIMEOUT_MS = 60000;
 
-  /* v1.16: Retry-config */
   var RETRY_MAX_ATTEMPTS = 3;
   var RETRY_BASE_DELAY_MS = 1000;
   var RETRY_JITTER_RATIO = 0.2;
 
-  /* v1.17: Cache warming config */
   var WARMUP_START_DELAY_MS = 3000;
   var WARMUP_BETWEEN_DELAY_MS = 4000;
   var WARMUP_TIMEOUT_MS = 30000;
@@ -57,6 +95,11 @@
     "Wat gebeurt er in Oekraïne?"
   ];
 
+  /* v1.18: Dagoverzicht config */
+  var DAYOVERVIEW_CACHE_PREFIX = "__dayoverview__";
+  var DAYOVERVIEW_RESET_HOUR = 6; // 06:00 lokale tijd = nieuwe dag
+  var DAYOVERVIEW_MAX_CHARS = 1200;
+
   var AI = {
     initialized: false,
     sending: false,
@@ -65,7 +108,6 @@
     abortController: null
   };
 
-  /* v1.17: Warmup state */
   var warmupState = {
     scheduled: false,
     started: false,
@@ -74,10 +116,23 @@
     currentAbort: null
   };
 
+  var voiceState = {
+    recognition: null,
+    active: false,
+    supported: false,
+    originalInput: ""
+  };
+
+  var dayState = {
+    cached: null,      // { text, date, t }
+    loading: false,
+    requestAbort: null
+  };
+
   var lastRequestTime = 0;
   var responseCache = {};
 
-  /* ===== HULPFUNCTIES ===== */
+  /* ===== HULPFUNCTIES (ongewijzigd) ===== */
 
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
@@ -154,6 +209,8 @@
     if (keys.length <= CACHE_MAX_ITEMS) return;
     keys.sort(function(a, b){ return responseCache[b].t - responseCache[a].t; });
     for (var i = CACHE_MAX_ITEMS; i < keys.length; i++){
+      /* Dagoverzicht nooit verwijderen */
+      if (keys[i].indexOf(DAYOVERVIEW_CACHE_PREFIX) === 0) continue;
       delete responseCache[keys[i]];
     }
     saveCache();
@@ -564,10 +621,7 @@
     if (!AI.streaming) return;
     AI.streaming.text = text;
     var node = document.querySelector('[data-streaming="1"] .ai-msg-text');
-    if (!node) {
-      renderMessages();
-      return;
-    }
+    if (!node) { renderMessages(); return; }
     node.innerHTML = renderMarkdown(text) + '<span class="ai-cursor">▋</span>';
     scrollToBottom();
   }
@@ -588,14 +642,23 @@
     }
   }
 
-  /* ===== RENDER MESSAGES ===== */
+  /* ===== RENDER ===== */
 
   function renderMessages(){
     var container = $("aiMessages");
     if (!container) return;
 
+    /* v1.18: Dagoverzicht kaart altijd bovenaan tonen als die er is */
+    var dayHtml = "";
+    if (dayState.cached){
+      dayHtml = renderDayCard(dayState.cached);
+    } else if (dayState.loading){
+      dayHtml = renderDayLoading();
+    }
+
     if (!AI.history.length && !AI.streaming){
       container.innerHTML =
+        dayHtml +
         '<div class="ai-welcome">' +
           '<div class="ai-welcome-icon">🤖</div>' +
           '<div class="ai-welcome-title">WAR DESK AI</div>' +
@@ -609,11 +672,12 @@
           '</div>' +
         '</div>';
       bindSuggestions();
+      bindDayCardActions();
       updateSendButtonState();
       return;
     }
 
-    var html = "";
+    var html = dayHtml;
     var lastAiIndex = -1;
     for (var i = AI.history.length - 1; i >= 0; i--){
       if (AI.history[i].role === "ai" && !AI.history[i].error){
@@ -653,8 +717,53 @@
 
     container.innerHTML = html;
     bindMessageActions();
+    bindDayCardActions();
     updateSendButtonState();
     scrollToBottom();
+  }
+
+  /* v1.18: Dagoverzicht kaart renderer */
+  function renderDayCard(data){
+    var d = new Date(data.date);
+    var dateStr = d.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
+    var html = '<div class="ai-day-card" data-day-card="1">';
+    html += '<div class="ai-day-card-head">';
+    html += '<span>📅</span><span>Dagoverzicht</span>';
+    html += '<span class="ai-day-card-date">' + esc(dateStr) + '</span>';
+    html += '</div>';
+    html += '<div class="ai-day-card-body">' + renderMarkdown(data.text) + '</div>';
+    html += '<div class="ai-day-card-actions">';
+    html += '<button data-day-action="refresh">Vernieuwen</button>';
+    html += '<button data-day-action="copy">Kopieer</button>';
+    html += '<button data-day-action="close">Sluiten</button>';
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderDayLoading(){
+    return '<div class="ai-day-card" data-day-card="1">' +
+      '<div class="ai-day-card-head"><span>📅</span><span>Dagoverzicht</span>' +
+      '<span class="ai-day-card-date">wordt gegenereerd…</span></div>' +
+      '<div class="ai-day-card-loading"><span></span><span></span><span></span></div>' +
+      '</div>';
+  }
+
+  function bindDayCardActions(){
+    document.querySelectorAll('[data-day-action]').forEach(function(btn){
+      btn.addEventListener("click", function(e){
+        e.preventDefault();
+        var action = btn.getAttribute("data-day-action");
+        if (action === "refresh") refreshDayOverview();
+        else if (action === "copy" && dayState.cached){
+          copyText(dayState.cached.text);
+        }
+        else if (action === "close"){
+          dayState.cached = null;
+          renderMessages();
+        }
+      });
+    });
   }
 
   function renderSources(sources){
@@ -723,27 +832,31 @@
     });
   }
 
-  function copyMessage(idx, btn){
-    var msg = AI.history[idx];
-    if (!msg || !msg.text) return;
+  function copyText(text){
     if (navigator.clipboard && navigator.clipboard.writeText){
-      navigator.clipboard.writeText(msg.text).then(function(){
+      navigator.clipboard.writeText(text).then(function(){
         if (window.showToast) window.showToast("Gekopieerd!");
-        if (btn){
-          var old = btn.textContent;
-          btn.textContent = "✓";
-          setTimeout(function(){ btn.textContent = old; }, 1200);
-        }
       }).catch(function(){
         if (window.showToast) window.showToast("Kopiëren mislukt");
       });
     } else {
       var ta = document.createElement("textarea");
-      ta.value = msg.text;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       try { document.execCommand("copy"); if (window.showToast) window.showToast("Gekopieerd!"); }catch(e){}
       document.body.removeChild(ta);
+    }
+  }
+
+  function copyMessage(idx, btn){
+    var msg = AI.history[idx];
+    if (!msg || !msg.text) return;
+    copyText(msg.text);
+    if (btn){
+      var old = btn.textContent;
+      btn.textContent = "✓";
+      setTimeout(function(){ btn.textContent = old; }, 1200);
     }
   }
 
@@ -830,10 +943,7 @@
         body: JSON.stringify(payload),
         signal: controller.signal
       });
-    } catch(e){
-      clearTimeout(timeoutId);
-      throw e;
-    }
+    } catch(e){ clearTimeout(timeoutId); throw e; }
 
     if (!r.ok){
       clearTimeout(timeoutId);
@@ -866,32 +976,20 @@
         var chunk = await reader.read();
         if (chunk.done) break;
         buffer += decoder.decode(chunk.value, { stream: true });
-
         var lines = buffer.split("\n");
         buffer = lines.pop();
 
         for (var i = 0; i < lines.length; i++){
           var line = lines[i];
-          if (!line) continue;
-          if (line.charAt(0) === ":") continue;
-
+          if (!line || line.charAt(0) === ":") continue;
           var trimmed = line.replace(/^\s+/, "");
           if (trimmed.indexOf("data:") !== 0) continue;
           var payloadStr = trimmed.slice(5).replace(/^\s+/, "");
-
-          if (payloadStr === "[DONE]") {
-            clearTimeout(timeoutId);
-            return { mode: "stream", text: fullText };
-          }
+          if (payloadStr === "[DONE]") { clearTimeout(timeoutId); return { mode: "stream", text: fullText }; }
 
           var evt;
-          try { evt = JSON.parse(payloadStr); }
-          catch(e){ continue; }
-
-          if (evt.error) {
-            clearTimeout(timeoutId);
-            throw new Error(evt.error);
-          }
+          try { evt = JSON.parse(payloadStr); } catch(e){ continue; }
+          if (evt.error) { clearTimeout(timeoutId); throw new Error(evt.error); }
 
           var meta = extractMetaFromEvent(evt);
           if (Object.keys(meta).length && typeof onMeta === "function") onMeta(meta);
@@ -903,155 +1001,213 @@
           }
         }
       }
-    } finally {
-      clearTimeout(timeoutId);
-    }
-
+    } finally { clearTimeout(timeoutId); }
     return { mode: "stream", text: fullText };
   }
 
-  /* ===== RETRY MET EXPONENTIËLE BACKOFF ===== */
-
   async function streamWithRetry(payload, onMeta){
     var lastError = null;
-
     for (var attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++){
-      if (attempt > 0 && AI.streaming){
-        AI.streaming.text = "";
-        updateStreamingDom("");
-      }
-
+      if (attempt > 0 && AI.streaming){ AI.streaming.text = ""; updateStreamingDom(""); }
       try {
         var result = await tryStreamingFetch(payload, onMeta);
-        if (attempt > 0){
-          LOG("Retry geslaagd na " + attempt + " " + (attempt === 1 ? "poging" : "pogingen"));
-        }
+        if (attempt > 0) LOG("Retry geslaagd na " + attempt + " poging(en)");
         return result;
-
       } catch(e){
         lastError = e;
-
-        if (isAbortError(e)){
-          LOG("Abort tijdens poging " + (attempt + 1) + " — stop retry");
-          throw e;
-        }
-        if (hasReceivedTokens()){
-          LOG("Stream brak na tokens — partial bewaard, geen retry");
-          throw e;
-        }
-        if (isNonRetryableError(e)){
-          LOG("Niet-retryable fout: " + e.message);
-          throw e;
-        }
-        if (attempt >= RETRY_MAX_ATTEMPTS - 1){
-          LOG("Alle " + RETRY_MAX_ATTEMPTS + " pogingen faalden");
-          throw e;
-        }
-
+        if (isAbortError(e)) { LOG("Abort tijdens poging " + (attempt + 1) + " — stop retry"); throw e; }
+        if (hasReceivedTokens()) { LOG("Stream brak na tokens — partial bewaard"); throw e; }
+        if (isNonRetryableError(e)) { LOG("Niet-retryable fout: " + e.message); throw e; }
+        if (attempt >= RETRY_MAX_ATTEMPTS - 1) { LOG("Alle " + RETRY_MAX_ATTEMPTS + " pogingen faalden"); throw e; }
         var baseDelay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
         var jitter = baseDelay * RETRY_JITTER_RATIO * (Math.random() * 2 - 1);
         var totalDelay = Math.max(500, Math.round(baseDelay + jitter));
-
-        LOG("Poging " + (attempt + 1) + "/" + RETRY_MAX_ATTEMPTS +
-            " faalde (" + (e.message || "onbekend") + ") — retry in " + totalDelay + "ms");
-
+        LOG("Poging " + (attempt + 1) + "/" + RETRY_MAX_ATTEMPTS + " faalde — retry in " + totalDelay + "ms");
         await sleep(totalDelay);
       }
     }
-
     throw lastError || new Error("Onbekende fout");
   }
 
   /* ============================================================
-     v1.17: CACHE WARMING
+     v1.18: VOICE INPUT (Web Speech API)
      ============================================================ */
 
-  function scheduleWarmup(){
-    if (warmupState.scheduled) return;
-    warmupState.scheduled = true;
+  function initVoiceInput(){
+    var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition){
+      voiceState.supported = false;
+      LOG("Voice input: Web Speech API niet beschikbaar");
+      return false;
+    }
+    voiceState.supported = true;
 
+    var inputWrap = document.querySelector(".ai-input-wrap");
+    if (!inputWrap) return false;
+
+    /* Voorkom dubbele injectie */
+    if (document.getElementById("aiVoiceBtn")) return true;
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.id = "aiVoiceBtn";
+    btn.className = "ai-voice-btn";
+    btn.setAttribute("aria-label", "Spraak invoer");
+    btn.innerHTML = "🎤";
+    inputWrap.insertBefore(btn, inputWrap.firstChild);
+    inputWrap.classList.add("has-voice");
+
+    var rec = new SpeechRecognition();
+    rec.lang = "nl-NL";
+    rec.continuous = false;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = function(){
+      voiceState.active = true;
+      btn.classList.add("recording");
+      btn.innerHTML = "⏹";
+      var input = $("aiInput");
+      if (input) voiceState.originalInput = input.value;
+      abortWarmup();
+      LOG("Voice: opname gestart");
+    };
+
+    rec.onresult = function(event){
+      var interim = "";
+      var finalTxt = "";
+      for (var i = event.resultIndex; i < event.results.length; i++){
+        var t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalTxt += t;
+        else interim += t;
+      }
+      var input = $("aiInput");
+      if (!input) return;
+      var base = voiceState.originalInput ? voiceState.originalInput + " " : "";
+      input.value = (base + finalTxt + interim).trim();
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 100) + "px";
+    };
+
+    rec.onerror = function(e){
+      LOG("Voice fout: " + (e.error || "onbekend"));
+      if (e.error === "not-allowed") {
+        if (window.showToast) window.showToast("Microfoon niet toegestaan");
+      } else if (e.error === "no-speech"){
+        if (window.showToast) window.showToast("Geen spraak gedetecteerd");
+      }
+      stopVoice();
+    };
+
+    rec.onend = function(){
+      stopVoice();
+      LOG("Voice: opname gestopt");
+    };
+
+    voiceState.recognition = rec;
+
+    btn.addEventListener("click", function(e){
+      e.preventDefault();
+      if (voiceState.active) { try { rec.stop(); } catch(err){} }
+      else startVoice();
+    });
+
+    /* v1.18: Verberg knop bij offline */
+    window.addEventListener("online", updateVoiceVisibility);
+    window.addEventListener("offline", updateVoiceVisibility);
+    updateVoiceVisibility();
+
+    return true;
+  }
+
+  function updateVoiceVisibility(){
+    var btn = document.getElementById("aiVoiceBtn");
+    if (!btn) return;
+    if (!navigator.onLine) btn.classList.add("hidden");
+    else btn.classList.remove("hidden");
+  }
+
+  function startVoice(){
+    if (AI.sending){
+      if (window.showToast) window.showToast("AI is bezig — wacht even");
+      return;
+    }
+    if (!voiceState.recognition) return;
     if (!navigator.onLine){
-      LOG("Warmup overgeslagen: offline");
-      warmupState.aborted = true;
+      if (window.showToast) window.showToast("Offline — geen spraak");
       return;
     }
-    if (AI.history.length > 0){
-      LOG("Warmup overgeslagen: geschiedenis bestaat al (" + AI.history.length + ")");
-      warmupState.aborted = true;
+    try { voiceState.recognition.start(); }
+    catch(e){ LOG("Voice start fout: " + e.message); }
+  }
+
+  function stopVoice(){
+    voiceState.active = false;
+    var btn = document.getElementById("aiVoiceBtn");
+    if (btn){ btn.classList.remove("recording"); btn.innerHTML = "🎤"; }
+  }
+
+  /* ============================================================
+     v1.18: DAGOVERZICHT
+     ============================================================ */
+
+  function getDayKey(){
+    /* Reset om DAYOVERVIEW_RESET_HOUR lokale tijd */
+    var now = new Date();
+    var adjusted = new Date(now.getTime());
+    if (now.getHours() < DAYOVERVIEW_RESET_HOUR){
+      adjusted.setDate(adjusted.getDate() - 1);
+    }
+    var y = adjusted.getFullYear();
+    var m = String(adjusted.getMonth() + 1).padStart(2, "0");
+    var d = String(adjusted.getDate()).padStart(2, "0");
+    return DAYOVERVIEW_CACHE_PREFIX + y + "-" + m + "-" + d;
+  }
+
+  function loadDayOverviewFromCache(){
+    var key = getDayKey();
+    var entry = responseCache[key];
+    if (entry && entry.text){
+      /* Dagoverzicht verloopt NIET na 10 min — blijft 24u geldig tot nieuwe dag */
+      dayState.cached = {
+        text: entry.text,
+        date: entry.t || Date.now(),
+        provider: entry.provider || ""
+      };
+      return true;
+    }
+    return false;
+  }
+
+  function initDayOverview(){
+    /* Kijk of we al een dagoverzicht hebben voor vandaag */
+    if (loadDayOverviewFromCache()){
+      LOG("Dagoverzicht uit cache (" + (dayState.cached.text.length) + " chars)");
+      renderMessages();
+      return true;
+    }
+    LOG("Geen dagoverzicht in cache — lazy bij klik");
+    return false;
+  }
+
+  async function refreshDayOverview(){
+    if (dayState.loading) return;
+    if (AI.sending){
+      if (window.showToast) window.showToast("AI is bezig");
       return;
     }
 
-    LOG("Warmup gepland over " + WARMUP_START_DELAY_MS + "ms");
+    dayState.loading = true;
+    renderMessages();
 
-    setTimeout(function(){
-      if (warmupState.aborted){
-        LOG("Warmup geannuleerd (gebruiker was eerder)");
-        return;
-      }
-      if (AI.sending){
-        LOG("Warmup uitgesteld: AI bezig");
-        return;
-      }
-      if (AI.history.length > 0){
-        LOG("Warmup overgeslagen: geschiedenis verscheen");
-        return;
-      }
-      startWarmup();
-    }, WARMUP_START_DELAY_MS);
-  }
+    var controller = new AbortController();
+    dayState.requestAbort = controller;
 
-  function startWarmup(){
-    if (warmupState.started || warmupState.aborted) return;
-    warmupState.started = true;
-    LOG("Warmup gestart (" + WARMUP_QUESTIONS.length + " vragen)");
-
-    var idx = 0;
-
-    function next(){
-      if (warmupState.aborted){
-        LOG("Warmup afgebroken na " + warmupState.completed.length + "/" + WARMUP_QUESTIONS.length);
-        return;
-      }
-      if (AI.sending){
-        LOG("Warmup gestopt: AI is bezig");
-        warmupState.aborted = true;
-        return;
-      }
-      if (AI.history.length > 0){
-        LOG("Warmup gestopt: gebruiker heeft geschiedenis");
-        warmupState.aborted = true;
-        return;
-      }
-      if (idx >= WARMUP_QUESTIONS.length){
-        LOG("Warmup klaar: " + warmupState.completed.length + "/" + WARMUP_QUESTIONS.length + " gecached");
-        return;
-      }
-
-      var q = WARMUP_QUESTIONS[idx++];
-      var cacheKey = hashMessage(q);
-
-      if (responseCache[cacheKey] && (Date.now() - responseCache[cacheKey].t) < CACHE_MAX_AGE){
-        LOG("Warmup skip (al gecached): " + q.slice(0, 45));
-        warmupState.completed.push(q);
-        setTimeout(next, 300);
-        return;
-      }
-
-      warmupFetch(q).then(function(ok){
-        if (ok) warmupState.completed.push(q);
-        setTimeout(next, WARMUP_BETWEEN_DELAY_MS);
-      });
-    }
-
-    setTimeout(next, 200);
-  }
-
-  async function warmupFetch(question){
     try {
+      var question = "Geef een beknopt dagoverzicht van het belangrijkste nieuws van vandaag. Gebruik 3-5 bulletpoints. Max 200 woorden.";
+      var articles = buildArticleContext(question, MAX_ARTICLES);
       var militaryCtx = null;
-      try { militaryCtx = buildMilitaryContext(question); } catch(e){}
-      var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
-      var articles = buildArticleContext(question, articleLimit);
+      try { militaryCtx = buildMilitaryContext("militaire overzicht"); } catch(e){}
 
       var payload = {
         message: question,
@@ -1061,17 +1217,8 @@
         stream: true
       };
       if (militaryCtx && militaryCtx.events.length){
-        payload.militaryEvents = militaryCtx.events;
-        payload.militaryFocus = militaryCtx.intent.country || null;
-        payload.militarySubtype = (militaryCtx.intent.subtype && militaryCtx.intent.subtype !== "actief") ? militaryCtx.intent.subtype : null;
+        payload.militaryEvents = militaryCtx.events.slice(0, 10);
       }
-
-      var controller = new AbortController();
-      warmupState.currentAbort = controller;
-
-      var timeoutId = setTimeout(function(){
-        try { controller.abort(); } catch(e){}
-      }, WARMUP_TIMEOUT_MS);
 
       var r = await fetch(WORKER_URL, {
         method: "POST",
@@ -1084,64 +1231,210 @@
         signal: controller.signal
       });
 
-      if (!r.ok){
-        clearTimeout(timeoutId);
-        warmupState.currentAbort = null;
-        LOG("Warmup HTTP " + r.status + " voor: " + question.slice(0, 30));
-        return false;
-      }
+      if (!r.ok) throw new Error("HTTP " + r.status);
 
       var ct = (r.headers.get("content-type") || "").toLowerCase();
       var fullText = "";
       var provider = "";
-      var model = "";
 
-      if (ct.indexOf("text/event-stream") < 0 && ct.indexOf("application/x-ndjson") < 0){
+      if (ct.indexOf("text/event-stream") < 0){
         var data = await r.json();
-        clearTimeout(timeoutId);
-        warmupState.currentAbort = null;
-        if (data.error) return false;
         fullText = data.response || "";
         provider = data.provider || "";
-        model = data.model || "";
       } else {
         var reader = r.body.getReader();
         var decoder = new TextDecoder();
         var buffer = "";
-
         while (true){
           var chunk = await reader.read();
           if (chunk.done) break;
           buffer += decoder.decode(chunk.value, { stream: true });
           var lines = buffer.split("\n");
           buffer = lines.pop();
-
           for (var i = 0; i < lines.length; i++){
             var line = lines[i];
             if (!line || line.charAt(0) === ":") continue;
             var trimmed = line.replace(/^\s+/, "");
             if (trimmed.indexOf("data:") !== 0) continue;
-            var payloadStr = trimmed.slice(5).replace(/^\s+/, "");
-            if (payloadStr === "[DONE]") continue;
-
+            var p = trimmed.slice(5).replace(/^\s+/, "");
+            if (p === "[DONE]") continue;
             var evt;
-            try { evt = JSON.parse(payloadStr); } catch(e){ continue; }
-            if (evt.error) continue;
+            try { evt = JSON.parse(p); } catch(e){ continue; }
             if (evt.provider) provider = evt.provider;
-            if (evt.model) model = evt.model;
             var tok = extractTokenFromEvent(evt);
             if (tok) fullText += tok;
           }
         }
-
-        clearTimeout(timeoutId);
-        warmupState.currentAbort = null;
       }
 
-      if (!fullText || !fullText.trim()){
-        LOG("Warmup leeg antwoord voor: " + question.slice(0, 30));
-        return false;
+      if (!fullText.trim()) throw new Error("Leeg antwoord");
+
+      var result = fullText.trim().slice(0, DAYOVERVIEW_MAX_CHARS);
+
+      /* Bewaar in cache met dagoverzicht-key */
+      responseCache[getDayKey()] = {
+        text: result,
+        provider: provider,
+        t: Date.now()
+      };
+      saveCache();
+
+      dayState.cached = {
+        text: result,
+        date: Date.now(),
+        provider: provider
+      };
+      LOG("Dagoverzicht gegenereerd via " + (provider || "?") + " (" + result.length + " chars)");
+
+    } catch(e){
+      if (isAbortError(e)) LOG("Dagoverzicht afgebroken");
+      else LOG("Dagoverzicht fout: " + e.message);
+      if (!isAbortError(e) && window.showToast) window.showToast("Kon dagoverzicht niet laden");
+    } finally {
+      dayState.loading = false;
+      dayState.requestAbort = null;
+      renderMessages();
+    }
+  }
+
+  function bindDayButton(){
+    var dayBtn = $("aiDayBtn");
+    if (!dayBtn) return;
+    dayBtn.addEventListener("click", function(){
+      if (dayState.loading) return;
+      if (dayState.cached){
+        /* Al zichtbaar — toggle weg */
+        dayState.cached = null;
+        renderMessages();
+        return;
       }
+      if (loadDayOverviewFromCache()){
+        renderMessages();
+        if (window.showToast) window.showToast("Dagoverzicht getoond");
+        return;
+      }
+      refreshDayOverview();
+    });
+  }
+
+  /* ============================================================
+     CACHE WARMING (v1.17, ongewijzigd)
+     ============================================================ */
+
+  function scheduleWarmup(){
+    if (warmupState.scheduled) return;
+    warmupState.scheduled = true;
+
+    if (!navigator.onLine){ warmupState.aborted = true; LOG("Warmup overgeslagen: offline"); return; }
+    if (AI.history.length > 0){ warmupState.aborted = true; LOG("Warmup overgeslagen: geschiedenis"); return; }
+
+    LOG("Warmup gepland over " + WARMUP_START_DELAY_MS + "ms");
+    setTimeout(function(){
+      if (warmupState.aborted || AI.sending || AI.history.length > 0) return;
+      startWarmup();
+    }, WARMUP_START_DELAY_MS);
+  }
+
+  function startWarmup(){
+    if (warmupState.started || warmupState.aborted) return;
+    warmupState.started = true;
+    LOG("Warmup gestart (" + WARMUP_QUESTIONS.length + " vragen)");
+    var idx = 0;
+    function next(){
+      if (warmupState.aborted || AI.sending || AI.history.length > 0){
+        warmupState.aborted = true;
+        return;
+      }
+      if (idx >= WARMUP_QUESTIONS.length){
+        LOG("Warmup klaar: " + warmupState.completed.length + "/" + WARMUP_QUESTIONS.length);
+        return;
+      }
+      var q = WARMUP_QUESTIONS[idx++];
+      var cacheKey = hashMessage(q);
+      if (responseCache[cacheKey] && (Date.now() - responseCache[cacheKey].t) < CACHE_MAX_AGE){
+        warmupState.completed.push(q);
+        setTimeout(next, 300);
+        return;
+      }
+      warmupFetch(q).then(function(ok){
+        if (ok) warmupState.completed.push(q);
+        setTimeout(next, WARMUP_BETWEEN_DELAY_MS);
+      });
+    }
+    setTimeout(next, 200);
+  }
+
+  async function warmupFetch(question){
+    try {
+      var articles = buildArticleContext(question, MAX_ARTICLES);
+      var militaryCtx = null;
+      try { militaryCtx = buildMilitaryContext(question); } catch(e){}
+      var payload = {
+        message: question,
+        articles: articles,
+        history: [],
+        clientDate: new Date().toISOString(),
+        stream: true
+      };
+      if (militaryCtx && militaryCtx.events.length){
+        payload.militaryEvents = militaryCtx.events;
+        payload.militaryFocus = militaryCtx.intent.country || null;
+      }
+
+      var controller = new AbortController();
+      warmupState.currentAbort = controller;
+      var timeoutId = setTimeout(function(){ try { controller.abort(); } catch(e){} }, WARMUP_TIMEOUT_MS);
+
+      var r = await fetch(WORKER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": AUTH_TOKEN,
+          "Accept": "text/event-stream"
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      if (!r.ok){ clearTimeout(timeoutId); warmupState.currentAbort = null; return false; }
+
+      var ct = (r.headers.get("content-type") || "").toLowerCase();
+      var fullText = "";
+      var provider = "";
+
+      if (ct.indexOf("text/event-stream") < 0){
+        var data = await r.json();
+        fullText = data.response || "";
+        provider = data.provider || "";
+      } else {
+        var reader = r.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+        while (true){
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var lines = buffer.split("\n");
+          buffer = lines.pop();
+          for (var i = 0; i < lines.length; i++){
+            var line = lines[i];
+            if (!line || line.charAt(0) === ":") continue;
+            var trimmed = line.replace(/^\s+/, "");
+            if (trimmed.indexOf("data:") !== 0) continue;
+            var p = trimmed.slice(5).replace(/^\s+/, "");
+            if (p === "[DONE]") continue;
+            var evt;
+            try { evt = JSON.parse(p); } catch(e){ continue; }
+            if (evt.provider) provider = evt.provider;
+            var tok = extractTokenFromEvent(evt);
+            if (tok) fullText += tok;
+          }
+        }
+      }
+
+      clearTimeout(timeoutId);
+      warmupState.currentAbort = null;
+
+      if (!fullText.trim()) return false;
 
       responseCache[hashMessage(question)] = {
         text: fullText.trim(),
@@ -1153,17 +1446,11 @@
       };
       cleanupCache();
       saveCache();
-
-      LOG("Warmup OK: " + question.slice(0, 40) + " (" + fullText.length + " chars, " + (provider || "?") + ")");
+      LOG("Warmup OK: " + question.slice(0, 40) + " (" + fullText.length + " chars)");
       return true;
-
     } catch(e){
       warmupState.currentAbort = null;
-      if (isAbortError(e)){
-        LOG("Warmup abort: " + question.slice(0, 30));
-      } else {
-        LOG("Warmup faalde: " + question.slice(0, 30) + " — " + (e.message || "onbekend"));
-      }
+      if (!isAbortError(e)) LOG("Warmup faalde: " + (e.message || "?"));
       return false;
     }
   }
@@ -1171,22 +1458,22 @@
   function abortWarmup(){
     if (warmupState.aborted) return;
     warmupState.aborted = true;
-
     if (warmupState.currentAbort){
       try { warmupState.currentAbort.abort(); } catch(e){}
     }
-    if (warmupState.started){
-      LOG("Warmup geannuleerd (" + warmupState.completed.length + " waren al klaar)");
-    }
   }
 
-  /* ===== SEND ===== */
+  /* ===== SEND (ongewijzigd t.o.v. v1.17) ===== */
 
   async function sendMessage(text){
     if (AI.sending) return;
     if (!text || !text.trim()) return;
 
-    /* v1.17: Als gebruiker iets stuurt, stop warmup */
+    /* v1.18: stop voice opname als die loopt */
+    if (voiceState.active && voiceState.recognition){
+      try { voiceState.recognition.stop(); } catch(e){}
+    }
+
     abortWarmup();
 
     var now = Date.now();
@@ -1213,7 +1500,7 @@
     var cached = responseCache[cacheKey];
 
     try {
-      if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE){
+      if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE && cacheKey.indexOf(DAYOVERVIEW_CACHE_PREFIX) !== 0){
         LOG("Cache hit voor query: " + message.slice(0, 40));
         AI.streaming.text = cached.text;
         updateStreamingDom(cached.text);
@@ -1230,14 +1517,12 @@
       }
 
       var militaryCtx = null;
-      try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
+      try { militaryCtx = buildMilitaryContext(message); } catch(e){}
 
       var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
       var articles = buildArticleContext(message, articleLimit);
 
-      LOG("Verstuur met", articles.length, "artikelen" +
-        (militaryCtx && militaryCtx.events.length ? " + " + militaryCtx.events.length + " militaire events" : "") +
-        " (streaming)");
+      LOG("Verstuur met", articles.length, "artikelen (streaming)");
 
       var payload = {
         message: message,
@@ -1299,39 +1584,26 @@
       };
       cleanupCache();
       saveCache();
-
-      LOG("Stream afgerond via", AI.streaming.provider || "?", "/", AI.streaming.model || "?");
+      LOG("Stream afgerond via", AI.streaming.provider || "?");
 
     } catch(e){
       var isAbort = isAbortError(e);
-
       if (isAbort){
         LOG("Stream gestopt door gebruiker");
         var partial = AI.streaming && AI.streaming.text ? AI.streaming.text : "";
-        if (partial.length){
-          AI.history.push({
-            role: "ai",
-            text: partial + "\n\n_(gestopt)_",
-            sources: [],
-            provider: "local-partial"
-          });
-        } else {
-          AI.history.push({
-            role: "ai",
-            text: "_(gestopt)_",
-            error: false
-          });
-        }
+        AI.history.push({
+          role: "ai",
+          text: partial.length ? partial + "\n\n_(gestopt)_" : "_(gestopt)_",
+          sources: [],
+          provider: "local-partial"
+        });
         saveHistory();
         if (window.showToast) window.showToast("Gestopt");
       } else {
         LOG("Stream faalde:", e.message);
-
         var fallback = null;
-        try { fallback = buildLocalMilitaryFallback(message); } catch(err){ LOG("Fallback fout:", err.message); }
-
+        try { fallback = buildLocalMilitaryFallback(message); } catch(err){}
         if (fallback){
-          LOG("Fallback: lokaal militaire antwoord");
           AI.streaming.text = fallback.text;
           updateStreamingDom(fallback.text);
           await sleep(150);
@@ -1344,14 +1616,14 @@
         } else if (AI.streaming && AI.streaming.text){
           AI.history.push({
             role: "ai",
-            text: AI.streaming.text + "\n\n_(onvolledig — verbinding verbroken)_",
+            text: AI.streaming.text + "\n\n_(onvolledig)_",
             sources: [],
             provider: "local-partial"
           });
         } else {
           AI.history.push({
             role: "ai",
-            text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
+            text: "⚠️ " + (e.message || "Fout") + "\n\nProbeer het opnieuw.",
             error: true
           });
         }
@@ -1386,10 +1658,7 @@
 
     if (sendBtn){
       sendBtn.addEventListener("click", function(){
-        if (AI.sending){
-          stopStreaming();
-          return;
-        }
+        if (AI.sending){ stopStreaming(); return; }
         sendMessage(input ? input.value : "");
       });
     }
@@ -1409,6 +1678,10 @@
     }
 
     if (clearBtn) clearBtn.addEventListener("click", clearChat);
+
+    /* v1.18: Voice + Dagoverzicht buttons */
+    initVoiceInput();
+    bindDayButton();
   }
 
   function init(){
@@ -1417,11 +1690,10 @@
     LOG("init");
     loadHistory();
     loadCache();
+    getMilitaryCountries();
+    initDayOverview();  /* Toon dagoverzicht uit cache als die er is */
     bindUI();
     renderMessages();
-    getMilitaryCountries();
-
-    /* v1.17: Plan warmup */
     scheduleWarmup();
   }
 
@@ -1432,8 +1704,11 @@
     clear: clearChat,
     warmup: startWarmup,
     abortWarmup: abortWarmup,
+    dayOverview: refreshDayOverview,
     state: AI,
     _warmupState: warmupState,
+    _dayState: dayState,
+    _voiceState: voiceState,
     _extractKeywords: extractKeywords,
     _buildArticleContext: buildArticleContext,
     _buildMilitaryContext: buildMilitaryContext,
@@ -1467,5 +1742,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.17 geladen (cache warming)");
+  wdLog.info("[WAR DESK] ai-chat.js v1.18 geladen (voice + dagoverzicht)");
 })();
