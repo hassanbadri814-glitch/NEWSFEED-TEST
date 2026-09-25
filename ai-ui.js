@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v2.0
-   - v2.0: Extractive samenvattingen (SummaryEngine integratie)
+   WAR DESK — ai-ui.js v2.1
+   - v2.1: MutationObserver ipv setInterval voor summary-knop
+   - v2.0: Extractive samenvattingen
    - v1.9: Dedup visuele main
-   - Trending + Ranking + Filter + Reorder + Dedup + Summary
    ============================================================ */
 
 (function(){
@@ -124,7 +124,6 @@
         stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
       }
 
-      /* Summary knop */
       .wd-summary-btn {
         display: inline-flex; align-items: center; gap: 5px;
         padding: 5px 12px; margin-right: 8px;
@@ -149,7 +148,6 @@
       }
       .wd-summary-btn:active { transform: translateY(0); }
 
-      /* Summary overlay */
       .wd-summary-overlay {
         position: fixed; inset: 0;
         background: rgba(0,0,0,0.75);
@@ -254,7 +252,6 @@
     document.head.appendChild(style);
   }
 
-  // ============ TRENDING ============
   var trendingContainer = null;
   var activeTrendTopic = null;
 
@@ -317,7 +314,6 @@
     }
   }
 
-  // ============ FEED HERORDENEN ============
   var isScrolling = false;
   var scrollTimer = null;
 
@@ -341,21 +337,17 @@
       setTimeout(function(){ reorderFeed(rankedArticles); }, 500);
       return;
     }
-
     var children = feed.children;
     if (!children.length) return;
-
     var byId = {};
     for (var i = 0; i < children.length; i++) {
       var id = getArticleId(children[i]);
       if (id) byId[id] = children[i];
     }
     if (!Object.keys(byId).length) return;
-
     var fragment = document.createDocumentFragment();
     var used = {};
     var usedCount = 0;
-
     for (var j = 0; j < rankedArticles.length; j++) {
       var a = rankedArticles[j];
       var aid = String(a.id || a.link || a.url || a.guid || "");
@@ -377,7 +369,6 @@
     feed.appendChild(fragment);
   }
 
-  // ============ DEDUP v1.9 ============
   var refTitleMap = {};
 
   function findArticleElByTitle(feed, title) {
@@ -468,7 +459,6 @@
         var dupEl = findArticleEl(feed, c.duplicateIds[j]);
         if (dupEl) inDom.push({ el: dupEl, ref: c.duplicateIds[j] });
       }
-
       if (inDom.length < 2) continue;
       matched++;
 
@@ -510,7 +500,6 @@
     if (window.wdLog) wdLog.info("[AI-UI] Dedup: " + matched + "/" + clusters.length + " clusters gematcht in DOM");
   }
 
-  // ============ SUMMARY UI ============
   var summaryOverlay = null;
 
   function injectSummaryButton() {
@@ -620,7 +609,6 @@
     if (summaryOverlay) summaryOverlay.classList.remove("show");
   }
 
-  // ============ CLICK TRACKING ============
   document.addEventListener("click", function(e){
     if (e.target.closest && (e.target.closest("#trending-container") || e.target.closest(".wd-dedup-badge"))) return;
     var el = e.target.closest && e.target.closest("[data-article-id],[data-id]");
@@ -637,7 +625,6 @@
     } catch(err){}
   }, true);
 
-  // ============ ORCHESTRATIE ============
   function extractItems(payload) {
     if (!payload) return null;
     if (Array.isArray(payload)) return payload;
@@ -675,7 +662,6 @@
               var idle2 = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
               idle2(function(){ window.DedupEngine.process(articles); }, { timeout: 3000 });
             }
-            // Summary knop herinjecteren (want sectie kan opnieuw gerenderd zijn)
             setTimeout(injectSummaryButton, 200);
           });
         });
@@ -683,14 +669,38 @@
     }
   }
 
+  // v2.1: MutationObserver ipv setInterval
+  var summaryObserver = null;
+  var summaryObserverTimer = null;
+
+  function setupSummaryObserver() {
+    if (summaryObserver) return;
+    var target = document.getElementById("viewNews");
+    if (!target) {
+      // Probeer later opnieuw
+      setTimeout(setupSummaryObserver, 1000);
+      return;
+    }
+    summaryObserver = new MutationObserver(function(){
+      if (summaryObserverTimer) return;
+      summaryObserverTimer = setTimeout(function(){
+        summaryObserverTimer = null;
+        if (!document.querySelector(".wd-summary-btn")) {
+          injectSummaryButton();
+        }
+      }, 500);
+    });
+    summaryObserver.observe(target, { childList: true, subtree: true });
+  }
+
   function init() {
     var bus = getBus();
     if (!bus) return;
     injectStyles();
-    injectSummaryButton();
 
-    // Her-injecteer periodiek (voor het geval de view opnieuw rendert)
-    setInterval(injectSummaryButton, 3000);
+    // v2.1: eenmalige init + observer
+    injectSummaryButton();
+    setupSummaryObserver();
 
     bus.on("trending:update", renderTrending);
     bus.on("dedup:clusters", applyDedup);
@@ -704,7 +714,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v2.0 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v2.1 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
