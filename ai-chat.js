@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v1.13 — AI Chat Module
+   WAR DESK v1.14 — AI Chat Module
+   - v1.14: MILITARY_COUNTRIES uit MapAI.getCountries() met fallback
    - v1.13: Militaire dedup + MAX_ARTICLES 12 + cache in localStorage
-   - v1.12: rate limit + URL sanitize + auth token
    ============================================================ */
 
 (function(){
@@ -9,16 +9,16 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.13 geladen");
+  LOG("v1.14 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
-  var MAX_ARTICLES = 12;                        // v1.13: was 8
-  var MAX_ARTICLES_MILITARY = 4;                // v1.13: minder bij militaire ctx
+  var MAX_ARTICLES = 12;
+  var MAX_ARTICLES_MILITARY = 4;
   var MAX_MILITARY = 30;
   var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
-  var CACHE_KEY = "wardesk_ai_cache_v1";        // v1.13
+  var CACHE_KEY = "wardesk_ai_cache_v1";
   var STORAGE_MAX_MSGS = 40;
   var MIN_REQUEST_INTERVAL = 2000;
   var CACHE_MAX_AGE = 10 * 60 * 1000;
@@ -57,7 +57,6 @@
     return String(h);
   }
 
-  // v1.13: cache persistent maken
   function loadCache(){
     try {
       var raw = localStorage.getItem(CACHE_KEY);
@@ -93,7 +92,7 @@
     saveCache();
   }
 
-  var STOPWORDS = {
+  var STOPWORDS = (window.AIShared && window.AIShared.STOP_WORDS) || {
     "de":1,"het":1,"een":1,"en":1,"of":1,"maar":1,"dus":1,"want":1,"omdat":1,
     "als":1,"dan":1,"ook":1,"nog":1,"al":1,"wel":1,"niet":1,"geen":1,
     "wat":1,"wie":1,"waar":1,"wanneer":1,"waarom":1,"hoe":1,"welke":1,
@@ -103,10 +102,7 @@
     "ik":1,"jij":1,"je":1,"hij":1,"zij":1,"ze":1,"wij":1,"we":1,"jullie":1,
     "mij":1,"mijn":1,"jouw":1,"uw":1,"ons":1,"onze":1,
     "in":1,"op":1,"aan":1,"bij":1,"van":1,"voor":1,"met":1,"naar":1,"uit":1,
-    "over":1,"onder":1,"tussen":1,"tegen":1,"zonder":1,"tijdens":1,"na":1,
-    "the":1,"a":1,"an":1,"is":1,"are":1,"was":1,"were":1,"and":1,"or":1,"but":1,
-    "what":1,"who":1,"where":1,"when":1,"why":1,"how":1,"which":1,
-    "this":1,"that":1,"these":1,"those":1,"i":1,"you":1,"he":1,"she":1,"we":1,"they":1
+    "over":1,"onder":1,"tussen":1,"tegen":1,"zonder":1,"tijdens":1,"na":1
   };
 
   var SYNONYMS = {
@@ -173,7 +169,6 @@
     return score;
   }
 
-  // v1.13: maxArticles parameter
   function buildArticleContext(userQuestion, maxArticles){
     try {
       if (!window.State || !State.items || !State.items.length) return [];
@@ -213,7 +208,9 @@
     "hotspot": 1, "hotspots": 1, "frontlinie": 1, "escalatie": 1
   };
 
-  var MILITARY_COUNTRIES = {
+  /* v1.14: MILITARY_COUNTRIES lazy uit MapAI.getCountries() */
+  var MILITARY_COUNTRIES = null;
+  var MILITARY_COUNTRIES_FALLBACK = {
     "oekraïne": "Oekraïne", "oekraine": "Oekraïne", "ukraine": "Oekraïne", "kyiv": "Oekraïne", "kiev": "Oekraïne",
     "rusland": "Rusland", "russia": "Rusland", "moskou": "Rusland", "moscow": "Rusland",
     "iran": "Iran", "teheran": "Iran", "tehran": "Iran",
@@ -238,6 +235,23 @@
     "krim": "Krim", "crimea": "Krim"
   };
 
+  function getMilitaryCountries(){
+    if (MILITARY_COUNTRIES) return MILITARY_COUNTRIES;
+    try {
+      if (window.MapAI && typeof window.MapAI.getCountries === "function") {
+        var fromMap = window.MapAI.getCountries();
+        if (fromMap && Object.keys(fromMap).length > 10) {
+          MILITARY_COUNTRIES = fromMap;
+          LOG("MILITARY_COUNTRIES uit MapAI: " + Object.keys(fromMap).length + " entries");
+          return MILITARY_COUNTRIES;
+        }
+      }
+    } catch(e){ LOG("MapAI.getCountries faalde:", e.message); }
+    MILITARY_COUNTRIES = MILITARY_COUNTRIES_FALLBACK;
+    LOG("MILITARY_COUNTRIES fallback: " + Object.keys(MILITARY_COUNTRIES).length + " entries");
+    return MILITARY_COUNTRIES;
+  }
+
   var SUBTYPE_TRIGGERS = {
     "aanval":     ["aanval", "aanvallen", "raketaanval", "bombardement", "aanslag", "luchtaanval", "drone-aanval"],
     "offensief":  ["offensief", "invasie", "opmars", "tegenoffensief"],
@@ -248,9 +262,10 @@
 
   function detectMilitaryIntent(question){
     var q = String(question || "").toLowerCase();
+    var countries = getMilitaryCountries();
     var country = null;
-    for (var key in MILITARY_COUNTRIES) {
-      if (q.indexOf(key) !== -1) { country = MILITARY_COUNTRIES[key]; break; }
+    for (var key in countries) {
+      if (q.indexOf(key) !== -1) { country = countries[key]; break; }
     }
     var subtype = null;
     for (var st in SUBTYPE_TRIGGERS) {
@@ -697,7 +712,6 @@
       var militaryCtx = null;
       try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
 
-      /* v1.13: P1.5 — als militaire context aanwezig, minder artikelen */
       var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
       var articles = buildArticleContext(message, articleLimit);
 
@@ -858,6 +872,8 @@
     loadCache();
     bindUI();
     renderMessages();
+    // v1.14: trigger landen-lijst
+    getMilitaryCountries();
   }
 
   window.AIAPI = {
@@ -898,5 +914,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.13 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.14 geladen");
 })();
