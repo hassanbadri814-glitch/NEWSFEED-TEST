@@ -1,7 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.2
-   - v1.2: news:loaded heeft prioriteit — polling is fallback
-   - v1.2: STABLE_DELAY 4s → 8s (rustiger triggeren)
+   WAR DESK — ai-ui.js v1.3
+   - v1.3: Trending pills — mooi design + klikbaar (filter)
    ============================================================ */
 
 (function(){
@@ -25,41 +24,173 @@
     });
   }
 
+  // ============ STYLES INJECTEREN ============
+  function injectStyles() {
+    if (document.getElementById("wd-trending-styles")) return;
+    var style = document.createElement("style");
+    style.id = "wd-trending-styles";
+    style.textContent = [
+      "#trending-container {",
+      "  display: flex;",
+      "  align-items: center;",
+      "  gap: 8px;",
+      "  overflow-x: auto;",
+      "  overflow-y: hidden;",
+      "  padding: 4px 4px 12px;",
+      "  margin: 4px 0 8px;",
+      "  scrollbar-width: none;",
+      "  -ms-overflow-style: none;",
+      "  -webkit-overflow-scrolling: touch;",
+      "}",
+      "#trending-container::-webkit-scrollbar { display: none; }",
+      "#trending-container.wd-hidden { display: none; }",
+
+      ".wd-trend-label {",
+      "  flex-shrink: 0;",
+      "  display: flex;",
+      "  align-items: center;",
+      "  gap: 4px;",
+      "  padding-right: 6px;",
+      "  font-size: 10px;",
+      "  font-weight: 800;",
+      "  letter-spacing: 1px;",
+      "  text-transform: uppercase;",
+      "  color: var(--accent, #e0a857);",
+      "  opacity: 0.75;",
+      "  user-select: none;",
+      "  border-right: 1px solid rgba(224,168,87,0.2);",
+      "  margin-right: 4px;",
+      "}",
+      ".wd-trend-label::before {",
+      "  content: '🔥';",
+      "  font-size: 11px;",
+      "  filter: grayscale(0.2);",
+      "}",
+
+      ".wd-trend-pill {",
+      "  flex-shrink: 0;",
+      "  display: inline-flex;",
+      "  align-items: center;",
+      "  gap: 6px;",
+      "  padding: 7px 14px;",
+      "  background: rgba(224,168,87,0.06);",
+      "  border: 1px solid rgba(224,168,87,0.25);",
+      "  color: var(--ink-1, #e8e8e8);",
+      "  border-radius: 18px;",
+      "  font-size: 12.5px;",
+      "  font-weight: 600;",
+      "  white-space: nowrap;",
+      "  cursor: pointer;",
+      "  transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);",
+      "  -webkit-tap-highlight-color: transparent;",
+      "  user-select: none;",
+      "  font-family: inherit;",
+      "}",
+      ".wd-trend-pill:hover {",
+      "  background: rgba(224,168,87,0.14);",
+      "  border-color: rgba(224,168,87,0.45);",
+      "  transform: translateY(-1px);",
+      "}",
+      ".wd-trend-pill:active {",
+      "  transform: translateY(0);",
+      "  background: rgba(224,168,87,0.2);",
+      "}",
+      ".wd-trend-pill .wd-trend-count {",
+      "  font-size: 10.5px;",
+      "  font-weight: 500;",
+      "  opacity: 0.55;",
+      "  padding-left: 2px;",
+      "}",
+      ".wd-trend-pill.active {",
+      "  background: linear-gradient(135deg, #e0a857, #c4913f);",
+      "  border-color: #e0a857;",
+      "  color: #070c16;",
+      "  box-shadow: 0 2px 10px rgba(224,168,87,0.4);",
+      "}",
+      ".wd-trend-pill.active .wd-trend-count {",
+      "  opacity: 0.7;",
+      "  color: #070c16;",
+      "}"
+    ].join("\n");
+    document.head.appendChild(style);
+  }
+
   // ============ TRENDING BALK ============
   var trendingContainer = null;
+  var activeTrendTopic = null;
+
+  function applyTrendFilter(topic, pillEl) {
+    var searchInput = document.getElementById("searchInput");
+
+    // Toggle: klik op actieve pill → filter wissen
+    if (activeTrendTopic === topic) {
+      activeTrendTopic = null;
+      if (pillEl) pillEl.classList.remove("active");
+      if (searchInput) searchInput.value = "";
+      if (window.NewsAPI && window.NewsAPI.setSearch) {
+        window.NewsAPI.setSearch("");
+      }
+      if (window.wdLog) wdLog.info("[AI-UI] Trend filter gewist");
+      return;
+    }
+
+    // Nieuwe filter
+    activeTrendTopic = topic;
+    if (trendingContainer) {
+      var pills = trendingContainer.querySelectorAll(".wd-trend-pill");
+      for (var i = 0; i < pills.length; i++) pills[i].classList.remove("active");
+    }
+    if (pillEl) pillEl.classList.add("active");
+    if (searchInput) searchInput.value = topic;
+    if (window.NewsAPI && window.NewsAPI.setSearch) {
+      window.NewsAPI.setSearch(topic);
+    }
+    if (window.wdLog) wdLog.info("[AI-UI] Trend filter: " + topic);
+    try { window.scrollTo({ top: 0, behavior: "smooth" }); } catch(e){ window.scrollTo(0,0); }
+  }
 
   function renderTrending(trends) {
     var feed = getFeedContainer();
     if (!feed || !feed.parentNode) return;
 
+    injectStyles();
+
     if (!trendingContainer || !document.body.contains(trendingContainer)) {
       trendingContainer = document.createElement("div");
       trendingContainer.id = "trending-container";
-      trendingContainer.style.cssText =
-        "display:flex;gap:8px;overflow-x:auto;padding:8px 12px;" +
-        "background:rgba(0,0,0,0.2);border-radius:8px;margin:8px 0;" +
-        "scrollbar-width:none;-ms-overflow-style:none;";
       feed.parentNode.insertBefore(trendingContainer, feed);
     }
 
     if (!trends || !trends.length) {
-      trendingContainer.style.display = "none";
+      trendingContainer.classList.add("wd-hidden");
       return;
     }
 
-    var html = "";
+    trendingContainer.classList.remove("wd-hidden");
+
+    var html = '<div class="wd-trend-label">Trending</div>';
     for (var i = 0; i < trends.length; i++) {
       var t = trends[i];
-      html += '<span style="background:linear-gradient(135deg,#ff4500,#ff6b35);' +
-              'color:white;padding:4px 12px;border-radius:16px;font-size:12px;' +
-              'white-space:nowrap;font-weight:600;flex-shrink:0;' +
-              'box-shadow:0 2px 6px rgba(255,69,0,0.3);">' +
-              '🔥 ' + escapeHtml(t.topic) +
-              ' <span style="opacity:0.8">(' + t.count + ')</span>' +
-              '</span>';
+      var isActive = (activeTrendTopic === t.topic);
+      html += '<button class="wd-trend-pill' + (isActive ? ' active' : '') + '"' +
+              ' data-topic="' + escapeHtml(t.topic) + '"' +
+              ' type="button" aria-label="Filter op ' + escapeHtml(t.topic) + '">' +
+              escapeHtml(t.topic) +
+              ' <span class="wd-trend-count">' + t.count + '</span>' +
+              '</button>';
     }
     trendingContainer.innerHTML = html;
-    trendingContainer.style.display = "flex";
+
+    // Click handlers
+    var pills = trendingContainer.querySelectorAll(".wd-trend-pill");
+    for (var j = 0; j < pills.length; j++) {
+      pills[j].addEventListener("click", function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var topic = this.getAttribute("data-topic");
+        applyTrendFilter(topic, this);
+      });
+    }
   }
 
   // ============ FEED HERORDENEN ============
@@ -130,6 +261,9 @@
 
   // ============ CLICK TRACKING ============
   document.addEventListener("click", function(e){
+    // Skip klikken op trending pills
+    if (e.target.closest && e.target.closest("#trending-container")) return;
+
     var el = e.target.closest && e.target.closest("[data-article-id],[data-id]");
     if (!el) return;
     var id = el.getAttribute("data-article-id") || el.getAttribute("data-id");
@@ -195,9 +329,10 @@
       return;
     }
 
+    injectStyles();
+
     bus.on("trending:update", renderTrending);
 
-    // v1.2: news:loaded heeft prioriteit — dit vuurt 1x als alles klaar is
     bus.on("news:loaded", function(payload){
       hasReceivedNewsLoaded = true;
       if (window.wdLog) wdLog.info("[AI-UI] news:loaded ontvangen — trigger");
@@ -208,17 +343,13 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.2 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.3 geladen");
 
-    // ============================================================
-    // FALLBACK POLLING — alleen als news:loaded nooit komt
-    // ============================================================
     var lastSeenCount = 0;
     var stableTimer = null;
     var STABLE_DELAY = 8000;
 
     var pollTimer = setInterval(function(){
-      // Stop polling als news:loaded al is afgegaan
       if (hasReceivedNewsLoaded) {
         clearInterval(pollTimer);
         if (window.wdLog) wdLog.info("[AI-UI] Polling gestopt (news:loaded actief)");
@@ -245,7 +376,6 @@
       clearInterval(pollTimer);
     }, 120000);
 
-    // Direct eerste check
     setTimeout(function(){
       if (window.State && Array.isArray(window.State.items) && window.State.items.length) {
         lastSeenCount = window.State.items.length;
