@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK v12.0 — Conflictkaart (OpenFreeMap, geen API key) + EventBus
-   - FIX v11.16: A8 cap op 500 events
-   - FIX v11.17: E8 cluster re-render na theme switch
-   - FIX v12.0: polling verwijderd → EventBus listeners
-                (news:loaded + news:progress met throttle)
+   WAR DESK v13.0 — Conflictkaart (OpenFreeMap) + Military Events
+   - v13.0: Militaire events via MapAI + hotspot strip
+   - v12.0: EventBus listeners (geen polling)
    ============================================================ */
 
 (function(){
@@ -15,8 +13,9 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v12.0 geladen — OpenFreeMap tiles + EventBus");
+  LOG("v13.0 geladen — militaire events + hotspot strip");
 
+  // ============ FALLBACK LOCATIES (als MapAI faalt) ============
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
     "gaza":    { lat: 31.35, lng: 34.31, country: "Gaza" },
@@ -37,19 +36,35 @@
     "qa": "political","sa": "political","ae": "political","eg": "political"
   };
 
+  // ============ TYPES ============
   var TYPES = {
+    // Politiek / fallback
     "conflict":  { color: "#e63950", filter: "conflict",  label: "Conflict" },
     "political": { color: "#3b82f6", filter: "political", label: "Politiek" },
-    "other":     { color: "#6b7a93", filter: "other",     label: "Overig" }
+    "other":     { color: "#6b7a93", filter: "other",     label: "Overig" },
+    // Militaire subtypes
+    "aanval":     { color: "#ff2e3e", filter: "military", label: "Aanval" },
+    "offensief":  { color: "#ff7a1a", filter: "military", label: "Offensief" },
+    "defensief":  { color: "#22c55e", filter: "military", label: "Defensief" },
+    "voortgang":  { color: "#a855f7", filter: "military", label: "Voortgang" },
+    "actief":     { color: "#facc15", filter: "military", label: "Actief conflict" }
   };
 
+  // ============ ICONS ============
   var ICONS = {
     conflict:  '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 21 L2 21 Z"/></svg>',
     political: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 8 L22 10 L2 10 L2 8 Z M4 12 L4 20 L8 20 L8 12 Z M10 12 L10 20 L14 20 L14 12 Z M16 12 L16 20 L20 20 L20 12 Z M2 20 L22 20 L22 22 L2 22 Z"/></svg>',
-    other:     '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 12 L12 22 L2 12 Z"/></svg>'
+    other:     '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 12 L12 22 L2 12 Z"/></svg>',
+    // Militair
+    aanval:    '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 C 12 2 6 8 6 13 A 6 6 0 0 0 18 13 C 18 8 12 2 12 2 Z M12 5 C 14 8 16 11 16 13 A 4 4 0 0 1 8 13 C 8 11 10 8 12 5 Z"/></svg>',
+    offensief: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 3 L7 5 L19 17 L21 19 L19 21 L17 19 L5 7 L3 5 L5 3 Z M17 3 L21 3 L21 7 L19 5 Z M3 17 L7 21 L5 21 L3 19 Z"/></svg>',
+    defensief: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L4 5 L4 12 C 4 17 8 21 12 22 C 16 21 20 17 20 12 L20 5 Z M12 5 L17 7 L17 12 C 17 15.5 14.5 18.5 12 19.5 C 9.5 18.5 7 15.5 7 12 L7 7 Z"/></svg>',
+    voortgang: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 C 8.7 2 6 4.7 6 8 C 6 12 12 22 12 22 C 12 22 18 12 18 8 C 18 4.7 15.3 2 12 2 Z M12 5 A 3 3 0 1 1 12 11 A 3 3 0 0 1 12 5 Z"/></svg>',
+    actief:    '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L14 9 L21 9 L15.5 13.5 L17.5 21 L12 16.5 L6.5 21 L8.5 13.5 L3 9 L10 9 Z"/></svg>'
   };
 
-  function iconFor(filter){
+  function iconFor(filter, subtype){
+    if (subtype && ICONS[subtype]) return ICONS[subtype];
     if(filter === "conflict") return ICONS.conflict;
     if(filter === "political") return ICONS.political;
     return ICONS.other;
@@ -57,6 +72,7 @@
 
   var MAP = {
     instance: null, cluster: null, tileLayers: {}, events: [],
+    militaryEvents: [], hotspots: [],
     currentFilter: "all", refreshTimer: null, isFullscreen: false,
     currentTheme: "dark", themeObserver: null, _timeModeInterval: null,
     currentDetailEvent: null, _lastNewsCount: 0, _busBound: false,
@@ -97,7 +113,6 @@
       if(L.maplibreGL){
         MAP.tileLayers[theme] = L.maplibreGL({ style: cfg.style, attribution: cfg.attribution });
       } else {
-        LOG("⚠️ MapLibre GL niet geladen — val terug op OSM raster tiles");
         MAP.tileLayers[theme] = L.tileLayer(
           "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
           { maxZoom: 19, attribution: "© OpenStreetMap" }
@@ -185,7 +200,37 @@
       ".wd-map-close:hover{background:rgba(20,28,44,.95);border-color:rgba(255,255,255,.25);transform:rotate(90deg)}" +
       ".map-wrap.fullscreen .wd-map-close{display:grid!important}" +
       ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}" +
-      "@media (prefers-reduced-motion: reduce){.wd-marker-pulse,.wd-map-close,.map-ctrl{transition:none!important;animation:none!important}}";
+      "@media (prefers-reduced-motion: reduce){.wd-marker-pulse,.wd-map-close,.map-ctrl{transition:none!important;animation:none!important}}" +
+
+      /* Hotspot strip */
+      ".wd-hotspot-strip{display:none;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;padding:10px 14px;margin:0;background:rgba(0,0,0,0.25);border-bottom:1px solid rgba(255,255,255,0.05);scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;position:relative;z-index:5}" +
+      ".wd-hotspot-strip::-webkit-scrollbar{display:none}" +
+      ".wd-hotspot-strip.show{display:flex}" +
+      "body.light .wd-hotspot-strip{background:rgba(0,0,0,0.04);border-bottom-color:rgba(0,0,0,0.08)}" +
+      ".wd-hotspot-label{position:sticky;left:0;flex-shrink:0;display:inline-flex;align-items:center;gap:4px;padding:6px 12px 6px 0;margin-right:2px;font-size:9.5px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:rgba(255,80,80,0.85);background:var(--bg-1,#070c16);white-space:nowrap;border-right:1px solid rgba(255,80,80,0.15);z-index:2}" +
+      "body.light .wd-hotspot-label{background:#f5f5f7;color:rgba(200,40,40,0.9)}" +
+      ".wd-hotspot-label svg{width:10px;height:10px;fill:currentColor;opacity:0.85}" +
+      ".wd-hotspot-pill{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:18px;border:1px solid transparent;color:#fff;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);-webkit-tap-highlight-color:transparent;font-family:inherit;position:relative;overflow:hidden}" +
+      ".wd-hotspot-pill:hover{transform:translateY(-1px);filter:brightness(1.1)}" +
+      ".wd-hotspot-pill:active{transform:translateY(0)}" +
+      ".wd-hotspot-pill .wd-hs-count{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:16px;padding:0 5px;background:rgba(0,0,0,0.25);border-radius:8px;font-size:10px;font-weight:700}" +
+      ".wd-hotspot-pill[data-intensity='1']{background:linear-gradient(135deg,rgba(255,122,26,0.7),rgba(230,90,26,0.85));border-color:rgba(255,140,60,0.5)}" +
+      ".wd-hotspot-pill[data-intensity='2']{background:linear-gradient(135deg,rgba(255,60,60,0.85),rgba(220,40,40,0.95));border-color:rgba(255,80,80,0.6)}" +
+      ".wd-hotspot-pill[data-intensity='3']{background:linear-gradient(135deg,rgba(255,40,40,1),rgba(200,20,20,1));border-color:rgba(255,60,60,0.7);box-shadow:0 0 12px rgba(255,40,40,0.5)}" +
+      ".wd-hotspot-pill[data-intensity='4']{background:linear-gradient(135deg,rgba(255,20,20,1),rgba(180,0,0,1));border-color:rgba(255,0,0,0.8);box-shadow:0 0 16px rgba(255,0,0,0.7);animation:wdPulse 1.6s ease-in-out infinite}" +
+      "@keyframes wdPulse{0%,100%{box-shadow:0 0 16px rgba(255,0,0,0.7)}50%{box-shadow:0 0 24px rgba(255,0,0,0.9)}}" +
+      "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']{animation:none}}" +
+
+      /* Detail modal — militaire types */
+      ".wd-detail-type{text-transform:uppercase;letter-spacing:.5px;font-size:10px;font-weight:800}" +
+
+      /* Live list — militair label */
+      ".live-event-mil{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(255,60,60,0.15);color:#ff5050;font-size:9.5px;font-weight:700;letter-spacing:0.5px}" +
+
+      /* Filter-knop militair */
+      ".live-filter[data-cat='military']{color:#ff5050}" +
+      ".live-filter[data-cat='military'].active{background:rgba(255,60,60,0.15);color:#ff5050;border-color:rgba(255,60,60,0.4)}";
+
     document.head.appendChild(s);
   }
 
@@ -234,7 +279,7 @@
           '<div class="wd-detail-text" id="wdDetailText">—</div>' +
         '</div>' +
         '<div class="wd-detail-foot">' +
-          '<button class="wd-detail-btn primary" id="wdDetailShowOnMap" aria-label="Toon op kaart">Toon op kaart</button>' +
+          '<button class="wd-detail-btn primary" id="wdDetailShowOnMap">Toon op kaart</button>' +
           '<button class="wd-detail-btn" id="wdDetailCloseBtn">Sluiten</button>' +
         '</div>' +
       '</div>';
@@ -255,7 +300,7 @@
     var color = event.typeConfig.color;
     $("wdDetailType").textContent = event.typeConfig.label;
     $("wdDetailType").style.background = color;
-    $("wdDetailMeta").textContent = (event.country || "Onbekend") + " · " + timeAgo(event.date) + " · " + (event.source || "");
+    $("wdDetailMeta").textContent = (event.country || "Onbekend") + " · " + timeAgo(event.date) + (event.source ? " · " + event.source : "");
     $("wdDetailText").textContent = event.fullDescription || event.title || "(geen beschrijving)";
     $("wdDetailModal").classList.add("show");
   }
@@ -270,147 +315,152 @@
     closeDetail();
     if(MAP.isFullscreen) exitFullscreen();
     setTimeout(function(){
-      if(MAP.instance) MAP.instance.setView([event.lat, event.lng], 6);
+      if(MAP.instance) MAP.instance.setView([event.lat, event.lng], 7);
     }, 300);
   }
 
-  function buildEventsFromNews(){
-    if(!window.State || !State.items || !State.items.length) return null;
-
-    LOG("Bouw events uit " + State.items.length + " nieuwsartikelen (filter: Midden-Oosten)");
-
+  // ============ FALLBACK: buildEventsFromNews (als MapAI faalt) ============
+  function buildFallbackEvents(){
+    if(!window.State || !State.items || !State.items.length) return [];
     var byCat = {};
-    var totalMatched = 0;
-
     State.items.forEach(function(it){
       var cat = it.cat || "";
       if(!LOCATIONS[cat]) return;
       if(!byCat[cat]) byCat[cat] = [];
       byCat[cat].push(it);
-      totalMatched++;
     });
-
-    LOG("Matched: " + totalMatched + " items, categorieën: " + Object.keys(byCat).join(", "));
-
-    if(!Object.keys(byCat).length){
-      LOG("⚠️ Geen items met Midden-Oosten cats — items hebben cats: " +
-        (State.items.slice(0, 10).map(function(it){ return it.cat; }).join(",")));
-    }
-
     var events = [];
     Object.keys(byCat).forEach(function(cat){
       var loc = LOCATIONS[cat];
       var filter = CATEGORY_FILTER[cat] || "other";
       var typeConfig = TYPES[filter];
-      var items = byCat[cat];
+      var items = byCat[cat].sort(function(a, b){
+        return (new Date(b.date).getTime()||0) - (new Date(a.date).getTime()||0);
+      }).slice(0, 2);
 
-      items.sort(function(a, b){
-        var ta = new Date(a.date).getTime() || 0;
-        var tb = new Date(b.date).getTime() || 0;
-        return tb - ta;
-      });
-
-      var top = items.slice(0, 2);
-
-      top.forEach(function(it, index){
-        var offset = index * 0.15;
-
+      items.forEach(function(it, i){
+        var off = i * 0.15;
         events.push({
-          id: "news-" + cat + "-" + index,
-          lat: loc.lat + offset, lng: loc.lng + offset,
+          id: "fb-" + cat + "-" + i,
+          lat: loc.lat + off, lng: loc.lng + off,
           title: it.title || "Geen titel",
-          fullDescription: "Land: " + loc.country + "\nCategorie: " + cat + "\n\n" + (it.title || "?") + "\n\n" + (it.description || ""),
+          fullDescription: loc.country + "\n\n" + (it.title || "") + "\n\n" + (it.description || ""),
           type: cat, typeConfig: typeConfig, country: loc.country,
           date: it.date || new Date().toISOString(),
           url: it.link || "", source: it.source || "",
-          confidence: "HIGH", count: 1
+          isMilitary: false
         });
       });
     });
-
-    if (events.length > 500) {
-      LOG("⚠️ " + events.length + " events — cap op 500");
-      events = events.slice(0, 500);
-    }
-
-    LOG("Events gegenereerd: " + events.length);
+    if (events.length > 500) events = events.slice(0, 500);
     return events;
   }
 
+  // ============ ORCHESTRATIE ============
   function refreshFromNews(){
-    var events = buildEventsFromNews();
-    if(events === null){ LOG("State.items nog niet beschikbaar"); return false; }
+    var events;
+    var militaryCount = MAP.militaryEvents.length;
+
+    if (militaryCount > 0) {
+      // Gebruik militaire events
+      events = MAP.militaryEvents.slice();
+      LOG("Gebruik " + militaryCount + " militaire events");
+    } else {
+      // Fallback naar oude logica
+      events = buildFallbackEvents();
+      LOG("Fallback: " + events.length + " standaard events");
+    }
+
     if(!events.length){
-      LOG("Geen Midden-Oosten events gevonden in nieuwsfeed");
       var list = $("liveList");
-      if(list) list.innerHTML = '<div class="live-empty">Geen Midden-Oosten nieuws beschikbaar.</div>';
+      if(list) list.innerHTML = '<div class="live-empty">Geen militaire events op dit moment.</div>';
+      MAP.events = [];
+      var statEl = $("statEvents");
+      if(statEl) statEl.textContent = "0";
+      renderMarkers();
+      renderLegend();
+      renderLiveList();
+      renderHotspots();
       return true;
     }
+
     MAP.events = events;
-    var statEl = $("statEvents");
-    if(statEl) statEl.textContent = events.length;
+    var statEl2 = $("statEvents");
+    if(statEl2) statEl2.textContent = events.length;
     renderMarkers();
     renderLegend();
     renderLiveList();
+    renderHotspots();
     LOG("✅ " + events.length + " events op kaart");
     return true;
   }
 
-  /* ============================================================
-     v12.0: EventBus listeners (geen polling meer)
-     ============================================================ */
+  // ============ HOTSPOT STRIP ============
+  function renderHotspots(){
+    var strip = $("wdHotspotStrip");
+    var wrap = document.querySelector(".map-wrap");
+    if (!wrap) return;
 
-  var _progressThrottle = 0;
-  var PROGRESS_THROTTLE_MS = 2500;
-
-  function isMapActive(){
-    var mapTab = document.querySelector('.tab[data-view="map"]');
-    return mapTab && mapTab.classList.contains("active");
-  }
-
-  function onNewsProgress(d){
-    if(!isMapActive()) return;
-    var now = Date.now();
-    if(now - _progressThrottle < PROGRESS_THROTTLE_MS) return;
-    _progressThrottle = now;
-    if(window.State && State.items && State.items.length){
-      MAP._lastNewsCount = State.items.length;
-      refreshFromNews();
+    // Strip aanmaken
+    if (!strip) {
+      strip = document.createElement("div");
+      strip.id = "wdHotspotStrip";
+      strip.className = "wd-hotspot-strip";
+      wrap.insertBefore(strip, wrap.firstChild);
     }
-  }
 
-  function onNewsLoaded(d){
-    if(window.State && State.items && State.items.length){
-      MAP._lastNewsCount = State.items.length;
-    }
-    if(isMapActive()){
-      refreshFromNews();
-    }
-  }
-
-  function bindEventBus(){
-    if(MAP._busBound) return;
-    if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on){
-      LOG("⚠️ EventBus niet beschikbaar — kaart-updates alleen via tab-activatie");
+    var hotspots = MAP.hotspots || [];
+    if (!hotspots.length) {
+      strip.classList.remove("show");
       return;
     }
-    MAP._busBound = true;
-    WarDesk.events.on("news:progress", onNewsProgress);
-    WarDesk.events.on("news:loaded", onNewsLoaded);
-    LOG("EventBus listeners actief (news:progress, news:loaded)");
+
+    var flameSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c.8 3.6-1.5 5.6-2.4 8.4-.4 1.3-.3 2.6.4 3.6.6-.6 1-1.6 1-2.8 1.4 1 2.2 2.8 2.2 4.6 0 1.7-1.1 3.1-2.6 3.7.9.3 1.9.5 2.9.5 3.9 0 6.5-2.6 6.5-6.5 0-4.5-4.6-6.4-5.2-10.9-1.2.4-2.3 1-2.8 1.4zM12 23c-3.9 0-7-3.1-7-7 0-2.5 1.5-4.3 2.5-6.2C8.5 8 9 6.5 9 4.5 6 6 3 9.5 3 14c0 5 4 9 9 9z"/></svg>';
+
+    var html = '<div class="wd-hotspot-label">' + flameSvg + '<span>Hotspots</span></div>';
+    for (var i = 0; i < hotspots.length; i++) {
+      var h = hotspots[i];
+      var intensity = h.count >= 15 ? 4 : (h.count >= 8 ? 3 : (h.count >= 4 ? 2 : 1));
+      html += '<button class="wd-hotspot-pill" data-intensity="' + intensity + '" ' +
+              'data-lat="' + h.lat + '" data-lng="' + h.lng + '" type="button">' +
+              escapeHtml(h.country) +
+              '<span class="wd-hs-count">' + h.count + '</span>' +
+              '</button>';
+    }
+    strip.innerHTML = html;
+    strip.classList.add("show");
+
+    var pills = strip.querySelectorAll(".wd-hotspot-pill");
+    for (var j = 0; j < pills.length; j++) {
+      pills[j].addEventListener("click", function(e){
+        e.preventDefault();
+        e.stopPropagation();
+        var lat = parseFloat(this.getAttribute("data-lat"));
+        var lng = parseFloat(this.getAttribute("data-lng"));
+        if (MAP.instance && !isNaN(lat) && !isNaN(lng)) {
+          MAP.instance.setView([lat, lng], 6);
+          if (window.showToast) window.showToast("Zoom naar hotspot");
+        }
+      });
+    }
   }
 
+  // ============ MARKERS ============
   function renderMarkers(){
     if(!MAP.cluster) return;
     MAP.cluster.clearLayers();
     var filtered = MAP.events.filter(function(e){
       if(MAP.currentFilter === "all") return true;
-      return e.typeConfig.filter === MAP.currentFilter;
+      if(MAP.currentFilter === "military") return e.isMilitary === true;
+      if(MAP.currentFilter === "conflict") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "conflict";
+      if(MAP.currentFilter === "political") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "political";
+      if(MAP.currentFilter === "other") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "other";
+      return true;
     });
     var markers = [];
     filtered.forEach(function(e){
       var color = e.typeConfig.color;
-      var glyph = iconFor(e.typeConfig.filter);
+      var glyph = iconFor(e.typeConfig.filter, e.subtype);
       var icon = L.divIcon({
         className: "wd-marker",
         html: '<div class="wd-marker-inner" style="color:' + color + '">' +
@@ -420,10 +470,15 @@
         iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10]
       });
       var marker = L.marker([e.lat, e.lng], {icon: icon});
+
+      var sourceLine = "";
+      if (e.source) sourceLine = '<div class="pop-meta">' + escapeHtml(e.source) + '</div>';
+
       var popupHtml =
         '<div class="pop-cat" style="--cat-color:' + color + '">' + e.typeConfig.label + '</div>' +
         '<div class="pop-title">' + escapeHtml(e.title) + '</div>' +
-        '<div class="pop-meta">' + escapeHtml(e.country || "?") + '</div>' +
+        '<div class="pop-meta">' + escapeHtml(e.country || "?") + (e.region ? " · " + escapeHtml(e.region) : "") + '</div>' +
+        sourceLine +
         '<button class="pop-more" data-id="' + escapeHtml(String(e.id)) + '">Details →</button>';
       marker.bindPopup(popupHtml);
       marker.on("popupopen", function(){
@@ -447,16 +502,23 @@
   function renderLegend(){
     var el = $("legendItems");
     if(!el) return;
-    var counts = { conflict: 0, political: 0, other: 0 };
+    var counts = { aanval: 0, offensief: 0, defensief: 0, voortgang: 0, actief: 0, conflict: 0, political: 0, other: 0 };
     MAP.events.forEach(function(e){
-      var f = e.typeConfig.filter;
-      if(counts[f] !== undefined) counts[f]++;
+      var k = e.subtype || (e.typeConfig && e.typeConfig.filter) || "other";
+      if(counts[k] !== undefined) counts[k]++;
     });
+
     var rows = [
+      { key: "aanval",    color: "#ff2e3e", label: "Aanval" },
+      { key: "offensief", color: "#ff7a1a", label: "Offensief" },
+      { key: "defensief", color: "#22c55e", label: "Defensief" },
+      { key: "voortgang", color: "#a855f7", label: "Voortgang" },
+      { key: "actief",    color: "#facc15", label: "Actief" },
       { key: "conflict",  color: "#e63950", label: "Conflict" },
       { key: "political", color: "#3b82f6", label: "Politiek" },
       { key: "other",     color: "#6b7a93", label: "Overig" }
     ].filter(function(r){ return counts[r.key] > 0; });
+
     if(!rows.length){ el.innerHTML = '<div class="legend-item">Geen data</div>'; return; }
     el.innerHTML = rows.map(function(r){
       return '<div class="legend-item">' +
@@ -472,7 +534,11 @@
     if(!list) return;
     var filtered = MAP.events.filter(function(e){
       if(MAP.currentFilter === "all") return true;
-      return e.typeConfig.filter === MAP.currentFilter;
+      if(MAP.currentFilter === "military") return e.isMilitary === true;
+      if(MAP.currentFilter === "conflict") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "conflict";
+      if(MAP.currentFilter === "political") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "political";
+      if(MAP.currentFilter === "other") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "other";
+      return true;
     });
     if(countEl) countEl.textContent = filtered.length;
     if(!filtered.length){
@@ -481,9 +547,10 @@
     }
     list.innerHTML = filtered.map(function(e){
       var color = e.typeConfig.color;
+      var milBadge = e.isMilitary ? '<span class="live-event-mil">MIL</span>' : '';
       return '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '">' +
         '<div class="live-event-body">' +
-        '<div class="live-event-title">' + escapeHtml(e.title) + '</div>' +
+        '<div class="live-event-title">' + escapeHtml(e.title) + milBadge + '</div>' +
         '<div class="live-event-meta">' +
         '<span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span>' +
         '<span>·</span>' +
@@ -575,7 +642,7 @@
   function restoreFilter(){
     try {
       var saved = window.WDStorage ? WDStorage.get("map_filter") : null;
-      if(saved && ["all","conflict","political","other"].indexOf(saved) >= 0){
+      if(saved && ["all","conflict","political","other","military"].indexOf(saved) >= 0){
         MAP.currentFilter = saved;
         document.querySelectorAll(".live-filter").forEach(function(b){
           b.classList.toggle("active", b.dataset.cat === saved);
@@ -587,11 +654,7 @@
   window.__mapRefresh = function(){
     LOG("Handmatige refresh");
     MAP._lastNewsCount = 0;
-    if(window.State && State.items && State.items.length){
-      refreshFromNews();
-    } else {
-      LOG("Nog geen items beschikbaar");
-    }
+    if (window.MapAI) window.MapAI.run();
   };
   window.__mapResetView = function(){ if(MAP.instance) MAP.instance.setView([29.5, 42.0], 4); };
 
@@ -600,7 +663,6 @@
     initMap();
     ensureFullscreenClose();
     if(MAP.instance) setTimeout(function(){ if(MAP.instance) MAP.instance.invalidateSize(); }, 350);
-    // Direct renderen als items al beschikbaar zijn
     if(window.State && State.items && State.items.length){
       refreshFromNews();
     }
@@ -616,6 +678,41 @@
         }
       });
     });
+  }
+
+  // ============ EVENTBUS ============
+  function bindEventBus(){
+    if(MAP._busBound) return;
+    if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on){
+      LOG("⚠️ EventBus niet beschikbaar");
+      return;
+    }
+    MAP._busBound = true;
+
+    // Militaire events van MapAI
+    WarDesk.events.on("map:military-events", function(events){
+      MAP.militaryEvents = events || [];
+      LOG("Militaire events ontvangen: " + MAP.militaryEvents.length);
+      if (isMapActive()) refreshFromNews();
+    });
+
+    WarDesk.events.on("map:hotspots", function(hotspots){
+      MAP.hotspots = hotspots || [];
+      LOG("Hotspots ontvangen: " + MAP.hotspots.length);
+      renderHotspots();
+    });
+
+    // Fallback: nieuws updates
+    WarDesk.events.on("news:loaded", function(){
+      if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
+    });
+
+    LOG("EventBus listeners actief (map:military-events, map:hotspots, news:loaded)");
+  }
+
+  function isMapActive(){
+    var mapTab = document.querySelector('.tab[data-view="map"]');
+    return mapTab && mapTab.classList.contains("active");
   }
 
   function initMapModule(){
@@ -650,8 +747,8 @@
 
     var mapTab = document.querySelector('.tab[data-view="map"]');
     var viewMap = document.getElementById("viewMap");
-    var isMapActive = (mapTab && mapTab.classList.contains("active")) || (viewMap && !viewMap.hidden);
-    if(isMapActive) setTimeout(activateMapView, 400);
+    var isMapTabActive = (mapTab && mapTab.classList.contains("active")) || (viewMap && !viewMap.hidden);
+    if(isMapTabActive) setTimeout(activateMapView, 400);
   }
 
   if(document.readyState !== "loading") setTimeout(initMapModule, 600);
@@ -677,5 +774,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v12.0 geladen (OpenFreeMap tiles + EventBus)");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.0 geladen (militaire events + hotspots)");
 })();
