@@ -432,7 +432,6 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
       </div>
     </div>
 
-    <!-- ==== C6: App-sectie ==== -->
     <div class="sheet-section">
       <div class="sheet-title">App</div>
       <div class="toggle-row" id="togglePwaInstallRow">
@@ -861,7 +860,6 @@ document.addEventListener("DOMContentLoaded", function(){
     return PWA.isStandalone;
   }
 
-  /* ===== Offline banner ===== */
   var offlineEl = null;
   function ensureOfflineEl(){
     if (offlineEl) return offlineEl;
@@ -886,7 +884,6 @@ document.addEventListener("DOMContentLoaded", function(){
     else document.body.classList.remove("wd-has-top-banner");
   }
 
-  /* ===== Update banner ===== */
   var updateEl = null;
   function ensureUpdateEl(){
     if (updateEl) return updateEl;
@@ -921,7 +918,6 @@ document.addEventListener("DOMContentLoaded", function(){
     updateTopBannerClass();
   }
 
-  /* ===== Online/Offline ===== */
   function refreshNetworkBanner(){
     if (navigator.onLine){
       hideOffline();
@@ -934,7 +930,6 @@ document.addEventListener("DOMContentLoaded", function(){
   window.addEventListener("online", function(){ LOG("Online"); refreshNetworkBanner(); });
   window.addEventListener("offline", function(){ LOG("Offline"); refreshNetworkBanner(); });
 
-  /* ===== Install banner ===== */
   var installEl = null;
   function ensureInstallEl(){
     if (installEl) return installEl;
@@ -1031,7 +1026,6 @@ document.addEventListener("DOMContentLoaded", function(){
     }
   });
 
-  /* ===== SW update ===== */
   if ("serviceWorker" in navigator){
     navigator.serviceWorker.ready.then(function(reg){
       PWA.updateSWReg = reg;
@@ -1055,7 +1049,6 @@ document.addEventListener("DOMContentLoaded", function(){
     });
   }
 
-  /* ===== Menu wiring ===== */
   function updateInstallStatus(){
     var el = document.getElementById("pwaInstallStatus");
     if (!el) return;
