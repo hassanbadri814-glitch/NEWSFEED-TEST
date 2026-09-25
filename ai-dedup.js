@@ -1,18 +1,19 @@
 /* ============================================================
-   WAR DESK — ai-dedup.js v2.0
+   WAR DESK — ai-dedup.js v2.1
    Fuzzy-match dedup — geen worker, geen model, geen CDN
    - Jaccard similarity op titel-woorden
    - Union-Find clustering
-   - 100% client-side, <100ms per run
+   - v2.1: DEBOUNCE — wacht 3s tot feed stabiel is
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var SIMILARITY_THRESHOLD = 0.55;      // Jaccard drempel
-  var CONTAINMENT_THRESHOLD = 0.85;     // Als korte titel bijna volledig in lange zit
-  var MIN_WORDS_FOR_MATCH = 3;          // Minimaal aantal gedeelde woorden
-  var MAX_ARTICLES = 250;               // Beperk tot meest recente 250
+  var SIMILARITY_THRESHOLD = 0.55;
+  var CONTAINMENT_THRESHOLD = 0.85;
+  var MIN_WORDS_FOR_MATCH = 3;
+  var MAX_ARTICLES = 250;
+  var DEBOUNCE_MS = 3000;
 
   var STOP_WORDS = {};
   ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
@@ -43,7 +44,6 @@
     return 0;
   }
 
-  // Tokenize: lowercase, verwijder leestekens, filter stopwoorden
   function tokenize(title) {
     if (!title) return [];
     var t = title.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ");
@@ -52,7 +52,6 @@
     });
   }
 
-  // Jaccard similarity: |A∩B| / |A∪B|
   function jaccard(setA, setB) {
     var inter = 0;
     for (var k in setA) if (setB[k]) inter++;
@@ -62,7 +61,6 @@
     return union === 0 ? 0 : inter / union;
   }
 
-  // Containment: percentage van kleine set die in grote set zit
   function containment(small, big) {
     var total = 0, found = 0;
     for (var k in small) {
@@ -76,7 +74,6 @@
     var n = articles.length;
     if (n < 2) return [];
 
-    // Precompute tokens per artikel
     var tokens = new Array(n);
     var sets = new Array(n);
     for (var i = 0; i < n; i++) {
@@ -87,7 +84,6 @@
       sets[i] = s;
     }
 
-    // Union-Find
     var parent = new Array(n);
     for (var u = 0; u < n; u++) parent[u] = u;
 
@@ -107,43 +103,34 @@
       if (ra !== rb) parent[ra] = rb;
     }
 
-    // Vergelijk alle paren
-    var matches = 0;
     for (var x = 0; x < n; x++) {
       if (tokens[x].length < 2) continue;
       for (var y = x + 1; y < n; y++) {
         if (tokens[y].length < 2) continue;
 
-        // Skip als artikel-lengte te ver uit elkaar ligt (< 40% verschil)
         var lenA = tokens[x].length;
         var lenB = tokens[y].length;
         var ratio = Math.min(lenA, lenB) / Math.max(lenA, lenB);
         if (ratio < 0.4) continue;
 
         var jSim = jaccard(sets[x], sets[y]);
-
-        // Boost als kleine titel bijna volledig in grote zit (containment case)
         var cSim = 0;
         if (lenA <= lenB) cSim = containment(sets[x], sets[y]);
         else cSim = containment(sets[y], sets[x]);
 
         var score = Math.max(jSim, cSim * 0.85);
 
-        // Check gedeelde woorden (voorkom generieke matches)
         var shared = 0;
         for (var k in sets[x]) if (sets[y][k]) shared++;
 
         if (score >= SIMILARITY_THRESHOLD && shared >= MIN_WORDS_FOR_MATCH) {
           union(x, y);
-          matches++;
         } else if (cSim >= CONTAINMENT_THRESHOLD && shared >= MIN_WORDS_FOR_MATCH) {
           union(x, y);
-          matches++;
         }
       }
     }
 
-    // Groepeer
     var groups = {};
     for (var g = 0; g < n; g++) {
       var root = find(g);
@@ -151,13 +138,11 @@
       groups[root].push(g);
     }
 
-    // Bouw clusters (alleen > 1)
     var clusters = [];
     for (var r in groups) {
       var idxs = groups[r];
       if (idxs.length < 2) continue;
 
-      // Hoofdartikel = langste titel (meest beschrijvend)
       var mainIdx = idxs[0];
       var mainLen = (articles[mainIdx].title || "").length;
       for (var m = 1; m < idxs.length; m++) {
@@ -186,7 +171,6 @@
   var lastRunHash = "";
 
   function hashArticles(articles) {
-    // Snelle hash om te detecteren of de artikelenlijst is veranderd
     var h = articles.length;
     for (var i = 0; i < Math.min(articles.length, 10); i++) {
       var id = String(articles[i].id || articles[i].link || "");
@@ -198,14 +182,26 @@
     return String(h);
   }
 
+  // v2.1: DEBOUNCE — wacht tot feed stabiel is
+  var debounceTimer = null;
+
   function process(articles) {
+    if (!articles || articles.length < 2) return;
+
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(function(){
+      runDedup(articles);
+    }, DEBOUNCE_MS);
+  }
+
+  function runDedup(articles) {
+    debounceTimer = null;
     if (!articles || articles.length < 2) return;
 
     var hash = hashArticles(articles);
     if (hash === lastRunHash) return;
     lastRunHash = hash;
 
-    // Beperk tot meest recente N
     var sorted = articles.slice().sort(function(a, b) {
       return getTimestamp(b) - getTimestamp(a);
     }).slice(0, MAX_ARTICLES);
@@ -238,6 +234,6 @@
     isReady: function(){ return true; }
   };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v2.0 geladen (fuzzy-match, geen worker)");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v2.1 geladen (fuzzy-match + debounce)");
 
 })();
