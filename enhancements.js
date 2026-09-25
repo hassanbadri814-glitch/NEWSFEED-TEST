@@ -35,7 +35,7 @@
     LOG("UI update — on:", on, "perm:", isSupported() ? Notification.permission : "?");
   }
 
-  /* v1.3: 100% via ServiceWorkerRegistration, geen fallback */
+  /* v1.3: 100% via ServiceWorkerRegistration */
   async function sendNotification(title, options){
     if (!("serviceWorker" in navigator)){
       LOG("Geen serviceWorker — notificatie niet mogelijk");
