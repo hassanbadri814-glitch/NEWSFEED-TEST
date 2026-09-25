@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.6</title>
+<title>WAR DESK v14.7</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -99,16 +99,23 @@
 })();
 </script>
 
+<!-- ==== BATCH 1: PRE-CONNECT & DNS-PREFETCH ==== -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://unpkg.com">
+<link rel="preconnect" href="https://newsfeed2.hassanbadri814.workers.dev" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+
+<!-- ==== BATCH 1: FONTS GEOPTIMALISEERD ==== -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.6">
+<link rel="stylesheet" href="styles.css?v=14.7">
 
 <style>
 /* ============================================================
@@ -165,7 +172,7 @@
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.6</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.7</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -396,7 +403,7 @@
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.6</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.7</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD + AI</div>
     </div>
   </div>
 </div>
