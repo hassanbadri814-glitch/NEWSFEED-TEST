@@ -1,16 +1,13 @@
 /* ============================================================
-   WAR DESK v27.9 — Nieuws Logica + EventBus + Batch 2 Optimalisaties
-   - FIX v27.5: A1 scroll-jump, A5 translation limiet, A6 quota
-   - FIX v27.6: C1 quota prune, C2 score refresh, C3 health load, C4 tags sync
-   - FIX v27.7: EventBus notificaties
-   - FIX v27.8: A.4 — CustomEvent verwijderd
-   - FIX v27.9: Batch 2 — prioriteit feeds + idle score refresh
+   WAR DESK v27.10 — Nieuws Logica + EventBus
+   - FIX v27.10: P0.4 — tijdgebaseerde disabled-reset (i.p.v. alles wissen)
+   - FIX v27.9: prioriteit feeds + idle score refresh
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.9";
+  window.__newsVersion = "v27.10";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -55,7 +52,6 @@
     });
   }, { rootMargin: '200px 0px', threshold: 0.01 });
 
-  // ==================== A5: LRU limiet voor translations ====================
   const TRANSLATION_MAX = 500;
   function pruneTranslations() {
     const keys = Object.keys(state.translations || {});
@@ -65,7 +61,6 @@
     wdLog.info("[NEWS] Translations gepruned: " + toRemove.length + " verwijderd");
   }
 
-  // ==================== A6 + C1: Quota-monitoring ====================
   async function checkStorageQuota() {
     try {
       if (!navigator.storage || !navigator.storage.estimate) return { ok: true, pct: 0 };
@@ -77,7 +72,6 @@
     } catch(e) { return { ok: true, pct: 0 }; }
   }
 
-  // ==================== INDEXEDDB ====================
   const NewsDB = (function(){
     let db = null;
     const DB_NAME = "wardesk_v19_news";
@@ -279,7 +273,6 @@
     };
   })();
 
-  // ==================== TAGS & SCORING ====================
   function extractTags(title, desc, sourceCat){
     const tags = [];
     const t = ((title || "") + " " + (desc || "")).toLowerCase();
@@ -373,7 +366,6 @@
     return Array.from(map.values());
   };
 
-  // ==================== RSS PARSING ====================
   const parseRssXml = (xmlText) => {
     try{
       const doc = new DOMParser().parseFromString(xmlText, "text/xml");
@@ -425,7 +417,6 @@
     };
   };
 
-  // ==================== PROXY & FETCH ====================
   if(!window.__proxyHealth) window.__proxyHealth = {};
   const PROXY_COOLDOWN_MS = 30000;
   const PROXY_FAIL_THRESHOLD = 5;
@@ -498,7 +489,6 @@
     }
   }
 
-  // ==================== TRANSLATION ====================
   const TRANSLATION_SEM = { active: 0, max: 3, queue: [] };
 
   const titleHashKey = (lang, title) => {
@@ -624,7 +614,6 @@
     }
   };
 
-  // ==================== FAVORITES ====================
   const isFavorite = (link) => !!state.favorites[link];
   const toggleFavorite = (link, btnEl) => {
     if(state.favorites[link]){
@@ -644,7 +633,6 @@
     if(el) el.textContent = Object.keys(state.favorites).length;
   };
 
-  // ==================== NOTIFICATIONS ====================
   const requestNotificationPermission = async () => {
     if(!("Notification" in window)) return false;
     if(Notification.permission === "granted") return true;
@@ -693,7 +681,6 @@
     }catch(e) { wdLog.warn("[WAR DESK] notificatie fout:", e); }
   };
 
-  // ==================== LOAD ALL FEEDS ====================
   async function loadAllFeeds(){
     const session = ++state.loadSession;
     try{
@@ -702,9 +689,6 @@
       }
     }catch(e){}
 
-    // ============================================================
-    // BATCH 2D: Prioriteit aan populaire feeds
-    // ============================================================
     const PRIORITY_SOURCES = [
       "NOS", "De Telegraaf", "AD.nl", "Nu.nl", "RTL Nieuws",
       "Al Jazeera", "BBC World", "Reuters",
@@ -715,7 +699,6 @@
     const minKeep = itemsAtStart.length;
     const active = FEEDS.filter(f => !state.disabled[f.n]);
 
-    // Splits in prioriteit + rest, prioriteit eerst
     const priorityList = [];
     const normalList = [];
     active.forEach(function(f) {
@@ -876,7 +859,6 @@
     }catch(e){}
   }
 
-  // ==================== BREAKING DETECTION ====================
   const detectBreaking = () => {
     if(Date.now() - state.breakingShownAt < 1800000) return;
     const now = Date.now();
@@ -927,7 +909,6 @@
     }
   };
 
-  // ==================== FILTER & RENDER ====================
   const filterItems = () => {
     let list = [...state.items];
     if(state.currentCat === "favorites"){
@@ -1119,7 +1100,16 @@
       const atTop = window.scrollY < 200;
       if(idle < CONFIG.pauseOnScrollMs && !atTop) return;
       if(state.isScrolling) return;
-      state.disabled = {};
+
+      /* v27.10: P0.4 — alleen disables resetten die oud genoeg zijn */
+      const now = Date.now();
+      Object.keys(state.disabled).forEach(function(src){
+        var h = state.health[src];
+        if(!h || !h.last || (now - h.last > CONFIG.retryAfterMs)){
+          delete state.disabled[src];
+        }
+      });
+
       loadAllFeeds();
     }, CONFIG.autoRefreshMs);
   };
@@ -1165,9 +1155,6 @@
     if(cached.length){
       state.items = ensureTags(cached);
 
-      // ============================================================
-      // BATCH 2C: Scores uitstellen tot browser idle is
-      // ============================================================
       if (typeof requestIdleCallback === "function") {
         requestIdleCallback(function() { refreshAllScores(); }, { timeout: 2000 });
       } else {
