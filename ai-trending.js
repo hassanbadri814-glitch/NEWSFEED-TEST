@@ -64,3 +64,4 @@ export const TrendingEngine = (() => {
 
   return { run };
 })();
+window.TrendingEngine = TrendingEngine;
