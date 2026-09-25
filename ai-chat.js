@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK v1.11 — AI Chat Module
+   WAR DESK v1.12 — AI Chat Module
+   - v1.12: Rate limit + response cache + URL sanitize + auth token
    - v1.11: getMilitaryEvents met MapAI sync fallback
    - v1.10: betere error-handling
-   - v1.9: Militaire vragen → worker MET militaire context
    ============================================================ */
 
 (function(){
@@ -10,14 +10,18 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.11 geladen");
+  LOG("v1.12 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
+  var AUTH_TOKEN = "wardesk-2026-soft-auth";  // v1.12: S5 soft-auth
   var MAX_ARTICLES = 8;
   var MAX_MILITARY = 30;
   var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
   var STORAGE_MAX_MSGS = 40;
+  var MIN_REQUEST_INTERVAL = 2000;  // v1.12: P2.4 rate limit (2s)
+  var CACHE_MAX_AGE = 10 * 60 * 1000;  // v1.12: P1.3 cache 10 min
+  var CACHE_MAX_ITEMS = 20;
 
   var AI = {
     initialized: false,
@@ -25,10 +29,46 @@
     history: []
   };
 
+  // v1.12: P2.4 rate limiting
+  var lastRequestTime = 0;
+
+  // v1.12: P1.3 response cache
+  var responseCache = {};
+
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
+  }
+
+  // v1.12: S3 URL sanitatie
+  function safeUrl(url){
+    if (!url) return "";
+    var s = String(url).trim();
+    if (/^(https?:)?\/\//i.test(s)) return esc(s);
+    if (/^\/[^\/]/i.test(s)) return esc(s);
+    return "";
+  }
+
+  // v1.12: P1.3 message hash voor cache
+  function hashMessage(msg){
+    var h = 0;
+    var s = String(msg || "").toLowerCase().trim();
+    for (var i = 0; i < s.length; i++){
+      h = ((h << 5) - h) + s.charCodeAt(i);
+      h |= 0;
+    }
+    return String(h);
+  }
+
+  // v1.12: P1.3 cleanup oude cache entries
+  function cleanupCache(){
+    var keys = Object.keys(responseCache);
+    if (keys.length <= CACHE_MAX_ITEMS) return;
+    keys.sort(function(a, b){ return responseCache[b].t - responseCache[a].t; });
+    for (var i = CACHE_MAX_ITEMS; i < keys.length; i++){
+      delete responseCache[keys[i]];
+    }
   }
 
   var STOPWORDS = {
@@ -222,7 +262,6 @@
     return { isMilitary: isMilitary, country: country, subtype: subtype };
   }
 
-  // v1.11: verbeterde getMilitaryEvents met MapAI sync fallback
   function getMilitaryEvents(){
     try {
       if (window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events) && window.MAPAPI.state.events.length) {
@@ -467,26 +506,20 @@
     var seen = {};
     var unique = [];
     sources.forEach(function(s){
-      if (!s.link || seen[s.link]) return;
-      seen[s.link] = 1;
-      unique.push(s);
+      var link = safeUrl(s.link);  // v1.12: S3
+      if (!link || seen[link]) return;
+      seen[link] = 1;
+      unique.push({ title: s.title, source: s.source, link: link });
     });
     if (!unique.length) return "";
     var html = '<details class="ai-sources">';
     html += '<summary class="ai-sources-toggle">📚 Bronnen (' + unique.length + ')</summary>';
     html += '<div class="ai-sources-list">';
     unique.forEach(function(s){
-      var title = s.title || "?";
-      var source = s.source || "";
-      var link = s.link || "";
-      if (link){
-        html += '<a class="ai-source-item" href="' + esc(link) + '" target="_blank" rel="noopener">';
-      } else {
-        html += '<div class="ai-source-item">';
-      }
-      html += '<span class="ai-source-name">' + esc(source) + '</span>';
-      html += '<span class="ai-source-title">' + esc(title) + '</span>';
-      html += (link ? '</a>' : '</div>');
+      html += '<a class="ai-source-item" href="' + s.link + '" target="_blank" rel="noopener">';
+      html += '<span class="ai-source-name">' + esc(s.source || "") + '</span>';
+      html += '<span class="ai-source-title">' + esc(s.title || "?") + '</span>';
+      html += '</a>';
     });
     html += '</div></details>';
     return html;
@@ -615,6 +648,15 @@
     if (AI.sending) return;
     if (!text || !text.trim()) return;
 
+    // v1.12: P2.4 rate limiting
+    var now = Date.now();
+    if (now - lastRequestTime < MIN_REQUEST_INTERVAL){
+      var wait = Math.ceil((MIN_REQUEST_INTERVAL - (now - lastRequestTime)) / 1000);
+      if (window.showToast) window.showToast("Even wachten (" + wait + "s)");
+      return;
+    }
+    lastRequestTime = now;
+
     var message = text.trim();
     AI.history.push({ role: "user", text: message });
     if (AI.history.length > 80) AI.history = AI.history.slice(-80);
@@ -635,6 +677,25 @@
       var articles = buildArticleContext(message);
       LOG("Verstuur met", articles.length, "artikelen" + (militaryCtx && militaryCtx.events.length ? " + " + militaryCtx.events.length + " militaire events" : ""));
 
+      // v1.12: P1.3 cache lookup
+      var cacheKey = hashMessage(message);
+      var cached = responseCache[cacheKey];
+      if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE){
+        LOG("Cache hit voor query");
+        AI.history.push({
+          role: "ai",
+          text: cached.text,
+          sources: cached.sources,
+          provider: (cached.provider || "") + " (cache)"
+        });
+        if (AI.history.length > 80) AI.history = AI.history.slice(-80);
+        saveHistory();
+        if (sendBtn) sendBtn.disabled = false;
+        AI.sending = false;
+        renderMessages();
+        return;
+      }
+
       var payload = {
         message: message,
         articles: articles,
@@ -650,7 +711,10 @@
 
       var r = await fetchWithRetry(WORKER_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": AUTH_TOKEN  // v1.12: S5
+        },
         body: JSON.stringify(payload)
       });
 
@@ -687,6 +751,15 @@
       if (AI.history.length > 80) AI.history = AI.history.slice(-80);
       saveHistory();
       LOG("Antwoord via", data.provider || "?", "/", data.model || "?");
+
+      // v1.12: P1.3 cache save
+      responseCache[cacheKey] = {
+        text: responseText,
+        sources: sources,
+        provider: data.provider || "",
+        t: Date.now()
+      };
+      cleanupCache();
 
     } catch(e) {
       LOG("Worker faalde:", e.message);
@@ -768,7 +841,8 @@
     state: AI,
     _extractKeywords: extractKeywords,
     _buildArticleContext: buildArticleContext,
-    _buildMilitaryContext: buildMilitaryContext
+    _buildMilitaryContext: buildMilitaryContext,
+    _hashMessage: hashMessage
   };
 
   function setupWatcher(){
@@ -798,5 +872,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.11 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.12 geladen");
 })();
