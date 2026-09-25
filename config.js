@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK v14.24 — Configuratie
+   WAR DESK v14.25 — Configuratie
+   - v14.25: autoRefreshMs 5 → 10 min (X-feeds rate limit fix)
    - v14.24: 13 X-accounts via FxTwitter (multilingual breaking)
    - v14.23: Multilingual KEYWORDS_HIGH + auto-refresh aan
-   - v14.22: 3 Google News proxies (P0.3 fix)
    ============================================================ */
 
-window.APP_VERSION = "v14.24";
+window.APP_VERSION = "v14.25";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -56,7 +56,7 @@ window.wdLog = {
 
 window.CONFIG = {
   perFeed: 12,
-  autoRefreshMs: 5 * 60 * 1000,
+  autoRefreshMs: 10 * 60 * 1000,
   pauseOnScrollMs: 15000,
   failThreshold: 5,
   retryAfterMs: 3600000,
@@ -115,7 +115,6 @@ window.HIGH_PRIORITY = [
   "Reuters TG","TRT World TG","Sky News TG","Haaretz TG","Jerusalem Post TG"
 ];
 
-/* v14.23: Multilingual keywords voor breaking news detectie */
 window.KEYWORDS_HIGH = [
   /* ===== ENGELS ===== */
   "killed","dead","deaths","massacre","nuclear","invasion",
@@ -317,7 +316,6 @@ window.FEEDS = [
      X / TWITTER via FxTwitter (13 accounts)
      ============================================================ */
 
-  /* ===== Wereldnieuws (Engels) ===== */
   {n:"Reuters TG",lang:"en",cat:"world",url:"https://fxtwitter.com/Reuters/feed.xml"},
   {n:"TRT World TG",lang:"en",cat:"world",url:"https://fxtwitter.com/trtworld/feed.xml"},
   {n:"Sky News TG",lang:"en",cat:"uk",url:"https://fxtwitter.com/SkyNews/feed.xml"},
@@ -325,17 +323,14 @@ window.FEEDS = [
   {n:"Sprinter Press TG",lang:"en",cat:"ukraine",url:"https://fxtwitter.com/SprinterPress/feed.xml"},
   {n:"Tehran Times TG",lang:"en",cat:"iran",url:"https://fxtwitter.com/TehranTimes79/feed.xml"},
 
-  /* ===== Arabisch ===== */
   {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://fxtwitter.com/ajarabic/feed.xml"},
   {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://fxtwitter.com/AlArabiya/feed.xml"},
   {n:"Al Hadath TG",lang:"ar",cat:"mideast",url:"https://fxtwitter.com/AlHadath/feed.xml"},
   {n:"Hespress TG",lang:"ar",cat:"maroc",url:"https://fxtwitter.com/HespressAR/feed.xml"},
 
-  /* ===== Israël ===== */
   {n:"Haaretz TG",lang:"en",cat:"il",url:"https://fxtwitter.com/haaretzcom/feed.xml"},
   {n:"Jerusalem Post TG",lang:"en",cat:"il",url:"https://fxtwitter.com/Jerusalem_Post/feed.xml"},
 
-  /* ===== Midden-Oosten ===== */
   {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://fxtwitter.com/MiddleEastEye/feed.xml"}
 ];
 
