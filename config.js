@@ -1,12 +1,11 @@
 /* ============================================================
-   WAR DESK v14.26 — Configuratie
-   - v14.26: X-feeds via Cloudflare Worker proxy (rate-limit fix)
+   WAR DESK v14.27 — Configuratie
+   - v14.27: X-feeds beperkt tot 5 bewezen accounts (direct FxTwitter)
+   - v14.26: X-feeds via Cloudflare Worker proxy (bleek niet sneller)
    - v14.25: autoRefreshMs 5 → 10 min
-   - v14.24: 13 X-accounts via FxTwitter
-   - v14.23: Multilingual KEYWORDS_HIGH + auto-refresh aan
    ============================================================ */
 
-window.APP_VERSION = "v14.26";
+window.APP_VERSION = "v14.27";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -57,7 +56,7 @@ window.wdLog = {
 
 window.CONFIG = {
   perFeed: 12,
-  autoRefreshMs: 10 * 60 * 1000,
+  autoRefreshMs: 5 * 60 * 1000,
   pauseOnScrollMs: 15000,
   failThreshold: 5,
   retryAfterMs: 3600000,
@@ -113,7 +112,7 @@ window.HIGH_PRIORITY = [
   "Al Jazeera","Al Jazeera AR","BBC World","BBC Arabic","BBC UK",
   "Reuters","AP News","TRT World","Times of Israel","Jerusalem Post",
   "NOS","NOS Sport","De Telegraaf","AD.nl","RTL Nieuws",
-  "Reuters TG","TRT World TG","Sky News TG","Haaretz TG","Jerusalem Post TG"
+  "Reuters TG","Clash Report TG","Al Jazeera AR TG","Al Arabiya TG","Middle East Eye TG"
 ];
 
 window.KEYWORDS_HIGH = [
@@ -314,29 +313,14 @@ window.FEEDS = [
   {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"},
 
   /* ============================================================
-     X / TWITTER via Cloudflare Worker proxy (v14.26)
+     X / TWITTER — 5 bewezen accounts via directe FxTwitter
      ============================================================ */
 
-  /* Wereldnieuws */
-  {n:"Reuters TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Reuters"},
-  {n:"TRT World TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=trtworld"},
-  {n:"Sky News TG",lang:"en",cat:"uk",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=SkyNews"},
-  {n:"Clash Report TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=clashreport"},
-  {n:"Sprinter Press TG",lang:"en",cat:"ukraine",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=SprinterPress"},
-  {n:"Tehran Times TG",lang:"en",cat:"iran",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=TehranTimes79"},
-
-  /* Arabisch */
-  {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=ajarabic"},
-  {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=AlArabiya"},
-  {n:"Al Hadath TG",lang:"ar",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=AlHadath"},
-  {n:"Hespress TG",lang:"ar",cat:"maroc",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=HespressAR"},
-
-  /* Israël */
-  {n:"Haaretz TG",lang:"en",cat:"il",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=haaretzcom"},
-  {n:"Jerusalem Post TG",lang:"en",cat:"il",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Jerusalem_Post"},
-
-  /* Midden-Oosten */
-  {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=MiddleEastEye"}
+  {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://fxtwitter.com/ajarabic/feed.xml"},
+  {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://fxtwitter.com/AlArabiya/feed.xml"},
+  {n:"Clash Report TG",lang:"en",cat:"world",url:"https://fxtwitter.com/clashreport/feed.xml"},
+  {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://fxtwitter.com/MiddleEastEye/feed.xml"},
+  {n:"Reuters TG",lang:"en",cat:"world",url:"https://fxtwitter.com/Reuters/feed.xml"}
 ];
 
 wdLog.info(`[WAR DESK] config.js ${window.APP_VERSION} geladen — ${window.FEEDS.length} feeds`);
