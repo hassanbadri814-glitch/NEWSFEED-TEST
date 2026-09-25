@@ -1,13 +1,14 @@
 /* ============================================================
-   WAR DESK v27.10 — Nieuws Logica + EventBus
-   - FIX v27.10: P0.4 — tijdgebaseerde disabled-reset (i.p.v. alles wissen)
-   - FIX v27.9: prioriteit feeds + idle score refresh
+   WAR DESK v27.11 — Nieuws Logica + EventBus
+   - v27.11: Dynamische breaking cooldown + notif-drempel + debug
+   - v27.10: P0.4 — tijdgebaseerde disabled-reset
+   - v27.9: prioriteit feeds + idle score refresh
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.10";
+  window.__newsVersion = "v27.11";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -633,6 +634,20 @@
     if(el) el.textContent = Object.keys(state.favorites).length;
   };
 
+  /* v27.11: Notificatie via ServiceWorkerRegistration (Android-proof) */
+  async function sendNotification(title, options){
+    if(!("serviceWorker" in navigator)) return false;
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      if(!reg || typeof reg.showNotification !== "function") return false;
+      await reg.showNotification(title, options);
+      return true;
+    } catch(e){
+      wdLog.warn("[WAR DESK] notif fout: " + (e.message || "?"));
+      return false;
+    }
+  }
+
   const requestNotificationPermission = async () => {
     if(!("Notification" in window)) return false;
     if(Notification.permission === "granted") return true;
@@ -653,14 +668,12 @@
       state.notificationsEnabled = true;
       if(window.WDStorage) WDStorage.set("notifications", "1");
       if(window.showToast) window.showToast("Breaking notificaties aan");
-      try {
-        new Notification("WAR DESK", {
-          body: "Notificaties zijn ingeschakeld.",
-          tag: "wardesk-test",
-          icon: "./icons/icon-192.png",
-          badge: "./icons/icon-96.png"
-        });
-      }catch(e){}
+      await sendNotification("WAR DESK", {
+        body: "Notificaties zijn ingeschakeld.",
+        tag: "wardesk-test",
+        icon: "./icon.svg",
+        badge: "./icon.svg"
+      });
     } else {
       state.notificationsEnabled = false;
       if(window.WDStorage) WDStorage.set("notifications", "0");
@@ -669,16 +682,15 @@
   };
 
   const sendBreakingNotification = (group) => {
-    if(!state.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted" || group.sources.length < 5) return;
-    try {
-      const notif = new Notification("Breaking - " + group.sources.length + " bronnen", {
-        body: group.items[0].title.slice(0, 180),
-        tag: "wardesk-breaking-" + Math.floor(Date.now() / 60000),
-        icon: "./icons/icon-192.png",
-        badge: "./icons/icon-96.png"
-      });
-      notif.onclick = () => { try { window.focus(); }catch(e){} notif.close(); };
-    }catch(e) { wdLog.warn("[WAR DESK] notificatie fout:", e); }
+    if(!state.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
+    /* v27.11: drempel verlaagd van 5 → 3 (consistent met banner) */
+    if(group.sources.length < 3) return;
+    sendNotification("Breaking - " + group.sources.length + " bronnen", {
+      body: group.items[0].title.slice(0, 180),
+      tag: "wardesk-breaking-" + Math.floor(Date.now() / 60000),
+      icon: "./icon.svg",
+      badge: "./icon.svg"
+    });
   };
 
   async function loadAllFeeds(){
@@ -859,14 +871,29 @@
     }catch(e){}
   }
 
+  /* v27.11: dynamische cooldown + betere debug */
   const detectBreaking = () => {
-    if(Date.now() - state.breakingShownAt < 1800000) return;
+    /* Dynamische cooldown: 5 min bij groot event, 15 min bij normaal */
+    const cooldown = (state.lastBreakingSources >= 6) ? 300000 : 900000;
+    if(Date.now() - state.breakingShownAt < cooldown){
+      if(window.WD_DEBUG){
+        const remaining = Math.round((cooldown - (Date.now() - state.breakingShownAt)) / 1000);
+        wdLog.info("[BREAKING] Cooldown actief — nog " + remaining + "s");
+      }
+      return;
+    }
+
     const now = Date.now();
     const recent = state.items.filter(it => {
       const age = now - tm(it.date);
-      return age > 0 && age < 900000;
+      return age > 0 && age < 900000;  // 15 min
     }).slice(0, 40);
-    if(recent.length < 3) return;
+
+    if(recent.length < 3){
+      if(window.WD_DEBUG) wdLog.info("[BREAKING] Te weinig recente items: " + recent.length);
+      return;
+    }
+
     const groups = [];
     const used = {};
     recent.forEach((a, i) => {
@@ -887,11 +914,23 @@
       });
       if(group.sources.length >= 3) groups.push(group);
     });
-    if(!groups.length) return;
+
+    if(!groups.length){
+      if(window.WD_DEBUG) wdLog.info("[BREAKING] Geen breaking: " + recent.length + " recent, 0 groepen (≥3 bronnen)");
+      return;
+    }
+
     groups.sort((a, b) => b.sources.length - a.sources.length);
     const g = groups[0];
+
+    if(window.WD_DEBUG){
+      wdLog.info("[BREAKING] Winnaar: " + g.sources.length + " bronnen — " + g.items[0].title.slice(0, 60));
+    }
+
     state.breakingShownAt = Date.now();
     state.lastBreakingItem = g.items[0];
+    state.lastBreakingSources = g.sources.length;
+
     const bcEl = $("breakingCount");
     const btEl = $("breakingTitle");
     const bmEl = $("breakingMeta");
@@ -1101,7 +1140,6 @@
       if(idle < CONFIG.pauseOnScrollMs && !atTop) return;
       if(state.isScrolling) return;
 
-      /* v27.10: P0.4 — alleen disables resetten die oud genoeg zijn */
       const now = Date.now();
       Object.keys(state.disabled).forEach(function(src){
         var h = state.health[src];
