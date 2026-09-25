@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-trending.js v1.6
-   - v1.6: FIX — case-insensitive merge (Trump + trump = 1 topic)
-     * Aggregatie op lowercase
-     * Display: proper noun vorm wint (Trump ipv trump)
+   WAR DESK — ai-trending.js v1.7
+   - v1.7: reset throttle bij news:reload:done (handmatige refresh)
+   - v1.6: case-insensitive merge
    ============================================================ */
 
 (function(){
@@ -49,35 +48,67 @@
   function getTimestamp(a) {
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
+    var candidates = [];
     for (var i = 0; i < fields.length; i++) {
       var v = a[fields[i]];
-      if (v) {
-        var t = (typeof v === "number") ? v : new Date(v).getTime();
-        if (!isNaN(t) && t > 0) return t;
+      if (!v) continue;
+      var t;
+      if (typeof v === "number") {
+        t = v < 100000000000 ? v * 1000 : v;
+      } else {
+        t = new Date(v).getTime();
+      }
+      if (!isNaN(t) && t > 946684800000 && t < Date.now() + 86400000) {
+        candidates.push(t);
       }
     }
-    return 0;
+    if (!candidates.length) return 0;
+    candidates.sort(function(x, y){ return y - x; });
+    return candidates[0];
   }
 
-  // Centrale aggregatie: alles op lowercase, maar onthoud mooiste display vorm
+  function tokenize(title) {
+    if (!title) return [];
+    var t = title.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ");
+    return t.split(/\s+/).filter(function(w) {
+      return w.length > 3 && !STOP_WORDS[w];
+    });
+  }
+
+  function jaccard(setA, setB) {
+    var inter = 0;
+    for (var k in setA) if (setB[k]) inter++;
+    var union = 0;
+    for (var k2 in setA) union++;
+    for (var k3 in setB) if (!setA[k3]) union++;
+    return union === 0 ? 0 : inter / union;
+  }
+
+  function containment(small, big) {
+    var total = 0, found = 0;
+    for (var k in small) {
+      total++;
+      if (big[k]) found++;
+    }
+    return total === 0 ? 0 : found / total;
+  }
+
   function bump(store, key, displayForm, weight, isProperNoun) {
     if (!store[key]) {
       store[key] = { topic: displayForm, score: 0, count: 0, proper: false };
     }
     store[key].score += weight;
     store[key].count += 1;
-    // Proper noun heeft voorkeur voor display
     if (isProperNoun && !store[key].proper) {
       store[key].topic = displayForm;
       store[key].proper = true;
     } else if (!store[key].proper && displayForm.length > store[key].topic.length) {
-      // Anders: langste vorm wint (voorkomt "trump" als "Trump" bestaat)
       store[key].topic = displayForm;
     }
   }
 
   function extractEntities(articles) {
-    var properStore = {};   // lowercase key -> { topic, score, count }
+    var properStore = {};
     var bigramStore = {};
     var unigramStore = {};
     var now = Date.now();
@@ -104,7 +135,6 @@
       var tw = Math.max(0.3, 1 - ageHours / WINDOW_HOURS);
       var c = sw * tw;
 
-      // 1. PROPER NOUNS
       var seenProper = {};
       pnRegex.lastIndex = 0;
       var m;
@@ -117,13 +147,11 @@
         bump(properStore, lower, entity, c, true);
       }
 
-      // 2. LOWERCASE TOKENS
       var lowerText = text.toLowerCase().replace(/[^\w\s]/g, " ");
       var words = lowerText.split(/\s+/).filter(function(w) {
         return w.length > 3 && !STOP_WORDS[w];
       });
 
-      // Bigrams
       var seenBi = {};
       for (var k = 0; k < words.length - 1; k++) {
         var bg = words[k] + " " + words[k + 1];
@@ -132,7 +160,6 @@
         bump(bigramStore, bg, bg, c, false);
       }
 
-      // Unigrams
       var seenUni = {};
       for (var k2 = 0; k2 < words.length; k2++) {
         var w = words[k2];
@@ -144,8 +171,6 @@
 
     if (window.wdLog) wdLog.info("[Trending] Analyse: " + processed + "/" + articles.length + " artikelen");
 
-    // ============ MERGE + DEDUPE ============
-    // v1.6: alle stores samenvoegen op lowercase key — Trump + trump = 1
     var merged = {};
 
     function mergeInto(store, multiplier, minCount, isProper) {
@@ -164,14 +189,10 @@
       }
     }
 
-    // Proper nouns eerst (2.5x bonus)
     mergeInto(properStore, 2.5, 2, true);
-    // Bigrams (1.5x bonus)
     mergeInto(bigramStore, 1.5, 3, false);
-    // Unigrams (1x, min 5)
     mergeInto(unigramStore, 1.0, 5, false);
 
-    // ============ SORT + DEDUPE ============
     var pool = [];
     for (var mk in merged) {
       pool.push({
@@ -244,8 +265,47 @@
     }, { timeout: 2000 });
   }
 
-  window.TrendingEngine = { run: run };
+  // v1.7: reset throttle bij handmatige refresh
+  function forceRun(articles) {
+    lastRun = 0;
+    lastProducedTopics = 0;
+    if (articles && articles.length) {
+      run(articles);
+    } else if (window.State && window.State.items && window.State.items.length) {
+      run(window.State.items);
+    }
+  }
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.6 geladen");
+  function init() {
+    var bus = getBus();
+    if (!bus) return;
+
+    bus.on("news:loaded", function(){
+      var items = window.State && window.State.items;
+      if (items && items.length) run(items);
+    });
+
+    /* v1.7: bij handmatige reload — forceer trending */
+    bus.on("news:reload:done", function(){
+      var items = window.State && window.State.items;
+      if (items && items.length) forceRun(items);
+    });
+
+    setTimeout(function(){
+      if (window.State && window.State.items && window.State.items.length) {
+        run(window.State.items);
+      }
+    }, 2000);
+
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.7 geladen");
+  }
+
+  window.TrendingEngine = { run: run, forceRun: forceRun };
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
 
 })();
