@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v13.4 — Conflictkaart + Military Events
+   WAR DESK v13.5 — Conflictkaart (OpenFreeMap) + Military Events
+   - v13.5: memory cleanup bij nieuwe events (P0.2)
    - v13.4: verfijnde hotspot pills
-   - v13.3: versie-bump
-   - v13.2: Legend klikbaar + auto-zoom
    ============================================================ */
 
 (function(){
@@ -13,7 +12,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.4 geladen — verfijnde hotspots");
+  LOG("v13.5 geladen — memory cleanup");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -190,36 +189,25 @@
       ".map-wrap.fullscreen .wd-map-close{display:grid!important}" +
       ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}" +
 
-      /* ============================================================
-         v13.4: PROFESSIONELE HOTSPOT PILLS
-         ============================================================ */
       ".wd-hotspot-strip{display:none;align-items:center;gap:10px;overflow-x:auto;overflow-y:hidden;padding:12px 16px;margin:0;background:linear-gradient(180deg,rgba(255,60,60,0.03) 0%,rgba(0,0,0,0.15) 100%);border-bottom:1px solid rgba(255,255,255,0.05);scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;position:relative;z-index:5}" +
       ".wd-hotspot-strip::-webkit-scrollbar{display:none}" +
       ".wd-hotspot-strip.show{display:flex}" +
       "body.light .wd-hotspot-strip{background:linear-gradient(180deg,rgba(255,60,60,0.04) 0%,rgba(0,0,0,0.02) 100%);border-bottom-color:rgba(0,0,0,0.06)}" +
       ".wd-hotspot-strip::after{content:'';position:sticky;right:0;flex-shrink:0;width:30px;height:100%;background:linear-gradient(to right,transparent,var(--bg-2,#0b1220) 90%);margin-left:-30px;pointer-events:none}" +
       "body.light .wd-hotspot-strip::after{background:linear-gradient(to right,transparent,#f5f5f7 90%)}" +
-
       ".wd-hotspot-label{position:sticky;left:0;z-index:3;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:4px 14px 4px 0;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,80,80,0.9);background:var(--bg-2,#0b1220);border-right:1px solid rgba(255,80,80,0.2);margin-right:4px;white-space:nowrap;user-select:none}" +
       "body.light .wd-hotspot-label{background:#f5f5f7;color:rgba(200,40,40,0.9);border-right-color:rgba(200,40,40,0.2)}" +
       ".wd-hotspot-label svg{width:11px;height:11px;fill:currentColor;opacity:0.9;flex-shrink:0}" +
-
       ".wd-hotspot-pill{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:20px;color:rgba(255,255,255,0.92);font-size:12.5px;font-weight:500;letter-spacing:0.1px;white-space:nowrap;cursor:pointer;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);-webkit-tap-highlight-color:transparent;font-family:inherit;position:relative}" +
       "body.light .wd-hotspot-pill{background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.08);color:#1a1f2b}" +
       ".wd-hotspot-pill:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.15);transform:translateY(-1px)}" +
       "body.light .wd-hotspot-pill:hover{background:rgba(0,0,0,0.06)}" +
       ".wd-hotspot-pill:active{transform:translateY(0)}" +
-
-      /* Kleur-dot links */
       ".wd-hotspot-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;flex-shrink:0}" +
-
-      /* Count badge */
       ".wd-hs-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:rgba(255,255,255,0.06);border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0;transition:all 0.2s}" +
       "body.light .wd-hs-count{background:rgba(0,0,0,0.06)}" +
       ".wd-hotspot-pill:hover .wd-hs-count{background:rgba(255,255,255,0.12)}" +
       "body.light .wd-hotspot-pill:hover .wd-hs-count{background:rgba(0,0,0,0.1)}" +
-
-      /* Intensiteit = kleur via data-intensity */
       ".wd-hotspot-pill[data-intensity='1']{color:#ff9544}" +
       ".wd-hotspot-pill[data-intensity='2']{color:#ff6b4a}" +
       ".wd-hotspot-pill[data-intensity='3']{color:#ff3d3d}" +
@@ -230,7 +218,6 @@
       "@keyframes wdHsPulse{0%,100%{opacity:1;box-shadow:0 0 8px currentColor}50%{opacity:0.6;box-shadow:0 0 16px currentColor}}" +
       "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']::before{animation:none}}" +
 
-      /* Legend klikbaar */
       ".wd-map-legend .legend-item{cursor:pointer;transition:all 0.15s;border-radius:6px;padding:3px 6px;margin:0 -6px;-webkit-tap-highlight-color:transparent}" +
       ".wd-map-legend .legend-item:hover{background:rgba(255,255,255,0.05)}" +
       ".wd-map-legend .legend-item.active{background:rgba(224,168,87,0.15);box-shadow:inset 0 0 0 1px rgba(224,168,87,0.4)}" +
@@ -670,16 +657,26 @@
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
     MAP._busBound = true;
 
+    /* v13.5: P0.2 — memory cleanup bij nieuwe events */
     WarDesk.events.on("map:military-events", function(events){
-      MAP.militaryEvents = events || [];
+      /* Truncate oude referenties */
+      if (MAP.militaryEvents && MAP.militaryEvents.length) {
+        MAP.militaryEvents.length = 0;
+      }
+      MAP.militaryEvents = Array.isArray(events) ? events.slice(0, 200) : [];
       LOG("Militaire events ontvangen: " + MAP.militaryEvents.length);
       if (isMapActive()) refreshFromNews();
     });
+
     WarDesk.events.on("map:hotspots", function(hotspots){
-      MAP.hotspots = hotspots || [];
+      if (MAP.hotspots && MAP.hotspots.length) {
+        MAP.hotspots.length = 0;
+      }
+      MAP.hotspots = Array.isArray(hotspots) ? hotspots.slice(0, 10) : [];
       LOG("Hotspots ontvangen: " + MAP.hotspots.length);
       renderHotspots();
     });
+
     WarDesk.events.on("news:loaded", function(){
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
@@ -735,5 +732,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v13.4 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.5 geladen");
 })();
