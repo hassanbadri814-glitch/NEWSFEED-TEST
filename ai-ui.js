@@ -1,8 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.4
-   - v1.4: Professionele trending pills
-     * Verfijnd design, gradient, betere iconen
-     * Klikbaar filter (behouden)
+   WAR DESK — ai-ui.js v1.5
+   - v1.5: Compactere pills + sticky TRENDING label + betere fade
    ============================================================ */
 
 (function(){
@@ -26,7 +24,6 @@
     });
   }
 
-  // ============ STYLES ============
   function injectStyles() {
     if (document.getElementById("wd-trending-styles")) return;
     var style = document.createElement("style");
@@ -35,57 +32,75 @@
       #trending-container {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         overflow-x: auto;
         overflow-y: hidden;
-        padding: 14px 4px 16px;
-        margin: 0 0 4px;
+        padding: 10px 0 12px;
+        margin: 0 0 2px;
         scrollbar-width: none;
         -ms-overflow-style: none;
         -webkit-overflow-scrolling: touch;
         position: relative;
         border-bottom: 1px solid rgba(255,255,255,0.04);
+        scroll-padding-left: 90px;
       }
       #trending-container::-webkit-scrollbar { display: none; }
       #trending-container.wd-hidden { display: none; }
 
+      /* Fade aan rechterkant om scrollbaarheid aan te geven */
+      #trending-container::after {
+        content: '';
+        position: sticky;
+        right: 0;
+        flex-shrink: 0;
+        width: 24px;
+        height: 100%;
+        background: linear-gradient(to right, transparent, var(--bg-1, #070c16) 90%);
+        pointer-events: none;
+        margin-left: -24px;
+      }
+
       .wd-trend-label {
+        position: sticky;
+        left: 0;
+        z-index: 2;
         flex-shrink: 0;
         display: inline-flex;
         align-items: center;
-        gap: 5px;
-        padding-right: 12px;
+        gap: 4px;
+        padding: 6px 12px 6px 0;
         margin-right: 2px;
-        font-size: 10px;
-        font-weight: 700;
-        letter-spacing: 1.4px;
+        font-size: 9.5px;
+        font-weight: 800;
+        letter-spacing: 1.3px;
         text-transform: uppercase;
-        color: rgba(224,168,87,0.7);
-        border-right: 1px solid rgba(224,168,87,0.15);
+        color: rgba(224,168,87,0.85);
+        background: var(--bg-1, #070c16);
         user-select: none;
         white-space: nowrap;
+        border-right: 1px solid rgba(224,168,87,0.15);
+        margin-left: 0;
       }
       .wd-trend-label svg {
-        width: 11px;
-        height: 11px;
-        fill: none;
-        stroke: currentColor;
-        stroke-width: 2.2;
-        stroke-linecap: round;
-        stroke-linejoin: round;
+        width: 10px;
+        height: 10px;
+        fill: currentColor;
+        stroke: none;
+        opacity: 0.85;
+        flex-shrink: 0;
       }
 
       .wd-trend-pill {
         flex-shrink: 0;
         display: inline-flex;
         align-items: center;
-        gap: 7px;
-        padding: 7px 12px 7px 14px;
+        gap: 6px;
+        padding: 6px 10px 6px 12px;
         background: rgba(255,255,255,0.03);
         border: 1px solid rgba(255,255,255,0.08);
         color: var(--ink-1, #e8e8e8);
-        border-radius: 20px;
-        font-size: 13px;
+        border-radius: 18px;
+        font-size: 12.5px;
         font-weight: 500;
         letter-spacing: 0.1px;
         white-space: nowrap;
@@ -129,12 +144,12 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 20px;
-        height: 18px;
+        min-width: 18px;
+        height: 16px;
         padding: 0 5px;
         background: rgba(255,255,255,0.05);
-        border-radius: 9px;
-        font-size: 10.5px;
+        border-radius: 8px;
+        font-size: 10px;
         font-weight: 600;
         letter-spacing: 0;
         color: rgba(255,255,255,0.5);
@@ -152,7 +167,6 @@
     document.head.appendChild(style);
   }
 
-  // ============ TRENDING BALK ============
   var trendingContainer = null;
   var activeTrendTopic = null;
 
@@ -199,9 +213,9 @@
 
     trendingContainer.classList.remove("wd-hidden");
 
-    var iconSvg = '<svg viewBox="0 0 24 24"><path d="M12 2c1 4-2 6-2 9a4 4 0 0 0 8 0c0-1-.5-2-1-3 2 1 3 3 3 5a6 6 0 0 1-12 0c0-5 4-7 4-11z"/></svg>';
+    var flameSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c.8 3.6-1.5 5.6-2.4 8.4-.4 1.3-.3 2.6.4 3.6.6-.6 1-1.6 1-2.8 1.4 1 2.2 2.8 2.2 4.6 0 1.7-1.1 3.1-2.6 3.7.9.3 1.9.5 2.9.5 3.9 0 6.5-2.6 6.5-6.5 0-4.5-4.6-6.4-5.2-10.9-1.2.4-2.3 1-2.8 1.4zM12 23c-3.9 0-7-3.1-7-7 0-2.5 1.5-4.3 2.5-6.2C8.5 8 9 6.5 9 4.5 6 6 3 9.5 3 14c0 5 4 9 9 9z"/></svg>';
 
-    var html = '<div class="wd-trend-label">' + iconSvg + 'Trending</div>';
+    var html = '<div class="wd-trend-label">' + flameSvg + '<span>Trending</span></div>';
     for (var i = 0; i < trends.length; i++) {
       var t = trends[i];
       var isActive = (activeTrendTopic === t.topic);
@@ -225,7 +239,6 @@
     }
   }
 
-  // ============ FEED HERORDENEN ============
   var isScrolling = false;
   var scrollTimer = null;
 
@@ -291,7 +304,6 @@
     if (window.wdLog) wdLog.info("[AI-UI] Feed herordend (" + usedCount + " items)");
   }
 
-  // ============ CLICK TRACKING ============
   document.addEventListener("click", function(e){
     if (e.target.closest && e.target.closest("#trending-container")) return;
 
@@ -309,7 +321,6 @@
     } catch(err){}
   }, true);
 
-  // ============ ORCHESTRATIE ============
   function extractItems(payload) {
     if (!payload) return null;
     if (Array.isArray(payload)) return payload;
@@ -350,7 +361,6 @@
     }
   }
 
-  // ============ INIT ============
   function init() {
     var bus = getBus();
     if (!bus) {
@@ -372,7 +382,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.4 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.5 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
