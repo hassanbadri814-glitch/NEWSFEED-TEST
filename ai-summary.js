@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-summary.js v1.1
-   - v1.1: Taalprioriteit (NL bronnen eerst) + bron-diversiteit (1 per bron)
+   WAR DESK — ai-summary.js v1.2
+   - v1.2: gebruikt AIShared voor gedeelde functies/dicts
+   - v1.1: Taalprioriteit + bron-diversiteit
    - v1.0: Extractive samenvattingen
    ============================================================ */
 
@@ -12,33 +13,16 @@
   var MAX_BULLETS = 5;
   var MAX_ARTICLES = 20;
 
-  // v1.1: Nederlandse bronnen krijgen voorrang
-  var NL_SOURCES = {
-    "nos": 1, "nu.nl": 1, "nu": 1, "ad.nl": 1, "ad": 1,
-    "de telegraaf": 1, "telegraaf": 1, "volkskrant": 1,
-    "de volkskrant": 1, "nrc": 1, "trouw": 1, "parool": 1,
-    "het parool": 1, "fd": 1, "het financieele dagblad": 1,
-    "rtl nieuws": 1, "rtl": 1, "bnr": 1, "dutchnews": 1
-  };
+  /* v1.2: gebruik AIShared waar beschikbaar */
+  var AS = window.AIShared || null;
 
-  // v1.1: veelvoorkomende NL woorden voor taalherkenning
-  var NL_WORDS = {
-    "de": 1, "het": 1, "een": 1, "van": 1, "en": 1, "op": 1,
-    "dat": 1, "voor": 1, "met": 1, "zijn": 1, "er": 1, "aan": 1,
-    "om": 1, "ook": 1, "als": 1, "maar": 1, "bij": 1, "of": 1,
-    "uit": 1, "dan": 1, "naar": 1, "nog": 1, "wel": 1, "geen": 1,
-    "kan": 1, "meer": 1, "wordt": 1, "door": 1, "over": 1,
-    "niet": 1, "heeft": 1, "hebben": 1, "worden": 1, "deze": 1,
-    "dit": 1, "tot": 1, "zal": 1, "kon": 1, "kunnen": 1
-  };
-
-  function tokenize(s) {
-    return String(s || "").toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ")
-      .split(/\s+/).filter(function(w){ return w.length > 3; });
-  }
-
-  function similarity(a, b) {
-    var ta = tokenize(a), tb = tokenize(b);
+  // similarity — via AIShared, anders eigen
+  var similarity = AS ? AS.similarity : function(a, b){
+    function tok(s){
+      return String(s || "").toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ")
+        .split(/\s+/).filter(function(w){ return w.length > 3; });
+    }
+    var ta = tok(a), tb = tok(b);
     if (!ta.length || !tb.length) return 0;
     var setB = {};
     for (var i = 0; i < tb.length; i++) setB[tb[i]] = 1;
@@ -46,9 +30,10 @@
     for (var j = 0; j < ta.length; j++) if (setB[ta[j]]) inter++;
     var union = ta.length + tb.length - inter;
     return union === 0 ? 0 : inter / union;
-  }
+  };
 
-  function getTimestamp(a) {
+  // getTimestamp — via AIShared, anders eigen
+  var getTimestamp = AS ? AS.getTimestamp : function(a){
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
     for (var i = 0; i < fields.length; i++) {
@@ -59,27 +44,30 @@
       }
     }
     return 0;
-  }
+  };
 
-  function isNLSource(source) {
+  // isNLSource — via AIShared, anders eigen
+  var isNLSource = AS ? AS.isNLSource : function(source){
+    var FALLBACK = { "nos":1,"nu.nl":1,"ad.nl":1,"de telegraaf":1,"volkskrant":1,"nrc":1,"trouw":1,"parool":1,"fd":1,"rtl nieuws":1,"bnr":1 };
     var s = String(source || "").toLowerCase().trim();
     if (!s) return false;
-    for (var k in NL_SOURCES) {
-      if (s === k || s.indexOf(k) !== -1) return true;
-    }
+    for (var k in FALLBACK) if (s === k || s.indexOf(k) !== -1) return true;
     return false;
-  }
+  };
 
-  function detectDutch(text) {
+  // detectDutch — via AIShared, anders eigen
+  var detectDutch = AS ? AS.detectDutch : function(text){
+    var FALLBACK = { "de":1,"het":1,"een":1,"van":1,"en":1,"op":1,"dat":1,"voor":1,"met":1,"zijn":1,"er":1,"aan":1,"om":1,"ook":1,"als":1,"maar":1,"bij":1,"of":1,"uit":1,"dan":1,"naar":1,"nog":1,"wel":1,"geen":1,"kan":1,"meer":1,"wordt":1,"door":1,"over":1,"niet":1,"heeft":1,"hebben":1,"worden":1,"deze":1,"dit":1,"tot":1,"zal":1,"kon":1,"kunnen":1 };
     var words = String(text || "").toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ").split(/\s+/);
     if (!words.length) return 0;
     var hits = 0;
-    for (var i = 0; i < words.length; i++) {
-      if (NL_WORDS[words[i]]) hits++;
-    }
+    for (var i = 0; i < words.length; i++) if (FALLBACK[words[i]]) hits++;
     return hits / words.length;
-  }
+  };
 
+  /* ============================================================
+     Eigen helpers (niet in AIShared)
+     ============================================================ */
   function getCategoryItems(category) {
     var items = (window.State && window.State.items) || [];
     if (!category || category === "all") return items.slice();
@@ -141,7 +129,7 @@
     // Actiewoorden
     if (/\b(zei|zegt|kondigde|aangekondigd|bevestigd|ontkend|besloot|waarschuwde|verklaarde|start|lanceerde|verhoogde|verlaagde|verbiedt|eist|dreigt|ondertekende)\b/i.test(s)) score += 1;
 
-    // v1.1: Taalprioriteit
+    // Taalprioriteit
     if (isNLSource(source)) score += 3;
     var nlRatio = detectDutch(s);
     if (nlRatio > 0.15) score += 1.5;
@@ -196,17 +184,15 @@
 
     candidates.sort(function(a, b){ return b.score - a.score; });
 
-    // v1.1: Dedup + max 1 bullet per bron
+    // Dedup + max 1 bullet per bron
     var bullets = [];
     var usedSources = {};
     for (var k = 0; k < candidates.length && bullets.length < MAX_BULLETS; k++) {
       var c = candidates[k];
 
-      // Max 1 per bron
       var srcKey = String(c.source || "").toLowerCase().trim();
       if (srcKey && usedSources[srcKey]) continue;
 
-      // Tekst-dedup
       var isDup = false;
       for (var m = 0; m < bullets.length; m++) {
         if (similarity(c.text, bullets[m].text) > 0.6) {
@@ -235,6 +221,8 @@
 
   window.SummaryEngine = { generate: generate };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-summary.js v1.1 geladen");
+  if (window.wdLog) {
+    wdLog.info("[WAR DESK] ai-summary.js v1.2 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
+  }
 
 })();
