@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-map.js v1.3
+   WAR DESK — ai-map.js v1.4
+   - v1.4: max-age filter (skip artikelen > 30 dagen oud)
    - v1.3: getTimestamp pakt JONGSTE datum + hotspot drempel 1
    - v1.2: Region hotspots
    - v1.1: Unix timestamp fix
@@ -10,6 +11,7 @@
 
   var MAX_EVENTS = 100;
   var MIN_CONFIDENCE = 4;
+  var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // v1.4: 30 dagen
 
   var MILITARY_KEYWORDS = {
     "raketaanval":1, "raket":1, "raketten":1, "drone":1, "drones":1, "bomaanslag":1,
@@ -288,11 +290,14 @@
     lastHash = hash;
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
     var events = [];
+    var skippedOld = 0;
     for (var i = 0; i < items.length; i++) {
       var article = items[i];
       var classification = classifyArticle(article);
       if (!classification) continue;
       var ts = getTimestamp(article) || Date.now();
+      // v1.4: skip artikelen ouder dan 30 dagen
+      if (Date.now() - ts > MAX_AGE_MS) { skippedOld++; continue; }
       var subtype = classification.subtype;
       var loc = classification.location;
       events.push({
@@ -316,12 +321,11 @@
     if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
     var elapsed = ((window.performance && performance.now) ? performance.now() : Date.now()) - startTime;
     if (window.wdLog) {
-      wdLog.info("[Map-AI] " + events.length + " militaire events uit " + items.length + " artikelen (" + Math.round(elapsed) + "ms)");
+      wdLog.info("[Map-AI] " + events.length + " militaire events uit " + items.length + " artikelen (skip oud: " + skippedOld + ", " + Math.round(elapsed) + "ms)");
     }
     return events;
   }
 
-  // ============ v1.3: HOTSPOTS met DREMPEL 1 ============
   function calculateHotspots(events) {
     if (!events || !events.length) return [];
 
@@ -351,9 +355,8 @@
       byCountry[cKey].lngSum += e.lng;
     }
 
-    // Stap 1: landen met 1+ events → land-hotspot
+    // Drempel 1: elk land met events wordt hotspot
     var landHotspots = [];
-    var usedCountries = {};
     for (var c in byCountry) {
       var item = byCountry[c];
       if (item.count >= 1) {
@@ -365,7 +368,6 @@
           lng: item.lngSum / item.count,
           region: item.region
         });
-        usedCountries[c] = true;
       }
     }
 
@@ -407,7 +409,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.3 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.4 geladen");
   }
 
   window.MapAI = {
