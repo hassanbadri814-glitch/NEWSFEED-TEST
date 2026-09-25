@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK v1.7 — AI Chat Module
-   - v1.6 basis (esc functie hersteld)
-   - v1.7: Debug-log voor artikel-titels (om te zien welke artikelen
-           worden meegestuurd naar de AI)
+   WAR DESK v1.9 — AI Chat Module
+   - v1.9: Militaire vragen → worker MET militaire context
+           + lokale fallback als worker faalt
+   - v1.8: Militaire lokale antwoorden
    ============================================================ */
 
 (function(){
@@ -10,10 +10,11 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.7 geladen");
+  LOG("v1.9 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 8;
+  var MAX_MILITARY = 30;
   var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
   var STORAGE_MAX_MSGS = 40;
@@ -24,18 +25,12 @@
     history: []
   };
 
-  /* ============================================================
-     HTML escape
-     ============================================================ */
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
 
-  /* ============================================================
-     Stopwoorden
-     ============================================================ */
   var STOPWORDS = {
     "de":1,"het":1,"een":1,"en":1,"of":1,"maar":1,"dus":1,"want":1,"omdat":1,
     "als":1,"dan":1,"ook":1,"nog":1,"al":1,"wel":1,"niet":1,"geen":1,
@@ -52,9 +47,6 @@
     "this":1,"that":1,"these":1,"those":1,"i":1,"you":1,"he":1,"she":1,"we":1,"they":1
   };
 
-  /* ============================================================
-     Synoniemen-mapping
-     ============================================================ */
   var SYNONYMS = {
     "nl": ["nederland","nederlands","dutch","holland","amsterdam","rotterdam","den haag"],
     "nederland": ["nederland","nederlands","dutch","holland"],
@@ -72,13 +64,9 @@
     "aanval": ["aanval","aanslag","raketaanval","bombardement","luchtaanval"],
     "nieuws": ["nieuws","actualiteit","bericht"],
     "belangrijk": ["belangrijk","groot","ernstig"],
-    "vandaag": ["vandaag","vandaag"],
     "sport": ["sport","voetbal","eredivisie","ajax","psv","feyenoord"]
   };
 
-  /* ============================================================
-     Stemming
-     ============================================================ */
   function stem(word){
     var w = word.toLowerCase();
     if (w.length <= 4) return w;
@@ -100,72 +88,46 @@
       expanded.add(w);
       var stemmed = stem(w);
       expanded.add(stemmed);
-
-      if (SYNONYMS[w]){
-        SYNONYMS[w].forEach(function(s){ expanded.add(s); });
-      }
-      if (SYNONYMS[stemmed]){
-        SYNONYMS[stemmed].forEach(function(s){ expanded.add(s); });
-      }
+      if (SYNONYMS[w]) SYNONYMS[w].forEach(function(s){ expanded.add(s); });
+      if (SYNONYMS[stemmed]) SYNONYMS[stemmed].forEach(function(s){ expanded.add(s); });
     });
-
     return Array.from(expanded);
   }
 
   function scoreArticleForQuery(article, keywords){
     if (!keywords.length) return article._score || 0;
-
     var title = (article.title || "").toLowerCase();
     var desc = (article.desc || "").toLowerCase();
     var cat = (article.cat || "").toLowerCase();
-
-    var score = 0;
-    var matches = 0;
-
+    var score = 0, matches = 0;
     keywords.forEach(function(kw){
       if (!kw || kw.length < 3) return;
-
       if (title.indexOf(kw) >= 0) { score += 25; matches++; }
       else if (desc.indexOf(kw) >= 0) { score += 8; matches++; }
       else if (cat.indexOf(kw) >= 0) { score += 15; matches++; }
     });
-
     if (matches >= 3) score += 20;
     else if (matches >= 2) score += 10;
-
     score += Math.min(article._score || 0, 50) * 0.3;
-
     return score;
   }
 
   function buildArticleContext(userQuestion){
     try {
       if (!window.State || !State.items || !State.items.length) return [];
-
       var keywords = extractKeywords(userQuestion);
-      LOG("Keywords:", keywords.slice(0, 10).join(", "));
-
       var scored = State.items.map(function(it){
-        return {
-          item: it,
-          relevance: scoreArticleForQuery(it, keywords)
-        };
+        return { item: it, relevance: scoreArticleForQuery(it, keywords) };
       });
-
       scored.sort(function(a, b){ return b.relevance - a.relevance; });
-
       var sourceCount = {};
       var selected = [];
       for (var i = 0; i < scored.length && selected.length < MAX_ARTICLES; i++){
         var item = scored[i].item;
         var src = item.source || "?";
         sourceCount[src] = (sourceCount[src] || 0);
-        if (sourceCount[src] < 2){
-          sourceCount[src]++;
-          selected.push(item);
-        }
+        if (sourceCount[src] < 2){ sourceCount[src]++; selected.push(item); }
       }
-
       return selected.map(function(it){
         return {
           title: it.title || "",
@@ -176,10 +138,278 @@
           link: it.link || ""
         };
       });
-    } catch(e){
-      LOG("buildArticleContext fout:", e.message);
-      return [];
+    } catch(e){ LOG("buildArticleContext fout:", e.message); return []; }
+  }
+
+  /* ============================================================
+     MILITARY INTENT DETECTION
+     ============================================================ */
+  var MILITARY_INTENT_KEYWORDS = {
+    "militair": 1, "militaire": 1, "leger": 1, "troepen": 1, "strijdkrachten": 1,
+    "oorlog": 1, "conflict": 1, "gevecht": 1, "gevechten": 1, "strijd": 1,
+    "aanval": 1, "aanvallen": 1, "raketaanval": 1, "bombardement": 1,
+    "aanslag": 1, "offensief": 1, "defensief": 1, "voortgang": 1,
+    "drone": 1, "raket": 1, "raketten": 1, "luchtafweer": 1, "interceptie": 1,
+    "hotspot": 1, "hotspots": 1, "frontlinie": 1, "escalatie": 1
+  };
+
+  var MILITARY_COUNTRIES = {
+    "oekraïne": "Oekraïne", "oekraine": "Oekraïne", "ukraine": "Oekraïne", "kyiv": "Oekraïne", "kiev": "Oekraïne",
+    "rusland": "Rusland", "russia": "Rusland", "moskou": "Rusland", "moscow": "Rusland",
+    "iran": "Iran", "teheran": "Iran", "tehran": "Iran",
+    "israël": "Israël", "israel": "Israël",
+    "gaza": "Gaza", "rafah": "Gaza",
+    "libanon": "Libanon", "lebanon": "Libanon", "beiroet": "Libanon",
+    "syrië": "Syrië", "syria": "Syrië", "damascus": "Syrië",
+    "irak": "Irak", "iraq": "Irak", "bagdad": "Irak",
+    "jemen": "Jemen", "yemen": "Jemen", "houthi": "Jemen",
+    "saudi": "Saudi-Arabië", "riyadh": "Saudi-Arabië",
+    "qatar": "Qatar",
+    "sudan": "Sudan", "khartoum": "Sudan", "darfur": "Sudan",
+    "mali": "Mali", "burkina faso": "Burkina Faso", "niger": "Niger",
+    "nigeria": "Nigeria", "somalia": "Somalië", "somalië": "Somalië",
+    "ethiopië": "Ethiopië", "ethiopia": "Ethiopië", "tigray": "Ethiopië",
+    "congo": "Congo", "mozambique": "Mozambique",
+    "afghanistan": "Afghanistan", "kabul": "Afghanistan",
+    "pakistan": "Pakistan", "kashmir": "Kashmir",
+    "india": "India", "china": "China", "taiwan": "Taiwan",
+    "noord-korea": "Noord-Korea", "north korea": "Noord-Korea",
+    "myanmar": "Myanmar", "burma": "Myanmar",
+    "krim": "Krim", "crimea": "Krim"
+  };
+
+  var SUBTYPE_TRIGGERS = {
+    "aanval":     ["aanval", "aanvallen", "raketaanval", "bombardement", "aanslag", "luchtaanval", "drone-aanval"],
+    "offensief":  ["offensief", "invasie", "opmars", "tegenoffensief"],
+    "defensief":  ["defensief", "luchtafweer", "onderschept", "interceptie", "verdediging"],
+    "voortgang":  ["voortgang", "veroverd", "heroverd", "frontlinie"],
+    "actief":     ["actief", "oorlog", "conflict", "gevecht", "gevechten"]
+  };
+
+  function detectMilitaryIntent(question){
+    var q = String(question || "").toLowerCase();
+    var country = null;
+    for (var key in MILITARY_COUNTRIES) {
+      if (q.indexOf(key) !== -1) { country = MILITARY_COUNTRIES[key]; break; }
     }
+    var subtype = null;
+    for (var st in SUBTYPE_TRIGGERS) {
+      var words = SUBTYPE_TRIGGERS[st];
+      for (var i = 0; i < words.length; i++) {
+        if (q.indexOf(words[i]) !== -1) { subtype = st; break; }
+      }
+      if (subtype) break;
+    }
+    var milScore = 0;
+    var tokens = q.replace(/[^\w\sà-ÿ]/g, " ").split(/\s+/);
+    for (var j = 0; j < tokens.length; j++) {
+      if (MILITARY_INTENT_KEYWORDS[tokens[j]]) milScore++;
+    }
+    var actionScore = 0;
+    if (q.indexOf("wat gebeurt") !== -1 || q.indexOf("wat is er") !== -1) actionScore++;
+    if (q.indexOf("hoeveel") !== -1) actionScore++;
+    if (q.indexOf("waar") !== -1) actionScore++;
+    if (q.indexOf("toon") !== -1) actionScore++;
+    if (q.indexOf("overzicht") !== -1) actionScore++;
+    if (q.indexOf("samenvatting") !== -1) actionScore++;
+    if (q.indexOf("vat ") !== -1) actionScore++;
+    if (q.indexOf("vergelijk") !== -1) actionScore++;
+    if (q.indexOf("waarom") !== -1) actionScore++;
+    if (q.indexOf("trend") !== -1) actionScore++;
+
+    var isMilitary = false;
+    if ((country || subtype) && milScore >= 1) isMilitary = true;
+    if (milScore >= 2 && actionScore >= 1) isMilitary = true;
+    if (q.indexOf("hotspot") !== -1 || q.indexOf("hotspots") !== -1) isMilitary = true;
+    if (q.indexOf("militaire") !== -1 || q.indexOf("militair") !== -1) isMilitary = true;
+
+    return { isMilitary: isMilitary, country: country, subtype: subtype };
+  }
+
+  function getMilitaryEvents(){
+    try {
+      if (window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events)) {
+        return window.MAPAPI.state.events.filter(function(e){ return e && e.isMilitary; });
+      }
+    } catch(e){}
+    return [];
+  }
+
+  // v1.9: bouw militaire context voor worker
+  function buildMilitaryContext(question){
+    var intent = detectMilitaryIntent(question);
+    if (!intent.isMilitary) return null;
+
+    var all = getMilitaryEvents();
+    if (!all.length) return { intent: intent, events: [] };
+
+    // Filter op land/subtype indien van toepassing
+    var filtered = all.slice();
+    if (intent.country) {
+      filtered = filtered.filter(function(e){ return e.country === intent.country; });
+    }
+    if (intent.subtype && intent.subtype !== "actief") {
+      filtered = filtered.filter(function(e){ return e.subtype === intent.subtype; });
+    }
+
+    // Als filter niets oplevert: fallback naar alle events
+    if (!filtered.length && (intent.country || intent.subtype)) {
+      filtered = all.slice();
+    }
+
+    // Sorteer op datum (nieuwste eerst), cap
+    filtered.sort(function(a, b){
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+    filtered = filtered.slice(0, MAX_MILITARY);
+
+    return {
+      intent: intent,
+      events: filtered.map(function(e){
+        return {
+          country: e.country || "",
+          region: e.region || "",
+          subtype: e.subtype || "actief",
+          title: (e.title || "").slice(0, 200),
+          date: e.date,
+          source: e.source || "",
+          url: e.url || ""
+        };
+      })
+    };
+  }
+
+  /* ============================================================
+     LOKALE FALLBACK (was v1.8 tryMilitaryAnswer)
+     ============================================================ */
+  var SUBTYPE_META = {
+    aanval:    { emoji: "🔴", label: "Aanval" },
+    offensief: { emoji: "🟠", label: "Offensief" },
+    defensief: { emoji: "🟢", label: "Defensief" },
+    voortgang: { emoji: "🟣", label: "Voortgang" },
+    actief:    { emoji: "🟡", label: "Actief conflict" }
+  };
+
+  function milTimeAgo(d){
+    var t = new Date(d).getTime();
+    if (isNaN(t)) return "?";
+    var diff = (Date.now() - t) / 1000;
+    if (diff < 60) return "nu";
+    if (diff < 3600) return Math.floor(diff / 60) + " min";
+    if (diff < 86400) return Math.floor(diff / 3600) + " u";
+    return Math.floor(diff / 86400) + " d";
+  }
+
+  function buildLocalMilitaryFallback(question){
+    var intent = detectMilitaryIntent(question);
+    if (!intent.isMilitary) return null;
+
+    var all = getMilitaryEvents();
+    if (!all.length) {
+      return {
+        text: "⚔️ **Geen militaire events**\n\nOp dit moment zijn er geen militaire activiteiten in de nieuwsfeed. Probeer het later opnieuw.",
+        sources: []
+      };
+    }
+
+    var dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    var recent = all.filter(function(e){
+      var t = new Date(e.date).getTime();
+      return t >= dayAgo;
+    });
+    var pool = recent.length ? recent : all;
+    var period = recent.length ? "24u" : "totaal";
+
+    if (intent.country) {
+      var countryEvents = pool.filter(function(e){ return e.country === intent.country; });
+      if (!countryEvents.length) {
+        return {
+          text: "📍 **" + intent.country + "**\n\nGeen militaire events in de laatste " + period + " voor dit land.",
+          sources: []
+        };
+      }
+      return buildCountryAnswer(intent.country, countryEvents, period);
+    }
+
+    if (intent.subtype && intent.subtype !== "actief") {
+      var subtypeEvents = pool.filter(function(e){ return e.subtype === intent.subtype; });
+      if (!subtypeEvents.length) {
+        return {
+          text: SUBTYPE_META[intent.subtype].emoji + " **Geen events van type " + SUBTYPE_META[intent.subtype].label + "** in de laatste " + period + ".",
+          sources: []
+        };
+      }
+      return buildSubtypeAnswer(intent.subtype, subtypeEvents, period);
+    }
+
+    return buildOverviewAnswer(pool, period);
+  }
+
+  function buildCountryAnswer(country, events, period){
+    var bySubtype = {};
+    events.forEach(function(e){
+      if (!bySubtype[e.subtype]) bySubtype[e.subtype] = [];
+      bySubtype[e.subtype].push(e);
+    });
+    var lines = ["📍 **" + country + "** — " + events.length + " militaire events (" + period + ")", ""];
+    var order = ["aanval", "offensief", "defensief", "voortgang", "actief"];
+    order.forEach(function(st){
+      if (!bySubtype[st]) return;
+      var meta = SUBTYPE_META[st];
+      lines.push(meta.emoji + " **" + meta.label + "** (" + bySubtype[st].length + ")");
+      bySubtype[st].slice(0, 3).forEach(function(e){
+        var t = milTimeAgo(e.date);
+        var src = e.source ? " · " + e.source : "";
+        lines.push("• " + (e.title || "").slice(0, 100) + " (" + t + src + ")");
+      });
+      lines.push("");
+    });
+    var sources = events.slice(0, 5).map(function(e){
+      return { title: e.title, link: e.url, source: e.source };
+    });
+    return { text: lines.join("\n").trim(), sources: sources };
+  }
+
+  function buildSubtypeAnswer(subtype, events, period){
+    var meta = SUBTYPE_META[subtype];
+    var lines = [meta.emoji + " **" + meta.label + "** — " + events.length + " events (" + period + ")", ""];
+    events.slice(0, 8).forEach(function(e){
+      var t = milTimeAgo(e.date);
+      var src = e.source ? " · " + e.source : "";
+      lines.push("• **" + (e.country || "?") + "** — " + (e.title || "").slice(0, 90) + " (" + t + src + ")");
+    });
+    var sources = events.slice(0, 5).map(function(e){
+      return { title: e.title, link: e.url, source: e.source };
+    });
+    return { text: lines.join("\n").trim(), sources: sources };
+  }
+
+  function buildOverviewAnswer(events, period){
+    var byCountry = {};
+    var bySubtype = {};
+    events.forEach(function(e){
+      var c = e.country || "?";
+      byCountry[c] = (byCountry[c] || 0) + 1;
+      var st = e.subtype || "actief";
+      bySubtype[st] = (bySubtype[st] || 0) + 1;
+    });
+    var countries = Object.keys(byCountry).map(function(c){
+      return { name: c, count: byCountry[c] };
+    }).sort(function(a, b){ return b.count - a.count; });
+    var lines = ["⚔️ **Militaire overzicht** — " + events.length + " events (" + period + ")", ""];
+    lines.push("**Per type:**");
+    ["aanval", "offensief", "defensief", "voortgang", "actief"].forEach(function(st){
+      if (bySubtype[st]) lines.push(SUBTYPE_META[st].emoji + " " + SUBTYPE_META[st].label + ": " + bySubtype[st]);
+    });
+    lines.push("");
+    lines.push("**Top landen:**");
+    countries.slice(0, 5).forEach(function(c){
+      lines.push("• " + c.name + " — " + c.count + " events");
+    });
+    var sources = events.slice(0, 5).map(function(e){
+      return { title: e.title, link: e.url, source: e.source };
+    });
+    return { text: lines.join("\n").trim(), sources: sources };
   }
 
   /* ============================================================
@@ -194,12 +424,13 @@
         '<div class="ai-welcome">' +
           '<div class="ai-welcome-icon">🤖</div>' +
           '<div class="ai-welcome-title">WAR DESK AI</div>' +
-          '<div class="ai-welcome-text">Stel een vraag over het nieuws, of vraag om uitleg over een onderwerp.</div>' +
+          '<div class="ai-welcome-text">Stel een vraag over het nieuws, militaire conflicten of vraag om uitleg.</div>' +
           '<div class="ai-suggestions">' +
-            '<button class="ai-sugg" data-q="Wat is het belangrijkste nieuws vandaag?">Belangrijkste nieuws vandaag</button>' +
-            '<button class="ai-sugg" data-q="Vat het nieuws over het Midden-Oosten samen">Midden-Oosten samenvatting</button>' +
-            '<button class="ai-sugg" data-q="Wat gebeurt er in Nederland?">Nederland vandaag</button>' +
-            '<button class="ai-sugg" data-q="Wat gebeurt er in Marokko?">Marokko update</button>' +
+            '<button class="ai-sugg" data-q="Wat is het belangrijkste nieuws vandaag?">Belangrijkste nieuws</button>' +
+            '<button class="ai-sugg" data-q="Geef een militaire overzicht">⚔️ Militair overzicht</button>' +
+            '<button class="ai-sugg" data-q="Wat gebeurt er in Oekraïne?">Wat gebeurt in Oekraïne?</button>' +
+            '<button class="ai-sugg" data-q="Toon alle aanvallen van vandaag">Toon alle aanvallen</button>' +
+            '<button class="ai-sugg" data-q="Wat gebeurt er in Gaza en waarom?">Gaza — wat en waarom?</button>' +
           '</div>' +
         '</div>';
       bindSuggestions();
@@ -217,15 +448,13 @@
 
     AI.history.forEach(function(msg, idx){
       var roleClass = msg.role === "user" ? "ai-msg-user" : "ai-msg-ai";
-      var roleLabel = msg.role === "user" ? "Jij" : "AI";
+      var roleLabel = msg.role === "user" ? "Jij" : (msg.provider === "local-military" ? "⚔️ Militair" : "AI");
       html += '<div class="ai-msg ' + roleClass + '" data-idx="' + idx + '">';
       html += '<div class="ai-msg-label">' + roleLabel + '</div>';
       html += '<div class="ai-msg-text">' + renderMarkdown(msg.text) + '</div>';
-
       if (msg.role === "ai" && msg.sources && msg.sources.length){
         html += renderSources(msg.sources);
       }
-
       if (msg.role === "ai" && !msg.error){
         html += '<div class="ai-msg-actions">';
         html += '<button class="ai-action-btn" data-action="copy" data-idx="' + idx + '" title="Kopieer">📋</button>';
@@ -234,7 +463,6 @@
         }
         html += '</div>';
       }
-
       html += '</div>';
     });
 
@@ -259,7 +487,6 @@
       unique.push(s);
     });
     if (!unique.length) return "";
-
     var html = '<details class="ai-sources">';
     html += '<summary class="ai-sources-toggle">📚 Bronnen (' + unique.length + ')</summary>';
     html += '<div class="ai-sources-list">';
@@ -289,6 +516,7 @@
     s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
     s = s.replace(/^\s*[-*]\s+(.+)$/gm, '<span style="display:block;padding-left:1rem;text-indent:-1rem">• $1</span>');
+    s = s.replace(/_([^_\n]+)_/g, '<em>$1</em>');
     s = s.replace(/\n/g, "<br>");
     return s;
   }
@@ -296,9 +524,7 @@
   function scrollToBottom(){
     var container = $("aiMessages");
     if (!container) return;
-    setTimeout(function(){
-      container.scrollTop = container.scrollHeight;
-    }, 50);
+    setTimeout(function(){ container.scrollTop = container.scrollHeight; }, 50);
   }
 
   function bindSuggestions(){
@@ -355,7 +581,6 @@
       if (AI.history[i].role === "user"){ userIdx = i; break; }
     }
     if (userIdx < 0) return;
-
     var userText = AI.history[userIdx].text;
     AI.history = AI.history.slice(0, userIdx);
     renderMessages();
@@ -419,41 +644,40 @@
     if (sendBtn) sendBtn.disabled = true;
 
     try {
+      // v1.9: militaire context meesturen
+      var militaryCtx = null;
+      try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
+
       var articles = buildArticleContext(message);
-      LOG("Verstuur met", articles.length, "artikelen");
-      if (articles.length){
-        LOG("Titels:", articles.map(function(a){ return (a.source || "?") + ": " + (a.title || "").slice(0, 50); }).join(" | "));
+      LOG("Verstuur met", articles.length, "artikelen" + (militaryCtx && militaryCtx.events.length ? " + " + militaryCtx.events.length + " militaire events" : ""));
+
+      var payload = {
+        message: message,
+        articles: articles,
+        history: AI.history.slice(-6),
+        clientDate: new Date().toISOString()
+      };
+
+      if (militaryCtx && militaryCtx.events.length) {
+        payload.militaryEvents = militaryCtx.events;
+        payload.militaryFocus = militaryCtx.intent.country || null;
+        payload.militarySubtype = (militaryCtx.intent.subtype && militaryCtx.intent.subtype !== "actief") ? militaryCtx.intent.subtype : null;
       }
 
       var r = await fetchWithRetry(WORKER_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: message,
-          articles: articles,
-          history: AI.history.slice(-6),
-          clientDate: new Date().toISOString()
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!r.ok){
-        var errText = await r.text();
-        var friendly = "Er ging iets mis bij de AI.";
-        try {
-          var errData = JSON.parse(errText);
-          if (errData.error) friendly = errData.error;
-          if (errData.attempts && errData.attempts.length){
-            LOG("Worker attempts:", errData.attempts.join(" | "));
-          }
-        } catch(e){}
-        throw new Error(friendly);
+        throw new Error("Worker error: HTTP " + r.status);
       }
 
       var data = await r.json();
       if (data.error) throw new Error(data.error);
 
       var responseText = data.response || "(geen antwoord)";
-
       var sources = articles.slice(0, 5).map(function(a){
         return { title: a.title, link: a.link, source: a.source };
       });
@@ -465,18 +689,32 @@
         provider: data.provider || "",
         model: data.model || ""
       });
-
       if (AI.history.length > 80) AI.history = AI.history.slice(-80);
       saveHistory();
       LOG("Antwoord via", data.provider || "?", "/", data.model || "?");
 
     } catch(e) {
-      LOG("Fout:", e.message);
-      AI.history.push({
-        role: "ai",
-        text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
-        error: true
-      });
+      LOG("Worker faalde:", e.message);
+
+      // v1.9: FALLBACK naar lokaal militaire antwoord
+      var fallback = null;
+      try { fallback = buildLocalMilitaryFallback(message); } catch(err){ LOG("Fallback fout:", err.message); }
+
+      if (fallback) {
+        LOG("Fallback: lokaal militaire antwoord");
+        AI.history.push({
+          role: "ai",
+          text: fallback.text,
+          sources: fallback.sources || [],
+          provider: "local-military"
+        });
+      } else {
+        AI.history.push({
+          role: "ai",
+          text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
+          error: true
+        });
+      }
       saveHistory();
     } finally {
       AI.sending = false;
@@ -535,7 +773,8 @@
     clear: clearChat,
     state: AI,
     _extractKeywords: extractKeywords,
-    _buildArticleContext: buildArticleContext
+    _buildArticleContext: buildArticleContext,
+    _buildMilitaryContext: buildMilitaryContext
   };
 
   function setupWatcher(){
@@ -565,5 +804,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.7 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.9 geladen");
 })();
