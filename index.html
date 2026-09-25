@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: *; connect-src 'self' *; media-src 'self' blob: *; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob: https://unpkg.com https://cdn.jsdelivr.net;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: *; connect-src 'self' *; media-src 'self' blob: *; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:;">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#070c16" id="themeColorMeta">
 <meta name="description" content="WAR DESK — Live monitor voor wereldwijde conflicten, nieuws, IPTV en VOD.">
@@ -206,12 +206,12 @@
       </div>
       <div class="live-feed">
         <div class="live-head">
-          <div class="live-title"><span class="live-dot"></span>MIDDEN-OOSTEN EVENTS</div>
+          <div class="live-title"><span class="live-dot"></span>MILITAIRE EVENTS</div>
           <div class="live-count" id="liveCount">0</div>
         </div>
         <div class="live-filters" id="liveFilters">
           <button class="live-filter active" data-cat="all">Alles</button>
-          <button class="live-filter" data-cat="conflict">Conflicten</button>
+          <button class="live-filter" data-cat="military">⚔ Militair</button>
           <button class="live-filter" data-cat="political">Politiek</button>
           <button class="live-filter" data-cat="other">Overig</button>
         </div>
@@ -398,7 +398,7 @@
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.7</span><br>Live nieuws + IPTV + Kaart (Midden-Oosten) + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.7</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -701,7 +701,7 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <!-- 4. FEATURE MODULES -->
 <script src="iptv-v8.js?v=14.30" defer></script>
-<script src="map-v11.10.js?v=14.30" defer></script>
+<script src="map-v11.10.js?v=13.0" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=14.57" defer></script>
 
