@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: *; connect-src 'self' *; media-src 'self' blob: *; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com https://cdn.jsdelivr.net; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: *; connect-src 'self' *; media-src 'self' blob: *; object-src 'none'; frame-src 'none'; base-uri 'self'; form-action 'self'; worker-src 'self' blob: https://unpkg.com https://cdn.jsdelivr.net;">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="theme-color" content="#070c16" id="themeColorMeta">
 <meta name="description" content="WAR DESK — Live monitor voor wereldwijde conflicten, nieuws, IPTV en VOD.">
@@ -118,11 +118,6 @@
 <link rel="stylesheet" href="styles.css?v=14.7">
 
 <style>
-/* ============================================================
-   v14.4 — Alleen layout-kritieke fallback regels
-   Alle algemene styling staat in styles.css
-   ============================================================ */
-
 .bottom-tabs {
   position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
   z-index: 9999999 !important; display: flex !important; justify-content: space-around !important;
@@ -683,11 +678,6 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <!-- ============================================================
      WAR DESK APP SCRIPTS — LAADVOLGORDE IS KRITIEK
-     1. Core
-     2. AI Engines (vóór ai-ui.js)
-     3. State & Feed
-     4. Feature modules
-     5. AI UI Hooks (laatste — luistert naar events)
      ============================================================ -->
 
 <!-- 1. CORE -->
@@ -695,10 +685,10 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="config.js?v=14.30" defer></script>
 <script src="utils.js?v=14.30" defer></script>
 
-<!-- 2. AI ENGINES (vóór store.js) -->
+<!-- 2. AI ENGINES -->
 <script src="ai-trending.js?v=1.6" defer></script>
 <script src="ai-ranking.js?v=1.0" defer></script>
-<script src="ai-dedup.js?v=1.2" defer></script>
+<script src="ai-dedup.js?v=1.1" defer></script>
 
 <!-- 3. STATE & FEED -->
 <script src="store.js?v=14.5" defer></script>
@@ -714,7 +704,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="ai-chat.js?v=14.57" defer></script>
 
 <!-- 5. AI UI HOOKS -->
-<script src="ai-ui.js?v=1.7" defer></script>
+<script src="ai-ui.js?v=1.6" defer></script>
 
 <script>
 (function(){
