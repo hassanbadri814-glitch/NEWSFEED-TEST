@@ -1,6 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-dedup.js v2.2
-   - v2.2: articles hebben geen id, alleen link → getRef() fallback
+   WAR DESK — ai-dedup.js v2.3
+   - v2.3: gebruikt AIShared voor STOP_WORDS, similarity, getTimestamp
+   - v2.2: artikelen zonder id → getRef() fallback
+   - v2.1: DEBOUNCE — wacht 3s tot feed stabiel is
    ============================================================ */
 
 (function(){
@@ -12,36 +14,55 @@
   var MAX_ARTICLES = 250;
   var DEBOUNCE_MS = 3000;
 
-  var STOP_WORDS = {};
-  ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
-   "ook","als","maar","bij","of","uit","dan","naar","nog","wel","geen","kan","meer","wordt",
-   "door","over","ze","zich","niet","heeft","hebben","worden","deze","dit","tot","je","u",
-   "we","ik","hij","zij","jij","mijn","jouw","ons","onze",
-   "the","and","for","with","that","this","from","have","has","are","was","were","will",
-   "been","they","their","you","your","says","said","say","after","before","during","about",
-   "into","under","more","less","just","also","new","two","three","first","last","next",
-   "back","against","between","through","which","what","when","where","who","how","why",
-   "than","then","very","much","many","some","only","even","still","being","does","did","done"]
-    .forEach(function(w){ STOP_WORDS[w] = true; });
+  /* v2.3: gebruik AIShared waar beschikbaar */
+  var AS = window.AIShared || null;
 
+  // STOP_WORDS — prefer shared
+  var STOP_WORDS = AS ? AS.STOP_WORDS : (function(){
+    var s = {};
+    ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
+     "ook","als","maar","bij","of","uit","dan","naar","nog","wel","geen","kan","meer","wordt",
+     "door","over","ze","zich","niet","heeft","hebben","worden","deze","dit","tot","je","u",
+     "we","ik","hij","zij","jij","mijn","jouw","ons","onze",
+     "the","and","for","with","that","this","from","have","has","are","was","were","will",
+     "been","they","their","you","your","says","said","say","after","before","during","about",
+     "into","under","more","less","just","also","new","two","three","first","last","next",
+     "back","against","between","through","which","what","when","where","who","how","why",
+     "than","then","very","much","many","some","only","even","still","being","does","did","done"]
+      .forEach(function(w){ s[w] = true; });
+    return s;
+  })();
+
+  // getTimestamp — prefer shared
+  var getTimestamp = AS ? AS.getTimestamp : function(a){
+    if (!a) return 0;
+    var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
+    var candidates = [];
+    for (var i = 0; i < fields.length; i++) {
+      var v = a[fields[i]];
+      if (!v) continue;
+      var t;
+      if (typeof v === "number") {
+        t = v < 100000000000 ? v * 1000 : v;
+      } else {
+        t = new Date(v).getTime();
+      }
+      if (!isNaN(t) && t > 946684800000 && t < Date.now() + 86400000) {
+        candidates.push(t);
+      }
+    }
+    if (!candidates.length) return 0;
+    candidates.sort(function(x, y){ return y - x; });
+    return candidates[0];
+  };
+
+  /* ============================================================
+     Eigen helpers (niet in AIShared)
+     ============================================================ */
   function getBus() {
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
-  function getTimestamp(a) {
-    if (!a) return 0;
-    var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
-    for (var i = 0; i < fields.length; i++) {
-      var v = a[fields[i]];
-      if (v) {
-        var t = (typeof v === "number") ? v : new Date(v).getTime();
-        if (!isNaN(t) && t > 0) return t;
-      }
-    }
-    return 0;
-  }
-
-  // v2.2: referentie voor artikel — id OF link OF url
   function getRef(a) {
     if (!a) return "";
     return String(a.id || a.link || a.url || a.guid || a.href || "");
@@ -56,6 +77,7 @@
   }
 
   function jaccard(setA, setB) {
+    if (AS && AS.jaccard) return AS.jaccard(setA, setB);
     var inter = 0;
     for (var k in setA) if (setB[k]) inter++;
     var union = 0;
@@ -65,6 +87,7 @@
   }
 
   function containment(small, big) {
+    if (AS && AS.containment) return AS.containment(small, big);
     var total = 0, found = 0;
     for (var k in small) {
       total++;
@@ -232,6 +255,8 @@
     isReady: function(){ return true; }
   };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v2.2 geladen");
+  if (window.wdLog) {
+    wdLog.info("[WAR DESK] ai-dedup.js v2.3 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
+  }
 
 })();
