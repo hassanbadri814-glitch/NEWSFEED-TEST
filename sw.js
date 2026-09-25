@@ -52,6 +52,12 @@ self.addEventListener('activate', event => {
   );
 });
 
+self.addEventListener('message', event => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
 self.addEventListener('fetch', event => {
   const req = event.request;
 
@@ -69,13 +75,12 @@ self.addEventListener('fetch', event => {
                || url.pathname.endsWith('/');
   const isJson  = /\.json$/i.test(url.pathname);
 
-  /* ===== MEDIA: images/fonts → MEDIA_CACHE (blijft bij versie bump) ===== */
+  /* ===== MEDIA: images/fonts → MEDIA_CACHE ===== */
   if (isImage || isFont) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(cache =>
         cache.match(req).then(cached => {
           if (cached) {
-            /* Background update */
             fetch(req).then(res => {
               if (res && res.status === 200) {
                 cache.put(req, res.clone()).catch(() => {});
@@ -83,7 +88,6 @@ self.addEventListener('fetch', event => {
             }).catch(() => {});
             return cached;
           }
-          /* Niet gecached: fetch en cache */
           return fetch(req).then(res => {
             if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
               cache.put(req, res.clone()).catch(() => {});
@@ -129,7 +133,10 @@ self.addEventListener('fetch', event => {
           return caches.match(req).then(cached => {
             if (cached) return cached;
             if (isHtml) return caches.match('./offline.html');
-            return new Response('', { status: 503 });
+            return new Response(JSON.stringify({ error: 'offline' }), {
+              status: 503,
+              headers: { 'Content-Type': 'application/json' }
+            });
           });
         })
     );
