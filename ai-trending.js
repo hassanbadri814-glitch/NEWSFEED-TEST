@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-trending.js v1.2
+   WAR DESK — ai-trending.js v1.3
    Trending Topics Engine (Fase 1)
-   - v1.2: FIX — meerdere datumvelden proberen + fallback
+   - v1.2: meerdere datumvelden + fallback
+   - v1.3: extra ruis-filters (says, said, etc.)
    ============================================================ */
 
 (function(){
@@ -9,7 +10,7 @@
 
   var THROTTLE_MS = 60000;
   var RETRY_MS = 5000;
-  var WINDOW_HOURS = 6;      // v1.2: ruimer (was 4)
+  var WINDOW_HOURS = 6;
   var MAX_ARTICLES = 500;
   var lastRun = 0;
   var lastProducedTopics = 0;
@@ -19,14 +20,22 @@
    "ook","als","maar","bij","of","uit","dan","naar","nog","wel","geen","kan","meer","wordt",
    "door","over","ze","zich","niet","heeft","hebben","worden","deze","dit","tot","je","u",
    "we","ik","hij","zij","jij","mijn","jouw","ons","onze","the","and","for","with","that",
-   "this","from","have","has","are","was","were","will","been","they","their","you","your"]
+   "this","from","have","has","are","was","were","will","been","they","their","you","your",
+   // v1.3: extra ruis-filters (werkwoorden, voorzetsels, Engels)
+   "says","said","say","after","before","during","about","into","under","more","less",
+   "just","also","new","two","three","first","last","next","back","against",
+   "between","through","which","what","when","where","who","how","why","than","then","very",
+   "much","many","some","only","even","still","being","does","did","done",
+   "via","per","alweer","hadden","zullen","zou","kunnen","moet","moeten","mag","mogen",
+   "laat","laten","gaat","gaan","komt","komen","weer","toch","maar","want","omdat",
+   "terwijl","tijdens","volgens","binnen","buiten","tussen","tegen","zonder","tijdens"]
     .forEach(function(w){ STOP_WORDS[w] = true; });
 
   function getBus() {
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
-  // v1.2: probeer meerdere datumvelden
+  // Probeer meerdere datumvelden
   function getTimestamp(a) {
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
@@ -54,7 +63,6 @@
       var ts = getTimestamp(a);
       if (ts === 0) {
         skippedNoDate++;
-        // v1.2: artikelen zonder datum MEENEMEN (aanname: recent)
         recent.push({ art: a, ts: now });
       } else if (ts > cutoff) {
         recent.push({ art: a, ts: ts });
@@ -89,7 +97,6 @@
 
     var arr = [];
     for (var key in counts) {
-      // v1.2: drempel verlaagd van 3 naar 2
       if (counts[key].count >= 2) {
         arr.push({ topic: key, score: counts[key].score, count: counts[key].count });
       }
@@ -128,6 +135,6 @@
 
   window.TrendingEngine = { run: run };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.2 geladen");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.3 geladen");
 
 })();
