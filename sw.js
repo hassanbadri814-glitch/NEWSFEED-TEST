@@ -1,12 +1,12 @@
 /* ============================================================
-   WAR DESK Service Worker v2.5
-   - Network-first voor HTML/JS/CSS/JSON
-   - Cache-first voor images/fonts/icons (eigen domein)
-   - CDN assets NIET cachen
-   - Cache-naam gebumpt voor update-detectie
+   WAR DESK Service Worker v2.6
+   - HTML/JSON: network-first (altijd nieuwste versie)
+   - JS/CSS: stale-while-revalidate (cache direct, update op achtergrond)
+   - Images/fonts: cache-first met background update
+   - CDN assets: nooit cachen
    ============================================================ */
 
-const CACHE_NAME = 'wardesk-v14.29';
+const CACHE_NAME = 'wardesk-v14.7';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -53,21 +53,40 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(req.url);
 
-  if (url.origin !== location.origin) {
+  if (url.origin !== location.origin) return;
+
+  const isAsset = /\.(js|css)$/i.test(url.pathname);
+  const isHtml = /\.html$/i.test(url.pathname)
+              || url.pathname === '/'
+              || url.pathname.endsWith('/');
+  const isJson = /\.json$/i.test(url.pathname);
+
+  /* ===== JS/CSS: Stale-while-revalidate ===== */
+  if (isAsset) {
+    event.respondWith(
+      caches.match(req).then(cached => {
+        const networkFetch = fetch(req).then(res => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then(c => c.put(req, clone)).catch(() => {});
+          }
+          return res;
+        }).catch(() => cached);
+        // Return cached direct, update op achtergrond
+        return cached || networkFetch;
+      })
+    );
     return;
   }
 
-  const isCode = /\.(html|js|css|json)$/i.test(url.pathname)
-              || url.pathname === '/'
-              || url.pathname.endsWith('/');
-
-  if (isCode) {
+  /* ===== HTML/JSON: Network-first ===== */
+  if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
         .then(res => {
           if (res && res.status === 200) {
             const clone = res.clone();
-            caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+            caches.open(CACHE_NAME).then(c => c.put(req, clone)).catch(() => {});
           }
           return res;
         })
@@ -78,12 +97,13 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  /* ===== Images/Fonts: Cache-first + background update ===== */
   event.respondWith(
     caches.match(req).then(cached => {
       if (cached) {
         fetch(req).then(res => {
           if (res && res.status === 200) {
-            caches.open(CACHE_NAME).then(cache => cache.put(req, res.clone()));
+            caches.open(CACHE_NAME).then(c => c.put(req, res.clone())).catch(() => {});
           }
         }).catch(() => {});
         return cached;
@@ -91,7 +111,7 @@ self.addEventListener('fetch', event => {
       return fetch(req).then(res => {
         if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
           const clone = res.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(req, clone));
+          caches.open(CACHE_NAME).then(c => c.put(req, clone)).catch(() => {});
         }
         return res;
       });
