@@ -1,10 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-summary.js v1.0
-   Extractive samenvattingen — geen AI API, geen kosten
-   - Pakt top artikelen van een categorie
-   - Extraheert kernzinnen (titel + lead)
-   - Scoort op entiteiten, cijfers, actiewoorden
-   - Dedupliceert overlappende zinnen
+   WAR DESK — ai-summary.js v1.1
+   - v1.1: Taalprioriteit (NL bronnen eerst) + bron-diversiteit (1 per bron)
+   - v1.0: Extractive samenvattingen
    ============================================================ */
 
 (function(){
@@ -14,6 +11,26 @@
   var MAX_SENTENCE_LEN = 220;
   var MAX_BULLETS = 5;
   var MAX_ARTICLES = 20;
+
+  // v1.1: Nederlandse bronnen krijgen voorrang
+  var NL_SOURCES = {
+    "nos": 1, "nu.nl": 1, "nu": 1, "ad.nl": 1, "ad": 1,
+    "de telegraaf": 1, "telegraaf": 1, "volkskrant": 1,
+    "de volkskrant": 1, "nrc": 1, "trouw": 1, "parool": 1,
+    "het parool": 1, "fd": 1, "het financieele dagblad": 1,
+    "rtl nieuws": 1, "rtl": 1, "bnr": 1, "dutchnews": 1
+  };
+
+  // v1.1: veelvoorkomende NL woorden voor taalherkenning
+  var NL_WORDS = {
+    "de": 1, "het": 1, "een": 1, "van": 1, "en": 1, "op": 1,
+    "dat": 1, "voor": 1, "met": 1, "zijn": 1, "er": 1, "aan": 1,
+    "om": 1, "ook": 1, "als": 1, "maar": 1, "bij": 1, "of": 1,
+    "uit": 1, "dan": 1, "naar": 1, "nog": 1, "wel": 1, "geen": 1,
+    "kan": 1, "meer": 1, "wordt": 1, "door": 1, "over": 1,
+    "niet": 1, "heeft": 1, "hebben": 1, "worden": 1, "deze": 1,
+    "dit": 1, "tot": 1, "zal": 1, "kon": 1, "kunnen": 1
+  };
 
   function tokenize(s) {
     return String(s || "").toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ")
@@ -42,6 +59,25 @@
       }
     }
     return 0;
+  }
+
+  function isNLSource(source) {
+    var s = String(source || "").toLowerCase().trim();
+    if (!s) return false;
+    for (var k in NL_SOURCES) {
+      if (s === k || s.indexOf(k) !== -1) return true;
+    }
+    return false;
+  }
+
+  function detectDutch(text) {
+    var words = String(text || "").toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ").split(/\s+/);
+    if (!words.length) return 0;
+    var hits = 0;
+    for (var i = 0; i < words.length; i++) {
+      if (NL_WORDS[words[i]]) hits++;
+    }
+    return hits / words.length;
   }
 
   function getCategoryItems(category) {
@@ -81,29 +117,35 @@
       .filter(function(s){ return s.length >= MIN_SENTENCE_LEN && s.length <= MAX_SENTENCE_LEN; });
   }
 
-  function scoreSentence(s, title) {
+  function scoreSentence(s, title, source) {
     var score = 0;
 
-    // Lengte: niet te kort, niet te lang
+    // Lengte
     if (s.length > 60 && s.length < 180) score += 2;
     else if (s.length > 40) score += 1;
 
-    // Proper nouns (namen, plaatsen)
+    // Proper nouns
     var pn = s.match(/\b[A-ZÀ-Ý][a-zà-ÿ]{2,}(?:\s+[A-ZÀ-Ý][a-zà-ÿ]{2,})+/g);
     if (pn) score += pn.length * 1.5;
 
-    // Cijfers / data
+    // Cijfers
     if (/\d/.test(s)) score += 1.5;
 
     // Overlap met titel
     var sim = similarity(s, title);
     if (sim > 0.3 && sim < 0.7) score += 1;
 
-    // Vaag openend → straf
+    // Vaag openend
     if (/^(Het|De|Dit|Dat|Er|We|Ik|U)\s/i.test(s)) score -= 0.5;
 
     // Actiewoorden
     if (/\b(zei|zegt|kondigde|aangekondigd|bevestigd|ontkend|besloot|waarschuwde|verklaarde|start|lanceerde|verhoogde|verlaagde|verbiedt|eist|dreigt|ondertekende)\b/i.test(s)) score += 1;
+
+    // v1.1: Taalprioriteit
+    if (isNLSource(source)) score += 3;
+    var nlRatio = detectDutch(s);
+    if (nlRatio > 0.15) score += 1.5;
+    else if (nlRatio > 0.08) score += 0.5;
 
     return score;
   }
@@ -124,24 +166,25 @@
       var a = items[i];
       var title = String(a.title || "").trim();
       var desc = String(a.description || a.summary || "").trim();
+      var source = String(a.source || "").trim();
 
-      // Titel als kandidaat (bonus want meest kernachtig)
       if (title.length >= MIN_SENTENCE_LEN && title.length <= MAX_SENTENCE_LEN) {
         candidates.push({
           text: title,
           article: a,
-          score: scoreSentence(title, title) + 3,
+          source: source,
+          score: scoreSentence(title, title, source) + 3,
           isTitle: true
         });
       }
 
-      // Zinnen uit beschrijving (max 2 per artikel)
       var sents = extractSentences(desc);
       for (var j = 0; j < sents.length && j < 2; j++) {
         candidates.push({
           text: sents[j],
           article: a,
-          score: scoreSentence(sents[j], title),
+          source: source,
+          score: scoreSentence(sents[j], title, source),
           isTitle: false
         });
       }
@@ -153,10 +196,17 @@
 
     candidates.sort(function(a, b){ return b.score - a.score; });
 
-    // Dedup + top N
+    // v1.1: Dedup + max 1 bullet per bron
     var bullets = [];
+    var usedSources = {};
     for (var k = 0; k < candidates.length && bullets.length < MAX_BULLETS; k++) {
       var c = candidates[k];
+
+      // Max 1 per bron
+      var srcKey = String(c.source || "").toLowerCase().trim();
+      if (srcKey && usedSources[srcKey]) continue;
+
+      // Tekst-dedup
       var isDup = false;
       for (var m = 0; m < bullets.length; m++) {
         if (similarity(c.text, bullets[m].text) > 0.6) {
@@ -165,6 +215,8 @@
         }
       }
       if (isDup) continue;
+
+      if (srcKey) usedSources[srcKey] = 1;
       bullets.push(c);
     }
 
@@ -183,6 +235,6 @@
 
   window.SummaryEngine = { generate: generate };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-summary.js v1.0 geladen");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-summary.js v1.1 geladen");
 
 })();
