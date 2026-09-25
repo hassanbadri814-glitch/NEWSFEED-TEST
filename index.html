@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.7</title>
+<title>WAR DESK v14.22</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -115,7 +115,7 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.7">
+<link rel="stylesheet" href="styles.css?v=14.22">
 
 <style>
 .bottom-tabs {
@@ -167,7 +167,7 @@
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.7</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.22</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -398,7 +398,7 @@
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.7</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.22</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -761,6 +761,30 @@ document.addEventListener("DOMContentLoaded", function(){
     document.addEventListener("DOMContentLoaded", restoreTab);
   } else {
     restoreTab();
+  }
+})();
+</script>
+
+<!-- ==== C2 VERIFICATIE: CACHE CHECK ==== -->
+<script>
+(function(){
+  if ('caches' in window) {
+    caches.keys().then(function(names) {
+      var cacheList = names.join(', ');
+      // Stuur het resultaat naar het Debug Panel (als wdLog beschikbaar is)
+      if (typeof wdLog === 'function') {
+        wdLog.info('[C2 CHECK] Actieve caches: ' + cacheList);
+      } else {
+        // Fallback als wdLog nog niet geladen is
+        setTimeout(function(){
+          if (typeof wdLog === 'function') wdLog.info('[C2 CHECK] Actieve caches: ' + cacheList);
+        }, 1000);
+      }
+    }).catch(function(err) {
+      if (typeof wdLog === 'function') wdLog.warn('[C2 CHECK] Fout bij ophalen caches: ' + err.message);
+    });
+  } else {
+    if (typeof wdLog === 'function') wdLog.warn('[C2 CHECK] Cache API niet ondersteund in deze browser.');
   }
 })();
 </script>
