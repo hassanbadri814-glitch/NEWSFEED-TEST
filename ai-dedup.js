@@ -1,6 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-dedup.js v1.0
-   Semantische dedup orchestrator (main thread)
+   WAR DESK — ai-dedup.js v1.1
+   - v1.1: worker failure → stop na 1 fout (geen retry spam)
    ============================================================ */
 
 (function(){
@@ -12,6 +12,7 @@
   var CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
   var worker = null;
+  var workerBroken = false;
   var isProcessing = false;
   var embeddingCache = {};
 
@@ -46,9 +47,7 @@
           embeddingCache = toKeep;
         }
         localStorage.setItem(STORAGE_KEY, JSON.stringify(embeddingCache));
-      } catch(e) {
-        if (window.wdLog) wdLog.warn("[Dedup] Cache opslaan mislukt: " + e.message);
-      }
+      } catch(e) {}
     }, 5000);
   }
 
@@ -67,16 +66,19 @@
   }
 
   function getWorker() {
+    if (workerBroken) return null;
     if (worker) return worker;
     try {
       worker = new Worker("dedup-worker.js");
       worker.onmessage = onWorkerMessage;
       worker.onerror = function(e) {
         if (window.wdLog) wdLog.warn("[Dedup] Worker error: " + (e.message || "onbekend"));
+        workerBroken = true;
       };
       return worker;
     } catch(e) {
       if (window.wdLog) wdLog.warn("[Dedup] Worker niet beschikbaar: " + e.message);
+      workerBroken = true;
       return null;
     }
   }
@@ -106,7 +108,6 @@
       var cached = pendingCached || [];
       var toEmbed = pendingArticles || [];
 
-      // Sla nieuwe embeddings op in cache
       var now = Date.now();
       for (var i = 0; i < newData.length; i++) {
         if (!newData[i].vector || !toEmbed[i]) continue;
@@ -115,7 +116,6 @@
       }
       saveCache();
 
-      // Merge cached + new
       var all = cached.slice();
       for (var j = 0; j < newData.length; j++) {
         if (newData[j].vector && toEmbed[j]) {
@@ -143,6 +143,10 @@
       isProcessing = false;
       pendingArticles = null;
       pendingCached = null;
+      if (msg.fatal) {
+        workerBroken = true;
+        if (window.wdLog) wdLog.warn("[Dedup] Worker geblokkeerd — geen verdere pogingen");
+      }
     }
   }
 
@@ -221,6 +225,7 @@
   }
 
   function process(articles) {
+    if (workerBroken) return;
     if (!articles || articles.length < 2) return;
     if (isProcessing) {
       if (window.wdLog) wdLog.info("[Dedup] Skip — al bezig");
@@ -255,10 +260,7 @@
     }
 
     var w = getWorker();
-    if (!w) {
-      if (window.wdLog) wdLog.info("[Dedup] Geen worker — skip");
-      return;
-    }
+    if (!w) return;
 
     isProcessing = true;
     pendingArticles = toEmbed;
@@ -272,9 +274,9 @@
 
   window.DedupEngine = {
     process: process,
-    isReady: function(){ return !!worker; }
+    isReady: function(){ return !!worker && !workerBroken; }
   };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v1.0 geladen");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v1.1 geladen");
 
 })();
