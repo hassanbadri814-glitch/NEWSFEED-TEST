@@ -1,7 +1,8 @@
 /* ============================================================
    WAR DESK — ai-ui.js v1.0
    AI Fase 1 Orchestrator
-   - Luistert naar news:loaded (trigger)
+   - Luistert naar news:loaded + state:items
+   - Polling fallback (bulletproof tegen event-timing)
    - Roept TrendingEngine + RankingEngine aan
    - Rendert trending-balk
    - Herordent feed (scroll-safe)
@@ -187,6 +188,7 @@
     }
   }
 
+  // ============ INIT ============
   function init() {
     var bus = getBus();
     if (!bus) {
@@ -197,15 +199,44 @@
     bus.on("trending:update", renderTrending);
     bus.on("news:loaded", onNewsLoaded);
     bus.on("state:items", function(evt){
-      if (evt && evt.value) onNewsLoaded({ items: evt.value });
+      if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
     if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.0 geladen — trending + ranking + click tracking actief");
 
-    // Fallback: als items al geladen zijn voor wij luisterden
-    if (window.State && Array.isArray(window.State.items) && window.State.items.length) {
-      setTimeout(function(){ onNewsLoaded({ items: window.State.items }); }, 500);
-    }
+    // ============================================================
+    // BULLETPROOF POLLING
+    // Check elke 3 sec of State.items is gevuld/veranderd.
+    // Werkt ongeacht event-timing of payload-structuur.
+    // Stopt automatisch na 2 minuten.
+    // ============================================================
+    var lastCount = 0;
+    var pollTimer = setInterval(function(){
+      try {
+        var items = (window.State && Array.isArray(window.State.items)) ? window.State.items : null;
+        if (!items || !items.length) return;
+        if (items.length !== lastCount) {
+          lastCount = items.length;
+          if (window.wdLog) wdLog.info("[AI-UI] Poll: " + items.length + " items in State");
+          onNewsLoaded({ items: items });
+        }
+      } catch(e) {
+        if (window.wdLog) wdLog.warn("[AI-UI] Poll fout: " + e.message);
+      }
+    }, 3000);
+
+    setTimeout(function(){
+      clearInterval(pollTimer);
+      if (window.wdLog) wdLog.info("[AI-UI] Polling gestopt");
+    }, 120000);
+
+    // Direct eerste check (State kan al gevuld zijn)
+    setTimeout(function(){
+      if (window.State && Array.isArray(window.State.items) && window.State.items.length) {
+        lastCount = window.State.items.length;
+        onNewsLoaded({ items: window.State.items });
+      }
+    }, 1500);
   }
 
   if (document.readyState === "loading") {
