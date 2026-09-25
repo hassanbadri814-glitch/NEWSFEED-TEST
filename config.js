@@ -1,10 +1,11 @@
 /* ============================================================
-   WAR DESK v14.22 — Configuratie
+   WAR DESK v14.23 — Configuratie
+   - v14.23: Multilingual KEYWORDS_HIGH + auto-refresh aan
    - v14.22: 3 Google News proxies (P0.3 fix)
    - v14.21: centrale APP_VERSION
    ============================================================ */
 
-window.APP_VERSION = "v14.22";
+window.APP_VERSION = "v14.23";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -55,7 +56,7 @@ window.wdLog = {
 
 window.CONFIG = {
   perFeed: 12,
-  autoRefreshMs: 0,
+  autoRefreshMs: 5 * 60 * 1000,
   pauseOnScrollMs: 15000,
   failThreshold: 5,
   retryAfterMs: 3600000,
@@ -85,7 +86,6 @@ window.CONFIG = {
     "https://api.allorigins.win/raw?url="
   ],
 
-  /* v14.22: 3 Google News proxies voor redundantie */
   googleNewsProxies: [
     "https://api.allorigins.win/raw?url=",
     "https://corsproxy.io/?url=",
@@ -114,18 +114,66 @@ window.HIGH_PRIORITY = [
   "NOS","NOS Sport","De Telegraaf","AD.nl","RTL Nieuws"
 ];
 
+/* v14.23: Multilingual keywords voor breaking news detectie */
 window.KEYWORDS_HIGH = [
+  /* ===== ENGELS ===== */
   "killed","dead","deaths","massacre","nuclear","invasion",
   "airstrike","ceasefire","assassinated","declared war",
   "explosion","bombing","missile","rocket attack","shooting",
   "hostage","emergency","evacuation","collapse","crash",
   "state of emergency","martial law","coup","terrorist",
-  "earthquake","tsunami","pandemic","outbreak","cyberattack"
+  "earthquake","tsunami","pandemic","outbreak","cyberattack",
+
+  /* ===== NEDERLANDS ===== */
+  "doden","dood","gedood","dodelijk","bloedbad","nucleair",
+  "kernwapen","invasie","luchtaanval","staakt-het-vuren",
+  "vermoord","aanslag","bomaanslag","explosie","raketaanval",
+  "schietpartij","gijzeling","noodtoestand","evacuatie",
+  "instorting","neergestort","noodgeval","staatsgreep",
+  "terrorist","aardbeving","tsunami","pandemie","uitbraak",
+  "cyberaanval","vredesakkoord","vredesplan","verdrag",
+  "ontploffing","vermisten","slachtoffers","gewonden",
+  "ontvoerd","gijzelaars","uitgebroken","brand","ontruiming",
+
+  /* ===== DUITS ===== */
+  "getötet","tot","tote","massaker","atomwaffe","invasion",
+  "luftangriff","waffenruhe","ermordet","explosion","bombardierung",
+  "rakete","schiesserei","geisel","notstand","evakuierung",
+  "einsturz","absturz","putsch","erdbeben","tsunami",
+  "krieg","angriff","anschlag","offensive","waffenstillstand",
+
+  /* ===== FRANS ===== */
+  "tué","morts","massacre","nucléaire","invasion","frappe",
+  "cessez-le-feu","assassiné","explosion","bombardement",
+  "missile","fusillade","otage","urgence","évacuation",
+  "effondrement","crash","coup d'état","terroriste","séisme",
+  "guerre","attaque","offensive","victimes","blessés",
+
+  /* ===== SPAANS ===== */
+  "muerto","muertos","masacre","nuclear","invasión","ataque aéreo",
+  "alto el fuego","asesinado","explosión","bombardeo","misil",
+  "tiroteo","rehén","emergencia","evacuación","colapso","accidente",
+  "guerra","ataque","ofensiva","víctimas","heridos",
+
+  /* ===== ITALIAANS ===== */
+  "morto","morti","massacro","nucleare","invasione","attacco aereo",
+  "cessate il fuoco","assassinato","esplosione","bombardamento",
+  "missile","sparatoria","ostaggio","emergenza","evacuazione",
+  "crollo","incidente","colpo di stato","terremoto","vittime",
+
+  /* ===== ARABISCH ===== */
+  "قتل","قتلى","موت","مجزرة","نووي","غزو","ضربة جوية",
+  "وقف إطلاق النار","اغتيال","انفجار","قصف","صاروخ","إطلاق نار",
+  "رهينة","طوارئ","إخلاء","انهيار","انقلاب","إرهابي","زلزال",
+  "حرب","هجوم","ضحايا","جرحى","أسرى"
 ];
 
 window.KEYWORDS_MED = [
   "explosion","missile","bombing","hostage","shooting",
-  "crash","collapse","wounded","injured"
+  "crash","collapse","wounded","injured",
+  "explosie","raket","gijzeling","gewond","gewonden",
+  "explosion","rakete","geisel","verletzt",
+  "explosion","otage","blessé"
 ];
 
 window.FEEDS = [
