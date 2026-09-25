@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK v1.10 — AI Chat Module
-   - v1.10: betere error-handling (toon exacte worker-fout + attempts)
+   WAR DESK v1.11 — AI Chat Module
+   - v1.11: getMilitaryEvents met MapAI sync fallback
+   - v1.10: betere error-handling
    - v1.9: Militaire vragen → worker MET militaire context
-   - v1.8: Lokale militaire fallback
    ============================================================ */
 
 (function(){
@@ -10,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.10 geladen");
+  LOG("v1.11 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 8;
@@ -82,7 +82,6 @@
       .replace(/[^\w\sàáâãäåçèéêëìíîïñòóôõöùúûüýÿ]/gi, " ")
       .split(/\s+/)
       .filter(function(w){ return w.length >= 3 && !STOPWORDS[w]; });
-
     var expanded = new Set();
     words.forEach(function(w){
       expanded.add(w);
@@ -141,9 +140,6 @@
     } catch(e){ LOG("buildArticleContext fout:", e.message); return []; }
   }
 
-  /* ============================================================
-     MILITARY INTENT DETECTION
-     ============================================================ */
   var MILITARY_INTENT_KEYWORDS = {
     "militair": 1, "militaire": 1, "leger": 1, "troepen": 1, "strijdkrachten": 1,
     "oorlog": 1, "conflict": 1, "gevecht": 1, "gevechten": 1, "strijd": 1,
@@ -226,10 +222,18 @@
     return { isMilitary: isMilitary, country: country, subtype: subtype };
   }
 
+  // v1.11: verbeterde getMilitaryEvents met MapAI sync fallback
   function getMilitaryEvents(){
     try {
-      if (window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events)) {
-        return window.MAPAPI.state.events.filter(function(e){ return e && e.isMilitary; });
+      if (window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events) && window.MAPAPI.state.events.length) {
+        var mil = window.MAPAPI.state.events.filter(function(e){ return e && e.isMilitary; });
+        if (mil.length) return mil;
+      }
+      if (window.MapAI && typeof window.MapAI.getEventsSync === "function") {
+        var events = window.MapAI.getEventsSync();
+        if (Array.isArray(events)) {
+          return events.filter(function(e){ return e && e.isMilitary; });
+        }
       }
     } catch(e){}
     return [];
@@ -238,10 +242,8 @@
   function buildMilitaryContext(question){
     var intent = detectMilitaryIntent(question);
     if (!intent.isMilitary) return null;
-
     var all = getMilitaryEvents();
     if (!all.length) return { intent: intent, events: [] };
-
     var filtered = all.slice();
     if (intent.country) {
       filtered = filtered.filter(function(e){ return e.country === intent.country; });
@@ -252,12 +254,10 @@
     if (!filtered.length && (intent.country || intent.subtype)) {
       filtered = all.slice();
     }
-
     filtered.sort(function(a, b){
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
     filtered = filtered.slice(0, MAX_MILITARY);
-
     return {
       intent: intent,
       events: filtered.map(function(e){
@@ -274,9 +274,6 @@
     };
   }
 
-  /* ============================================================
-     LOKALE FALLBACK
-     ============================================================ */
   var SUBTYPE_META = {
     aanval:    { emoji: "🔴", label: "Aanval" },
     offensief: { emoji: "🟠", label: "Offensief" },
@@ -298,7 +295,6 @@
   function buildLocalMilitaryFallback(question){
     var intent = detectMilitaryIntent(question);
     if (!intent.isMilitary) return null;
-
     var all = getMilitaryEvents();
     if (!all.length) {
       return {
@@ -306,7 +302,6 @@
         sources: []
       };
     }
-
     var dayAgo = Date.now() - 24 * 60 * 60 * 1000;
     var recent = all.filter(function(e){
       var t = new Date(e.date).getTime();
@@ -325,7 +320,6 @@
       }
       return buildCountryAnswer(intent.country, countryEvents, period);
     }
-
     if (intent.subtype && intent.subtype !== "actief") {
       var subtypeEvents = pool.filter(function(e){ return e.subtype === intent.subtype; });
       if (!subtypeEvents.length) {
@@ -336,7 +330,6 @@
       }
       return buildSubtypeAnswer(intent.subtype, subtypeEvents, period);
     }
-
     return buildOverviewAnswer(pool, period);
   }
 
@@ -407,9 +400,6 @@
     return { text: lines.join("\n").trim(), sources: sources };
   }
 
-  /* ============================================================
-     Rendering
-     ============================================================ */
   function renderMessages(){
     var container = $("aiMessages");
     if (!container) return;
@@ -664,7 +654,6 @@
         body: JSON.stringify(payload)
       });
 
-      // v1.10: betere error-handling
       if (!r.ok){
         var errText = await r.text();
         var friendly = "Worker HTTP " + r.status;
@@ -809,5 +798,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.10 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.11 geladen");
 })();
