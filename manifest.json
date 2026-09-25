@@ -1,71 +1,52 @@
 {
-  "name": "WAR DESK · Live Conflict Monitor",
+  "name": "WAR DESK — Live Monitor",
   "short_name": "WAR DESK",
-  "description": "Live nieuws, IPTV, conflictkaart & VOD",
+  "description": "Live monitor voor wereldwijde conflicten, nieuws, IPTV, VOD en AI.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
-  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait",
   "background_color": "#070c16",
   "theme_color": "#070c16",
   "lang": "nl",
   "dir": "ltr",
-  "orientation": "any",
-  "categories": ["news", "entertainment", "productivity"],
+  "categories": ["news", "utilities"],
   "icons": [
     {
-      "src": "./icons/icon-192.png",
-      "sizes": "192x192",
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icons/icon-180.png",
+      "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/icon-512.png",
-      "sizes": "512x512",
+      "src": "icons/icon-152.png",
+      "sizes": "152x152",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/icon-maskable-192.png",
-      "sizes": "192x192",
+      "src": "icons/icon-144.png",
+      "sizes": "144x144",
       "type": "image/png",
-      "purpose": "maskable"
-    },
-    {
-      "src": "./icons/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
+      "purpose": "any"
     }
   ],
   "shortcuts": [
     {
-      "name": "Nieuws",
+      "name": "AI Assistent",
+      "short_name": "AI",
+      "url": "./?tab=ai"
+    },
+    {
+      "name": "Laatste nieuws",
       "short_name": "Nieuws",
-      "description": "Laatste berichten",
-      "url": "./?tab=news",
-      "icons": [{ "src": "./icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
-    },
-    {
-      "name": "Kaart",
-      "short_name": "Kaart",
-      "description": "Conflictkaart",
-      "url": "./?tab=map",
-      "icons": [{ "src": "./icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
-    },
-    {
-      "name": "IPTV",
-      "short_name": "IPTV",
-      "description": "Live kanalen",
-      "url": "./?tab=iptv",
-      "icons": [{ "src": "./icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
-    },
-    {
-      "name": "VOD",
-      "short_name": "VOD",
-      "description": "Films & Series",
-      "url": "./?tab=vod",
-      "icons": [{ "src": "./icons/icon-96.png", "sizes": "96x96", "type": "image/png" }]
+      "url": "./?tab=news"
     }
   ]
 }
