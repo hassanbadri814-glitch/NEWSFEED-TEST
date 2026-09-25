@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v1.14 — AI Chat Module
+   WAR DESK v1.15 — AI Chat Module
+   - v1.15: SSE streaming + stop-knop + graceful JSON fallback
    - v1.14: MILITARY_COUNTRIES uit MapAI.getCountries() met fallback
    - v1.13: Militaire dedup + MAX_ARTICLES 12 + cache in localStorage
    ============================================================ */
@@ -7,9 +8,25 @@
 (function(){
   "use strict";
 
+  /* ===== v1.15: Streaming CSS auto-inject ===== */
+  (function injectStreamCss(){
+    if (document.getElementById("wd-ai-stream-css")) return;
+    var style = document.createElement("style");
+    style.id = "wd-ai-stream-css";
+    style.textContent = [
+      ".ai-cursor{display:inline-block;margin-left:2px;color:var(--amber,#e0a857);",
+      "animation:wdBlink 1s steps(2,start) infinite;font-weight:400;font-size:.9em}",
+      "@keyframes wdBlink{0%,50%{opacity:1}51%,100%{opacity:0}}",
+      ".ai-send-btn.ai-stop-mode{background:#e57373!important;color:#fff!important}",
+      ".ai-streaming .ai-msg-text{white-space:pre-wrap;word-break:break-word}",
+      ".ai-msg-actions .ai-action-btn[data-action='stop']{color:#e57373}"
+    ].join("");
+    document.head.appendChild(style);
+  })();
+
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.14 geladen");
+  LOG("v1.15 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
@@ -23,15 +40,21 @@
   var MIN_REQUEST_INTERVAL = 2000;
   var CACHE_MAX_AGE = 10 * 60 * 1000;
   var CACHE_MAX_ITEMS = 20;
+  var STREAM_TIMEOUT_MS = 60000; // v1.15: max 60s per stream
 
   var AI = {
     initialized: false,
     sending: false,
-    history: []
+    history: [],
+    /* v1.15: streaming state */
+    streaming: null,          // { text, sources, provider, model, startedAt }
+    abortController: null     // actieve AbortController
   };
 
   var lastRequestTime = 0;
   var responseCache = {};
+
+  /* ===== HULPFUNCTIES (ongewijzigd) ===== */
 
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
@@ -208,7 +231,6 @@
     "hotspot": 1, "hotspots": 1, "frontlinie": 1, "escalatie": 1
   };
 
-  /* v1.14: MILITARY_COUNTRIES lazy uit MapAI.getCountries() */
   var MILITARY_COUNTRIES = null;
   var MILITARY_COUNTRIES_FALLBACK = {
     "oekraïne": "Oekraïne", "oekraine": "Oekraïne", "ukraine": "Oekraïne", "kyiv": "Oekraïne", "kiev": "Oekraïne",
@@ -478,11 +500,58 @@
     return { text: lines.join("\n").trim(), sources: sources };
   }
 
+  /* ===== v1.15: STREAMING RENDERER ===== */
+
+  function renderStreamingMsg(){
+    if (!AI.streaming) return "";
+    var text = AI.streaming.text || "";
+    var html = '<div class="ai-msg ai-msg-ai ai-streaming" data-streaming="1">';
+    html += '<div class="ai-msg-label">AI</div>';
+    if (!text.length) {
+      html += '<div class="ai-typing"><span></span><span></span><span></span></div>';
+    } else {
+      html += '<div class="ai-msg-text">' + renderMarkdown(text) + '<span class="ai-cursor">▋</span></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function updateStreamingDom(text){
+    if (!AI.streaming) return;
+    AI.streaming.text = text;
+    var node = document.querySelector('[data-streaming="1"] .ai-msg-text');
+    if (!node) {
+      // Nog niet gerenderd → volledige render forceren
+      renderMessages();
+      return;
+    }
+    node.innerHTML = renderMarkdown(text) + '<span class="ai-cursor">▋</span>';
+    scrollToBottom();
+  }
+
+  function updateSendButtonState(){
+    var sendBtn = $("aiSendBtn");
+    if (!sendBtn) return;
+    if (AI.sending) {
+      sendBtn.classList.add("ai-stop-mode");
+      sendBtn.textContent = "■";
+      sendBtn.setAttribute("aria-label", "Stop generatie");
+      sendBtn.disabled = false;
+    } else {
+      sendBtn.classList.remove("ai-stop-mode");
+      sendBtn.textContent = "➤";
+      sendBtn.setAttribute("aria-label", "Versturen");
+      sendBtn.disabled = false;
+    }
+  }
+
+  /* ===== RENDER MESSAGES ===== */
+
   function renderMessages(){
     var container = $("aiMessages");
     if (!container) return;
 
-    if (!AI.history.length){
+    if (!AI.history.length && !AI.streaming){
       container.innerHTML =
         '<div class="ai-welcome">' +
           '<div class="ai-welcome-icon">🤖</div>' +
@@ -497,6 +566,7 @@
           '</div>' +
         '</div>';
       bindSuggestions();
+      updateSendButtonState();
       return;
     }
 
@@ -529,7 +599,10 @@
       html += '</div>';
     });
 
-    if (AI.sending){
+    /* v1.15: streaming message tonen */
+    if (AI.streaming){
+      html += renderStreamingMsg();
+    } else if (AI.sending){
       html += '<div class="ai-msg ai-msg-ai ai-msg-loading">';
       html += '<div class="ai-msg-label">AI</div>';
       html += '<div class="ai-typing"><span></span><span></span><span></span></div>';
@@ -538,6 +611,7 @@
 
     container.innerHTML = html;
     bindMessageActions();
+    updateSendButtonState();
     scrollToBottom();
   }
 
@@ -667,21 +741,134 @@
     try { localStorage.removeItem(STORAGE_KEY); }catch(e){}
   }
 
-  async function fetchWithRetry(url, options){
-    for (var i = 0; i < CLIENT_RETRIES; i++){
-      try {
-        var r = await fetch(url, options);
-        return r;
-      } catch(e){
-        LOG("Fetch fout:", e.message);
-        if (i < CLIENT_RETRIES - 1){
-          await new Promise(function(res){ setTimeout(res, 2000); });
-          continue;
-        }
-        throw e;
-      }
+  /* ===== v1.15: SSE STREAMING ===== */
+
+  function extractTokenFromEvent(evt){
+    if (evt == null) return null;
+    if (typeof evt === "string") return evt;
+    if (evt.token != null) return String(evt.token);
+    if (evt.delta != null && typeof evt.delta === "string") return evt.delta;
+    if (evt.text != null) return String(evt.text);
+    if (evt.content != null) return String(evt.content);
+    if (evt.choices && evt.choices[0]){
+      var c = evt.choices[0];
+      if (c.delta && c.delta.content != null) return String(c.delta.content);
+      if (c.text != null) return String(c.text);
+      if (c.message && c.message.content != null) return String(c.message.content);
     }
+    return null;
   }
+
+  function extractMetaFromEvent(evt){
+    var meta = {};
+    if (!evt || typeof evt !== "object") return meta;
+    if (evt.provider) meta.provider = evt.provider;
+    if (evt.model) meta.model = evt.model;
+    if (evt.sources && Array.isArray(evt.sources)) meta.sources = evt.sources;
+    return meta;
+  }
+
+  async function tryStreamingFetch(payload, onMeta){
+    var controller = new AbortController();
+    AI.abortController = controller;
+
+    var timeoutId = setTimeout(function(){
+      try { controller.abort(); } catch(e){}
+    }, STREAM_TIMEOUT_MS);
+
+    var r;
+    try {
+      r = await fetch(WORKER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": AUTH_TOKEN,
+          "Accept": "text/event-stream"
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+    } catch(e){
+      clearTimeout(timeoutId);
+      throw e;
+    }
+
+    if (!r.ok){
+      clearTimeout(timeoutId);
+      var errText = await r.text().catch(function(){ return ""; });
+      var friendly = "Worker HTTP " + r.status;
+      try {
+        var errData = JSON.parse(errText);
+        if (errData.error) friendly = errData.error;
+      } catch(e){}
+      throw new Error(friendly);
+    }
+
+    var ct = (r.headers.get("content-type") || "").toLowerCase();
+
+    /* Worker streamt NIET → geef aan dat we JSON moeten parsen */
+    if (ct.indexOf("text/event-stream") < 0 && ct.indexOf("application/x-ndjson") < 0) {
+      clearTimeout(timeoutId);
+      var data = await r.json();
+      return { mode: "json", data: data };
+    }
+
+    /* ECHTE STREAMING */
+    var reader = r.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = "";
+    var fullText = "";
+
+    try {
+      while (true){
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+
+        var lines = buffer.split("\n");
+        buffer = lines.pop();
+
+        for (var i = 0; i < lines.length; i++){
+          var line = lines[i];
+          if (!line) continue;
+          if (line.charAt(0) === ":") continue; // SSE comment
+
+          var trimmed = line.replace(/^\s+/, "");
+          if (trimmed.indexOf("data:") !== 0) continue;
+          var payloadStr = trimmed.slice(5).replace(/^\s+/, "");
+
+          if (payloadStr === "[DONE]") {
+            clearTimeout(timeoutId);
+            return { mode: "stream", text: fullText };
+          }
+
+          var evt;
+          try { evt = JSON.parse(payloadStr); }
+          catch(e){ continue; }
+
+          if (evt.error) {
+            clearTimeout(timeoutId);
+            throw new Error(evt.error);
+          }
+
+          var meta = extractMetaFromEvent(evt);
+          if (Object.keys(meta).length && typeof onMeta === "function") onMeta(meta);
+
+          var tok = extractTokenFromEvent(evt);
+          if (tok != null && tok.length){
+            fullText += tok;
+            updateStreamingDom(fullText);
+          }
+        }
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    return { mode: "stream", text: fullText };
+  }
+
+  /* ===== SEND ===== */
 
   async function sendMessage(text){
     if (AI.sending) return;
@@ -701,26 +888,22 @@
     saveHistory();
 
     AI.sending = true;
+    AI.streaming = { text: "", sources: [], provider: "", model: "" };
     renderMessages();
 
     var input = $("aiInput");
     if (input){ input.value = ""; input.style.height = "auto"; }
-    var sendBtn = $("aiSendBtn");
-    if (sendBtn) sendBtn.disabled = true;
+
+    var cacheKey = hashMessage(message);
+    var cached = responseCache[cacheKey];
 
     try {
-      var militaryCtx = null;
-      try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
-
-      var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
-      var articles = buildArticleContext(message, articleLimit);
-
-      LOG("Verstuur met", articles.length, "artikelen" + (militaryCtx && militaryCtx.events.length ? " + " + militaryCtx.events.length + " militaire events" : ""));
-
-      var cacheKey = hashMessage(message);
-      var cached = responseCache[cacheKey];
+      /* ===== CACHE HIT: geen stream, direct tonen ===== */
       if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE){
         LOG("Cache hit voor query");
+        AI.streaming.text = cached.text;
+        updateStreamingDom(cached.text);
+        await new Promise(function(res){ setTimeout(res, 200); });
         AI.history.push({
           role: "ai",
           text: cached.text,
@@ -729,17 +912,26 @@
         });
         if (AI.history.length > 80) AI.history = AI.history.slice(-80);
         saveHistory();
-        if (sendBtn) sendBtn.disabled = false;
-        AI.sending = false;
-        renderMessages();
         return;
       }
+
+      /* ===== CONTEXT BOUWEN ===== */
+      var militaryCtx = null;
+      try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
+
+      var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
+      var articles = buildArticleContext(message, articleLimit);
+
+      LOG("Verstuur met", articles.length, "artikelen" +
+        (militaryCtx && militaryCtx.events.length ? " + " + militaryCtx.events.length + " militaire events" : "") +
+        " (streaming)");
 
       var payload = {
         message: message,
         articles: articles,
         history: AI.history.slice(-6),
-        clientDate: new Date().toISOString()
+        clientDate: new Date().toISOString(),
+        stream: true
       };
 
       if (militaryCtx && militaryCtx.events.length) {
@@ -748,84 +940,127 @@
         payload.militarySubtype = (militaryCtx.intent.subtype && militaryCtx.intent.subtype !== "actief") ? militaryCtx.intent.subtype : null;
       }
 
-      var r = await fetchWithRetry(WORKER_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Auth-Token": AUTH_TOKEN
-        },
-        body: JSON.stringify(payload)
-      });
+      var onMeta = function(meta){
+        if (!AI.streaming) return;
+        if (meta.provider) AI.streaming.provider = meta.provider;
+        if (meta.model) AI.streaming.model = meta.model;
+      };
 
-      if (!r.ok){
-        var errText = await r.text();
-        var friendly = "Worker HTTP " + r.status;
-        try {
-          var errData = JSON.parse(errText);
-          if (errData.error) friendly = errData.error;
-          if (errData.attempts && errData.attempts.length) {
-            friendly += " | " + errData.attempts.join(" | ");
-          }
-        } catch(e) {
-          friendly += " — " + errText.slice(0, 200);
-        }
-        throw new Error(friendly);
+      var result = await tryStreamingFetch(payload, onMeta);
+
+      /* ===== JSON FALLBACK (worker streamt niet) ===== */
+      if (result.mode === "json"){
+        LOG("Worker streamt niet — JSON fallback");
+        var data = result.data;
+        if (data.error) throw new Error(data.error);
+        var responseText = data.response || "(geen antwoord)";
+        /* Simuleer korte type-animatie voor UX */
+        AI.streaming.text = responseText;
+        updateStreamingDom(responseText);
+        await new Promise(function(res){ setTimeout(res, 150); });
+        AI.streaming.provider = data.provider || "";
+        AI.streaming.model = data.model || "";
+        result.text = responseText;
       }
 
-      var data = await r.json();
-      if (data.error) throw new Error(data.error);
-
-      var responseText = data.response || "(geen antwoord)";
-      var sources = articles.slice(0, 5).map(function(a){
-        return { title: a.title, link: a.link, source: a.source };
-      });
+      /* ===== ANTWOORD AFRONDEN ===== */
+      var finalText = result.text || AI.streaming.text || "(geen antwoord)";
+      var sources = (AI.streaming.sources && AI.streaming.sources.length)
+        ? AI.streaming.sources
+        : articles.slice(0, 5).map(function(a){
+            return { title: a.title, link: a.link, source: a.source };
+          });
 
       AI.history.push({
         role: "ai",
-        text: responseText,
+        text: finalText,
         sources: sources,
-        provider: data.provider || "",
-        model: data.model || ""
+        provider: AI.streaming.provider || "",
+        model: AI.streaming.model || ""
       });
       if (AI.history.length > 80) AI.history = AI.history.slice(-80);
       saveHistory();
-      LOG("Antwoord via", data.provider || "?", "/", data.model || "?");
 
       responseCache[cacheKey] = {
-        text: responseText,
+        text: finalText,
         sources: sources,
-        provider: data.provider || "",
+        provider: AI.streaming.provider || "",
         t: Date.now()
       };
       cleanupCache();
       saveCache();
 
-    } catch(e) {
-      LOG("Worker faalde:", e.message);
+      LOG("Stream afgerond via", AI.streaming.provider || "?", "/", AI.streaming.model || "?");
 
-      var fallback = null;
-      try { fallback = buildLocalMilitaryFallback(message); } catch(err){ LOG("Fallback fout:", err.message); }
+    } catch(e){
+      var isAbort = (e && (e.name === "AbortError" || /aborted/i.test(e.message || "")));
 
-      if (fallback) {
-        LOG("Fallback: lokaal militaire antwoord");
-        AI.history.push({
-          role: "ai",
-          text: fallback.text,
-          sources: fallback.sources || [],
-          provider: "local-military"
-        });
+      if (isAbort){
+        LOG("Stream gestopt door gebruiker");
+        var partial = AI.streaming && AI.streaming.text ? AI.streaming.text : "";
+        if (partial.length){
+          AI.history.push({
+            role: "ai",
+            text: partial + "\n\n_(gestopt)_",
+            sources: [],
+            provider: "local-partial"
+          });
+        } else {
+          AI.history.push({
+            role: "ai",
+            text: "_(gestopt)_",
+            error: false
+          });
+        }
+        saveHistory();
+        if (window.showToast) window.showToast("Gestopt");
       } else {
-        AI.history.push({
-          role: "ai",
-          text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
-          error: true
-        });
+        LOG("Stream faalde:", e.message);
+
+        /* Fallback 1: lokale militaire engine */
+        var fallback = null;
+        try { fallback = buildLocalMilitaryFallback(message); } catch(err){ LOG("Fallback fout:", err.message); }
+
+        if (fallback){
+          LOG("Fallback: lokaal militaire antwoord");
+          AI.streaming.text = fallback.text;
+          updateStreamingDom(fallback.text);
+          await new Promise(function(res){ setTimeout(res, 150); });
+          AI.history.push({
+            role: "ai",
+            text: fallback.text,
+            sources: fallback.sources || [],
+            provider: "local-military"
+          });
+        } else if (AI.streaming && AI.streaming.text){
+          /* Fallback 2: partial text bewaren */
+          AI.history.push({
+            role: "ai",
+            text: AI.streaming.text + "\n\n_(onvolledig — verbinding verbroken)_",
+            sources: [],
+            provider: "local-partial"
+          });
+        } else {
+          /* Fallback 3: foutmelding */
+          AI.history.push({
+            role: "ai",
+            text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
+            error: true
+          });
+        }
+        saveHistory();
       }
-      saveHistory();
     } finally {
       AI.sending = false;
-      if (sendBtn) sendBtn.disabled = false;
+      AI.streaming = null;
+      AI.abortController = null;
       renderMessages();
+    }
+  }
+
+  function stopStreaming(){
+    if (AI.abortController){
+      try { AI.abortController.abort(); } catch(e){}
     }
   }
 
@@ -844,6 +1079,11 @@
 
     if (sendBtn){
       sendBtn.addEventListener("click", function(){
+        /* v1.15: als we aan het streamen zijn → stop */
+        if (AI.sending){
+          stopStreaming();
+          return;
+        }
         sendMessage(input ? input.value : "");
       });
     }
@@ -852,6 +1092,7 @@
       input.addEventListener("keydown", function(e){
         if (e.key === "Enter" && !e.shiftKey){
           e.preventDefault();
+          if (AI.sending) return;
           sendMessage(input.value);
         }
       });
@@ -872,13 +1113,13 @@
     loadCache();
     bindUI();
     renderMessages();
-    // v1.14: trigger landen-lijst
     getMilitaryCountries();
   }
 
   window.AIAPI = {
     init: init,
     send: sendMessage,
+    stop: stopStreaming,
     clear: clearChat,
     state: AI,
     _extractKeywords: extractKeywords,
@@ -914,5 +1155,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.14 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.15 geladen (streaming)");
 })();
