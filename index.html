@@ -765,33 +765,5 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<!-- ==== C2 VERIFICATIE: CACHE CHECK (ALERT VERSIE - DELAYED) ==== -->
-<script>
-(function(){
-  // Wacht 5 seconden zodat de Service Worker de tijd heeft om te installeren
-  setTimeout(function(){
-    if (!('caches' in window)) {
-      alert('[C2 CHECK] Cache API niet ondersteund in deze browser.');
-      return;
-    }
-    if (!('serviceWorker' in navigator)) {
-      alert('[C2 CHECK] Service Worker niet ondersteund in deze browser.');
-      return;
-    }
-    navigator.serviceWorker.getRegistration().then(function(reg){
-      var swStatus = reg ? 'Geregistreerd' : 'NIET geregistreerd';
-      caches.keys().then(function(names) {
-        var cacheList = names.length ? names.join(', ') : '(geen caches)';
-        alert('[C2 CHECK]\nSW: ' + swStatus + '\nCaches: ' + cacheList);
-      }).catch(function(err) {
-        alert('[C2 CHECK] Fout bij ophalen caches: ' + err.message);
-      });
-    }).catch(function(err){
-      alert('[C2 CHECK] Fout bij SW check: ' + err.message);
-    });
-  }, 5000);
-})();
-</script>
-
 </body>
 </html>
