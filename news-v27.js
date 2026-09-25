@@ -1,15 +1,16 @@
 /* ============================================================
-   WAR DESK v27.8 — Nieuws Logica + EventBus
+   WAR DESK v27.9 — Nieuws Logica + EventBus + Batch 2 Optimalisaties
    - FIX v27.5: A1 scroll-jump, A5 translation limiet, A6 quota
    - FIX v27.6: C1 quota prune, C2 score refresh, C3 health load, C4 tags sync
    - FIX v27.7: EventBus notificaties
-   - FIX v27.8: A.4 — CustomEvent verwijderd, alleen EventBus
+   - FIX v27.8: A.4 — CustomEvent verwijderd
+   - FIX v27.9: Batch 2 — prioriteit feeds + idle score refresh
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.8";
+  window.__newsVersion = "v27.9";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -700,9 +701,32 @@
         WarDesk.events.emit("news:reload:start", { session: session });
       }
     }catch(e){}
+
+    // ============================================================
+    // BATCH 2D: Prioriteit aan populaire feeds
+    // ============================================================
+    const PRIORITY_SOURCES = [
+      "NOS", "De Telegraaf", "AD.nl", "Nu.nl", "RTL Nieuws",
+      "Al Jazeera", "BBC World", "Reuters",
+      "Times of Israel", "Jerusalem Post"
+    ];
+
     const itemsAtStart = [...state.items];
     const minKeep = itemsAtStart.length;
     const active = FEEDS.filter(f => !state.disabled[f.n]);
+
+    // Splits in prioriteit + rest, prioriteit eerst
+    const priorityList = [];
+    const normalList = [];
+    active.forEach(function(f) {
+      if (PRIORITY_SOURCES.indexOf(f.n) >= 0) priorityList.push(f);
+      else normalList.push(f);
+    });
+    priorityList.sort(function(a, b){
+      return PRIORITY_SOURCES.indexOf(a.n) - PRIORITY_SOURCES.indexOf(b.n);
+    });
+    const orderedFeeds = priorityList.concat(normalList);
+
     state.totalSources = active.length;
     state.failedSources = [];
     state.loadedSources = 0;
@@ -785,7 +809,7 @@
     }
 
     try {
-      const queue = [...active];
+      const queue = [...orderedFeeds];
       const workers = [];
       for(let i = 0; i < CONFIG.parallelWorkers; i++){
         workers.push((async () => {
@@ -1140,7 +1164,16 @@
     const cached = await NewsDB.loadItems();
     if(cached.length){
       state.items = ensureTags(cached);
-      refreshAllScores();
+
+      // ============================================================
+      // BATCH 2C: Scores uitstellen tot browser idle is
+      // ============================================================
+      if (typeof requestIdleCallback === "function") {
+        requestIdleCallback(function() { refreshAllScores(); }, { timeout: 2000 });
+      } else {
+        setTimeout(refreshAllScores, 100);
+      }
+
       const itemsEl = $("statItems");
       if(itemsEl) itemsEl.textContent = state.items.length;
       renderNews();
