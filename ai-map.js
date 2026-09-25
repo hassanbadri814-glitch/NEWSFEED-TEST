@@ -1,10 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v1.0
+   WAR DESK — ai-map.js v1.1
    Military Event Classifier (wereldwijd)
+   - v1.1: FIX — Unix timestamps in seconden + sanity check
    - 5 subtypes: aanval / offensief / defensief / voortgang / actief
    - Locatie-extractie uit artikel-tekst (streng)
-   - Combinatie-aanpak: militair + actie + locatie
-   - Emit map:military-events
    ============================================================ */
 
 (function(){
@@ -15,7 +14,6 @@
 
   // ============ MILITAIRE KEYWORDS ============
   var MILITARY_KEYWORDS = {
-    // NL
     "raketaanval":1, "raket":1, "raketten":1, "drone":1, "drones":1, "bomaanslag":1,
     "bom":1, "bommen":1, "explosie":1, "ontploffing":1, "luchtaanval":1,
     "beschieting":1, "granaat":1, "granaten":1, "mortier":1, "artillerie":1,
@@ -26,7 +24,6 @@
     "militaire":1, "leger":1, "strijdkrachten":1, "gevechten":1, "gevecht":1,
     "oorlog":1, "conflict":1, "slachtoffers":1, "gedood":1, "gewonden":1,
     "vuurgevecht":1, "schietpartij":1, "zelfmoordaanslag":1, "aanslag":1,
-    // EN
     "missile":1, "missiles":1, "rocket":1, "rockets":1, "airstrike":1,
     "airstrikes":1, "bombing":1, "bomb":1, "bombs":1, "explosion":1,
     "shelling":1, "artillery":1, "attack":1, "attacks":1, "offensive":1,
@@ -35,7 +32,7 @@
     "frontline":1, "captured":1, "recaptured":1, "occupied":1, "troops":1,
     "military":1, "army":1, "forces":1, "fighting":1, "war":1, "conflict":1,
     "casualties":1, "killed":1, "wounded":1, "gunfire":1, "shooting":1,
-    "suicide":1, "bombing":1, "drone":1, "drones":1
+    "suicide":1, "repelled":1, "repel":1
   };
 
   // ============ ACTIE-KEYWORDS ============
@@ -45,7 +42,7 @@
     "bestookt":1, "bestoken":1, "beschiet":1, "beschoten":1, "bombardeert":1,
     "gebombardeerd":1, "lanceert":1, "gelanceerd":1, "start":1, "startte":1,
     "begon":1, "begonnen":1, "doodt":1, "doodden":1, "verwoest":1,
-    "on":1, "in":1, "at":1, "against":1, "near":1, "from":1,
+    "on":1, "at":1, "against":1, "near":1, "from":1,
     "hit":1, "hits":1, "strikes":1, "struck":1, "strike":1, "launched":1,
     "launches":1, "killed":1, "destroys":1, "destroyed":1, "began":1
   };
@@ -163,7 +160,7 @@
       "granaat":2, "mortier":2, "artillerie":2, "zelfmoordaanslag":3,
       "aanslag":3, "missile":2, "rocket":2, "airstrike":2, "bombing":2,
       "bomb":2, "explosion":2, "shelling":2, "artillery":2,
-      "suicide":3, "drone":2
+      "suicide":3
     },
     "offensief": {
       "offensief":3, "invasie":3, "opmars":2, "tegenoffensief":3,
@@ -174,7 +171,7 @@
     "defensief": {
       "luchtafweer":3, "interceptie":3, "onderschept":3, "onderscheppen":3,
       "verdediging":2, "terugtrekking":2, "defense":2, "defence":2,
-      "intercept":3, "intercepted":3, "withdrawal":2
+      "intercept":3, "intercepted":3, "withdrawal":2, "repelled":3, "repel":2
     },
     "voortgang": {
       "veroverd":3, "heroverd":3, "bezet":2, "frontlinie":2, "controle":1,
@@ -193,15 +190,22 @@
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
+  // v1.1: Robuuste timestamp parser
   function getTimestamp(a) {
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
     for (var i = 0; i < fields.length; i++) {
       var v = a[fields[i]];
-      if (v) {
-        var t = (typeof v === "number") ? v : new Date(v).getTime();
-        if (!isNaN(t) && t > 0) return t;
+      if (!v) continue;
+      var t;
+      if (typeof v === "number") {
+        // Unix seconds (< 10^11) of millis
+        t = v < 100000000000 ? v * 1000 : v;
+      } else {
+        t = new Date(v).getTime();
       }
+      // Sanity: moet tussen 2000-01-01 en morgen liggen
+      if (!isNaN(t) && t > 946684800000 && t < Date.now() + 86400000) return t;
     }
     return 0;
   }
@@ -227,7 +231,6 @@
     var foundLen = 0;
 
     for (var key in LOCATIONS) {
-      // Match hele woord(en)
       var pattern = " " + key + " ";
       if (lower.indexOf(pattern) !== -1) {
         if (key.length > foundLen) {
@@ -263,22 +266,20 @@
     var words = tokenize(text);
 
     var milScore = countMatches(words, MILITARY_KEYWORDS);
-    if (milScore < 2) return null; // te weinig militair
+    if (milScore < 2) return null;
 
     var actScore = countMatches(words, ACTION_KEYWORDS);
     var loc = extractLocation(text);
-    if (!loc) return null; // locatie verplicht
+    if (!loc) return null;
 
     var subtype = classifySubtype(words);
     if (subtype.score < 1) return null;
 
-    // Confidence score
-    var confidence = milScore * 2 + actScore + 4; // locatie = +4
+    var confidence = milScore * 2 + actScore + 4;
     if (milScore >= 4) confidence += 1;
 
     if (confidence < MIN_CONFIDENCE) return null;
 
-    // v1.0: dubbele check — subtype keywords moeten in de tekst staan
     var subtypeWords = SUBTYPE_KEYWORDS[subtype.type];
     var subtypeVerified = false;
     for (var i = 0; i < words.length; i++) {
@@ -315,7 +316,7 @@
     if (!items.length) return [];
 
     var hash = hashArticles(items);
-    if (hash === lastHash) return null; // null = geen wijziging
+    if (hash === lastHash) return null;
     lastHash = hash;
 
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
@@ -338,7 +339,7 @@
         description: article.description || article.summary || "",
         fullDescription: loc.country + " · " + loc.region + "\n\n" + (article.description || article.summary || ""),
         subtype: subtype,
-        type: subtype,           // voor map-v11 compat
+        type: subtype,
         country: loc.country,
         region: loc.region,
         date: new Date(ts).toISOString(),
@@ -349,7 +350,6 @@
       });
     }
 
-    // Sorteer op datum (nieuwste eerst) + cap
     events.sort(function(a, b){
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
@@ -401,13 +401,10 @@
   }
 
   // ============ ORCHESTRATIE ============
-  var hasRunOnce = false;
-
   function run() {
     var events = buildMilitaryEvents();
-    if (events === null) return; // geen wijziging
+    if (events === null) return;
 
-    hasRunOnce = true;
     var bus = getBus();
     if (!bus) return;
 
@@ -427,14 +424,13 @@
       idle(function(){ run(); }, { timeout: 3000 });
     });
 
-    // Eerste run als items al bestaan
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) {
         run();
       }
     }, 2000);
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.0 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.1 geladen");
   }
 
   window.MapAI = {
