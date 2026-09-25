@@ -1,18 +1,18 @@
 /* ============================================================
-   WAR DESK — ai-trending.js v1.0
+   WAR DESK — ai-trending.js v1.1
    Trending Topics Engine (Fase 1)
-   - 100% lokaal, geen API
-   - Throttled (1x per minuut)
-   - Draait op requestIdleCallback (main thread vrij)
+   - v1.1: retry toegestaan als vorige run 0 topics gaf
    ============================================================ */
 
 (function(){
   "use strict";
 
   var THROTTLE_MS = 60000;
+  var RETRY_MS = 5000;             // v1.1: snellere retry bij 0 resultaten
   var WINDOW_HOURS = 4;
   var MAX_ARTICLES = 500;
   var lastRun = 0;
+  var lastProducedTopics = 0;
 
   var STOP_WORDS = {};
   ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
@@ -35,7 +35,7 @@
     for (var i = 0; i < articles.length; i++) {
       var a = articles[i];
       if (!a) continue;
-      var ts = a.pubDate ? new Date(a.pubDate).getTime() : 0;
+      var ts = a.pubDate ? new Date(a.pubDate).getTime() : (a.ts || 0);
       if (ts > cutoff) recent.push({ art: a, ts: ts });
     }
     recent.sort(function(x, y){ return y.ts - x.ts; });
@@ -75,7 +75,8 @@
   function run(articles) {
     if (!articles || !articles.length) return;
     var now = Date.now();
-    if (now - lastRun < THROTTLE_MS) return;
+    var wait = lastProducedTopics === 0 ? RETRY_MS : THROTTLE_MS;
+    if (now - lastRun < wait) return;
     lastRun = now;
 
     var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
@@ -83,11 +84,12 @@
     idle(function(){
       try {
         var trends = extractEntities(articles);
+        lastProducedTopics = trends.length;
         var bus = getBus();
         if (bus && typeof bus.emit === "function") {
           bus.emit("trending:update", trends);
         }
-        if (window.wdLog) wdLog.info("[Trending] " + trends.length + " topics berekend");
+        if (window.wdLog) wdLog.info("[Trending] " + trends.length + " topics berekend uit " + articles.length + " artikelen");
       } catch(e) {
         if (window.wdLog) wdLog.warn("[Trending] fout: " + (e && e.message));
       }
@@ -96,6 +98,6 @@
 
   window.TrendingEngine = { run: run };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.0 geladen");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.1 geladen");
 
 })();
