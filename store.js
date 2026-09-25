@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v2.0 — Reactive State Store + EventBus
-   - FIX v2.0: State wijzigingen zenden nu events uit via WarDesk.events
-   - Backwards compatible: window.State, appStore, subscribe() blijven werken
-   - Nieuwe events: state:changed, state:<key> (bijv. state:items)
+   WAR DESK v2.1 — Reactive State Store + EventBus
+   - FIX v2.0: State wijzigingen zenden events uit
+   - FIX v2.1: Event batching (minder bus.emit calls)
    ============================================================ */
 
 (function(){
@@ -10,9 +9,56 @@
 
   var createStore = function(initialState) {
     var listeners = {};
-
-    // Probeer de EventBus te pakken (bestaat sinds utils.js v2.0)
     var bus = (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
+
+    /* ============================================================
+       Batch 2B: Event batching
+       - Verzamel events in een microtask
+       - Emit 1x per key met laatste value
+       ============================================================ */
+    var pendingEvents = [];
+    var batchScheduled = false;
+
+    function flushEvents() {
+      batchScheduled = false;
+      var events = pendingEvents.slice();
+      pendingEvents = [];
+      if (!bus || !events.length) return;
+
+      // Groepeer per key: eerste prev, laatste value
+      var byKey = {};
+      var order = [];
+      events.forEach(function(e) {
+        if (!byKey[e.key]) {
+          byKey[e.key] = { key: e.key, value: e.value, prev: e.prev };
+          order.push(e.key);
+        } else {
+          byKey[e.key].value = e.value;
+        }
+      });
+
+      // Emit specifieke events per key
+      order.forEach(function(k) {
+        try {
+          bus.emit('state:' + k, byKey[k]);
+        } catch(e){}
+      });
+
+      // Emit generieke changed event
+      try {
+        bus.emit('state:changed', events[events.length - 1]);
+      } catch(e){}
+    }
+
+    function scheduleFlush() {
+      if (batchScheduled) return;
+      batchScheduled = true;
+      if (typeof queueMicrotask === "function") {
+        queueMicrotask(flushEvents);
+      } else {
+        Promise.resolve().then(flushEvents);
+      }
+    }
 
     var state = new Proxy(initialState, {
       set: function(target, key, value) {
@@ -20,7 +66,7 @@
         if (prev === value) return true;
         target[key] = value;
 
-        // 1. Interne subscribers (bestaande functionaliteit)
+        // 1. Interne subscribers (blijven synchroon)
         if (listeners[key]) {
           listeners[key].forEach(function(fn) {
             try { fn(value); }
@@ -34,16 +80,10 @@
           });
         }
 
-        // 2. EventBus broadcast (nieuwe functionaliteit)
+        // 2. EventBus broadcast (BATCHED via microtask)
         if (bus) {
-          try {
-            // Specifiek event per key, bijv. 'state:items'
-            bus.emit('state:' + String(key), { key: key, value: value, prev: prev });
-            // Algemeen event
-            bus.emit('state:changed', { key: key, value: value, prev: prev });
-          } catch(e) {
-            try{ wdLog.error("[Store] event emit error:", e); }catch(_){}
-          }
+          pendingEvents.push({ key: key, value: value, prev: prev });
+          scheduleFlush();
         }
 
         return true;
@@ -94,11 +134,10 @@
   window.appStore = appStore;
   window.State = appStore.state;
 
-  // Expose store ook via WarDesk namespace (voor toekomstig gebruik)
   if (window.WarDesk) {
     window.WarDesk.store = appStore;
   }
 
-  wdLog.info("[WAR DESK] store.js v2.0 geladen — State events actief");
+  wdLog.info("[WAR DESK] store.js v2.1 geladen — State events + batching actief");
 
 })();
