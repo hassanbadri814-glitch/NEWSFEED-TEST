@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK v1.16 — AI Chat Module
+   WAR DESK v1.17 — AI Chat Module
+   - v1.17: Cache warming (3 populaire vragen bij AI-tab open)
    - v1.16: Retry met exponentiële backoff (1s/2s/4s) + jitter
    - v1.15: SSE streaming + stop-knop + graceful JSON fallback
    - v1.14: MILITARY_COUNTRIES uit MapAI.getCountries() met fallback
-   - v1.13: Militaire dedup + MAX_ARTICLES 12 + cache in localStorage
    ============================================================ */
 
 (function(){
@@ -27,7 +27,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.16 geladen (retry backoff)");
+  LOG("v1.17 geladen (cache warming)");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
@@ -43,9 +43,19 @@
   var STREAM_TIMEOUT_MS = 60000;
 
   /* v1.16: Retry-config */
-  var RETRY_MAX_ATTEMPTS = 3;       // 1 originele + 2 retries
-  var RETRY_BASE_DELAY_MS = 1000;   // 1s → 2s → 4s
-  var RETRY_JITTER_RATIO = 0.2;     // ±20%
+  var RETRY_MAX_ATTEMPTS = 3;
+  var RETRY_BASE_DELAY_MS = 1000;
+  var RETRY_JITTER_RATIO = 0.2;
+
+  /* v1.17: Cache warming config */
+  var WARMUP_START_DELAY_MS = 3000;
+  var WARMUP_BETWEEN_DELAY_MS = 4000;
+  var WARMUP_TIMEOUT_MS = 30000;
+  var WARMUP_QUESTIONS = [
+    "Wat is het belangrijkste nieuws vandaag?",
+    "Geef een militaire overzicht",
+    "Wat gebeurt er in Oekraïne?"
+  ];
 
   var AI = {
     initialized: false,
@@ -53,6 +63,15 @@
     history: [],
     streaming: null,
     abortController: null
+  };
+
+  /* v1.17: Warmup state */
+  var warmupState = {
+    scheduled: false,
+    started: false,
+    aborted: false,
+    completed: [],
+    currentAbort: null
   };
 
   var lastRequestTime = 0;
@@ -88,7 +107,6 @@
     return new Promise(function(res){ setTimeout(res, ms); });
   }
 
-  /* v1.16: Retry-detectie helpers */
   function isAbortError(e){
     return e && (e.name === "AbortError" || /aborted/i.test(String(e.message || "")));
   }
@@ -96,11 +114,8 @@
   function isNonRetryableError(e){
     if (!e || !e.message) return false;
     var m = String(e.message);
-    /* 400 (bad request), 401 (auth), 403 (forbidden), 404 (not found) → geen zin */
     if (/HTTP 40[0-4]/.test(m)) return true;
-    /* Payload te groot */
     if (/HTTP 413/.test(m)) return true;
-    /* Unauthorized */
     if (/Unauthorized/i.test(m)) return true;
     return false;
   }
@@ -895,13 +910,12 @@
     return { mode: "stream", text: fullText };
   }
 
-  /* ===== v1.16: RETRY MET EXPONENTIËLE BACKOFF ===== */
+  /* ===== RETRY MET EXPONENTIËLE BACKOFF ===== */
 
   async function streamWithRetry(payload, onMeta){
     var lastError = null;
 
     for (var attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++){
-      /* Reset streaming state voor deze poging (alleen als het niet de eerste is) */
       if (attempt > 0 && AI.streaming){
         AI.streaming.text = "";
         updateStreamingDom("");
@@ -917,31 +931,23 @@
       } catch(e){
         lastError = e;
 
-        /* Stop meteen als: gebruiker heeft geabort */
         if (isAbortError(e)){
           LOG("Abort tijdens poging " + (attempt + 1) + " — stop retry");
           throw e;
         }
-
-        /* Stop meteen als: we hebben al tokens ontvangen (partial text waardevol) */
         if (hasReceivedTokens()){
           LOG("Stream brak na tokens — partial bewaard, geen retry");
           throw e;
         }
-
-        /* Stop meteen als: niet-retryable (401, 403, 404, 400) */
         if (isNonRetryableError(e)){
           LOG("Niet-retryable fout: " + e.message);
           throw e;
         }
-
-        /* Laatste poging? Dan opgeven */
         if (attempt >= RETRY_MAX_ATTEMPTS - 1){
           LOG("Alle " + RETRY_MAX_ATTEMPTS + " pogingen faalden");
           throw e;
         }
 
-        /* Bereken backoff: 1s → 2s → 4s + ±20% jitter */
         var baseDelay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
         var jitter = baseDelay * RETRY_JITTER_RATIO * (Math.random() * 2 - 1);
         var totalDelay = Math.max(500, Math.round(baseDelay + jitter));
@@ -956,11 +962,232 @@
     throw lastError || new Error("Onbekende fout");
   }
 
+  /* ============================================================
+     v1.17: CACHE WARMING
+     ============================================================ */
+
+  function scheduleWarmup(){
+    if (warmupState.scheduled) return;
+    warmupState.scheduled = true;
+
+    if (!navigator.onLine){
+      LOG("Warmup overgeslagen: offline");
+      warmupState.aborted = true;
+      return;
+    }
+    if (AI.history.length > 0){
+      LOG("Warmup overgeslagen: geschiedenis bestaat al (" + AI.history.length + ")");
+      warmupState.aborted = true;
+      return;
+    }
+
+    LOG("Warmup gepland over " + WARMUP_START_DELAY_MS + "ms");
+
+    setTimeout(function(){
+      if (warmupState.aborted){
+        LOG("Warmup geannuleerd (gebruiker was eerder)");
+        return;
+      }
+      if (AI.sending){
+        LOG("Warmup uitgesteld: AI bezig");
+        return;
+      }
+      if (AI.history.length > 0){
+        LOG("Warmup overgeslagen: geschiedenis verscheen");
+        return;
+      }
+      startWarmup();
+    }, WARMUP_START_DELAY_MS);
+  }
+
+  function startWarmup(){
+    if (warmupState.started || warmupState.aborted) return;
+    warmupState.started = true;
+    LOG("Warmup gestart (" + WARMUP_QUESTIONS.length + " vragen)");
+
+    var idx = 0;
+
+    function next(){
+      if (warmupState.aborted){
+        LOG("Warmup afgebroken na " + warmupState.completed.length + "/" + WARMUP_QUESTIONS.length);
+        return;
+      }
+      if (AI.sending){
+        LOG("Warmup gestopt: AI is bezig");
+        warmupState.aborted = true;
+        return;
+      }
+      if (AI.history.length > 0){
+        LOG("Warmup gestopt: gebruiker heeft geschiedenis");
+        warmupState.aborted = true;
+        return;
+      }
+      if (idx >= WARMUP_QUESTIONS.length){
+        LOG("Warmup klaar: " + warmupState.completed.length + "/" + WARMUP_QUESTIONS.length + " gecached");
+        return;
+      }
+
+      var q = WARMUP_QUESTIONS[idx++];
+      var cacheKey = hashMessage(q);
+
+      if (responseCache[cacheKey] && (Date.now() - responseCache[cacheKey].t) < CACHE_MAX_AGE){
+        LOG("Warmup skip (al gecached): " + q.slice(0, 45));
+        warmupState.completed.push(q);
+        setTimeout(next, 300);
+        return;
+      }
+
+      warmupFetch(q).then(function(ok){
+        if (ok) warmupState.completed.push(q);
+        setTimeout(next, WARMUP_BETWEEN_DELAY_MS);
+      });
+    }
+
+    setTimeout(next, 200);
+  }
+
+  async function warmupFetch(question){
+    try {
+      var militaryCtx = null;
+      try { militaryCtx = buildMilitaryContext(question); } catch(e){}
+      var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
+      var articles = buildArticleContext(question, articleLimit);
+
+      var payload = {
+        message: question,
+        articles: articles,
+        history: [],
+        clientDate: new Date().toISOString(),
+        stream: true
+      };
+      if (militaryCtx && militaryCtx.events.length){
+        payload.militaryEvents = militaryCtx.events;
+        payload.militaryFocus = militaryCtx.intent.country || null;
+        payload.militarySubtype = (militaryCtx.intent.subtype && militaryCtx.intent.subtype !== "actief") ? militaryCtx.intent.subtype : null;
+      }
+
+      var controller = new AbortController();
+      warmupState.currentAbort = controller;
+
+      var timeoutId = setTimeout(function(){
+        try { controller.abort(); } catch(e){}
+      }, WARMUP_TIMEOUT_MS);
+
+      var r = await fetch(WORKER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Auth-Token": AUTH_TOKEN,
+          "Accept": "text/event-stream"
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      if (!r.ok){
+        clearTimeout(timeoutId);
+        warmupState.currentAbort = null;
+        LOG("Warmup HTTP " + r.status + " voor: " + question.slice(0, 30));
+        return false;
+      }
+
+      var ct = (r.headers.get("content-type") || "").toLowerCase();
+      var fullText = "";
+      var provider = "";
+      var model = "";
+
+      if (ct.indexOf("text/event-stream") < 0 && ct.indexOf("application/x-ndjson") < 0){
+        var data = await r.json();
+        clearTimeout(timeoutId);
+        warmupState.currentAbort = null;
+        if (data.error) return false;
+        fullText = data.response || "";
+        provider = data.provider || "";
+        model = data.model || "";
+      } else {
+        var reader = r.body.getReader();
+        var decoder = new TextDecoder();
+        var buffer = "";
+
+        while (true){
+          var chunk = await reader.read();
+          if (chunk.done) break;
+          buffer += decoder.decode(chunk.value, { stream: true });
+          var lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (var i = 0; i < lines.length; i++){
+            var line = lines[i];
+            if (!line || line.charAt(0) === ":") continue;
+            var trimmed = line.replace(/^\s+/, "");
+            if (trimmed.indexOf("data:") !== 0) continue;
+            var payloadStr = trimmed.slice(5).replace(/^\s+/, "");
+            if (payloadStr === "[DONE]") continue;
+
+            var evt;
+            try { evt = JSON.parse(payloadStr); } catch(e){ continue; }
+            if (evt.error) continue;
+            if (evt.provider) provider = evt.provider;
+            if (evt.model) model = evt.model;
+            var tok = extractTokenFromEvent(evt);
+            if (tok) fullText += tok;
+          }
+        }
+
+        clearTimeout(timeoutId);
+        warmupState.currentAbort = null;
+      }
+
+      if (!fullText || !fullText.trim()){
+        LOG("Warmup leeg antwoord voor: " + question.slice(0, 30));
+        return false;
+      }
+
+      responseCache[hashMessage(question)] = {
+        text: fullText.trim(),
+        sources: articles.slice(0, 5).map(function(a){
+          return { title: a.title, link: a.link, source: a.source };
+        }),
+        provider: provider || "",
+        t: Date.now()
+      };
+      cleanupCache();
+      saveCache();
+
+      LOG("Warmup OK: " + question.slice(0, 40) + " (" + fullText.length + " chars, " + (provider || "?") + ")");
+      return true;
+
+    } catch(e){
+      warmupState.currentAbort = null;
+      if (isAbortError(e)){
+        LOG("Warmup abort: " + question.slice(0, 30));
+      } else {
+        LOG("Warmup faalde: " + question.slice(0, 30) + " — " + (e.message || "onbekend"));
+      }
+      return false;
+    }
+  }
+
+  function abortWarmup(){
+    if (warmupState.aborted) return;
+    warmupState.aborted = true;
+
+    if (warmupState.currentAbort){
+      try { warmupState.currentAbort.abort(); } catch(e){}
+    }
+    if (warmupState.started){
+      LOG("Warmup geannuleerd (" + warmupState.completed.length + " waren al klaar)");
+    }
+  }
+
   /* ===== SEND ===== */
 
   async function sendMessage(text){
     if (AI.sending) return;
     if (!text || !text.trim()) return;
+
+    /* v1.17: Als gebruiker iets stuurt, stop warmup */
+    abortWarmup();
 
     var now = Date.now();
     if (now - lastRequestTime < MIN_REQUEST_INTERVAL){
@@ -987,7 +1214,7 @@
 
     try {
       if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE){
-        LOG("Cache hit voor query");
+        LOG("Cache hit voor query: " + message.slice(0, 40));
         AI.streaming.text = cached.text;
         updateStreamingDom(cached.text);
         await sleep(200);
@@ -1032,7 +1259,6 @@
         if (meta.model) AI.streaming.model = meta.model;
       };
 
-      /* v1.16: gebruik streamWithRetry ipv tryStreamingFetch */
       var result = await streamWithRetry(payload, onMeta);
 
       if (result.mode === "json"){
@@ -1194,6 +1420,9 @@
     bindUI();
     renderMessages();
     getMilitaryCountries();
+
+    /* v1.17: Plan warmup */
+    scheduleWarmup();
   }
 
   window.AIAPI = {
@@ -1201,7 +1430,10 @@
     send: sendMessage,
     stop: stopStreaming,
     clear: clearChat,
+    warmup: startWarmup,
+    abortWarmup: abortWarmup,
     state: AI,
+    _warmupState: warmupState,
     _extractKeywords: extractKeywords,
     _buildArticleContext: buildArticleContext,
     _buildMilitaryContext: buildMilitaryContext,
@@ -1235,5 +1467,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.16 geladen (retry backoff)");
+  wdLog.info("[WAR DESK] ai-chat.js v1.17 geladen (cache warming)");
 })();
