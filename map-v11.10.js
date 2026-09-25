@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK v13.2 — Conflictkaart (OpenFreeMap) + Military Events
-   - v13.2: Legend klikbaar (subfilter) + auto-zoom naar markers
+   WAR DESK v13.3 — Conflictkaart (OpenFreeMap) + Military Events
+   - v13.3: versie-bump voor cache-busting
+   - v13.2: Legend klikbaar (subfilter) + auto-zoom
    - v13.1: typeConfig fallback
    - v13.0: Militaire events + hotspot strip
    ============================================================ */
@@ -14,7 +15,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.2 geladen — subfilter + auto-zoom");
+  LOG("v13.3 geladen — subfilter + auto-zoom");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -76,12 +77,12 @@
   var MAP = {
     instance: null, cluster: null, tileLayers: {}, events: [],
     militaryEvents: [], hotspots: [],
-    currentFilter: "all", currentSubtype: null,  // v13.2
+    currentFilter: "all", currentSubtype: null,
     refreshTimer: null, isFullscreen: false,
     currentTheme: "dark", themeObserver: null, _timeModeInterval: null,
     currentDetailEvent: null, _lastNewsCount: 0, _busBound: false,
     _lastRenderTime: 0,
-    _lastZoomHash: ""  // v13.2
+    _lastZoomHash: ""
   };
 
   var TILES = {
@@ -201,7 +202,6 @@
       ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}" +
       "@media (prefers-reduced-motion: reduce){.wd-marker-pulse,.wd-map-close,.map-ctrl{transition:none!important;animation:none!important}}" +
 
-      /* Hotspot strip */
       ".wd-hotspot-strip{display:none;align-items:center;gap:8px;overflow-x:auto;overflow-y:hidden;padding:10px 14px;margin:0;background:rgba(0,0,0,0.25);border-bottom:1px solid rgba(255,255,255,0.05);scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;position:relative;z-index:5}" +
       ".wd-hotspot-strip::-webkit-scrollbar{display:none}" +
       ".wd-hotspot-strip.show{display:flex}" +
@@ -221,7 +221,6 @@
       "@keyframes wdPulse{0%,100%{box-shadow:0 0 16px rgba(255,0,0,0.7)}50%{box-shadow:0 0 24px rgba(255,0,0,0.9)}}" +
       "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']{animation:none}}" +
 
-      /* v13.2: Legend klikbaar */
       ".wd-map-legend .legend-item{cursor:pointer;transition:all 0.15s;border-radius:6px;padding:3px 6px;margin:0 -6px;-webkit-tap-highlight-color:transparent}" +
       ".wd-map-legend .legend-item:hover{background:rgba(255,255,255,0.05)}" +
       ".wd-map-legend .legend-item.active{background:rgba(224,168,87,0.15);box-shadow:inset 0 0 0 1px rgba(224,168,87,0.4)}" +
@@ -357,7 +356,6 @@
     return events;
   }
 
-  // v13.2: auto-zoom naar markers
   function fitToMarkers(){
     if(!MAP.instance) return;
     var visible = MAP.events.filter(function(e){
@@ -417,7 +415,6 @@
     renderLiveList();
     renderHotspots();
 
-    // v13.2: auto-zoom als de events-set significant is veranderd
     var zoomHash = MAP.events.map(function(e){ return e.id; }).join("|").slice(0, 200);
     if (zoomHash !== MAP._lastZoomHash) {
       MAP._lastZoomHash = zoomHash;
@@ -428,7 +425,6 @@
     return true;
   }
 
-  // ============ HOTSPOT STRIP ============
   function renderHotspots(){
     var strip = $("wdHotspotStrip");
     var wrap = document.querySelector(".map-wrap");
@@ -479,7 +475,6 @@
     }
   }
 
-  // ============ MARKERS ============
   function renderMarkers(){
     if(!MAP.cluster) return;
     MAP.cluster.clearLayers();
@@ -492,7 +487,6 @@
       return true;
     });
 
-    // v13.2: subfilter op subtype
     if (MAP.currentSubtype) {
       filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
     }
@@ -540,7 +534,6 @@
     LOG("Markers gerenderd: " + markers.length);
   }
 
-  // ============ LEGEND (v13.2 klikbaar) ============
   function renderLegend(){
     var el = $("legendItems");
     if(!el) return;
@@ -571,7 +564,6 @@
         '<span class="legend-num">' + counts[r.key] + '</span></div>';
     }).join("");
 
-    // v13.2: click handlers
     Array.prototype.forEach.call(el.querySelectorAll(".legend-item"), function(item){
       item.addEventListener("click", function(e){
         e.preventDefault();
@@ -588,13 +580,11 @@
         }
         renderMarkers();
         renderLegend();
-        // Zoom in op gefilterde markers
         if (MAP.currentSubtype) setTimeout(fitToMarkers, 200);
       });
     });
   }
 
-  // ============ LIVE LIST ============
   function renderLiveList(){
     var list = $("liveList");
     var countEl = $("liveCount");
@@ -608,7 +598,6 @@
       return true;
     });
 
-    // v13.2: subfilter
     if (MAP.currentSubtype) {
       filtered = filtered.filter(function(e){ return e.subtype === MAP.currentSubtype; });
     }
@@ -706,7 +695,6 @@
         document.querySelectorAll(".live-filter").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
         MAP.currentFilter = btn.dataset.cat;
-        // Bij filterwijziging: subfilter wissen
         MAP.currentSubtype = null;
         if(window.WDStorage) WDStorage.set("map_filter", MAP.currentFilter);
         renderMarkers();
@@ -850,5 +838,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v13.2 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.3 geladen");
 })();
