@@ -1,20 +1,22 @@
 /* ============================================================
-   WAR DESK enhancements.js v1.1
-   - Notifications voor breaking news (robuuste binding)
+   WAR DESK enhancements.js v1.3
+   - Notificaties 100% via ServiceWorkerRegistration (Android-proof)
+   - GEEN new Notification() fallback (werkt niet op Android)
    - Share-knop voor AI berichten
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var LOG = function(){ try{ wdLog.info.apply(null, ["[ENH]"].concat(Array.prototype.slice.call(arguments))); }catch(e){ console.log("[ENH]", arguments); } };
-  LOG("v1.1 geladen");
+  var LOG = function(){ try{ wdLog.info.apply(null, ["[ENH]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
+  LOG("v1.3 geladen");
 
   var NOTIF_KEY = "wardesk_notifications_enabled";
   var lastNotifTitle = "";
 
   function isSupported(){
-    return typeof window.Notification !== "undefined";
+    return typeof window.Notification !== "undefined" &&
+           "serviceWorker" in navigator;
   }
 
   function getSavedEnabled(){
@@ -31,6 +33,34 @@
     if (row) row.classList.toggle("active", on);
     if (window.State) window.State.notificationsEnabled = on;
     LOG("UI update — on:", on, "perm:", isSupported() ? Notification.permission : "?");
+  }
+
+  /* v1.3: 100% via ServiceWorkerRegistration, geen fallback */
+  async function sendNotification(title, options){
+    if (!("serviceWorker" in navigator)){
+      LOG("Geen serviceWorker — notificatie niet mogelijk");
+      return { ok: false, error: "Geen Service Worker" };
+    }
+
+    try {
+      var reg = await navigator.serviceWorker.ready;
+      if (!reg){
+        LOG("Geen SW registration");
+        return { ok: false, error: "SW niet geregistreerd" };
+      }
+      if (typeof reg.showNotification !== "function"){
+        LOG("reg.showNotification niet beschikbaar");
+        return { ok: false, error: "showNotification niet beschikbaar" };
+      }
+
+      await reg.showNotification(title, options);
+      LOG("Notif verzonden via SW:", title.slice(0, 40));
+      return { ok: true };
+
+    } catch(e){
+      LOG("showNotification fout:", e.message);
+      return { ok: false, error: e.message || "onbekend" };
+    }
   }
 
   async function setNotifications(enabled){
@@ -61,31 +91,38 @@
       }
     }
 
+    if (perm === "denied"){
+      saveEnabled(false);
+      updateToggleUI();
+      if (window.showToast) window.showToast("Meldingen geblokkeerd — reset in Chrome instellingen");
+      return;
+    }
+
     if (perm !== "granted"){
       saveEnabled(false);
       updateToggleUI();
-      if (window.showToast) window.showToast("Notificaties geweigerd — check browserinstellingen");
+      if (window.showToast) window.showToast("Notificaties niet toegestaan");
       return;
     }
 
     saveEnabled(true);
     updateToggleUI();
     if (window.showToast) window.showToast("Breaking notificaties aan");
-    LOG("Notificaties aan — stuur test");
+    LOG("Notificaties aan — stuur test via SW");
 
-    try {
-      new Notification("WAR DESK", {
-        body: "Notificaties actief. Je krijgt een melding bij breaking news.",
-        icon: "./icon.svg",
-        badge: "./icon.svg",
-        tag: "wardesk-test"
-      });
-    } catch(e){
-      LOG("Test notif fout:", e.message);
+    var result = await sendNotification("WAR DESK", {
+      body: "Notificaties actief. Je krijgt een melding bij breaking news.",
+      icon: "./icon.svg",
+      badge: "./icon.svg",
+      tag: "wardesk-test"
+    });
+
+    if (!result.ok){
+      if (window.showToast) window.showToast("Test mislukt: " + result.error);
     }
   }
 
-  function showBreakingNotif(title, meta){
+  async function showBreakingNotif(title, meta){
     if (!isSupported()) return;
     if (!getSavedEnabled()) return;
     if (Notification.permission !== "granted") return;
@@ -94,21 +131,13 @@
 
     lastNotifTitle = title;
 
-    try {
-      var n = new Notification("⚠️ Breaking: " + title.slice(0, 80), {
-        body: meta || "Nieuwe breaking news op WAR DESK",
-        icon: "./icon.svg",
-        badge: "./icon.svg",
-        tag: "wardesk-breaking"
-      });
-      n.onclick = function(){
-        try { window.focus(); } catch(e){}
-        n.close();
-      };
-      LOG("Breaking notif verzonden:", title.slice(0, 40));
-    } catch(e){
-      LOG("Breaking notif fout:", e.message);
-    }
+    await sendNotification("⚠️ Breaking: " + title.slice(0, 80), {
+      body: meta || "Nieuwe breaking news op WAR DESK",
+      icon: "./icon.svg",
+      badge: "./icon.svg",
+      tag: "wardesk-breaking",
+      data: { url: location.href }
+    });
   }
 
   function watchBreakingBanner(){
@@ -138,28 +167,21 @@
     LOG("Breaking watcher actief");
   }
 
-  /* ===== ROBUUSTE TOGGLE BINDING ===== */
-
   function bindNotificationToggle(){
     var row = document.getElementById("toggleNotificationsRow");
     if (!row){
       LOG("toggleNotificationsRow NIET gevonden");
       return;
     }
-
-    /* Verwijder inline onclick volledig */
     row.onclick = null;
     row.removeAttribute("onclick");
-
-    /* Koppel eigen handler */
     row.addEventListener("click", function(e){
       e.preventDefault();
       e.stopPropagation();
       LOG("Toggle geklikt");
       var current = getSavedEnabled();
       setNotifications(!current);
-    }, true); // capture fase
-
+    }, true);
     LOG("Toggle gebonden");
   }
 
@@ -176,10 +198,11 @@
     btn.style.width = "100%";
     btn.style.textAlign = "left";
     btn.textContent = "🔔 Test notificatie";
-    btn.addEventListener("click", function(e){
+    btn.addEventListener("click", async function(e){
       e.preventDefault();
       e.stopPropagation();
       LOG("Test knop geklikt");
+
       if (!isSupported()){
         if (window.showToast) window.showToast("Niet ondersteund");
         return;
@@ -189,17 +212,19 @@
         LOG("Geen permissie:", Notification.permission);
         return;
       }
-      try {
-        new Notification("WAR DESK — Test", {
-          body: "Zo ziet een breaking news melding eruit.",
-          icon: "./icon.svg",
-          badge: "./icon.svg",
-          tag: "wardesk-test"
-        });
-        LOG("Test notif verzonden");
-      } catch(err){
-        LOG("Test notif fout:", err.message);
-        if (window.showToast) window.showToast("Notif fout: " + err.message);
+
+      var result = await sendNotification("WAR DESK — Test", {
+        body: "Zo ziet een breaking news melding eruit.",
+        icon: "./icon.svg",
+        badge: "./icon.svg",
+        tag: "wardesk-test"
+      });
+
+      if (!result.ok){
+        LOG("Test mislukt:", result.error);
+        if (window.showToast) window.showToast("Fout: " + result.error);
+      } else {
+        if (window.showToast) window.showToast("Notificatie verzonden!");
       }
     });
 
@@ -301,5 +326,5 @@
     setTimeout(init, 1500);
   }
 
-  wdLog.info("[WAR DESK] enhancements.js v1.1 geladen");
+  wdLog.info("[WAR DESK] enhancements.js v1.3 geladen");
 })();
