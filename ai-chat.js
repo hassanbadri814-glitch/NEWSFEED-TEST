@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK v1.9 — AI Chat Module
+   WAR DESK v1.10 — AI Chat Module
+   - v1.10: betere error-handling (toon exacte worker-fout + attempts)
    - v1.9: Militaire vragen → worker MET militaire context
-           + lokale fallback als worker faalt
-   - v1.8: Militaire lokale antwoorden
+   - v1.8: Lokale militaire fallback
    ============================================================ */
 
 (function(){
@@ -10,7 +10,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.9 geladen");
+  LOG("v1.10 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var MAX_ARTICLES = 8;
@@ -235,7 +235,6 @@
     return [];
   }
 
-  // v1.9: bouw militaire context voor worker
   function buildMilitaryContext(question){
     var intent = detectMilitaryIntent(question);
     if (!intent.isMilitary) return null;
@@ -243,7 +242,6 @@
     var all = getMilitaryEvents();
     if (!all.length) return { intent: intent, events: [] };
 
-    // Filter op land/subtype indien van toepassing
     var filtered = all.slice();
     if (intent.country) {
       filtered = filtered.filter(function(e){ return e.country === intent.country; });
@@ -251,13 +249,10 @@
     if (intent.subtype && intent.subtype !== "actief") {
       filtered = filtered.filter(function(e){ return e.subtype === intent.subtype; });
     }
-
-    // Als filter niets oplevert: fallback naar alle events
     if (!filtered.length && (intent.country || intent.subtype)) {
       filtered = all.slice();
     }
 
-    // Sorteer op datum (nieuwste eerst), cap
     filtered.sort(function(a, b){
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
@@ -280,7 +275,7 @@
   }
 
   /* ============================================================
-     LOKALE FALLBACK (was v1.8 tryMilitaryAnswer)
+     LOKALE FALLBACK
      ============================================================ */
   var SUBTYPE_META = {
     aanval:    { emoji: "🔴", label: "Aanval" },
@@ -644,7 +639,6 @@
     if (sendBtn) sendBtn.disabled = true;
 
     try {
-      // v1.9: militaire context meesturen
       var militaryCtx = null;
       try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
 
@@ -670,8 +664,20 @@
         body: JSON.stringify(payload)
       });
 
+      // v1.10: betere error-handling
       if (!r.ok){
-        throw new Error("Worker error: HTTP " + r.status);
+        var errText = await r.text();
+        var friendly = "Worker HTTP " + r.status;
+        try {
+          var errData = JSON.parse(errText);
+          if (errData.error) friendly = errData.error;
+          if (errData.attempts && errData.attempts.length) {
+            friendly += " | " + errData.attempts.join(" | ");
+          }
+        } catch(e) {
+          friendly += " — " + errText.slice(0, 200);
+        }
+        throw new Error(friendly);
       }
 
       var data = await r.json();
@@ -696,7 +702,6 @@
     } catch(e) {
       LOG("Worker faalde:", e.message);
 
-      // v1.9: FALLBACK naar lokaal militaire antwoord
       var fallback = null;
       try { fallback = buildLocalMilitaryFallback(message); } catch(err){ LOG("Fallback fout:", err.message); }
 
@@ -804,5 +809,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.9 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.10 geladen");
 })();
