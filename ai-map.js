@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-map.js v1.6
+   WAR DESK — ai-map.js v1.7
+   - v1.7: MapAI.getCountries() API voor LOCATIONS sync
    - v1.6: defensieve cap + cleanup in run()
    - v1.5: getEventsSync() voor AI-chat fallback
-   - v1.4: max-age filter (skip artikelen > 30 dagen oud)
    ============================================================ */
 
 (function(){
@@ -177,7 +177,9 @@
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
-  function getTimestamp(a) {
+  var AS = window.AIShared || null;
+
+  var getTimestamp = AS ? AS.getTimestamp : function(a) {
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
     var candidates = [];
@@ -197,7 +199,7 @@
     if (!candidates.length) return 0;
     candidates.sort(function(x, y){ return y - x; });
     return candidates[0];
-  }
+  };
 
   function tokenize(text) {
     if (!text) return [];
@@ -367,7 +369,6 @@
     return result;
   }
 
-  // v1.6: defensieve cap + cleanup
   function run() {
     var events = buildMilitaryEvents();
     if (events === null) return;
@@ -400,7 +401,19 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.6 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.7 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
+  }
+
+  /* v1.7: getCountries API voor LOCATIONS-sync met ai-chat.js */
+  function getCountries() {
+    var out = {};
+    for (var key in LOCATIONS) {
+      var loc = LOCATIONS[key];
+      if (loc && loc.country) {
+        out[key] = loc.country;
+      }
+    }
+    return out;
   }
 
   window.MapAI = {
@@ -417,6 +430,7 @@
         return [];
       }
     },
+    getCountries: getCountries,
     calculateHotspots: function(){
       if (!window.State || !window.State.items) return [];
       var events = buildMilitaryEvents() || [];
