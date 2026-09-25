@@ -823,12 +823,12 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<!-- ==== C6: PWA module ==== -->
+<!-- ==== C6: PWA module v2 ==== -->
 <script>
 (function(){
   "use strict";
   var LOG = function(){ try{ wdLog.info.apply(null, ["[PWA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("module geladen");
+  LOG("module v2 geladen");
 
   var PWA = {
     deferredPrompt: null,
@@ -851,6 +851,8 @@ document.addEventListener("DOMContentLoaded", function(){
   function checkStandalone(){
     PWA.isStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: minimal-ui)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
       window.navigator.standalone === true ||
       document.referrer.indexOf("android-app://") === 0;
     return PWA.isStandalone;
@@ -926,14 +928,8 @@ document.addEventListener("DOMContentLoaded", function(){
       hideUpdate();
     }
   }
-  window.addEventListener("online", function(){
-    LOG("Online");
-    refreshNetworkBanner();
-  });
-  window.addEventListener("offline", function(){
-    LOG("Offline");
-    refreshNetworkBanner();
-  });
+  window.addEventListener("online", function(){ LOG("Online"); refreshNetworkBanner(); });
+  window.addEventListener("offline", function(){ LOG("Offline"); refreshNetworkBanner(); });
 
   /* ===== Install banner ===== */
   var installEl = null;
@@ -967,6 +963,7 @@ document.addEventListener("DOMContentLoaded", function(){
         if (choice.outcome === "accepted"){
           lsSet(LS_KEYS.installedFlag, "1");
           PWA.installed = true;
+          hideInstall();
         }
       } catch(e){}
       PWA.deferredPrompt = null;
@@ -1022,6 +1019,15 @@ document.addEventListener("DOMContentLoaded", function(){
     if (window.showToast) window.showToast("WAR DESK geïnstalleerd! 🎉");
   });
 
+  document.addEventListener("visibilitychange", function(){
+    if (document.visibilityState === "visible"){
+      checkStandalone();
+      if (PWA.isStandalone || lsGet(LS_KEYS.installedFlag, "0") === "1"){
+        hideInstall();
+      }
+    }
+  });
+
   /* ===== SW update ===== */
   if ("serviceWorker" in navigator){
     navigator.serviceWorker.ready.then(function(reg){
@@ -1044,9 +1050,6 @@ document.addEventListener("DOMContentLoaded", function(){
         });
       });
     });
-    navigator.serviceWorker.addEventListener("controllerchange", function(){
-      LOG("SW controller veranderd");
-    });
   }
 
   /* ===== Menu wiring ===== */
@@ -1064,12 +1067,10 @@ document.addEventListener("DOMContentLoaded", function(){
     }
     var installBtn = document.getElementById("pwaInstallNowBtn");
     if (installBtn){
-      if (PWA.deferredPrompt) installBtn.style.opacity = "1";
-      else installBtn.style.opacity = ".5";
+      installBtn.style.opacity = PWA.deferredPrompt ? "1" : ".5";
     }
-    var toggle = document.getElementById("togglePwaInstall");
     var row = document.getElementById("togglePwaInstallRow");
-    if (toggle && row){
+    if (row){
       var dis = lsGet(LS_KEYS.bannerDisabled, "0") === "1";
       row.classList.toggle("active", !dis);
     }
@@ -1086,6 +1087,10 @@ document.addEventListener("DOMContentLoaded", function(){
         PWA.deferredPrompt.prompt();
         PWA.deferredPrompt.userChoice.then(function(c){
           LOG("Menu install keuze:", c.outcome);
+          if (c.outcome === "accepted"){
+            lsSet(LS_KEYS.installedFlag, "1");
+            hideInstall();
+          }
           PWA.deferredPrompt = null;
           updateInstallStatus();
         });
@@ -1124,11 +1129,8 @@ document.addEventListener("DOMContentLoaded", function(){
 
   function init(){
     checkStandalone();
-    LOG("Init — standalone:", PWA.isStandalone, "online:", navigator.onLine);
+    LOG("Init — standalone:", PWA.isStandalone, "online:", navigator.onLine, "installed:", lsGet(LS_KEYS.installedFlag, "0"));
     refreshNetworkBanner();
-    document.addEventListener("visibilitychange", function(){
-      if (document.visibilityState === "visible") checkStandalone();
-    });
     if (document.readyState === "loading"){
       document.addEventListener("DOMContentLoaded", bindMenu);
     } else {
@@ -1143,7 +1145,7 @@ document.addEventListener("DOMContentLoaded", function(){
   }
 
   window.WDPWA = PWA;
-  wdLog.info("[PWA] module actief");
+  wdLog.info("[PWA] module v2 actief");
 })();
 </script>
 
