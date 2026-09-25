@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK — dedup-worker.js v1.1
-   - v1.1: FIX — correcte CDN URL naar transformers.min.js
+   WAR DESK — dedup-worker.js v1.2
+   - v1.2: CDN gewisseld naar unpkg (jsdelivr blokkeerde worker)
    ============================================================ */
 
 var pipelineInstance = null;
-var TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js";
+var TRANSFORMERS_URL = "https://unpkg.com/@xenova/transformers@2.17.2/dist/transformers.min.js";
 var MODEL_NAME = "Xenova/all-MiniLM-L6-v2";
 var loadFailed = false;
 
