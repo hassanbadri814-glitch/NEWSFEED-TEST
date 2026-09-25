@@ -1,9 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-dedup.js v2.1
-   Fuzzy-match dedup — geen worker, geen model, geen CDN
-   - Jaccard similarity op titel-woorden
-   - Union-Find clustering
-   - v2.1: DEBOUNCE — wacht 3s tot feed stabiel is
+   WAR DESK — ai-dedup.js v2.2
+   - v2.2: articles hebben geen id, alleen link → getRef() fallback
    ============================================================ */
 
 (function(){
@@ -42,6 +39,12 @@
       }
     }
     return 0;
+  }
+
+  // v2.2: referentie voor artikel — id OF link OF url
+  function getRef(a) {
+    if (!a) return "";
+    return String(a.id || a.link || a.url || a.guid || a.href || "");
   }
 
   function tokenize(title) {
@@ -155,11 +158,11 @@
 
       var dupes = [];
       for (var d = 0; d < idxs.length; d++) {
-        if (idxs[d] !== mainIdx) dupes.push(articles[idxs[d]].id);
+        if (idxs[d] !== mainIdx) dupes.push(getRef(articles[idxs[d]]));
       }
 
       clusters.push({
-        mainId: articles[mainIdx].id,
+        mainId: getRef(articles[mainIdx]),
         duplicateIds: dupes,
         size: idxs.length
       });
@@ -173,7 +176,7 @@
   function hashArticles(articles) {
     var h = articles.length;
     for (var i = 0; i < Math.min(articles.length, 10); i++) {
-      var id = String(articles[i].id || articles[i].link || "");
+      var id = getRef(articles[i]);
       for (var j = 0; j < id.length; j++) {
         h = ((h << 5) - h) + id.charCodeAt(j);
         h |= 0;
@@ -182,7 +185,6 @@
     return String(h);
   }
 
-  // v2.1: DEBOUNCE — wacht tot feed stabiel is
   var debounceTimer = null;
 
   function process(articles) {
@@ -218,10 +220,6 @@
 
         if (window.wdLog) {
           wdLog.info("[Dedup] " + clusters.length + " clusters uit " + sorted.length + " artikelen (" + Math.round(elapsed) + "ms)");
-          if (clusters.length > 0) {
-            var largest = clusters.reduce(function(max, c){ return c.size > max.size ? c : max; }, clusters[0]);
-            wdLog.info("[Dedup] Grootste cluster: " + largest.size + " artikelen");
-          }
         }
       } catch(e) {
         if (window.wdLog) wdLog.warn("[Dedup] fout: " + (e && e.message));
@@ -234,6 +232,6 @@
     isReady: function(){ return true; }
   };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v2.1 geladen (fuzzy-match + debounce)");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v2.2 geladen");
 
 })();
