@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v1.15 — AI Chat Module
+   WAR DESK v1.16 — AI Chat Module
+   - v1.16: Retry met exponentiële backoff (1s/2s/4s) + jitter
    - v1.15: SSE streaming + stop-knop + graceful JSON fallback
    - v1.14: MILITARY_COUNTRIES uit MapAI.getCountries() met fallback
    - v1.13: Militaire dedup + MAX_ARTICLES 12 + cache in localStorage
@@ -26,35 +27,38 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.15 geladen");
+  LOG("v1.16 geladen (retry backoff)");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
   var MAX_ARTICLES = 12;
   var MAX_ARTICLES_MILITARY = 4;
   var MAX_MILITARY = 30;
-  var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
   var CACHE_KEY = "wardesk_ai_cache_v1";
   var STORAGE_MAX_MSGS = 40;
   var MIN_REQUEST_INTERVAL = 2000;
   var CACHE_MAX_AGE = 10 * 60 * 1000;
   var CACHE_MAX_ITEMS = 20;
-  var STREAM_TIMEOUT_MS = 60000; // v1.15: max 60s per stream
+  var STREAM_TIMEOUT_MS = 60000;
+
+  /* v1.16: Retry-config */
+  var RETRY_MAX_ATTEMPTS = 3;       // 1 originele + 2 retries
+  var RETRY_BASE_DELAY_MS = 1000;   // 1s → 2s → 4s
+  var RETRY_JITTER_RATIO = 0.2;     // ±20%
 
   var AI = {
     initialized: false,
     sending: false,
     history: [],
-    /* v1.15: streaming state */
-    streaming: null,          // { text, sources, provider, model, startedAt }
-    abortController: null     // actieve AbortController
+    streaming: null,
+    abortController: null
   };
 
   var lastRequestTime = 0;
   var responseCache = {};
 
-  /* ===== HULPFUNCTIES (ongewijzigd) ===== */
+  /* ===== HULPFUNCTIES ===== */
 
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
@@ -78,6 +82,31 @@
       h |= 0;
     }
     return String(h);
+  }
+
+  function sleep(ms){
+    return new Promise(function(res){ setTimeout(res, ms); });
+  }
+
+  /* v1.16: Retry-detectie helpers */
+  function isAbortError(e){
+    return e && (e.name === "AbortError" || /aborted/i.test(String(e.message || "")));
+  }
+
+  function isNonRetryableError(e){
+    if (!e || !e.message) return false;
+    var m = String(e.message);
+    /* 400 (bad request), 401 (auth), 403 (forbidden), 404 (not found) → geen zin */
+    if (/HTTP 40[0-4]/.test(m)) return true;
+    /* Payload te groot */
+    if (/HTTP 413/.test(m)) return true;
+    /* Unauthorized */
+    if (/Unauthorized/i.test(m)) return true;
+    return false;
+  }
+
+  function hasReceivedTokens(){
+    return !!(AI.streaming && AI.streaming.text && AI.streaming.text.length > 0);
   }
 
   function loadCache(){
@@ -500,7 +529,7 @@
     return { text: lines.join("\n").trim(), sources: sources };
   }
 
-  /* ===== v1.15: STREAMING RENDERER ===== */
+  /* ===== STREAMING RENDERER ===== */
 
   function renderStreamingMsg(){
     if (!AI.streaming) return "";
@@ -521,7 +550,6 @@
     AI.streaming.text = text;
     var node = document.querySelector('[data-streaming="1"] .ai-msg-text');
     if (!node) {
-      // Nog niet gerenderd → volledige render forceren
       renderMessages();
       return;
     }
@@ -599,7 +627,6 @@
       html += '</div>';
     });
 
-    /* v1.15: streaming message tonen */
     if (AI.streaming){
       html += renderStreamingMsg();
     } else if (AI.sending){
@@ -741,7 +768,7 @@
     try { localStorage.removeItem(STORAGE_KEY); }catch(e){}
   }
 
-  /* ===== v1.15: SSE STREAMING ===== */
+  /* ===== SSE STREAMING ===== */
 
   function extractTokenFromEvent(evt){
     if (evt == null) return null;
@@ -801,19 +828,19 @@
         var errData = JSON.parse(errText);
         if (errData.error) friendly = errData.error;
       } catch(e){}
-      throw new Error(friendly);
+      var httpErr = new Error(friendly);
+      httpErr._httpStatus = r.status;
+      throw httpErr;
     }
 
     var ct = (r.headers.get("content-type") || "").toLowerCase();
 
-    /* Worker streamt NIET → geef aan dat we JSON moeten parsen */
     if (ct.indexOf("text/event-stream") < 0 && ct.indexOf("application/x-ndjson") < 0) {
       clearTimeout(timeoutId);
       var data = await r.json();
       return { mode: "json", data: data };
     }
 
-    /* ECHTE STREAMING */
     var reader = r.body.getReader();
     var decoder = new TextDecoder();
     var buffer = "";
@@ -831,7 +858,7 @@
         for (var i = 0; i < lines.length; i++){
           var line = lines[i];
           if (!line) continue;
-          if (line.charAt(0) === ":") continue; // SSE comment
+          if (line.charAt(0) === ":") continue;
 
           var trimmed = line.replace(/^\s+/, "");
           if (trimmed.indexOf("data:") !== 0) continue;
@@ -868,6 +895,67 @@
     return { mode: "stream", text: fullText };
   }
 
+  /* ===== v1.16: RETRY MET EXPONENTIËLE BACKOFF ===== */
+
+  async function streamWithRetry(payload, onMeta){
+    var lastError = null;
+
+    for (var attempt = 0; attempt < RETRY_MAX_ATTEMPTS; attempt++){
+      /* Reset streaming state voor deze poging (alleen als het niet de eerste is) */
+      if (attempt > 0 && AI.streaming){
+        AI.streaming.text = "";
+        updateStreamingDom("");
+      }
+
+      try {
+        var result = await tryStreamingFetch(payload, onMeta);
+        if (attempt > 0){
+          LOG("Retry geslaagd na " + attempt + " " + (attempt === 1 ? "poging" : "pogingen"));
+        }
+        return result;
+
+      } catch(e){
+        lastError = e;
+
+        /* Stop meteen als: gebruiker heeft geabort */
+        if (isAbortError(e)){
+          LOG("Abort tijdens poging " + (attempt + 1) + " — stop retry");
+          throw e;
+        }
+
+        /* Stop meteen als: we hebben al tokens ontvangen (partial text waardevol) */
+        if (hasReceivedTokens()){
+          LOG("Stream brak na tokens — partial bewaard, geen retry");
+          throw e;
+        }
+
+        /* Stop meteen als: niet-retryable (401, 403, 404, 400) */
+        if (isNonRetryableError(e)){
+          LOG("Niet-retryable fout: " + e.message);
+          throw e;
+        }
+
+        /* Laatste poging? Dan opgeven */
+        if (attempt >= RETRY_MAX_ATTEMPTS - 1){
+          LOG("Alle " + RETRY_MAX_ATTEMPTS + " pogingen faalden");
+          throw e;
+        }
+
+        /* Bereken backoff: 1s → 2s → 4s + ±20% jitter */
+        var baseDelay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+        var jitter = baseDelay * RETRY_JITTER_RATIO * (Math.random() * 2 - 1);
+        var totalDelay = Math.max(500, Math.round(baseDelay + jitter));
+
+        LOG("Poging " + (attempt + 1) + "/" + RETRY_MAX_ATTEMPTS +
+            " faalde (" + (e.message || "onbekend") + ") — retry in " + totalDelay + "ms");
+
+        await sleep(totalDelay);
+      }
+    }
+
+    throw lastError || new Error("Onbekende fout");
+  }
+
   /* ===== SEND ===== */
 
   async function sendMessage(text){
@@ -898,12 +986,11 @@
     var cached = responseCache[cacheKey];
 
     try {
-      /* ===== CACHE HIT: geen stream, direct tonen ===== */
       if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE){
         LOG("Cache hit voor query");
         AI.streaming.text = cached.text;
         updateStreamingDom(cached.text);
-        await new Promise(function(res){ setTimeout(res, 200); });
+        await sleep(200);
         AI.history.push({
           role: "ai",
           text: cached.text,
@@ -915,7 +1002,6 @@
         return;
       }
 
-      /* ===== CONTEXT BOUWEN ===== */
       var militaryCtx = null;
       try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
 
@@ -946,24 +1032,22 @@
         if (meta.model) AI.streaming.model = meta.model;
       };
 
-      var result = await tryStreamingFetch(payload, onMeta);
+      /* v1.16: gebruik streamWithRetry ipv tryStreamingFetch */
+      var result = await streamWithRetry(payload, onMeta);
 
-      /* ===== JSON FALLBACK (worker streamt niet) ===== */
       if (result.mode === "json"){
         LOG("Worker streamt niet — JSON fallback");
         var data = result.data;
         if (data.error) throw new Error(data.error);
         var responseText = data.response || "(geen antwoord)";
-        /* Simuleer korte type-animatie voor UX */
         AI.streaming.text = responseText;
         updateStreamingDom(responseText);
-        await new Promise(function(res){ setTimeout(res, 150); });
+        await sleep(150);
         AI.streaming.provider = data.provider || "";
         AI.streaming.model = data.model || "";
         result.text = responseText;
       }
 
-      /* ===== ANTWOORD AFRONDEN ===== */
       var finalText = result.text || AI.streaming.text || "(geen antwoord)";
       var sources = (AI.streaming.sources && AI.streaming.sources.length)
         ? AI.streaming.sources
@@ -993,7 +1077,7 @@
       LOG("Stream afgerond via", AI.streaming.provider || "?", "/", AI.streaming.model || "?");
 
     } catch(e){
-      var isAbort = (e && (e.name === "AbortError" || /aborted/i.test(e.message || "")));
+      var isAbort = isAbortError(e);
 
       if (isAbort){
         LOG("Stream gestopt door gebruiker");
@@ -1017,7 +1101,6 @@
       } else {
         LOG("Stream faalde:", e.message);
 
-        /* Fallback 1: lokale militaire engine */
         var fallback = null;
         try { fallback = buildLocalMilitaryFallback(message); } catch(err){ LOG("Fallback fout:", err.message); }
 
@@ -1025,7 +1108,7 @@
           LOG("Fallback: lokaal militaire antwoord");
           AI.streaming.text = fallback.text;
           updateStreamingDom(fallback.text);
-          await new Promise(function(res){ setTimeout(res, 150); });
+          await sleep(150);
           AI.history.push({
             role: "ai",
             text: fallback.text,
@@ -1033,7 +1116,6 @@
             provider: "local-military"
           });
         } else if (AI.streaming && AI.streaming.text){
-          /* Fallback 2: partial text bewaren */
           AI.history.push({
             role: "ai",
             text: AI.streaming.text + "\n\n_(onvolledig — verbinding verbroken)_",
@@ -1041,7 +1123,6 @@
             provider: "local-partial"
           });
         } else {
-          /* Fallback 3: foutmelding */
           AI.history.push({
             role: "ai",
             text: "⚠️ " + (e.message || "Er is een fout opgetreden.") + "\n\nProbeer het over 30 seconden opnieuw.",
@@ -1079,7 +1160,6 @@
 
     if (sendBtn){
       sendBtn.addEventListener("click", function(){
-        /* v1.15: als we aan het streamen zijn → stop */
         if (AI.sending){
           stopStreaming();
           return;
@@ -1155,5 +1235,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.15 geladen (streaming)");
+  wdLog.info("[WAR DESK] ai-chat.js v1.16 geladen (retry backoff)");
 })();
