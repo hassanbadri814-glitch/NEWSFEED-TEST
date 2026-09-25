@@ -1,18 +1,14 @@
 /* ============================================================
-   WAR DESK enhancements.js v1.0
-   - Notifications voor breaking news
+   WAR DESK enhancements.js v1.1
+   - Notifications voor breaking news (robuuste binding)
    - Share-knop voor AI berichten
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var LOG = function(){ try{ wdLog.info.apply(null, ["[ENH]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.0 geladen");
-
-  /* ============================================================
-     1. NOTIFICATIONS
-     ============================================================ */
+  var LOG = function(){ try{ wdLog.info.apply(null, ["[ENH]"].concat(Array.prototype.slice.call(arguments))); }catch(e){ console.log("[ENH]", arguments); } };
+  LOG("v1.1 geladen");
 
   var NOTIF_KEY = "wardesk_notifications_enabled";
   var lastNotifTitle = "";
@@ -30,13 +26,16 @@
   }
 
   function updateToggleUI(){
-    var on = getSavedEnabled() && (Notification.permission === "granted");
+    var on = getSavedEnabled() && isSupported() && Notification.permission === "granted";
     var row = document.getElementById("toggleNotificationsRow");
     if (row) row.classList.toggle("active", on);
-    if (window.State) State.notificationsEnabled = on;
+    if (window.State) window.State.notificationsEnabled = on;
+    LOG("UI update — on:", on, "perm:", isSupported() ? Notification.permission : "?");
   }
 
   async function setNotifications(enabled){
+    LOG("setNotifications aangeroepen met:", enabled);
+
     if (!isSupported()){
       if (window.showToast) window.showToast("Notificaties niet ondersteund");
       return;
@@ -46,38 +45,44 @@
       saveEnabled(false);
       updateToggleUI();
       if (window.showToast) window.showToast("Breaking notificaties uit");
-      LOG("Notificaties uit");
       return;
     }
 
     var perm = Notification.permission;
+    LOG("Permissie voor request:", perm);
+
     if (perm === "default"){
-      try { perm = await Notification.requestPermission(); }
-      catch(e){ perm = "denied"; }
+      try {
+        perm = await Notification.requestPermission();
+        LOG("Permissie na request:", perm);
+      } catch(e){
+        LOG("Permissie request fout:", e.message);
+        perm = "denied";
+      }
     }
 
     if (perm !== "granted"){
       saveEnabled(false);
       updateToggleUI();
       if (window.showToast) window.showToast("Notificaties geweigerd — check browserinstellingen");
-      LOG("Permissie geweigerd");
       return;
     }
 
     saveEnabled(true);
     updateToggleUI();
     if (window.showToast) window.showToast("Breaking notificaties aan");
-    LOG("Notificaties aan");
+    LOG("Notificaties aan — stuur test");
 
-    /* Test notificatie */
     try {
       new Notification("WAR DESK", {
-        body: "Notificaties zijn nu actief. Je krijgt een melding bij breaking news.",
+        body: "Notificaties actief. Je krijgt een melding bij breaking news.",
         icon: "./icon.svg",
         badge: "./icon.svg",
         tag: "wardesk-test"
       });
-    } catch(e){}
+    } catch(e){
+      LOG("Test notif fout:", e.message);
+    }
   }
 
   function showBreakingNotif(title, meta){
@@ -94,17 +99,15 @@
         body: meta || "Nieuwe breaking news op WAR DESK",
         icon: "./icon.svg",
         badge: "./icon.svg",
-        tag: "wardesk-breaking",
-        requireInteraction: false,
-        silent: false
+        tag: "wardesk-breaking"
       });
       n.onclick = function(){
         try { window.focus(); } catch(e){}
         n.close();
       };
-      LOG("Breaking notif: " + title.slice(0, 40));
+      LOG("Breaking notif verzonden:", title.slice(0, 40));
     } catch(e){
-      LOG("Notif fout: " + e.message);
+      LOG("Breaking notif fout:", e.message);
     }
   }
 
@@ -113,7 +116,6 @@
     var metaEl  = document.getElementById("breakingMeta");
     if (!titleEl) return;
 
-    /* Initiele state onthouden zonder notif te sturen */
     lastNotifTitle = (titleEl.textContent || "").trim();
 
     var observer = new MutationObserver(function(mutations){
@@ -124,44 +126,67 @@
           if (txt && txt !== "—" && txt !== lastNotifTitle){
             var meta = metaEl ? (metaEl.textContent || "").trim() : "";
             showBreakingNotif(txt, meta);
-          } else {
+            lastNotifTitle = txt;
+          } else if (txt === "—" || !txt){
             lastNotifTitle = txt;
           }
         }
       }
     });
 
-    observer.observe(titleEl, {
-      childList: true,
-      characterData: true,
-      subtree: true
-    });
-    LOG("Breaking banner watch actief");
+    observer.observe(titleEl, { childList: true, characterData: true, subtree: true });
+    LOG("Breaking watcher actief");
+  }
+
+  /* ===== ROBUUSTE TOGGLE BINDING ===== */
+
+  function bindNotificationToggle(){
+    var row = document.getElementById("toggleNotificationsRow");
+    if (!row){
+      LOG("toggleNotificationsRow NIET gevonden");
+      return;
+    }
+
+    /* Verwijder inline onclick volledig */
+    row.onclick = null;
+    row.removeAttribute("onclick");
+
+    /* Koppel eigen handler */
+    row.addEventListener("click", function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      LOG("Toggle geklikt");
+      var current = getSavedEnabled();
+      setNotifications(!current);
+    }, true); // capture fase
+
+    LOG("Toggle gebonden");
   }
 
   function injectTestButton(){
-    /* Voeg test-knop toe onder de notificatie-toggle in het menu */
     var notifRow = document.getElementById("toggleNotificationsRow");
     if (!notifRow) return;
-
-    /* Voorkom dubbele injectie */
     if (document.getElementById("wdTestNotifBtn")) return;
 
     var btn = document.createElement("button");
     btn.id = "wdTestNotifBtn";
+    btn.type = "button";
     btn.className = "sheet-item";
     btn.style.marginTop = ".4rem";
     btn.style.width = "100%";
     btn.style.textAlign = "left";
     btn.textContent = "🔔 Test notificatie";
     btn.addEventListener("click", function(e){
+      e.preventDefault();
       e.stopPropagation();
+      LOG("Test knop geklikt");
       if (!isSupported()){
         if (window.showToast) window.showToast("Niet ondersteund");
         return;
       }
       if (Notification.permission !== "granted"){
         if (window.showToast) window.showToast("Zet eerst de toggle aan");
+        LOG("Geen permissie:", Notification.permission);
         return;
       }
       try {
@@ -171,25 +196,25 @@
           badge: "./icon.svg",
           tag: "wardesk-test"
         });
-      } catch(err){}
+        LOG("Test notif verzonden");
+      } catch(err){
+        LOG("Test notif fout:", err.message);
+        if (window.showToast) window.showToast("Notif fout: " + err.message);
+      }
     });
 
     notifRow.parentNode.insertBefore(btn, notifRow.nextSibling);
+    LOG("Test knop geïnjecteerd");
   }
 
-  /* ============================================================
-     2. SHARE-KNOP VOOR AI BERICHTEN
-     ============================================================ */
+  /* ===== SHARE ===== */
 
   function injectShareButtons(){
-    /* Loop door alle AI berichten en voeg share-knop toe als die er nog niet is */
     var actions = document.querySelectorAll(".ai-msg-actions");
     actions.forEach(function(row){
       if (row.querySelector('[data-action="share"]')) return;
-
       var copyBtn = row.querySelector('[data-action="copy"]');
       if (!copyBtn) return;
-
       var idx = copyBtn.getAttribute("data-idx");
       if (idx == null) return;
 
@@ -206,13 +231,12 @@
         shareMessage(parseInt(idx, 10), btn);
       });
 
-      /* Plaats naast copy */
       copyBtn.parentNode.insertBefore(btn, copyBtn.nextSibling);
     });
   }
 
   async function shareMessage(idx, btn){
-    if (!window.AIAPI || !window.AIAPI.state || !window.AIAPI.state.history) return;
+    if (!window.AIAPI || !window.AIAPI.state) return;
     var msg = window.AIAPI.state.history[idx];
     if (!msg || !msg.text) return;
 
@@ -222,7 +246,6 @@
       url: location.origin + location.pathname
     };
 
-    /* Web Share API — native share sheet */
     if (navigator.share){
       try {
         await navigator.share(shareData);
@@ -235,11 +258,9 @@
         return;
       } catch(e){
         if (e.name === "AbortError") return;
-        /* Val door naar fallback */
       }
     }
 
-    /* Fallback: kopieer naar klembord */
     var text = shareData.text + "\n\n" + shareData.url;
     if (navigator.clipboard && navigator.clipboard.writeText){
       try {
@@ -248,47 +269,37 @@
         return;
       } catch(e){}
     }
-
-    /* Laatste fallback */
     if (window.showToast) window.showToast("Delen niet mogelijk");
   }
 
-  /* Watch voor nieuwe AI berichten → injecteer share-knop */
   function watchAIMessages(){
     var container = document.getElementById("aiMessages");
     if (!container) return;
-
-    var observer = new MutationObserver(function(){
-      injectShareButtons();
-    });
+    var observer = new MutationObserver(function(){ injectShareButtons(); });
     observer.observe(container, { childList: true, subtree: true });
     injectShareButtons();
   }
 
-  /* ============================================================
-     3. INIT
-     ============================================================ */
+  /* ===== INIT ===== */
 
   function init(){
-    /* Notifications */
+    LOG("init start");
     window.__setNotifications = setNotifications;
-    updateToggleUI();
-    watchBreakingBanner();
+    bindNotificationToggle();
     injectTestButton();
-
-    /* Share */
+    watchBreakingBanner();
     watchAIMessages();
-
-    LOG("Init klaar");
+    updateToggleUI();
+    LOG("init klaar");
   }
 
   if (document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(init, 800);
+      setTimeout(init, 1500);
     });
   } else {
-    setTimeout(init, 800);
+    setTimeout(init, 1500);
   }
 
-  wdLog.info("[WAR DESK] enhancements.js v1.0 geladen");
+  wdLog.info("[WAR DESK] enhancements.js v1.1 geladen");
 })();
