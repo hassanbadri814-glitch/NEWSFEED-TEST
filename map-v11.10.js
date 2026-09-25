@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v13.0 — Conflictkaart (OpenFreeMap) + Military Events
+   WAR DESK v13.1 — Conflictkaart (OpenFreeMap) + Military Events
+   - v13.1: FIX typeConfig fallback (TYPES[subtype/type])
    - v13.0: Militaire events via MapAI + hotspot strip
-   - v12.0: EventBus listeners (geen polling)
    ============================================================ */
 
 (function(){
@@ -13,9 +13,9 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.0 geladen — militaire events + hotspot strip");
+  LOG("v13.1 geladen — militaire events + hotspot strip");
 
-  // ============ FALLBACK LOCATIES (als MapAI faalt) ============
+  // ============ FALLBACK LOCATIES ============
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
     "gaza":    { lat: 31.35, lng: 34.31, country: "Gaza" },
@@ -55,7 +55,6 @@
     conflict:  '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 21 L2 21 Z"/></svg>',
     political: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 8 L22 10 L2 10 L2 8 Z M4 12 L4 20 L8 20 L8 12 Z M10 12 L10 20 L14 20 L14 12 Z M16 12 L16 20 L20 20 L20 12 Z M2 20 L22 20 L22 22 L2 22 Z"/></svg>',
     other:     '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 12 L12 22 L2 12 Z"/></svg>',
-    // Militair
     aanval:    '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 C 12 2 6 8 6 13 A 6 6 0 0 0 18 13 C 18 8 12 2 12 2 Z M12 5 C 14 8 16 11 16 13 A 4 4 0 0 1 8 13 C 8 11 10 8 12 5 Z"/></svg>',
     offensief: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M5 3 L7 5 L19 17 L21 19 L19 21 L17 19 L5 7 L3 5 L5 3 Z M17 3 L21 3 L21 7 L19 5 Z M3 17 L7 21 L5 21 L3 19 Z"/></svg>',
     defensief: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L4 5 L4 12 C 4 17 8 21 12 22 C 16 21 20 17 20 12 L20 5 Z M12 5 L17 7 L17 12 C 17 15.5 14.5 18.5 12 19.5 C 9.5 18.5 7 15.5 7 12 L7 7 Z"/></svg>',
@@ -68,6 +67,16 @@
     if(filter === "conflict") return ICONS.conflict;
     if(filter === "political") return ICONS.political;
     return ICONS.other;
+  }
+
+  // v13.1: veilige typeConfig resolver
+  function resolveTypeConfig(e){
+    if (!e) return TYPES.other;
+    if (e.typeConfig && e.typeConfig.color) return e.typeConfig;
+    if (e.subtype && TYPES[e.subtype]) return TYPES[e.subtype];
+    if (e.type && TYPES[e.type]) return TYPES[e.type];
+    if (e.type && e.type.indexOf("mil-") === 0) return TYPES.actief;
+    return TYPES.other;
   }
 
   var MAP = {
@@ -221,13 +230,8 @@
       "@keyframes wdPulse{0%,100%{box-shadow:0 0 16px rgba(255,0,0,0.7)}50%{box-shadow:0 0 24px rgba(255,0,0,0.9)}}" +
       "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']{animation:none}}" +
 
-      /* Detail modal — militaire types */
       ".wd-detail-type{text-transform:uppercase;letter-spacing:.5px;font-size:10px;font-weight:800}" +
-
-      /* Live list — militair label */
       ".live-event-mil{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(255,60,60,0.15);color:#ff5050;font-size:9.5px;font-weight:700;letter-spacing:0.5px}" +
-
-      /* Filter-knop militair */
       ".live-filter[data-cat='military']{color:#ff5050}" +
       ".live-filter[data-cat='military'].active{background:rgba(255,60,60,0.15);color:#ff5050;border-color:rgba(255,60,60,0.4)}";
 
@@ -294,11 +298,13 @@
     });
   }
 
+  // v13.1: veilige typeConfig
   function openDetail(event){
     ensureDetailModal();
     MAP.currentDetailEvent = event;
-    var color = event.typeConfig.color;
-    $("wdDetailType").textContent = event.typeConfig.label;
+    var typeConf = resolveTypeConfig(event);
+    var color = typeConf.color;
+    $("wdDetailType").textContent = typeConf.label;
     $("wdDetailType").style.background = color;
     $("wdDetailMeta").textContent = (event.country || "Onbekend") + " · " + timeAgo(event.date) + (event.source ? " · " + event.source : "");
     $("wdDetailText").textContent = event.fullDescription || event.title || "(geen beschrijving)";
@@ -319,7 +325,6 @@
     }, 300);
   }
 
-  // ============ FALLBACK: buildEventsFromNews (als MapAI faalt) ============
   function buildFallbackEvents(){
     if(!window.State || !State.items || !State.items.length) return [];
     var byCat = {};
@@ -356,17 +361,14 @@
     return events;
   }
 
-  // ============ ORCHESTRATIE ============
   function refreshFromNews(){
     var events;
     var militaryCount = MAP.militaryEvents.length;
 
     if (militaryCount > 0) {
-      // Gebruik militaire events
       events = MAP.militaryEvents.slice();
       LOG("Gebruik " + militaryCount + " militaire events");
     } else {
-      // Fallback naar oude logica
       events = buildFallbackEvents();
       LOG("Fallback: " + events.length + " standaard events");
     }
@@ -401,7 +403,6 @@
     var wrap = document.querySelector(".map-wrap");
     if (!wrap) return;
 
-    // Strip aanmaken
     if (!strip) {
       strip = document.createElement("div");
       strip.id = "wdHotspotStrip";
@@ -445,22 +446,23 @@
     }
   }
 
-  // ============ MARKERS ============
+  // ============ MARKERS (v13.1 — veilige typeConfig) ============
   function renderMarkers(){
     if(!MAP.cluster) return;
     MAP.cluster.clearLayers();
     var filtered = MAP.events.filter(function(e){
       if(MAP.currentFilter === "all") return true;
       if(MAP.currentFilter === "military") return e.isMilitary === true;
-      if(MAP.currentFilter === "conflict") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "conflict";
-      if(MAP.currentFilter === "political") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "political";
-      if(MAP.currentFilter === "other") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "other";
+      if(MAP.currentFilter === "conflict") return !e.isMilitary && resolveTypeConfig(e).filter === "conflict";
+      if(MAP.currentFilter === "political") return !e.isMilitary && resolveTypeConfig(e).filter === "political";
+      if(MAP.currentFilter === "other") return !e.isMilitary && resolveTypeConfig(e).filter === "other";
       return true;
     });
     var markers = [];
     filtered.forEach(function(e){
-      var color = e.typeConfig.color;
-      var glyph = iconFor(e.typeConfig.filter, e.subtype);
+      var typeConf = resolveTypeConfig(e);
+      var color = typeConf.color;
+      var glyph = iconFor(typeConf.filter, e.subtype);
       var icon = L.divIcon({
         className: "wd-marker",
         html: '<div class="wd-marker-inner" style="color:' + color + '">' +
@@ -475,7 +477,7 @@
       if (e.source) sourceLine = '<div class="pop-meta">' + escapeHtml(e.source) + '</div>';
 
       var popupHtml =
-        '<div class="pop-cat" style="--cat-color:' + color + '">' + e.typeConfig.label + '</div>' +
+        '<div class="pop-cat" style="--cat-color:' + color + '">' + typeConf.label + '</div>' +
         '<div class="pop-title">' + escapeHtml(e.title) + '</div>' +
         '<div class="pop-meta">' + escapeHtml(e.country || "?") + (e.region ? " · " + escapeHtml(e.region) : "") + '</div>' +
         sourceLine +
@@ -504,7 +506,7 @@
     if(!el) return;
     var counts = { aanval: 0, offensief: 0, defensief: 0, voortgang: 0, actief: 0, conflict: 0, political: 0, other: 0 };
     MAP.events.forEach(function(e){
-      var k = e.subtype || (e.typeConfig && e.typeConfig.filter) || "other";
+      var k = e.subtype || resolveTypeConfig(e).filter || "other";
       if(counts[k] !== undefined) counts[k]++;
     });
 
@@ -528,6 +530,7 @@
     }).join("");
   }
 
+  // ============ LIVE LIST (v13.1 — veilige typeConfig) ============
   function renderLiveList(){
     var list = $("liveList");
     var countEl = $("liveCount");
@@ -535,9 +538,9 @@
     var filtered = MAP.events.filter(function(e){
       if(MAP.currentFilter === "all") return true;
       if(MAP.currentFilter === "military") return e.isMilitary === true;
-      if(MAP.currentFilter === "conflict") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "conflict";
-      if(MAP.currentFilter === "political") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "political";
-      if(MAP.currentFilter === "other") return !e.isMilitary && e.typeConfig && e.typeConfig.filter === "other";
+      if(MAP.currentFilter === "conflict") return !e.isMilitary && resolveTypeConfig(e).filter === "conflict";
+      if(MAP.currentFilter === "political") return !e.isMilitary && resolveTypeConfig(e).filter === "political";
+      if(MAP.currentFilter === "other") return !e.isMilitary && resolveTypeConfig(e).filter === "other";
       return true;
     });
     if(countEl) countEl.textContent = filtered.length;
@@ -546,7 +549,8 @@
       return;
     }
     list.innerHTML = filtered.map(function(e){
-      var color = e.typeConfig.color;
+      var typeConf = resolveTypeConfig(e);
+      var color = typeConf.color;
       var milBadge = e.isMilitary ? '<span class="live-event-mil">MIL</span>' : '';
       return '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '">' +
         '<div class="live-event-body">' +
@@ -555,7 +559,7 @@
         '<span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span>' +
         '<span>·</span>' +
         '<span>' + timeAgo(e.date) + '</span>' +
-        '<span class="live-event-cat" style="--cat-color:' + color + '">' + e.typeConfig.label + '</span>' +
+        '<span class="live-event-cat" style="--cat-color:' + color + '">' + typeConf.label + '</span>' +
         '</div></div></div>';
     }).join("");
     Array.prototype.forEach.call(list.querySelectorAll(".live-event"), function(el){
@@ -689,7 +693,6 @@
     }
     MAP._busBound = true;
 
-    // Militaire events van MapAI
     WarDesk.events.on("map:military-events", function(events){
       MAP.militaryEvents = events || [];
       LOG("Militaire events ontvangen: " + MAP.militaryEvents.length);
@@ -702,7 +705,6 @@
       renderHotspots();
     });
 
-    // Fallback: nieuws updates
     WarDesk.events.on("news:loaded", function(){
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
@@ -774,5 +776,5 @@
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
 
-  wdLog.info("[WAR DESK] map-v11.10.js v13.0 geladen (militaire events + hotspots)");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.1 geladen (militaire events + hotspots)");
 })();
