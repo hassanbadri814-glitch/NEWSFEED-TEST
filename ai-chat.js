@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK v1.12 — AI Chat Module
-   - v1.12: Rate limit + response cache + URL sanitize + auth token
-   - v1.11: getMilitaryEvents met MapAI sync fallback
-   - v1.10: betere error-handling
+   WAR DESK v1.13 — AI Chat Module
+   - v1.13: Militaire dedup + MAX_ARTICLES 12 + cache in localStorage
+   - v1.12: rate limit + URL sanitize + auth token
    ============================================================ */
 
 (function(){
@@ -10,17 +9,19 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.12 geladen");
+  LOG("v1.13 geladen");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
-  var AUTH_TOKEN = "wardesk-2026-soft-auth";  // v1.12: S5 soft-auth
-  var MAX_ARTICLES = 8;
+  var AUTH_TOKEN = "wardesk-2026-soft-auth";
+  var MAX_ARTICLES = 12;                        // v1.13: was 8
+  var MAX_ARTICLES_MILITARY = 4;                // v1.13: minder bij militaire ctx
   var MAX_MILITARY = 30;
   var CLIENT_RETRIES = 1;
   var STORAGE_KEY = "wardesk_ai_history_v1";
+  var CACHE_KEY = "wardesk_ai_cache_v1";        // v1.13
   var STORAGE_MAX_MSGS = 40;
-  var MIN_REQUEST_INTERVAL = 2000;  // v1.12: P2.4 rate limit (2s)
-  var CACHE_MAX_AGE = 10 * 60 * 1000;  // v1.12: P1.3 cache 10 min
+  var MIN_REQUEST_INTERVAL = 2000;
+  var CACHE_MAX_AGE = 10 * 60 * 1000;
   var CACHE_MAX_ITEMS = 20;
 
   var AI = {
@@ -29,10 +30,7 @@
     history: []
   };
 
-  // v1.12: P2.4 rate limiting
   var lastRequestTime = 0;
-
-  // v1.12: P1.3 response cache
   var responseCache = {};
 
   function esc(s){
@@ -41,7 +39,6 @@
     });
   }
 
-  // v1.12: S3 URL sanitatie
   function safeUrl(url){
     if (!url) return "";
     var s = String(url).trim();
@@ -50,7 +47,6 @@
     return "";
   }
 
-  // v1.12: P1.3 message hash voor cache
   function hashMessage(msg){
     var h = 0;
     var s = String(msg || "").toLowerCase().trim();
@@ -61,7 +57,32 @@
     return String(h);
   }
 
-  // v1.12: P1.3 cleanup oude cache entries
+  // v1.13: cache persistent maken
+  function loadCache(){
+    try {
+      var raw = localStorage.getItem(CACHE_KEY);
+      if (!raw) return;
+      var parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return;
+      var now = Date.now();
+      Object.keys(parsed).forEach(function(k){
+        if (parsed[k] && (now - parsed[k].t) < CACHE_MAX_AGE) {
+          responseCache[k] = parsed[k];
+        }
+      });
+    } catch(e){}
+  }
+
+  var cacheSaveTimer = null;
+  function saveCache(){
+    if (cacheSaveTimer) clearTimeout(cacheSaveTimer);
+    cacheSaveTimer = setTimeout(function(){
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify(responseCache));
+      } catch(e){}
+    }, 2000);
+  }
+
   function cleanupCache(){
     var keys = Object.keys(responseCache);
     if (keys.length <= CACHE_MAX_ITEMS) return;
@@ -69,6 +90,7 @@
     for (var i = CACHE_MAX_ITEMS; i < keys.length; i++){
       delete responseCache[keys[i]];
     }
+    saveCache();
   }
 
   var STOPWORDS = {
@@ -151,9 +173,11 @@
     return score;
   }
 
-  function buildArticleContext(userQuestion){
+  // v1.13: maxArticles parameter
+  function buildArticleContext(userQuestion, maxArticles){
     try {
       if (!window.State || !State.items || !State.items.length) return [];
+      var limit = maxArticles || MAX_ARTICLES;
       var keywords = extractKeywords(userQuestion);
       var scored = State.items.map(function(it){
         return { item: it, relevance: scoreArticleForQuery(it, keywords) };
@@ -161,7 +185,7 @@
       scored.sort(function(a, b){ return b.relevance - a.relevance; });
       var sourceCount = {};
       var selected = [];
-      for (var i = 0; i < scored.length && selected.length < MAX_ARTICLES; i++){
+      for (var i = 0; i < scored.length && selected.length < limit; i++){
         var item = scored[i].item;
         var src = item.source || "?";
         sourceCount[src] = (sourceCount[src] || 0);
@@ -506,7 +530,7 @@
     var seen = {};
     var unique = [];
     sources.forEach(function(s){
-      var link = safeUrl(s.link);  // v1.12: S3
+      var link = safeUrl(s.link);
       if (!link || seen[link]) return;
       seen[link] = 1;
       unique.push({ title: s.title, source: s.source, link: link });
@@ -648,7 +672,6 @@
     if (AI.sending) return;
     if (!text || !text.trim()) return;
 
-    // v1.12: P2.4 rate limiting
     var now = Date.now();
     if (now - lastRequestTime < MIN_REQUEST_INTERVAL){
       var wait = Math.ceil((MIN_REQUEST_INTERVAL - (now - lastRequestTime)) / 1000);
@@ -674,10 +697,12 @@
       var militaryCtx = null;
       try { militaryCtx = buildMilitaryContext(message); } catch(e){ LOG("buildMilitaryContext fout:", e.message); }
 
-      var articles = buildArticleContext(message);
+      /* v1.13: P1.5 — als militaire context aanwezig, minder artikelen */
+      var articleLimit = (militaryCtx && militaryCtx.events.length > 0) ? MAX_ARTICLES_MILITARY : MAX_ARTICLES;
+      var articles = buildArticleContext(message, articleLimit);
+
       LOG("Verstuur met", articles.length, "artikelen" + (militaryCtx && militaryCtx.events.length ? " + " + militaryCtx.events.length + " militaire events" : ""));
 
-      // v1.12: P1.3 cache lookup
       var cacheKey = hashMessage(message);
       var cached = responseCache[cacheKey];
       if (cached && (Date.now() - cached.t) < CACHE_MAX_AGE){
@@ -713,7 +738,7 @@
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Auth-Token": AUTH_TOKEN  // v1.12: S5
+          "X-Auth-Token": AUTH_TOKEN
         },
         body: JSON.stringify(payload)
       });
@@ -752,7 +777,6 @@
       saveHistory();
       LOG("Antwoord via", data.provider || "?", "/", data.model || "?");
 
-      // v1.12: P1.3 cache save
       responseCache[cacheKey] = {
         text: responseText,
         sources: sources,
@@ -760,6 +784,7 @@
         t: Date.now()
       };
       cleanupCache();
+      saveCache();
 
     } catch(e) {
       LOG("Worker faalde:", e.message);
@@ -830,6 +855,7 @@
     AI.initialized = true;
     LOG("init");
     loadHistory();
+    loadCache();
     bindUI();
     renderMessages();
   }
@@ -872,5 +898,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.12 geladen");
+  wdLog.info("[WAR DESK] ai-chat.js v1.13 geladen");
 })();
