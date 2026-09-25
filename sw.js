@@ -1,15 +1,14 @@
 /* ============================================================
-   WAR DESK Service Worker v2.6
-   - HTML/JSON: network-first (altijd nieuwste versie)
-   - JS/CSS: stale-while-revalidate (cache direct, update op achtergrond)
-   - Images/fonts: cache-first met background update
-   - CDN assets: nooit cachen
+   WAR DESK Service Worker v2.7
+   - v2.7: HTML fallback naar offline.html (voorkomt stale HTML)
+   - v2.6: HTML/JSON network-first, JS/CSS SWR, images cache-first
    ============================================================ */
 
-const CACHE_NAME = 'wardesk-v14.7';
+const CACHE_NAME = 'wardesk-v14.8';
 const PRECACHE_ASSETS = [
   './',
   './index.html',
+  './offline.html',
   './icon.svg',
   './manifest.json'
 ];
@@ -72,14 +71,13 @@ self.addEventListener('fetch', event => {
           }
           return res;
         }).catch(() => cached);
-        // Return cached direct, update op achtergrond
         return cached || networkFetch;
       })
     );
     return;
   }
 
-  /* ===== HTML/JSON: Network-first ===== */
+  /* ===== HTML/JSON: Network-first met veilige fallback ===== */
   if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
@@ -91,7 +89,12 @@ self.addEventListener('fetch', event => {
           return res;
         })
         .catch(() => {
-          return caches.match(req).then(r => r || caches.match('./index.html'));
+          return caches.match(req).then(cached => {
+            if (cached) return cached;
+            /* v2.7: Voor HTML fallback naar offline.html (geen stale index.html) */
+            if (isHtml) return caches.match('./offline.html');
+            return new Response('', { status: 503 });
+          });
         })
     );
     return;
