@@ -416,5 +416,37 @@
   } else {
     init();
   }
+// ============================================================
+// TIJDELIJKE DEBUG KNOP — verwijder na diagnose
+// ============================================================
+setTimeout(function(){
+  if (document.getElementById("wd-debug-dedup")) return;
+  var btn = document.createElement("button");
+  btn.id = "wd-debug-dedup";
+  btn.textContent = "🔍";
+  btn.style.cssText = "position:fixed;bottom:100px;right:20px;z-index:99999999;" +
+    "width:50px;height:50px;border-radius:50%;background:#7c3aed;color:white;" +
+    "font-size:22px;border:none;box-shadow:0 4px 14px rgba(124,58,237,0.5);" +
+    "cursor:pointer;-webkit-tap-highlight-color:transparent;";
+  btn.addEventListener("click", function(){
+    var feed = document.getElementById("feedGrid")
+      || document.querySelector(".feed-grid");
+    var cards = document.querySelectorAll("[data-article-id]");
+    var badges = document.querySelectorAll(".wd-dedup-badge");
+    var firstCard = feed && feed.children[0];
+    var firstId = firstCard ? (firstCard.getAttribute("data-article-id") || "(geen)") : "(geen kaart)";
+    var firstClass = firstCard ? firstCard.className : "(n/a)";
+    var firstHTML = firstCard ? firstCard.outerHTML.slice(0, 200).replace(/</g, "‹") : "(n/a)";
 
+    var msg = "Kaarten met data-article-id: " + cards.length +
+              "\nBadges in DOM: " + badges.length +
+              "\nEerste kaart ID: " + firstId +
+              "\nEerste kaart class: " + firstClass +
+              "\n\nHTML:\n" + firstHTML;
+
+    alert(msg);
+    if (window.wdLog) wdLog.info("[DEBUG] IDs: " + cards.length + ", Badges: " + badges.length);
+  });
+  document.body.appendChild(btn);
+}, 3000);
 })();
