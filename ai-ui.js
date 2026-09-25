@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.7
-   - v1.7: Dedup matching op data-article-id / data-id / data-link
-   - v1.6: Dedup integratie
-   - v1.5: Compactere pills + sticky label
+   WAR DESK — ai-ui.js v1.8
+   - v1.8: Dedup matching — ID match + titel fallback + URL-path fallback
+   - v1.7: data-article-id / data-id / data-link matching
    - Trending + Ranking + Filter + Reorder + Dedup
    ============================================================ */
 
@@ -243,20 +242,84 @@
     feed.appendChild(fragment);
   }
 
-  // ============ DEDUP — v1.7 matching op meerdere attributen ============
+  // ============ DEDUP — v1.8 matching ============
+  var refTitleMap = {};
+
+  function findArticleElByTitle(feed, title) {
+    if (!feed || !title) return null;
+    var needle = String(title).toLowerCase()
+      .replace(/[^\w\sÀ-ÿ]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 60);
+    if (needle.length < 10) return null;
+
+    var children = feed.children;
+    for (var i = 0; i < children.length; i++) {
+      var el = children[i];
+      var text = (el.textContent || "").toLowerCase()
+        .replace(/[^\w\sÀ-ÿ]/g, " ")
+        .replace(/\s+/g, " ");
+      if (text.indexOf(needle) !== -1) return el;
+    }
+    return null;
+  }
+
   function findArticleEl(feed, ref) {
     if (!feed || !ref) return null;
+
+    // 1. Exact ID / link match
     var r = String(ref).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    return feed.querySelector(
+    var el = feed.querySelector(
       '[data-article-id="' + r + '"],' +
       '[data-id="' + r + '"],' +
       '[data-link="' + r + '"]'
     );
+    if (el) return el;
+
+    // 2. Titel fallback
+    var title = refTitleMap[ref];
+    if (title) {
+      el = findArticleElByTitle(feed, title);
+      if (el) return el;
+    }
+
+    // 3. URL-path fallback (zonder protocol/domein/params)
+    try {
+      var refPath = String(ref).replace(/^https?:\/\//, "").replace(/[?#].*$/, "").toLowerCase();
+      if (refPath.length > 20) {
+        for (var i = 0; i < feed.children.length; i++) {
+          var child = feed.children[i];
+          var childLink = (child.getAttribute("data-link") || "").toLowerCase();
+          if (childLink) {
+            var childPath = childLink.replace(/^https?:\/\//, "").replace(/[?#].*$/, "");
+            if (childPath === refPath ||
+                childPath.indexOf(refPath) !== -1 ||
+                refPath.indexOf(childPath) !== -1) {
+              return child;
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    return null;
   }
 
   function applyDedup(clusters) {
     var feed = getFeedContainer();
     if (!feed) return;
+
+    // v1.8: vul ref -> titel map voor fallback matching
+    refTitleMap = {};
+    try {
+      var items = (window.State && window.State.items) || [];
+      for (var m = 0; m < items.length; m++) {
+        var it = items[m];
+        var ref = String(it.id || it.link || it.url || it.guid || "");
+        if (ref && it.title) refTitleMap[ref] = it.title;
+      }
+    } catch(e) {}
 
     // Reset eerdere dedup state
     var oldHidden = feed.querySelectorAll(".wd-dedup-hidden");
@@ -394,7 +457,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.7 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.8 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
