@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK v14.21 — Configuratie
-   - Centrale APP_VERSION
-   - Centrale wdLog functie
+   WAR DESK v14.22 — Configuratie
+   - v14.22: 3 Google News proxies (P0.3 fix)
+   - v14.21: centrale APP_VERSION
    ============================================================ */
 
-window.APP_VERSION = "v14.21";
+window.APP_VERSION = "v14.22";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -85,8 +85,11 @@ window.CONFIG = {
     "https://api.allorigins.win/raw?url="
   ],
 
+  /* v14.22: 3 Google News proxies voor redundantie */
   googleNewsProxies: [
-    "https://api.allorigins.win/raw?url="
+    "https://api.allorigins.win/raw?url=",
+    "https://corsproxy.io/?url=",
+    "https://newsfeed2.hassanbadri814.workers.dev/?url="
   ],
 
   fetchTimeoutMs: 10000,
