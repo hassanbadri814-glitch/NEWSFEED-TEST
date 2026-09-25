@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-map.js v1.5
+   WAR DESK — ai-map.js v1.6
+   - v1.6: defensieve cap + cleanup in run()
    - v1.5: getEventsSync() voor AI-chat fallback
    - v1.4: max-age filter (skip artikelen > 30 dagen oud)
-   - v1.3: getTimestamp pakt JONGSTE datum + hotspot drempel 1
    ============================================================ */
 
 (function(){
@@ -367,13 +367,24 @@
     return result;
   }
 
+  // v1.6: defensieve cap + cleanup
   function run() {
     var events = buildMilitaryEvents();
     if (events === null) return;
+
+    if (!Array.isArray(events)) events = [];
+    if (events.length > MAX_EVENTS) {
+      events = events.slice(0, MAX_EVENTS);
+    }
+
     var bus = getBus();
-    if (!bus) return;
+    if (!bus) {
+      events = null;
+      return;
+    }
     bus.emit("map:military-events", events);
     bus.emit("map:hotspots", calculateHotspots(events));
+    events = null;
   }
 
   function init() {
@@ -389,10 +400,9 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.5 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v1.6 geladen");
   }
 
-  // v1.5: sync API voor AI-chat
   window.MapAI = {
     run: run,
     getEventsSync: function(){
