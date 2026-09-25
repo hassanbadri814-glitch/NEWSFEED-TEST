@@ -1,6 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.9
-   - v1.9: Dedup — visuele main = eerste cluster-element dat in DOM staat
+   WAR DESK — ai-ui.js v2.0
+   - v2.0: Extractive samenvattingen (SummaryEngine integratie)
+   - v1.9: Dedup visuele main
+   - Trending + Ranking + Filter + Reorder + Dedup + Summary
    ============================================================ */
 
 (function(){
@@ -22,6 +24,19 @@
     return String(s || "").replace(/[&<>"']/g, function(c) {
       return { "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c];
     });
+  }
+
+  function getTimestamp(a) {
+    if (!a) return 0;
+    var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
+    for (var i = 0; i < fields.length; i++) {
+      var v = a[fields[i]];
+      if (v) {
+        var t = (typeof v === "number") ? v : new Date(v).getTime();
+        if (!isNaN(t) && t > 0) return t;
+      }
+    }
+    return 0;
   }
 
   function injectStyles() {
@@ -108,10 +123,138 @@
         fill: none; stroke: currentColor;
         stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
       }
+
+      /* Summary knop */
+      .wd-summary-btn {
+        display: inline-flex; align-items: center; gap: 5px;
+        padding: 5px 12px; margin-right: 8px;
+        background: linear-gradient(135deg, rgba(224,168,87,0.12), rgba(224,168,87,0.04));
+        border: 1px solid rgba(224,168,87,0.3);
+        color: var(--accent, #e0a857);
+        border-radius: 14px;
+        font-size: 10.5px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .wd-summary-btn:hover {
+        background: linear-gradient(135deg, rgba(224,168,87,0.22), rgba(224,168,87,0.08));
+        border-color: rgba(224,168,87,0.5);
+        transform: translateY(-1px);
+      }
+      .wd-summary-btn:active { transform: translateY(0); }
+
+      /* Summary overlay */
+      .wd-summary-overlay {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.75);
+        z-index: 99999998;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s;
+        display: flex; align-items: flex-end; justify-content: center;
+      }
+      .wd-summary-overlay.show { opacity: 1; pointer-events: auto; }
+      .wd-summary-box {
+        background: var(--bg-2, #0b1220);
+        border-top-left-radius: 22px;
+        border-top-right-radius: 22px;
+        border-top: 1px solid rgba(224,168,87,0.15);
+        padding: 20px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+        width: 100%;
+        max-height: 82vh;
+        overflow-y: auto;
+        transform: translateY(100%);
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 -10px 40px rgba(0,0,0,0.6);
+        -webkit-overflow-scrolling: touch;
+      }
+      .wd-summary-overlay.show .wd-summary-box { transform: translateY(0); }
+      .wd-summary-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 6px;
+      }
+      .wd-summary-head h3 {
+        font-size: 18px; font-weight: 700;
+        color: var(--ink-1, #f0f0f0);
+        margin: 0;
+        font-family: 'Playfair Display', Georgia, serif;
+      }
+      .wd-summary-close {
+        background: rgba(255,255,255,0.05);
+        border: none;
+        width: 34px; height: 34px;
+        border-radius: 50%;
+        color: rgba(255,255,255,0.6);
+        font-size: 16px;
+        cursor: pointer;
+        font-family: inherit;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .wd-summary-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+      .wd-summary-meta {
+        font-size: 11.5px;
+        color: rgba(255,255,255,0.45);
+        margin-bottom: 16px;
+        letter-spacing: 0.3px;
+      }
+      .wd-summary-list {
+        list-style: none; padding: 0; margin: 0;
+        display: flex; flex-direction: column; gap: 10px;
+      }
+      .wd-summary-list li {
+        position: relative;
+        padding: 14px 16px 14px 34px;
+        background: rgba(255,255,255,0.03);
+        border-left: 2px solid rgba(224,168,87,0.5);
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--ink-2, #d0d0d0);
+        cursor: pointer;
+        transition: all 0.15s;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .wd-summary-list li:hover {
+        background: rgba(224,168,87,0.06);
+        border-left-color: var(--accent, #e0a857);
+        transform: translateX(2px);
+      }
+      .wd-summary-list li::before {
+        content: '';
+        position: absolute;
+        left: 14px;
+        top: 20px;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--accent, #e0a857);
+        box-shadow: 0 0 8px rgba(224,168,87,0.5);
+      }
+      .wd-summary-source {
+        display: block;
+        margin-top: 6px;
+        font-size: 10.5px;
+        color: rgba(255,255,255,0.4);
+        font-weight: 600;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+      .wd-summary-empty {
+        padding: 24px;
+        text-align: center;
+        color: rgba(255,255,255,0.4);
+        font-size: 13px;
+      }
     `;
     document.head.appendChild(style);
   }
 
+  // ============ TRENDING ============
   var trendingContainer = null;
   var activeTrendTopic = null;
 
@@ -174,6 +317,7 @@
     }
   }
 
+  // ============ FEED HERORDENEN ============
   var isScrolling = false;
   var scrollTimer = null;
 
@@ -316,7 +460,6 @@
       var c = clusters[i];
       if (!c.mainId) continue;
 
-      // v1.9: verzamel ALLE cluster-elementen die in DOM staan
       var inDom = [];
       var mainEl = findArticleEl(feed, c.mainId);
       if (mainEl) inDom.push({ el: mainEl, ref: c.mainId });
@@ -326,11 +469,9 @@
         if (dupEl) inDom.push({ el: dupEl, ref: c.duplicateIds[j] });
       }
 
-      // We hebben minstens 2 elementen nodig om te tonen
       if (inDom.length < 2) continue;
       matched++;
 
-      // Eerste element wordt de visuele main
       var visualMain = inDom[0].el;
       var toHide = [];
       for (var k = 1; k < inDom.length; k++) {
@@ -338,7 +479,6 @@
         toHide.push(inDom[k].ref);
       }
 
-      // Badge
       var badge = document.createElement("button");
       badge.type = "button";
       badge.className = "wd-dedup-badge";
@@ -370,6 +510,117 @@
     if (window.wdLog) wdLog.info("[AI-UI] Dedup: " + matched + "/" + clusters.length + " clusters gematcht in DOM");
   }
 
+  // ============ SUMMARY UI ============
+  var summaryOverlay = null;
+
+  function injectSummaryButton() {
+    var actions = document.querySelector("#viewNews .section-head-actions");
+    if (!actions) return;
+    if (actions.querySelector(".wd-summary-btn")) return;
+
+    var btn = document.createElement("button");
+    btn.className = "wd-summary-btn";
+    btn.type = "button";
+    btn.innerHTML = '✨ Vat samen';
+    btn.addEventListener("click", onClickSummary);
+    actions.insertBefore(btn, actions.firstChild);
+  }
+
+  function onClickSummary() {
+    if (!window.SummaryEngine) {
+      if (window.showToast) window.showToast("Samenvatting engine niet geladen");
+      return;
+    }
+    var category = (window.State && window.State.currentCat) || "all";
+    var result = window.SummaryEngine.generate(category);
+    showSummaryOverlay(result);
+  }
+
+  function showSummaryOverlay(result) {
+    if (!summaryOverlay) {
+      summaryOverlay = document.createElement("div");
+      summaryOverlay.className = "wd-summary-overlay";
+      summaryOverlay.innerHTML = ''
+        + '<div class="wd-summary-box">'
+        +   '<div class="wd-summary-head">'
+        +     '<h3 id="wdSummaryTitle">Samenvatting</h3>'
+        +     '<button class="wd-summary-close" aria-label="Sluiten">✕</button>'
+        +   '</div>'
+        +   '<div class="wd-summary-meta" id="wdSummaryMeta"></div>'
+        +   '<ul class="wd-summary-list" id="wdSummaryList"></ul>'
+        + '</div>';
+      document.body.appendChild(summaryOverlay);
+
+      summaryOverlay.querySelector(".wd-summary-close").addEventListener("click", hideSummaryOverlay);
+      summaryOverlay.addEventListener("click", function(e){
+        if (e.target === summaryOverlay) hideSummaryOverlay();
+      });
+      document.addEventListener("keydown", function(e){
+        if (e.key === "Escape" && summaryOverlay.classList.contains("show")) hideSummaryOverlay();
+      });
+    }
+
+    var catNames = {
+      all: "Alles", war: "Oorlog", mideast: "Midden-Oosten",
+      europe: "Europa", nl: "Nederland", maroc: "Marokko",
+      vs: "VS", sport: "Sport", favorites: "Favorieten"
+    };
+    var catName = catNames[result.category] || result.category;
+
+    document.getElementById("wdSummaryTitle").textContent = "📝 " + catName;
+    document.getElementById("wdSummaryMeta").textContent =
+      result.count + " artikelen · " + result.bullets.length + " kernpunten";
+
+    var listEl = document.getElementById("wdSummaryList");
+    listEl.innerHTML = "";
+
+    if (!result.bullets.length) {
+      listEl.innerHTML = '<div class="wd-summary-empty">Geen samenvatting beschikbaar voor deze categorie.</div>';
+    } else {
+      for (var i = 0; i < result.bullets.length; i++) {
+        (function(b){
+          var li = document.createElement("li");
+          var source = (b.article && (b.article.source || "")) || "";
+          var time = "";
+          var ts = getTimestamp(b.article);
+          if (ts) {
+            var hours = Math.round((Date.now() - ts) / 3600000);
+            time = hours < 1 ? "net" : (hours < 24 ? hours + "u" : Math.round(hours / 24) + "d");
+          }
+          li.innerHTML = escapeHtml(b.text) +
+            '<span class="wd-summary-source">' + escapeHtml(source) + (time ? " · " + time : "") + '</span>';
+
+          li.addEventListener("click", function(){
+            hideSummaryOverlay();
+            var feed = getFeedContainer();
+            if (!feed || !b.article) return;
+            var ref = String(b.article.id || b.article.link || b.article.url || b.article.guid || "");
+            if (!ref) return;
+            var el = findArticleEl(feed, ref);
+            if (!el) return;
+            setTimeout(function(){
+              try { el.scrollIntoView({ behavior: "smooth", block: "center" }); }
+              catch(e){ el.scrollIntoView(); }
+              var prevBox = el.style.boxShadow;
+              el.style.transition = "box-shadow 0.3s";
+              el.style.boxShadow = "0 0 0 2px rgba(224,168,87,0.8)";
+              setTimeout(function(){ el.style.boxShadow = prevBox || ""; }, 1600);
+            }, 400);
+          });
+
+          listEl.appendChild(li);
+        })(result.bullets[i]);
+      }
+    }
+
+    setTimeout(function(){ summaryOverlay.classList.add("show"); }, 20);
+  }
+
+  function hideSummaryOverlay() {
+    if (summaryOverlay) summaryOverlay.classList.remove("show");
+  }
+
+  // ============ CLICK TRACKING ============
   document.addEventListener("click", function(e){
     if (e.target.closest && (e.target.closest("#trending-container") || e.target.closest(".wd-dedup-badge"))) return;
     var el = e.target.closest && e.target.closest("[data-article-id],[data-id]");
@@ -386,6 +637,7 @@
     } catch(err){}
   }, true);
 
+  // ============ ORCHESTRATIE ============
   function extractItems(payload) {
     if (!payload) return null;
     if (Array.isArray(payload)) return payload;
@@ -423,6 +675,8 @@
               var idle2 = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
               idle2(function(){ window.DedupEngine.process(articles); }, { timeout: 3000 });
             }
+            // Summary knop herinjecteren (want sectie kan opnieuw gerenderd zijn)
+            setTimeout(injectSummaryButton, 200);
           });
         });
       }, { timeout: 2000 });
@@ -433,6 +687,10 @@
     var bus = getBus();
     if (!bus) return;
     injectStyles();
+    injectSummaryButton();
+
+    // Her-injecteer periodiek (voor het geval de view opnieuw rendert)
+    setInterval(injectSummaryButton, 3000);
 
     bus.on("trending:update", renderTrending);
     bus.on("dedup:clusters", applyDedup);
@@ -446,7 +704,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.9 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v2.0 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
