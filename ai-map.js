@@ -1,6 +1,6 @@
 /* ============================================================
    WAR DESK — ai-map.js v1.3
-   - v1.3: getTimestamp pakt JONGSTE datum + hotspot drempel 2
+   - v1.3: getTimestamp pakt JONGSTE datum + hotspot drempel 1
    - v1.2: Region hotspots
    - v1.1: Unix timestamp fix
    ============================================================ */
@@ -176,7 +176,6 @@
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
-  // v1.3: Pak de JONGSTE van alle datumvelden
   function getTimestamp(a) {
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
@@ -322,7 +321,7 @@
     return events;
   }
 
-  // ============ v1.3: Drempel 2 voor hotspots ============
+  // ============ v1.3: HOTSPOTS met DREMPEL 1 ============
   function calculateHotspots(events) {
     if (!events || !events.length) return [];
 
@@ -352,12 +351,12 @@
       byCountry[cKey].lngSum += e.lng;
     }
 
-    // Stap 1: landen met 2+ events → land-hotspot
+    // Stap 1: landen met 1+ events → land-hotspot
     var landHotspots = [];
     var usedCountries = {};
     for (var c in byCountry) {
       var item = byCountry[c];
-      if (item.count >= 2) {
+      if (item.count >= 1) {
         landHotspots.push({
           label: item.country,
           type: "country",
@@ -370,61 +369,16 @@
       }
     }
 
-    // Stap 2: groepeer resterende events per regio (2+ events)
-    var byRegion = {};
-    for (var j = 0; j < allRecent.length; j++) {
-      var ev = allRecent[j];
-      var cKey2 = ev.country || "Onbekend";
-      if (usedCountries[cKey2]) continue;
-      var rKey = ev.region || "Onbekend";
-      if (!byRegion[rKey]) {
-        byRegion[rKey] = {
-          region: rKey,
-          count: 0,
-          latSum: 0, lngSum: 0,
-          countries: {}
-        };
-      }
-      byRegion[rKey].count++;
-      byRegion[rKey].latSum += ev.lat;
-      byRegion[rKey].lngSum += ev.lng;
-      byRegion[rKey].countries[ev.country] = (byRegion[rKey].countries[ev.country] || 0) + 1;
-    }
+    // Sorteer landen op count (hoogste eerst)
+    landHotspots.sort(function(a, b){ return b.count - a.count; });
 
-    var regionHotspots = [];
-    for (var r in byRegion) {
-      var rit = byRegion[r];
-      if (rit.count >= 2) {
-        var topCountry = "";
-        var topCount = 0;
-        for (var cc in rit.countries) {
-          if (rit.countries[cc] > topCount) {
-            topCount = rit.countries[cc];
-            topCountry = cc;
-          }
-        }
-        regionHotspots.push({
-          label: rit.region,
-          type: "region",
-          count: rit.count,
-          lat: rit.latSum / rit.count,
-          lng: rit.lngSum / rit.count,
-          topCountry: topCountry
-        });
-      }
-    }
-
-    // Combineer + sorteer op count
-    var combined = landHotspots.concat(regionHotspots);
-    combined.sort(function(a, b){ return b.count - a.count; });
-
-    // Dedup op label
+    // Dedup + max 5
     var seen = {};
     var result = [];
-    for (var k = 0; k < combined.length; k++) {
-      if (seen[combined[k].label]) continue;
-      seen[combined[k].label] = true;
-      result.push(combined[k]);
+    for (var k = 0; k < landHotspots.length; k++) {
+      if (seen[landHotspots[k].label]) continue;
+      seen[landHotspots[k].label] = true;
+      result.push(landHotspots[k]);
       if (result.length >= 5) break;
     }
 
