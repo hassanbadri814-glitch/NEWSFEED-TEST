@@ -1,10 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-trending.js v1.5
-   - v1.5: Named Entity Recognition
-     * Proper nouns (namen, plaatsen) krijgen 2.5x bonus
-     * Bigrams ("white house") als één topic
-     * Unigrams alleen bij hoge frequentie (5+)
-     * Betere dedupe (geen "trump" als "donald trump" al staat)
+   WAR DESK — ai-trending.js v1.6
+   - v1.6: FIX — case-insensitive merge (Trump + trump = 1 topic)
+     * Aggregatie op lowercase
+     * Display: proper noun vorm wint (Trump ipv trump)
    ============================================================ */
 
 (function(){
@@ -37,11 +35,9 @@
    "think","thought","know","knew","want","wanted","need","needed","find","found",
    "video","videos","photo","photos","report","reports","update","updates",
    "nieuws","video","foto","fotos","bericht","berichten",
-   // v1.5: generieke rollen/titels
    "minister","president","prime","premier","king","queen","leader","chief",
    "official","officials","spokesman","spokesperson","general","doctor","dr",
    "mr","mrs","ms","lord","sir","uncle","aunt","brother","sister",
-   // v1.5: generieke werkwoorden
    "says","told","called","asked","urged","warned","claimed","denied",
    "confirmed","announced","declared","stated","reported","added"]
     .forEach(function(w){ STOP_WORDS[w] = true; });
@@ -63,10 +59,27 @@
     return 0;
   }
 
+  // Centrale aggregatie: alles op lowercase, maar onthoud mooiste display vorm
+  function bump(store, key, displayForm, weight, isProperNoun) {
+    if (!store[key]) {
+      store[key] = { topic: displayForm, score: 0, count: 0, proper: false };
+    }
+    store[key].score += weight;
+    store[key].count += 1;
+    // Proper noun heeft voorkeur voor display
+    if (isProperNoun && !store[key].proper) {
+      store[key].topic = displayForm;
+      store[key].proper = true;
+    } else if (!store[key].proper && displayForm.length > store[key].topic.length) {
+      // Anders: langste vorm wint (voorkomt "trump" als "Trump" bestaat)
+      store[key].topic = displayForm;
+    }
+  }
+
   function extractEntities(articles) {
-    var properNounCounts = {};
-    var bigramCounts = {};
-    var unigramCounts = {};
+    var properStore = {};   // lowercase key -> { topic, score, count }
+    var bigramStore = {};
+    var unigramStore = {};
     var now = Date.now();
     var cutoff = now - (WINDOW_HOURS * 60 * 60 * 1000);
 
@@ -91,7 +104,7 @@
       var tw = Math.max(0.3, 1 - ageHours / WINDOW_HOURS);
       var c = sw * tw;
 
-      // 1. PROPER NOUNS (namen, plaatsen)
+      // 1. PROPER NOUNS
       var seenProper = {};
       pnRegex.lastIndex = 0;
       var m;
@@ -101,12 +114,7 @@
         if (STOP_WORDS[lower]) continue;
         if (seenProper[lower]) continue;
         seenProper[lower] = true;
-
-        if (!properNounCounts[lower]) {
-          properNounCounts[lower] = { topic: entity, score: 0, count: 0 };
-        }
-        properNounCounts[lower].score += c;
-        properNounCounts[lower].count += 1;
+        bump(properStore, lower, entity, c, true);
       }
 
       // 2. LOWERCASE TOKENS
@@ -121,9 +129,7 @@
         var bg = words[k] + " " + words[k + 1];
         if (seenBi[bg]) continue;
         seenBi[bg] = true;
-        if (!bigramCounts[bg]) bigramCounts[bg] = { topic: bg, score: 0, count: 0 };
-        bigramCounts[bg].score += c;
-        bigramCounts[bg].count += 1;
+        bump(bigramStore, bg, bg, c, false);
       }
 
       // Unigrams
@@ -132,51 +138,48 @@
         var w = words[k2];
         if (seenUni[w]) continue;
         seenUni[w] = true;
-        if (!unigramCounts[w]) unigramCounts[w] = { topic: w, score: 0, count: 0 };
-        unigramCounts[w].score += c;
-        unigramCounts[w].count += 1;
+        bump(unigramStore, w, w, c, false);
       }
     }
 
     if (window.wdLog) wdLog.info("[Trending] Analyse: " + processed + "/" + articles.length + " artikelen");
 
-    // ============ MERGE + SCORE ============
-    var pool = [];
+    // ============ MERGE + DEDUPE ============
+    // v1.6: alle stores samenvoegen op lowercase key — Trump + trump = 1
+    var merged = {};
 
-    // Proper nouns: 2.5x bonus, min 2 mentions
-    for (var pk in properNounCounts) {
-      if (properNounCounts[pk].count >= 2) {
-        pool.push({
-          topic: properNounCounts[pk].topic,
-          score: properNounCounts[pk].score * 2.5,
-          count: properNounCounts[pk].count
-        });
+    function mergeInto(store, multiplier, minCount, isProper) {
+      for (var k in store) {
+        var e = store[k];
+        if (e.count < minCount) continue;
+        if (!merged[k]) {
+          merged[k] = { topic: e.topic, score: 0, count: 0, proper: false };
+        }
+        merged[k].score += e.score * multiplier;
+        merged[k].count += e.count;
+        if (isProper) {
+          merged[k].topic = e.topic;
+          merged[k].proper = true;
+        }
       }
     }
 
-    // Bigrams: 1.5x bonus, min 3 mentions
-    for (var bk in bigramCounts) {
-      if (bigramCounts[bk].count >= 3) {
-        pool.push({
-          topic: bigramCounts[bk].topic,
-          score: bigramCounts[bk].score * 1.5,
-          count: bigramCounts[bk].count
-        });
-      }
-    }
-
-    // Unigrams: 1x, min 5 mentions
-    for (var uk in unigramCounts) {
-      if (unigramCounts[uk].count >= 5) {
-        pool.push({
-          topic: unigramCounts[uk].topic,
-          score: unigramCounts[uk].score,
-          count: unigramCounts[uk].count
-        });
-      }
-    }
+    // Proper nouns eerst (2.5x bonus)
+    mergeInto(properStore, 2.5, 2, true);
+    // Bigrams (1.5x bonus)
+    mergeInto(bigramStore, 1.5, 3, false);
+    // Unigrams (1x, min 5)
+    mergeInto(unigramStore, 1.0, 5, false);
 
     // ============ SORT + DEDUPE ============
+    var pool = [];
+    for (var mk in merged) {
+      pool.push({
+        topic: merged[mk].topic,
+        score: merged[mk].score,
+        count: merged[mk].count
+      });
+    }
     pool.sort(function(a, b){ return b.score - a.score; });
 
     var result = [];
@@ -184,12 +187,11 @@
 
     for (var pi = 0; pi < pool.length && result.length < 5; pi++) {
       var item = pool[pi];
-      var wordsArr = item.topic.split(/\s+/);
+      var wordsArr = item.topic.toLowerCase().split(/\s+/);
       var overlap = 0;
       for (var wi = 0; wi < wordsArr.length; wi++) {
         if (usedWords[wordsArr[wi]]) overlap++;
       }
-      // Skip als meer dan helft overlapt met eerder gekozen topic
       if (overlap > 0 && overlap >= wordsArr.length / 2) continue;
 
       for (var wi2 = 0; wi2 < wordsArr.length; wi2++) {
@@ -244,6 +246,6 @@
 
   window.TrendingEngine = { run: run };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.5 geladen");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-trending.js v1.6 geladen");
 
 })();
