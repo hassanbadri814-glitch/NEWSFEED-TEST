@@ -1,177 +1,95 @@
 /* ============================================================
-   WAR DESK — ai-dedup.js v1.1
-   - v1.1: worker failure → stop na 1 fout (geen retry spam)
+   WAR DESK — ai-dedup.js v2.0
+   Fuzzy-match dedup — geen worker, geen model, geen CDN
+   - Jaccard similarity op titel-woorden
+   - Union-Find clustering
+   - 100% client-side, <100ms per run
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var SIMILARITY_THRESHOLD = 0.75;
-  var MAX_ARTICLES_TO_EMBED = 200;
-  var STORAGE_KEY = "war_desk_embedding_cache_v1";
-  var CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+  var SIMILARITY_THRESHOLD = 0.55;      // Jaccard drempel
+  var CONTAINMENT_THRESHOLD = 0.85;     // Als korte titel bijna volledig in lange zit
+  var MIN_WORDS_FOR_MATCH = 3;          // Minimaal aantal gedeelde woorden
+  var MAX_ARTICLES = 250;               // Beperk tot meest recente 250
 
-  var worker = null;
-  var workerBroken = false;
-  var isProcessing = false;
-  var embeddingCache = {};
+  var STOP_WORDS = {};
+  ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
+   "ook","als","maar","bij","of","uit","dan","naar","nog","wel","geen","kan","meer","wordt",
+   "door","over","ze","zich","niet","heeft","hebben","worden","deze","dit","tot","je","u",
+   "we","ik","hij","zij","jij","mijn","jouw","ons","onze",
+   "the","and","for","with","that","this","from","have","has","are","was","were","will",
+   "been","they","their","you","your","says","said","say","after","before","during","about",
+   "into","under","more","less","just","also","new","two","three","first","last","next",
+   "back","against","between","through","which","what","when","where","who","how","why",
+   "than","then","very","much","many","some","only","even","still","being","does","did","done"]
+    .forEach(function(w){ STOP_WORDS[w] = true; });
 
   function getBus() {
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
-  function loadCache() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-      var parsed = JSON.parse(raw);
-      var now = Date.now();
-      for (var k in parsed) {
-        if (now - parsed[k].t < CACHE_MAX_AGE) {
-          embeddingCache[k] = parsed[k];
-        }
-      }
-    } catch(e){}
-  }
-
-  var saveTimer = null;
-  function saveCache() {
-    if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(function(){
-      try {
-        var keys = Object.keys(embeddingCache);
-        if (keys.length > 500) {
-          keys.sort(function(a, b){ return embeddingCache[b].t - embeddingCache[a].t; });
-          var toKeep = {};
-          for (var i = 0; i < 500; i++) toKeep[keys[i]] = embeddingCache[keys[i]];
-          embeddingCache = toKeep;
-        }
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(embeddingCache));
-      } catch(e) {}
-    }, 5000);
-  }
-
-  function hashCode(str) {
-    var h = 0;
-    for (var i = 0; i < str.length; i++) {
-      h = ((h << 5) - h) + str.charCodeAt(i);
-      h |= 0;
-    }
-    return String(h);
-  }
-
-  function articleKey(a) {
-    var text = ((a.title || "") + "|" + (a.description || "")).slice(0, 200);
-    return hashCode(text);
-  }
-
-  function getWorker() {
-    if (workerBroken) return null;
-    if (worker) return worker;
-    try {
-      worker = new Worker("dedup-worker.js");
-      worker.onmessage = onWorkerMessage;
-      worker.onerror = function(e) {
-        if (window.wdLog) wdLog.warn("[Dedup] Worker error: " + (e.message || "onbekend"));
-        workerBroken = true;
-      };
-      return worker;
-    } catch(e) {
-      if (window.wdLog) wdLog.warn("[Dedup] Worker niet beschikbaar: " + e.message);
-      workerBroken = true;
-      return null;
-    }
-  }
-
-  var pendingArticles = null;
-  var pendingCached = null;
-
-  function onWorkerMessage(e) {
-    var msg = e.data;
-    if (!msg || !msg.type) return;
-
-    if (msg.type === "log") {
-      if (window.wdLog) wdLog.info("[Dedup-Worker] " + msg.message);
-      return;
-    }
-
-    if (msg.type === "progress") {
-      if (window.wdLog && msg.stage === "embedding" && msg.current % 25 === 0) {
-        wdLog.info("[Dedup] Embedding " + msg.current + "/" + msg.total);
-      }
-      return;
-    }
-
-    if (msg.type === "embeddings") {
-      isProcessing = false;
-      var newData = msg.data;
-      var cached = pendingCached || [];
-      var toEmbed = pendingArticles || [];
-
-      var now = Date.now();
-      for (var i = 0; i < newData.length; i++) {
-        if (!newData[i].vector || !toEmbed[i]) continue;
-        var key = articleKey(toEmbed[i]);
-        embeddingCache[key] = { v: newData[i].vector, t: now };
-      }
-      saveCache();
-
-      var all = cached.slice();
-      for (var j = 0; j < newData.length; j++) {
-        if (newData[j].vector && toEmbed[j]) {
-          all.push({ vector: newData[j].vector, article: toEmbed[j] });
-        }
-      }
-
-      pendingArticles = null;
-      pendingCached = null;
-
-      if (all.length < 2) {
-        if (window.wdLog) wdLog.info("[Dedup] Te weinig vectors voor clustering");
-        return;
-      }
-
-      var clusters = clusterArticles(all);
-      var bus = getBus();
-      if (bus) bus.emit("dedup:clusters", clusters);
-      if (window.wdLog) wdLog.info("[Dedup] " + clusters.length + " clusters uit " + all.length + " artikelen");
-      return;
-    }
-
-    if (msg.type === "error") {
-      if (window.wdLog) wdLog.warn("[Dedup] Worker error: " + msg.message);
-      isProcessing = false;
-      pendingArticles = null;
-      pendingCached = null;
-      if (msg.fatal) {
-        workerBroken = true;
-        if (window.wdLog) wdLog.warn("[Dedup] Worker geblokkeerd — geen verdere pogingen");
+  function getTimestamp(a) {
+    if (!a) return 0;
+    var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
+    for (var i = 0; i < fields.length; i++) {
+      var v = a[fields[i]];
+      if (v) {
+        var t = (typeof v === "number") ? v : new Date(v).getTime();
+        if (!isNaN(t) && t > 0) return t;
       }
     }
+    return 0;
   }
 
-  function cosineSimilarity(a, b) {
-    var dot = 0, ma = 0, mb = 0;
-    for (var i = 0; i < a.length; i++) {
-      dot += a[i] * b[i];
-      ma += a[i] * a[i];
-      mb += b[i] * b[i];
+  // Tokenize: lowercase, verwijder leestekens, filter stopwoorden
+  function tokenize(title) {
+    if (!title) return [];
+    var t = title.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ");
+    return t.split(/\s+/).filter(function(w) {
+      return w.length > 3 && !STOP_WORDS[w];
+    });
+  }
+
+  // Jaccard similarity: |A∩B| / |A∪B|
+  function jaccard(setA, setB) {
+    var inter = 0;
+    for (var k in setA) if (setB[k]) inter++;
+    var union = 0;
+    for (var k2 in setA) union++;
+    for (var k3 in setB) if (!setA[k3]) union++;
+    return union === 0 ? 0 : inter / union;
+  }
+
+  // Containment: percentage van kleine set die in grote set zit
+  function containment(small, big) {
+    var total = 0, found = 0;
+    for (var k in small) {
+      total++;
+      if (big[k]) found++;
     }
-    var denom = Math.sqrt(ma) * Math.sqrt(mb);
-    return denom === 0 ? 0 : dot / denom;
+    return total === 0 ? 0 : found / total;
   }
 
-  function clusterArticles(items) {
-    var n = items.length;
-    var vectors = new Array(n);
-    var articles = new Array(n);
+  function clusterArticles(articles) {
+    var n = articles.length;
+    if (n < 2) return [];
+
+    // Precompute tokens per artikel
+    var tokens = new Array(n);
+    var sets = new Array(n);
     for (var i = 0; i < n; i++) {
-      vectors[i] = items[i].vector;
-      articles[i] = items[i].article;
+      var toks = tokenize(articles[i].title || "");
+      tokens[i] = toks;
+      var s = {};
+      for (var t = 0; t < toks.length; t++) s[toks[t]] = 1;
+      sets[i] = s;
     }
 
+    // Union-Find
     var parent = new Array(n);
-    for (var i2 = 0; i2 < n; i2++) parent[i2] = i2;
+    for (var u = 0; u < n; u++) parent[u] = u;
 
     function find(x) {
       var root = x;
@@ -184,99 +102,142 @@
       return root;
     }
 
-    for (var i3 = 0; i3 < n; i3++) {
-      for (var j3 = i3 + 1; j3 < n; j3++) {
-        var sim = cosineSimilarity(vectors[i3], vectors[j3]);
-        if (sim >= SIMILARITY_THRESHOLD) {
-          var ri = find(i3), rj = find(j3);
-          if (ri !== rj) parent[ri] = rj;
+    function union(a, b) {
+      var ra = find(a), rb = find(b);
+      if (ra !== rb) parent[ra] = rb;
+    }
+
+    // Vergelijk alle paren
+    var matches = 0;
+    for (var x = 0; x < n; x++) {
+      if (tokens[x].length < 2) continue;
+      for (var y = x + 1; y < n; y++) {
+        if (tokens[y].length < 2) continue;
+
+        // Skip als artikel-lengte te ver uit elkaar ligt (< 40% verschil)
+        var lenA = tokens[x].length;
+        var lenB = tokens[y].length;
+        var ratio = Math.min(lenA, lenB) / Math.max(lenA, lenB);
+        if (ratio < 0.4) continue;
+
+        var jSim = jaccard(sets[x], sets[y]);
+
+        // Boost als kleine titel bijna volledig in grote zit (containment case)
+        var cSim = 0;
+        if (lenA <= lenB) cSim = containment(sets[x], sets[y]);
+        else cSim = containment(sets[y], sets[x]);
+
+        var score = Math.max(jSim, cSim * 0.85);
+
+        // Check gedeelde woorden (voorkom generieke matches)
+        var shared = 0;
+        for (var k in sets[x]) if (sets[y][k]) shared++;
+
+        if (score >= SIMILARITY_THRESHOLD && shared >= MIN_WORDS_FOR_MATCH) {
+          union(x, y);
+          matches++;
+        } else if (cSim >= CONTAINMENT_THRESHOLD && shared >= MIN_WORDS_FOR_MATCH) {
+          union(x, y);
+          matches++;
         }
       }
     }
 
+    // Groepeer
     var groups = {};
-    for (var k = 0; k < n; k++) {
-      var root = find(k);
+    for (var g = 0; g < n; g++) {
+      var root = find(g);
       if (!groups[root]) groups[root] = [];
-      groups[root].push(k);
+      groups[root].push(g);
     }
 
+    // Bouw clusters (alleen > 1)
     var clusters = [];
     for (var r in groups) {
       var idxs = groups[r];
       if (idxs.length < 2) continue;
+
+      // Hoofdartikel = langste titel (meest beschrijvend)
       var mainIdx = idxs[0];
       var mainLen = (articles[mainIdx].title || "").length;
       for (var m = 1; m < idxs.length; m++) {
         var len = (articles[idxs[m]].title || "").length;
-        if (len > mainLen) { mainIdx = idxs[m]; mainLen = len; }
+        if (len > mainLen) {
+          mainIdx = idxs[m];
+          mainLen = len;
+        }
       }
+
       var dupes = [];
       for (var d = 0; d < idxs.length; d++) {
         if (idxs[d] !== mainIdx) dupes.push(articles[idxs[d]].id);
       }
+
       clusters.push({
         mainId: articles[mainIdx].id,
         duplicateIds: dupes,
         size: idxs.length
       });
     }
+
     return clusters;
   }
 
-  function process(articles) {
-    if (workerBroken) return;
-    if (!articles || articles.length < 2) return;
-    if (isProcessing) {
-      if (window.wdLog) wdLog.info("[Dedup] Skip — al bezig");
-      return;
-    }
+  var lastRunHash = "";
 
-    var sorted = articles.slice().sort(function(a, b){
-      var ta = a.pubDate ? new Date(a.pubDate).getTime() : 0;
-      var tb = b.pubDate ? new Date(b.pubDate).getTime() : 0;
-      return tb - ta;
-    }).slice(0, MAX_ARTICLES_TO_EMBED);
-
-    var toEmbed = [];
-    var cached = [];
-    for (var i = 0; i < sorted.length; i++) {
-      var key = articleKey(sorted[i]);
-      if (embeddingCache[key]) {
-        cached.push({ vector: embeddingCache[key].v, article: sorted[i] });
-      } else {
-        toEmbed.push(sorted[i]);
+  function hashArticles(articles) {
+    // Snelle hash om te detecteren of de artikelenlijst is veranderd
+    var h = articles.length;
+    for (var i = 0; i < Math.min(articles.length, 10); i++) {
+      var id = String(articles[i].id || articles[i].link || "");
+      for (var j = 0; j < id.length; j++) {
+        h = ((h << 5) - h) + id.charCodeAt(j);
+        h |= 0;
       }
     }
-
-    if (toEmbed.length === 0) {
-      if (window.wdLog) wdLog.info("[Dedup] Alle " + cached.length + " uit cache");
-      if (cached.length < 2) return;
-      var clusters = clusterArticles(cached);
-      var bus = getBus();
-      if (bus) bus.emit("dedup:clusters", clusters);
-      if (window.wdLog) wdLog.info("[Dedup] " + clusters.length + " clusters (cache)");
-      return;
-    }
-
-    var w = getWorker();
-    if (!w) return;
-
-    isProcessing = true;
-    pendingArticles = toEmbed;
-    pendingCached = cached;
-    if (window.wdLog) wdLog.info("[Dedup] " + toEmbed.length + " nieuw, " + cached.length + " uit cache");
-
-    w.postMessage({ type: "embed", articles: toEmbed });
+    return String(h);
   }
 
-  loadCache();
+  function process(articles) {
+    if (!articles || articles.length < 2) return;
+
+    var hash = hashArticles(articles);
+    if (hash === lastRunHash) return;
+    lastRunHash = hash;
+
+    // Beperk tot meest recente N
+    var sorted = articles.slice().sort(function(a, b) {
+      return getTimestamp(b) - getTimestamp(a);
+    }).slice(0, MAX_ARTICLES);
+
+    var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
+    idle(function(){
+      try {
+        var startTime = performance.now ? performance.now() : Date.now();
+        var clusters = clusterArticles(sorted);
+        var elapsed = (performance.now ? performance.now() : Date.now()) - startTime;
+
+        var bus = getBus();
+        if (bus) bus.emit("dedup:clusters", clusters);
+
+        if (window.wdLog) {
+          wdLog.info("[Dedup] " + clusters.length + " clusters uit " + sorted.length + " artikelen (" + Math.round(elapsed) + "ms)");
+          if (clusters.length > 0) {
+            var largest = clusters.reduce(function(max, c){ return c.size > max.size ? c : max; }, clusters[0]);
+            wdLog.info("[Dedup] Grootste cluster: " + largest.size + " artikelen");
+          }
+        }
+      } catch(e) {
+        if (window.wdLog) wdLog.warn("[Dedup] fout: " + (e && e.message));
+      }
+    }, { timeout: 3000 });
+  }
 
   window.DedupEngine = {
     process: process,
-    isReady: function(){ return !!worker && !workerBroken; }
+    isReady: function(){ return true; }
   };
 
-  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v1.1 geladen");
+  if (window.wdLog) wdLog.info("[WAR DESK] ai-dedup.js v2.0 geladen (fuzzy-match, geen worker)");
 
 })();
