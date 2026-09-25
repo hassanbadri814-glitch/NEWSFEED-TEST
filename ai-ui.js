@@ -1,6 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v1.6
-   - v1.6: Dedup integratie (verberg duplicaten, badge op main)
+   WAR DESK — ai-ui.js v1.7
+   - v1.7: Dedup matching op data-article-id / data-id / data-link
+   - v1.6: Dedup integratie
+   - v1.5: Compactere pills + sticky label
+   - Trending + Ranking + Filter + Reorder + Dedup
    ============================================================ */
 
 (function(){
@@ -98,6 +101,7 @@
         font-size: 11px; font-weight: 600; cursor: pointer;
         transition: all 0.15s;
         -webkit-tap-highlight-color: transparent;
+        font-family: inherit;
       }
       .wd-dedup-badge:hover {
         background: rgba(224,168,87,0.15);
@@ -219,7 +223,8 @@
     var usedCount = 0;
 
     for (var j = 0; j < rankedArticles.length; j++) {
-      var aid = String(rankedArticles[j].id || rankedArticles[j].link || "");
+      var a = rankedArticles[j];
+      var aid = String(a.id || a.link || a.url || a.guid || "");
       if (aid && byId[aid] && !used[aid]) {
         fragment.appendChild(byId[aid]);
         used[aid] = true;
@@ -238,7 +243,17 @@
     feed.appendChild(fragment);
   }
 
-  // ============ DEDUP RENDERING ============
+  // ============ DEDUP — v1.7 matching op meerdere attributen ============
+  function findArticleEl(feed, ref) {
+    if (!feed || !ref) return null;
+    var r = String(ref).replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return feed.querySelector(
+      '[data-article-id="' + r + '"],' +
+      '[data-id="' + r + '"],' +
+      '[data-link="' + r + '"]'
+    );
+  }
+
   function applyDedup(clusters) {
     var feed = getFeedContainer();
     if (!feed) return;
@@ -252,16 +267,19 @@
     if (!clusters || !clusters.length) return;
 
     var chevronSvg = '<svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>';
+    var matched = 0;
 
     for (var i = 0; i < clusters.length; i++) {
       var c = clusters[i];
-      var mainEl = feed.querySelector('[data-article-id="' + c.mainId + '"],[data-id="' + c.mainId + '"]');
+      if (!c.mainId) continue;
+
+      var mainEl = findArticleEl(feed, c.mainId);
       if (!mainEl) continue;
+      matched++;
 
       // Verberg duplicaten
       for (var j = 0; j < c.duplicateIds.length; j++) {
-        var dupId = c.duplicateIds[j];
-        var dupEl = feed.querySelector('[data-article-id="' + dupId + '"],[data-id="' + dupId + '"]');
+        var dupEl = findArticleEl(feed, c.duplicateIds[j]);
         if (dupEl) dupEl.classList.add("wd-dedup-hidden");
       }
 
@@ -271,14 +289,15 @@
       badge.className = "wd-dedup-badge";
       badge.innerHTML = chevronSvg + '<span>+' + c.duplicateIds.length + ' bron' + (c.duplicateIds.length > 1 ? 'nen' : '') + '</span>';
       badge.setAttribute("data-expanded", "false");
+      badge.setAttribute("data-dups", JSON.stringify(c.duplicateIds));
+
       badge.addEventListener("click", function(e){
         e.preventDefault();
         e.stopPropagation();
         var expanded = this.getAttribute("data-expanded") === "true";
-        var clusterMain = this.parentNode;
         var dupIds = JSON.parse(this.getAttribute("data-dups") || "[]");
         for (var d = 0; d < dupIds.length; d++) {
-          var dEl = feed.querySelector('[data-article-id="' + dupIds[d] + '"],[data-id="' + dupIds[d] + '"]');
+          var dEl = findArticleEl(feed, dupIds[d]);
           if (dEl) {
             if (expanded) dEl.classList.add("wd-dedup-hidden");
             else dEl.classList.remove("wd-dedup-hidden");
@@ -289,12 +308,11 @@
           ? "+" + dupIds.length + " bron" + (dupIds.length > 1 ? "nen" : "")
           : "−" + dupIds.length + " verberg";
       });
-      badge.setAttribute("data-dups", JSON.stringify(c.duplicateIds));
 
       mainEl.appendChild(badge);
     }
 
-    if (window.wdLog) wdLog.info("[AI-UI] Dedup toegepast op " + clusters.length + " clusters");
+    if (window.wdLog) wdLog.info("[AI-UI] Dedup: " + matched + "/" + clusters.length + " clusters gematcht in DOM");
   }
 
   // ============ CLICK TRACKING ============
@@ -349,7 +367,6 @@
         requestAnimationFrame(function(){
           requestAnimationFrame(function(){
             reorderFeed(ranked);
-            // Dedup pas na reorder, idle
             if (window.DedupEngine) {
               var idle2 = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
               idle2(function(){ window.DedupEngine.process(articles); }, { timeout: 3000 });
@@ -377,7 +394,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.6 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v1.7 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
@@ -416,37 +433,5 @@
   } else {
     init();
   }
-// ============================================================
-// TIJDELIJKE DEBUG KNOP — verwijder na diagnose
-// ============================================================
-setTimeout(function(){
-  if (document.getElementById("wd-debug-dedup")) return;
-  var btn = document.createElement("button");
-  btn.id = "wd-debug-dedup";
-  btn.textContent = "🔍";
-  btn.style.cssText = "position:fixed;bottom:100px;right:20px;z-index:99999999;" +
-    "width:50px;height:50px;border-radius:50%;background:#7c3aed;color:white;" +
-    "font-size:22px;border:none;box-shadow:0 4px 14px rgba(124,58,237,0.5);" +
-    "cursor:pointer;-webkit-tap-highlight-color:transparent;";
-  btn.addEventListener("click", function(){
-    var feed = document.getElementById("feedGrid")
-      || document.querySelector(".feed-grid");
-    var cards = document.querySelectorAll("[data-article-id]");
-    var badges = document.querySelectorAll(".wd-dedup-badge");
-    var firstCard = feed && feed.children[0];
-    var firstId = firstCard ? (firstCard.getAttribute("data-article-id") || "(geen)") : "(geen kaart)";
-    var firstClass = firstCard ? firstCard.className : "(n/a)";
-    var firstHTML = firstCard ? firstCard.outerHTML.slice(0, 200).replace(/</g, "‹") : "(n/a)";
 
-    var msg = "Kaarten met data-article-id: " + cards.length +
-              "\nBadges in DOM: " + badges.length +
-              "\nEerste kaart ID: " + firstId +
-              "\nEerste kaart class: " + firstClass +
-              "\n\nHTML:\n" + firstHTML;
-
-    alert(msg);
-    if (window.wdLog) wdLog.info("[DEBUG] IDs: " + cards.length + ", Badges: " + badges.length);
-  });
-  document.body.appendChild(btn);
-}, 3000);
 })();
