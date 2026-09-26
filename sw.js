@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK Service Worker v3.0
-   - v3.0: cache-bump (v14.49) + fix voor Cinemeta JSON responses
+   WAR DESK Service Worker v3.1
+   - v3.1: cache-bump v14.51
    ============================================================ */
 
-const CACHE_VERSION = 'v14.49';
+const CACHE_VERSION = 'v14.51';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
