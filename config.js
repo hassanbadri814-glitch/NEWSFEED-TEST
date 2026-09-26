@@ -1,11 +1,12 @@
 /* ============================================================
-   WAR DESK v14.30 — Configuratie
+   WAR DESK v14.32 — Configuratie
+   - v14.32: TAGS_VERSION 5 (sport als exclusieve categorie)
+   - v14.31: MyMemory email voor 10x hogere vertaal-limiet
    - v14.30: +Liveuamap +GeoConfirmed (7 X-feeds totaal)
-   - v14.29: 5 X-feeds via Worker proxy
    ============================================================ */
 
-window.APP_VERSION = "v14.31";
-window.TAGS_VERSION = "4";
+window.APP_VERSION = "v14.32";
+window.TAGS_VERSION = "5";
 window.MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -310,25 +311,18 @@ window.FEEDS = [
   {n:"Radio Dabanga",lang:"en",cat:"sudan",url:"https://www.dabangasudan.org/en/rss"},
   {n:"SABA Yemen",lang:"en",cat:"yemen",url:"https://www.saba.ye/en/rsscatfeed14.htm"},
   {n:"Mehr News Iran",lang:"en",cat:"iran",url:"https://en.mehrnews.com/rss"},
-  {n:"Middle East Monitor",lang:"en",cat:"gaza",url:"https://www.middleeasteye.net/rss"},
+  {n:"Middle East Monitor",lang:"en",cat:"gaza",url:"https://www.middleeastmonitor.com/feed/"},
   {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"},
 
   /* ============================================================
      X / TWITTER — 7 accounts via Worker proxy
      ============================================================ */
 
-  /* Nieuws agentschappen */
   {n:"Reuters TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Reuters"},
-
-  /* Arabisch */
   {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=ajarabic"},
   {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=AlArabiya"},
-
-  /* Algemeen */
   {n:"Clash Report TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=clashreport"},
   {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=MiddleEastEye"},
-
-  /* OSINT voor kaart-events */
   {n:"Liveuamap TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Liveuamap"},
   {n:"GeoConfirmed TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=GeoConfirmed"}
 ];
