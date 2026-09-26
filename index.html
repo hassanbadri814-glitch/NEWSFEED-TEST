@@ -209,7 +209,7 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
   .wd-banner-install{display:none!important}
 }
 
-/* Compacte header op niet-Nieuws */
+/* ===== Compacte header op niet-Nieuws (desktop) ===== */
 body:has(#viewMap:not([hidden])) .header-stats,
 body:has(#viewIptv:not([hidden])) .header-stats,
 body:has(#viewVod:not([hidden])) .header-stats,
@@ -238,6 +238,21 @@ body:has(#viewIptv:not([hidden])) .brand-mark svg,
 body:has(#viewVod:not([hidden])) .brand-mark svg,
 body:has(#viewAi:not([hidden])) .brand-mark svg {
   width: 18px !important; height: 18px !important;
+}
+
+/* ===== Compacte header op MOBIEL (alle views) ===== */
+@media (max-width: 640px) {
+  .header-stats { display: none !important; }
+  .header-inner {
+    padding: .55rem .85rem !important;
+    gap: .55rem !important;
+    min-height: 52px !important;
+  }
+  .brand-mark { width: 36px !important; height: 36px !important; border-radius: 10px !important; }
+  .brand-mark svg { width: 20px !important; height: 20px !important; }
+  .brand-text .name { font-size: 1.05rem !important; }
+  .brand-text .tag { font-size: .62rem !important; letter-spacing: .14em !important; }
+  .btn-mini { width: 36px !important; height: 36px !important; font-size: .95rem !important; }
 }
 
 #wdHotspotStrip, .wd-hotspot-strip { display: none !important; }
@@ -316,7 +331,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
 }
 #viewVod .section-head {
   position: sticky !important;
-  top: var(--header-h, 62px) !important;
+  top: var(--header-h, 52px) !important;
   z-index: 20 !important;
   background: var(--bg) !important;
   padding: .35rem 0 .4rem !important;
@@ -326,16 +341,16 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
 #viewVod .section-head::after { display: none !important; }
 #viewVod .vod-search-wrap {
   position: sticky !important;
-  top: calc(var(--header-h, 62px) + 34px) !important;
+  top: calc(var(--header-h, 52px) + 34px) !important;
   z-index: 19 !important;
   background: var(--bg) !important;
   padding: .35rem 0 .55rem !important;
   margin-bottom: .35rem !important;
 }
 #viewVod .vod-sidebar {
-  top: calc(var(--header-h, 62px) + 80px) !important;
-  max-height: calc(100vh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
-  max-height: calc(100dvh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
+  top: calc(var(--header-h, 52px) + 80px) !important;
+  max-height: calc(100vh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important;
+  max-height: calc(100dvh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important;
 }
 
 /* ===== HYBRIDE tab-iconen: Fill (actief) + Regular (inactief) ===== */
