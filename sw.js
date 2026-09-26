@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK Service Worker v3.1
+   WAR DESK Service Worker v3.2
+   - v3.2: world-status.js toegevoegd aan precache
    - v3.1: cache-bump v14.51
    ============================================================ */
 
-const CACHE_VERSION = 'v14.60';
+const CACHE_VERSION = 'v14.63';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -12,7 +13,8 @@ const PRECACHE_ASSETS = [
   './index.html',
   './offline.html',
   './icon.svg',
-  './manifest.json'
+  './manifest.json',
+  './world-status.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
