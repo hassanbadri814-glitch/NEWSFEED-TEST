@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK v13.5 — Conflictkaart (OpenFreeMap) + Military Events
-   - v13.5: memory cleanup bij nieuwe events (P0.2)
-   - v13.4: verfijnde hotspot pills
+   WAR DESK v13.7 — Conflictkaart + Military Events
+   - v13.7: "Open bron" knop in event-detail modal
+   - v13.6: legenda uit, kleinere markers, meer events (1000)
    ============================================================ */
 
 (function(){
@@ -12,7 +12,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.5 geladen — memory cleanup");
+  LOG("v13.7 geladen — bron-knop in modal");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -167,21 +167,21 @@
       "body.light .leaflet-container{background:#f5f5f5!important}" +
       "html[data-oled='true'] .leaflet-container{background:#000000!important}" +
       ".wd-marker{background:transparent!important;border:none!important}" +
-      ".wd-marker-inner{position:relative;width:16px;height:16px;display:grid;place-items:center}" +
-      ".wd-marker-icon{width:14px;height:14px;display:grid;place-items:center;position:relative;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85)) drop-shadow(0 0 3px currentColor);}" +
-      ".wd-marker-icon svg{width:100%;height:100%;display:block;stroke:#070c16;stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;}" +
+      ".wd-marker-inner{position:relative;width:12px;height:12px;display:grid;place-items:center}" +
+      ".wd-marker-icon{width:10px;height:10px;display:grid;place-items:center;position:relative;z-index:2;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85)) drop-shadow(0 0 3px currentColor);}" +
+      ".wd-marker-icon svg{width:100%;height:100%;display:block;stroke:#070c16;stroke-width:1.4;stroke-linejoin:round;stroke-linecap:round;}" +
       ".wd-marker-pulse{position:absolute;inset:0;border-radius:50%;background:currentColor;opacity:.22;z-index:1;animation:wdMarkerPulse 2.6s ease-out infinite}" +
-      "@keyframes wdMarkerPulse{0%{transform:scale(.5);opacity:.35}100%{transform:scale(2.2);opacity:0}}" +
+      "@keyframes wdMarkerPulse{0%{transform:scale(.5);opacity:.35}100%{transform:scale(2);opacity:0}}" +
       "@media (prefers-reduced-motion: reduce){.wd-marker-pulse{animation:none!important;opacity:.15!important}}" +
       ".marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background:transparent!important}" +
       ".marker-cluster-small div,.marker-cluster-medium div,.marker-cluster-large div{background:linear-gradient(135deg,#1e3a5f,#3b6ba8)!important;color:#ffffff!important;font-weight:800!important;border:1px solid rgba(255,255,255,.75)!important;box-shadow:0 1px 3px rgba(0,0,0,.55),0 0 6px rgba(59,130,246,.3)!important;display:flex!important;align-items:center!important;justify-content:center!important;font-family:Inter,sans-serif!important;}" +
-      ".marker-cluster-small, .marker-cluster-small div{width:18px!important;height:18px!important}" +
-      ".marker-cluster-small{margin-left:-9px!important;margin-top:-9px!important}" +
-      ".marker-cluster-medium, .marker-cluster-medium div{width:22px!important;height:22px!important}" +
-      ".marker-cluster-medium{margin-left:-11px!important;margin-top:-11px!important}" +
-      ".marker-cluster-large, .marker-cluster-large div{width:26px!important;height:26px!important}" +
-      ".marker-cluster-large{margin-left:-13px!important;margin-top:-13px!important}" +
-      ".marker-cluster div span{font-size:.56rem!important;line-height:1!important;letter-spacing:-.02em!important}" +
+      ".marker-cluster-small, .marker-cluster-small div{width:14px!important;height:14px!important}" +
+      ".marker-cluster-small{margin-left:-7px!important;margin-top:-7px!important}" +
+      ".marker-cluster-medium, .marker-cluster-medium div{width:18px!important;height:18px!important}" +
+      ".marker-cluster-medium{margin-left:-9px!important;margin-top:-9px!important}" +
+      ".marker-cluster-large, .marker-cluster-large div{width:22px!important;height:22px!important}" +
+      ".marker-cluster-large{margin-left:-11px!important;margin-top:-11px!important}" +
+      ".marker-cluster div span{font-size:.5rem!important;line-height:1!important;letter-spacing:-.02em!important}" +
       ".map-wrap.fullscreen .map-legend{display:none!important}" +
       ".map-wrap.fullscreen .map-controls .map-ctrl[data-role='full']{display:none!important}" +
       ".wd-map-close{display:none!important;position:absolute;top:.8rem;right:.8rem;z-index:600;width:42px;height:42px;border-radius:50%;background:rgba(10,16,28,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.12);color:#e6ebf5;font-size:1.15rem;font-weight:400;line-height:1;place-items:center;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.6);transition:all .18s}" +
@@ -189,34 +189,13 @@
       ".map-wrap.fullscreen .wd-map-close{display:grid!important}" +
       ".map-wrap.fullscreen .map-controls{top:.8rem;left:.8rem;right:auto}" +
 
-      ".wd-hotspot-strip{display:none;align-items:center;gap:10px;overflow-x:auto;overflow-y:hidden;padding:12px 16px;margin:0;background:linear-gradient(180deg,rgba(255,60,60,0.03) 0%,rgba(0,0,0,0.15) 100%);border-bottom:1px solid rgba(255,255,255,0.05);scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;position:relative;z-index:5}" +
-      ".wd-hotspot-strip::-webkit-scrollbar{display:none}" +
-      ".wd-hotspot-strip.show{display:flex}" +
-      "body.light .wd-hotspot-strip{background:linear-gradient(180deg,rgba(255,60,60,0.04) 0%,rgba(0,0,0,0.02) 100%);border-bottom-color:rgba(0,0,0,0.06)}" +
-      ".wd-hotspot-strip::after{content:'';position:sticky;right:0;flex-shrink:0;width:30px;height:100%;background:linear-gradient(to right,transparent,var(--bg-2,#0b1220) 90%);margin-left:-30px;pointer-events:none}" +
-      "body.light .wd-hotspot-strip::after{background:linear-gradient(to right,transparent,#f5f5f7 90%)}" +
-      ".wd-hotspot-label{position:sticky;left:0;z-index:3;flex-shrink:0;display:inline-flex;align-items:center;gap:5px;padding:4px 14px 4px 0;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:rgba(255,80,80,0.9);background:var(--bg-2,#0b1220);border-right:1px solid rgba(255,80,80,0.2);margin-right:4px;white-space:nowrap;user-select:none}" +
-      "body.light .wd-hotspot-label{background:#f5f5f7;color:rgba(200,40,40,0.9);border-right-color:rgba(200,40,40,0.2)}" +
-      ".wd-hotspot-label svg{width:11px;height:11px;fill:currentColor;opacity:0.9;flex-shrink:0}" +
-      ".wd-hotspot-pill{flex-shrink:0;display:inline-flex;align-items:center;gap:8px;padding:6px 6px 6px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:20px;color:rgba(255,255,255,0.92);font-size:12.5px;font-weight:500;letter-spacing:0.1px;white-space:nowrap;cursor:pointer;transition:all 0.2s cubic-bezier(0.4,0,0.2,1);-webkit-tap-highlight-color:transparent;font-family:inherit;position:relative}" +
-      "body.light .wd-hotspot-pill{background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.08);color:#1a1f2b}" +
-      ".wd-hotspot-pill:hover{background:rgba(255,255,255,0.07);border-color:rgba(255,255,255,0.15);transform:translateY(-1px)}" +
-      "body.light .wd-hotspot-pill:hover{background:rgba(0,0,0,0.06)}" +
-      ".wd-hotspot-pill:active{transform:translateY(0)}" +
-      ".wd-hotspot-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 8px currentColor;flex-shrink:0}" +
-      ".wd-hs-count{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 6px;background:rgba(255,255,255,0.06);border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0;transition:all 0.2s}" +
-      "body.light .wd-hs-count{background:rgba(0,0,0,0.06)}" +
-      ".wd-hotspot-pill:hover .wd-hs-count{background:rgba(255,255,255,0.12)}" +
-      "body.light .wd-hotspot-pill:hover .wd-hs-count{background:rgba(0,0,0,0.1)}" +
-      ".wd-hotspot-pill[data-intensity='1']{color:#ff9544}" +
-      ".wd-hotspot-pill[data-intensity='2']{color:#ff6b4a}" +
-      ".wd-hotspot-pill[data-intensity='3']{color:#ff3d3d}" +
-      ".wd-hotspot-pill[data-intensity='3']::before{box-shadow:0 0 10px currentColor,0 0 3px currentColor}" +
-      ".wd-hotspot-pill[data-intensity='4']{color:#ff1f1f;border-color:rgba(255,31,31,0.35)}" +
-      ".wd-hotspot-pill[data-intensity='4']::before{animation:wdHsPulse 1.8s ease-in-out infinite}" +
-      ".wd-hotspot-pill[data-intensity='4'] .wd-hs-count{background:rgba(255,31,31,0.15);color:#ff4040}" +
-      "@keyframes wdHsPulse{0%,100%{opacity:1;box-shadow:0 0 8px currentColor}50%{opacity:0.6;box-shadow:0 0 16px currentColor}}" +
-      "@media (prefers-reduced-motion: reduce){.wd-hotspot-pill[data-intensity='4']::before{animation:none}}" +
+      ".wd-hotspot-strip{display:none!important}" +
+
+      /* v13.7: bron-knop in detail modal */
+      ".wd-detail-foot{flex-wrap:wrap!important}" +
+      ".wd-detail-btn.source{flex:1 1 100%!important;background:var(--gold-gradient)!important;color:#070c16!important;border-color:var(--amber)!important;font-weight:700!important;text-decoration:none!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:.4rem!important;order:-1}" +
+      ".wd-detail-btn.source:hover{filter:brightness(1.1)!important;color:#070c16!important}" +
+      ".wd-detail-btn.source::before{content:'↗';font-weight:900}" +
 
       ".wd-map-legend .legend-item{cursor:pointer;transition:all 0.15s;border-radius:6px;padding:3px 6px;margin:0 -6px;-webkit-tap-highlight-color:transparent}" +
       ".wd-map-legend .legend-item:hover{background:rgba(255,255,255,0.05)}" +
@@ -257,15 +236,30 @@
     wrap.appendChild(btn);
   }
 
+  /* ============================================================
+     DETAIL MODAL — v13.7 met bron-knop
+     ============================================================ */
   function ensureDetailModal(){
     if($("wdDetailModal")) return;
     var modal = document.createElement("div");
     modal.id = "wdDetailModal";
     modal.className = "wd-detail-modal";
     modal.innerHTML =
-      '<div class="wd-detail-box"><div class="wd-detail-head"><span class="wd-detail-type" id="wdDetailType">—</span><button class="wd-detail-close" id="wdDetailClose" aria-label="Sluiten">✕</button></div>' +
-      '<div class="wd-detail-body"><div class="wd-detail-meta" id="wdDetailMeta">—</div><div class="wd-detail-text" id="wdDetailText">—</div></div>' +
-      '<div class="wd-detail-foot"><button class="wd-detail-btn primary" id="wdDetailShowOnMap">Toon op kaart</button><button class="wd-detail-btn" id="wdDetailCloseBtn">Sluiten</button></div></div>';
+      '<div class="wd-detail-box">' +
+        '<div class="wd-detail-head">' +
+          '<span class="wd-detail-type" id="wdDetailType">—</span>' +
+          '<button class="wd-detail-close" id="wdDetailClose" aria-label="Sluiten">✕</button>' +
+        '</div>' +
+        '<div class="wd-detail-body">' +
+          '<div class="wd-detail-meta" id="wdDetailMeta">—</div>' +
+          '<div class="wd-detail-text" id="wdDetailText">—</div>' +
+        '</div>' +
+        '<div class="wd-detail-foot">' +
+          '<a class="wd-detail-btn source" id="wdDetailSource" target="_blank" rel="noopener" style="display:none">Open bron</a>' +
+          '<button class="wd-detail-btn primary" id="wdDetailShowOnMap">Toon op kaart</button>' +
+          '<button class="wd-detail-btn" id="wdDetailCloseBtn">Sluiten</button>' +
+        '</div>' +
+      '</div>';
     document.body.appendChild(modal);
     modal.addEventListener("click", function(e){ if(e.target === modal) closeDetail(); });
     $("wdDetailClose").addEventListener("click", closeDetail);
@@ -281,8 +275,28 @@
     var typeConf = resolveTypeConfig(event);
     $("wdDetailType").textContent = typeConf.label;
     $("wdDetailType").style.background = typeConf.color;
-    $("wdDetailMeta").textContent = (event.country || "Onbekend") + " · " + timeAgo(event.date) + (event.source ? " · " + event.source : "");
+
+    var metaParts = [];
+    if(event.country) metaParts.push(event.country);
+    if(event.date) metaParts.push(timeAgo(event.date));
+    if(event.source) metaParts.push(event.source);
+    $("wdDetailMeta").textContent = metaParts.join(" · ");
+
     $("wdDetailText").textContent = event.fullDescription || event.title || "(geen beschrijving)";
+
+    /* v13.7: bron-knop vullen of verbergen */
+    var srcBtn = $("wdDetailSource");
+    if(srcBtn){
+      var url = event.url || "";
+      if(url && url !== "#" && /^https?:\/\//i.test(url)){
+        srcBtn.href = url;
+        srcBtn.style.display = "inline-flex";
+      } else {
+        srcBtn.removeAttribute("href");
+        srcBtn.style.display = "none";
+      }
+    }
+
     $("wdDetailModal").classList.add("show");
   }
 
@@ -323,7 +337,7 @@
           id: "fb-" + cat + "-" + i,
           lat: loc.lat + off, lng: loc.lng + off,
           title: it.title || "Geen titel",
-          fullDescription: loc.country + "\n\n" + (it.title || "") + "\n\n" + (it.description || ""),
+          fullDescription: (it.description || "") || loc.country + "\n\n" + (it.title || ""),
           type: cat, typeConfig: typeConfig, country: loc.country,
           date: it.date || new Date().toISOString(),
           url: it.link || "", source: it.source || "",
@@ -331,7 +345,7 @@
         });
       });
     });
-    if (events.length > 500) events = events.slice(0, 500);
+    if (events.length > 1000) events = events.slice(0, 1000);
     return events;
   }
 
@@ -369,7 +383,7 @@
       MAP.events = [];
       var statEl = $("statEvents");
       if(statEl) statEl.textContent = "0";
-      renderMarkers(); renderLegend(); renderLiveList(); renderHotspots();
+      renderMarkers(); renderLiveList(); renderHotspots();
       if (MAP.instance) MAP.instance.setView([29.5, 42.0], 4);
       return true;
     }
@@ -377,7 +391,7 @@
     MAP.events = events;
     var statEl2 = $("statEvents");
     if(statEl2) statEl2.textContent = events.length;
-    renderMarkers(); renderLegend(); renderLiveList(); renderHotspots();
+    renderMarkers(); renderLiveList(); renderHotspots();
 
     var zoomHash = MAP.events.map(function(e){ return e.id; }).join("|").slice(0, 200);
     if (zoomHash !== MAP._lastZoomHash) {
@@ -388,46 +402,7 @@
     return true;
   }
 
-  function renderHotspots(){
-    var strip = $("wdHotspotStrip");
-    var wrap = document.querySelector(".map-wrap");
-    if (!wrap) return;
-
-    if (!strip) {
-      strip = document.createElement("div");
-      strip.id = "wdHotspotStrip";
-      strip.className = "wd-hotspot-strip";
-      wrap.insertBefore(strip, wrap.firstChild);
-    }
-
-    var hotspots = MAP.hotspots || [];
-    if (!hotspots.length) { strip.classList.remove("show"); return; }
-
-    var flameSvg = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c.8 3.6-1.5 5.6-2.4 8.4-.4 1.3-.3 2.6.4 3.6.6-.6 1-1.6 1-2.8 1.4 1 2.2 2.8 2.2 4.6 0 1.7-1.1 3.1-2.6 3.7.9.3 1.9.5 2.9.5 3.9 0 6.5-2.6 6.5-6.5 0-4.5-4.6-6.4-5.2-10.9-1.2.4-2.3 1-2.8 1.4zM12 23c-3.9 0-7-3.1-7-7 0-2.5 1.5-4.3 2.5-6.2C8.5 8 9 6.5 9 4.5 6 6 3 9.5 3 14c0 5 4 9 9 9z"/></svg>';
-
-    var html = '<div class="wd-hotspot-label">' + flameSvg + '<span>Hotspots</span></div>';
-    for (var i = 0; i < hotspots.length; i++) {
-      var h = hotspots[i];
-      var intensity = h.count >= 15 ? 4 : (h.count >= 8 ? 3 : (h.count >= 4 ? 2 : 1));
-      var label = h.label || h.country || h.region || "?";
-      html += '<button class="wd-hotspot-pill" data-intensity="' + intensity + '" data-type="' + (h.type || "country") + '" data-lat="' + h.lat + '" data-lng="' + h.lng + '" type="button">' + escapeHtml(label) + '<span class="wd-hs-count">' + h.count + '</span></button>';
-    }
-    strip.innerHTML = html;
-    strip.classList.add("show");
-
-    var pills = strip.querySelectorAll(".wd-hotspot-pill");
-    for (var j = 0; j < pills.length; j++) {
-      pills[j].addEventListener("click", function(e){
-        e.preventDefault(); e.stopPropagation();
-        var lat = parseFloat(this.getAttribute("data-lat"));
-        var lng = parseFloat(this.getAttribute("data-lng"));
-        if (MAP.instance && !isNaN(lat) && !isNaN(lng)) {
-          MAP.instance.setView([lat, lng], 6);
-          if (window.showToast) window.showToast("Zoom naar hotspot");
-        }
-      });
-    }
-  }
+  function renderHotspots(){ return; }
 
   function renderMarkers(){
     if(!MAP.cluster) return;
@@ -450,7 +425,7 @@
       var icon = L.divIcon({
         className: "wd-marker",
         html: '<div class="wd-marker-inner" style="color:' + color + '"><span class="wd-marker-pulse"></span><span class="wd-marker-icon">' + glyph + '</span></div>',
-        iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10]
+        iconSize: [12, 12], iconAnchor: [6, 6], popupAnchor: [0, -8]
       });
       var marker = L.marker([e.lat, e.lng], {icon: icon});
       var sourceLine = e.source ? '<div class="pop-meta">' + escapeHtml(e.source) + '</div>' : '';
@@ -473,50 +448,7 @@
     LOG("Markers gerenderd: " + markers.length);
   }
 
-  function renderLegend(){
-    var el = $("legendItems");
-    if(!el) return;
-    var counts = { aanval: 0, offensief: 0, defensief: 0, voortgang: 0, actief: 0, conflict: 0, political: 0, other: 0 };
-    MAP.events.forEach(function(e){
-      var k = e.subtype || resolveTypeConfig(e).filter || "other";
-      if(counts[k] !== undefined) counts[k]++;
-    });
-
-    var rows = [
-      { key: "aanval",    color: "#ff2e3e", label: "Aanval" },
-      { key: "offensief", color: "#ff7a1a", label: "Offensief" },
-      { key: "defensief", color: "#22c55e", label: "Defensief" },
-      { key: "voortgang", color: "#a855f7", label: "Voortgang" },
-      { key: "actief",    color: "#facc15", label: "Actief" },
-      { key: "conflict",  color: "#e63950", label: "Conflict" },
-      { key: "political", color: "#3b82f6", label: "Politiek" },
-      { key: "other",     color: "#6b7a93", label: "Overig" }
-    ].filter(function(r){ return counts[r.key] > 0; });
-
-    if(!rows.length){ el.innerHTML = '<div class="legend-item">Geen data</div>'; return; }
-
-    el.innerHTML = rows.map(function(r){
-      var active = (MAP.currentSubtype === r.key) ? " active" : "";
-      return '<div class="legend-item' + active + '" data-subtype="' + r.key + '"><span class="legend-dot" style="background:' + r.color + '"></span><span>' + r.label + '</span><span class="legend-num">' + counts[r.key] + '</span></div>';
-    }).join("");
-
-    Array.prototype.forEach.call(el.querySelectorAll(".legend-item"), function(item){
-      item.addEventListener("click", function(e){
-        e.preventDefault(); e.stopPropagation();
-        var subtype = this.getAttribute("data-subtype");
-        if (!subtype) return;
-        if (MAP.currentSubtype === subtype) {
-          MAP.currentSubtype = null;
-          if (window.showToast) window.showToast("Subfilter gewist");
-        } else {
-          MAP.currentSubtype = subtype;
-          if (window.showToast) window.showToast("Filter: " + subtype);
-        }
-        renderMarkers(); renderLegend();
-        if (MAP.currentSubtype) setTimeout(fitToMarkers, 200);
-      });
-    });
-  }
+  function renderLegend(){ return; }
 
   function renderLiveList(){
     var list = $("liveList");
@@ -576,9 +508,14 @@
     MAP.currentTheme = detectTheme();
     switchTile(MAP.currentTheme);
     MAP.cluster = L.markerClusterGroup({
-      maxClusterRadius: 45, spiderfyOnMaxZoom: true, showCoverageOnHover: false,
-      zoomToBoundsOnClick: true, disableClusteringAtZoom: 11,
-      chunkedLoading: true, chunkInterval: 100, chunkDelay: 50
+      maxClusterRadius: 28,
+      spiderfyOnMaxZoom: true,
+      showCoverageOnHover: false,
+      zoomToBoundsOnClick: true,
+      disableClusteringAtZoom: 7,
+      chunkedLoading: true,
+      chunkInterval: 80,
+      chunkDelay: 40
     });
     MAP.instance.addLayer(MAP.cluster);
     observeThemeChanges();
@@ -611,7 +548,7 @@
         MAP.currentFilter = btn.dataset.cat;
         MAP.currentSubtype = null;
         if(window.WDStorage) WDStorage.set("map_filter", MAP.currentFilter);
-        renderMarkers(); renderLiveList(); renderLegend();
+        renderMarkers(); renderLiveList();
         setTimeout(fitToMarkers, 200);
       });
     });
@@ -657,13 +594,11 @@
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
     MAP._busBound = true;
 
-    /* v13.5: P0.2 — memory cleanup bij nieuwe events */
     WarDesk.events.on("map:military-events", function(events){
-      /* Truncate oude referenties */
       if (MAP.militaryEvents && MAP.militaryEvents.length) {
         MAP.militaryEvents.length = 0;
       }
-      MAP.militaryEvents = Array.isArray(events) ? events.slice(0, 200) : [];
+      MAP.militaryEvents = Array.isArray(events) ? events.slice(0, 1000) : [];
       LOG("Militaire events ontvangen: " + MAP.militaryEvents.length);
       if (isMapActive()) refreshFromNews();
     });
@@ -674,7 +609,6 @@
       }
       MAP.hotspots = Array.isArray(hotspots) ? hotspots.slice(0, 10) : [];
       LOG("Hotspots ontvangen: " + MAP.hotspots.length);
-      renderHotspots();
     });
 
     WarDesk.events.on("news:loaded", function(){
@@ -732,5 +666,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v13.5 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.7 geladen");
 })();
