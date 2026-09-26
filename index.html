@@ -322,6 +322,34 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
     max-height: calc(100dvh - var(--header-h) - var(--tabs-h) - 90px) !important;
   }
 }
+
+/* ===== VOD: titel + zoekbalk sticky ===== */
+#viewVod .section-head {
+  position: sticky !important;
+  top: var(--header-h, 62px) !important;
+  z-index: 20 !important;
+  background: var(--bg) !important;
+  padding: .35rem 0 .4rem !important;
+  margin-bottom: 0 !important;
+  border-bottom: none !important;
+}
+#viewVod .section-head::after { display: none !important; }
+
+#viewVod .vod-search-wrap {
+  position: sticky !important;
+  top: calc(var(--header-h, 62px) + 34px) !important;
+  z-index: 19 !important;
+  background: var(--bg) !important;
+  padding: .35rem 0 .55rem !important;
+  margin-bottom: .35rem !important;
+}
+
+/* Sidebar moet onder de sticky titel + search blijven */
+#viewVod .vod-sidebar {
+  top: calc(var(--header-h, 62px) + 80px) !important;
+  max-height: calc(100vh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
+  max-height: calc(100dvh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
+}
 </style>
 </head>
 <body>
