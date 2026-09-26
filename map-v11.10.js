@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v13.7 — Conflictkaart + Military Events
+   WAR DESK v13.8 — Conflictkaart + Military Events
+   - v13.8: bron-knop met fallback-zoek in State.items + inline styles
    - v13.7: "Open bron" knop in event-detail modal
    - v13.6: legenda uit, kleinere markers, meer events (1000)
    ============================================================ */
@@ -12,7 +13,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v13.7 geladen — bron-knop in modal");
+  LOG("v13.8 geladen — bron-knop met fallback");
 
   var LOCATIONS = {
     "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
@@ -191,11 +192,7 @@
 
       ".wd-hotspot-strip{display:none!important}" +
 
-      /* v13.7: bron-knop in detail modal */
       ".wd-detail-foot{flex-wrap:wrap!important}" +
-      ".wd-detail-btn.source{flex:1 1 100%!important;background:var(--gold-gradient)!important;color:#070c16!important;border-color:var(--amber)!important;font-weight:700!important;text-decoration:none!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:.4rem!important;order:-1}" +
-      ".wd-detail-btn.source:hover{filter:brightness(1.1)!important;color:#070c16!important}" +
-      ".wd-detail-btn.source::before{content:'↗';font-weight:900}" +
 
       ".wd-map-legend .legend-item{cursor:pointer;transition:all 0.15s;border-radius:6px;padding:3px 6px;margin:0 -6px;-webkit-tap-highlight-color:transparent}" +
       ".wd-map-legend .legend-item:hover{background:rgba(255,255,255,0.05)}" +
@@ -237,7 +234,7 @@
   }
 
   /* ============================================================
-     DETAIL MODAL — v13.7 met bron-knop
+     DETAIL MODAL — v13.8 met robuuste bron-knop
      ============================================================ */
   function ensureDetailModal(){
     if($("wdDetailModal")) return;
@@ -255,7 +252,7 @@
           '<div class="wd-detail-text" id="wdDetailText">—</div>' +
         '</div>' +
         '<div class="wd-detail-foot">' +
-          '<a class="wd-detail-btn source" id="wdDetailSource" target="_blank" rel="noopener" style="display:none">Open bron</a>' +
+          '<button type="button" id="wdDetailSource" style="display:none;order:-1;flex:1 1 100%;width:100%;padding:.8rem 1rem;background:linear-gradient(135deg,#f0c78a,#e0a857 50%,#8a5c26);color:#070c16;border:1px solid #e0a857;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;align-items:center;justify-content:center;gap:.45rem;font-family:inherit">↗ Open bronartikel</button>' +
           '<button class="wd-detail-btn primary" id="wdDetailShowOnMap">Toon op kaart</button>' +
           '<button class="wd-detail-btn" id="wdDetailCloseBtn">Sluiten</button>' +
         '</div>' +
@@ -267,6 +264,48 @@
     $("wdDetailShowOnMap").addEventListener("click", function(){
       if(MAP.currentDetailEvent) showEventOnMap(MAP.currentDetailEvent);
     });
+  }
+
+  /* v13.8: robuuste URL-resolver */
+  function findArticleUrlForEvent(event){
+    if(!event) return "";
+
+    /* 1. Direct uit event */
+    var url = String(event.url || event.link || "").trim();
+    if(/^https?:\/\//i.test(url)) return url;
+
+    /* 2. Fallback: zoek in State.items op basis van titel */
+    try {
+      var items = (window.State && window.State.items) || [];
+      var title = String(event.title || "").toLowerCase().trim();
+      if (title.length < 10) return "";
+
+      /* Eerst exacte match */
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (!it) continue;
+        var itTitle = String(it.title || "").toLowerCase().trim();
+        if (itTitle === title) {
+          var link = String(it.link || it.url || "").trim();
+          if (/^https?:\/\//i.test(link)) return link;
+        }
+      }
+
+      /* Dan gedeeltelijke match (min 60% overlap) */
+      var shortNeedle = title.slice(0, Math.max(20, Math.floor(title.length * 0.6)));
+      for (var j = 0; j < items.length; j++) {
+        var it2 = items[j];
+        if (!it2) continue;
+        var itTitle2 = String(it2.title || "").toLowerCase().trim();
+        if (itTitle2.length < 10) continue;
+        if (itTitle2.indexOf(shortNeedle) !== -1 || shortNeedle.indexOf(itTitle2.slice(0, 20)) !== -1) {
+          var link2 = String(it2.link || it2.url || "").trim();
+          if (/^https?:\/\//i.test(link2)) return link2;
+        }
+      }
+    } catch(e){}
+
+    return "";
   }
 
   function openDetail(event){
@@ -284,16 +323,23 @@
 
     $("wdDetailText").textContent = event.fullDescription || event.title || "(geen beschrijving)";
 
-    /* v13.7: bron-knop vullen of verbergen */
+    /* v13.8: bron-knop — altijd proberen, met fallback */
     var srcBtn = $("wdDetailSource");
     if(srcBtn){
-      var url = event.url || "";
-      if(url && url !== "#" && /^https?:\/\//i.test(url)){
-        srcBtn.href = url;
+      var url = findArticleUrlForEvent(event);
+      LOG("Source URL voor event:", url || "(geen)");
+
+      if(url){
         srcBtn.style.display = "inline-flex";
+        srcBtn.onclick = function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          try{ window.open(url, "_blank", "noopener"); }
+          catch(err){ if(window.showToast) window.showToast("Kon link niet openen"); }
+        };
       } else {
-        srcBtn.removeAttribute("href");
         srcBtn.style.display = "none";
+        srcBtn.onclick = null;
       }
     }
 
@@ -337,10 +383,10 @@
           id: "fb-" + cat + "-" + i,
           lat: loc.lat + off, lng: loc.lng + off,
           title: it.title || "Geen titel",
-          fullDescription: (it.description || "") || loc.country + "\n\n" + (it.title || ""),
+          fullDescription: (it.description || it.desc || "") || (it.title || ""),
           type: cat, typeConfig: typeConfig, country: loc.country,
           date: it.date || new Date().toISOString(),
-          url: it.link || "", source: it.source || "",
+          url: it.link || it.url || "", source: it.source || "",
           isMilitary: false
         });
       });
@@ -666,5 +712,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v13.7 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v13.8 geladen");
 })();
