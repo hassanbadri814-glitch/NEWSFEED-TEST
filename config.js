@@ -4,8 +4,9 @@
    - v14.29: 5 X-feeds via Worker proxy
    ============================================================ */
 
-window.APP_VERSION = "v14.30";
+window.APP_VERSION = "v14.31";
 window.TAGS_VERSION = "4";
+window.MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
 if (typeof window.WD_DEBUG === "undefined") {
   window.WD_DEBUG = (function(){
