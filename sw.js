@@ -3,7 +3,7 @@
    - v3.1: cache-bump v14.51
    ============================================================ */
 
-const CACHE_VERSION = 'v14.54';
+const CACHE_VERSION = 'v14.56';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
