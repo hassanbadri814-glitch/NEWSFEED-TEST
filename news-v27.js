@@ -1,14 +1,14 @@
 /* ============================================================
-   WAR DESK v27.13 — Nieuws Logica + EventBus
+   WAR DESK v27.14 — Nieuws Logica + EventBus
+   - v27.14: Sport is exclusieve categorie (niet meer in NL/EU/etc)
    - v27.13: Alleen Arabisch + Frans vertalen (niet EN/DE/IT)
    - v27.12: MyMemory email voor 10x hogere vertaal-limiet
-   - v27.11: Dynamische breaking cooldown + notif-drempel + debug
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.13";
+  window.__newsVersion = "v27.14";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -313,7 +313,12 @@
       tags.push("europe");
     }
 
-    return [...new Set(tags)];
+    /* v27.14: Sport is een exclusieve categorie — verlaat alle andere tags */
+    var final = [...new Set(tags)];
+    if(final.indexOf("sport") !== -1){
+      final = ["sport"];
+    }
+    return final;
   }
 
   const ensureTags = (items) => items.map(it => {
@@ -523,7 +528,6 @@
     const cleanText = text.replace(/\s+/g, " ").trim().slice(0, 500);
     if(!cleanText) return null;
 
-    /* v27.12: MyMemory email voor 10x hogere limiet */
     const emailParam = (window.MYMEMORY_EMAIL && window.MYMEMORY_EMAIL.length > 3)
       ? "&de=" + encodeURIComponent(window.MYMEMORY_EMAIL)
       : "";
@@ -563,7 +567,6 @@
 
   async function translateItem(item) {
     if(!item?.title || !state.translateEnabled) return null;
-    /* v27.13: alleen ar/fr vertalen */
     if(!isTranslatableLang(item.lang)) return null;
     const key = titleHashKey(item.lang, item.title);
     if(state.translations[key]) return state.translations[key];
@@ -589,7 +592,6 @@
 
   async function translateVisibleItems(items) {
     if(!state.translateEnabled) return;
-    /* v27.13: alleen ar/fr in de queue */
     const toTranslate = items.filter(it =>
       isTranslatableLang(it.lang) &&
       !state.translations[titleHashKey(it.lang, it.title)]
