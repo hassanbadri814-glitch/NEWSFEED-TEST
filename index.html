@@ -107,7 +107,8 @@
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -124,7 +125,6 @@ main > section.view[hidden] {
   pointer-events: none !important;
 }
 
-/* Bottom-tabs fix */
 .bottom-tabs {
   position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
   display: flex !important;
@@ -132,7 +132,6 @@ main > section.view[hidden] {
 .sheet-overlay { position: fixed !important; inset: 0 !important; }
 .sheet { position: fixed !important; left: 0 !important; right: 0 !important; }
 
-/* VOD modal — verborgen tenzij .show */
 .vod-detail-modal {
   position: fixed !important;
   inset: 0 !important;
@@ -241,10 +240,9 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   width: 18px !important; height: 18px !important;
 }
 
-/* Hotspot-strip weg */
 #wdHotspotStrip, .wd-hotspot-strip { display: none !important; }
 
-/* ===== AI input — compacte, gebalanceerde layout ===== */
+/* AI input */
 .ai-input-wrap {
   display: flex !important;
   flex-direction: row !important;
@@ -255,7 +253,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   grid-template-columns: none !important;
   grid-template-rows: none !important;
 }
-
 .ai-input-wrap textarea {
   flex: 1 1 auto !important;
   min-height: 34px !important;
@@ -267,7 +264,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   grid-column: unset !important;
   grid-row: unset !important;
 }
-
 .ai-input-wrap .ai-send-btn {
   width: 34px !important;
   height: 34px !important;
@@ -278,7 +274,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   grid-row: unset !important;
   flex-shrink: 0 !important;
 }
-
 .ai-input-wrap .ai-voice-btn {
   width: 34px !important;
   height: 34px !important;
@@ -289,7 +284,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   grid-row: unset !important;
   flex-shrink: 0 !important;
 }
-
 .ai-input-wrap .ai-clear-btn {
   width: 34px !important;
   height: 34px !important;
@@ -310,12 +304,9 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   border-color: #e63946 !important;
   color: #f87171 !important;
 }
+.ai-input-wrap .ai-day-bar { display: none !important; }
 
-.ai-input-wrap .ai-day-bar {
-  display: none !important;
-}
-
-/* ===== VOD sidebar — niet meer over zoekveld ===== */
+/* VOD sidebar */
 @media (max-width: 640px) {
   .vod-sidebar {
     top: calc(var(--header-h) + 72px) !important;
@@ -323,8 +314,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
     max-height: calc(100dvh - var(--header-h) - var(--tabs-h) - 90px) !important;
   }
 }
-
-/* ===== VOD: titel + zoekbalk sticky ===== */
 #viewVod .section-head {
   position: sticky !important;
   top: var(--header-h, 62px) !important;
@@ -335,7 +324,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   border-bottom: none !important;
 }
 #viewVod .section-head::after { display: none !important; }
-
 #viewVod .vod-search-wrap {
   position: sticky !important;
   top: calc(var(--header-h, 62px) + 34px) !important;
@@ -344,29 +332,47 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   padding: .35rem 0 .55rem !important;
   margin-bottom: .35rem !important;
 }
-
 #viewVod .vod-sidebar {
   top: calc(var(--header-h, 62px) + 80px) !important;
   max-height: calc(100vh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
   max-height: calc(100dvh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
 }
 
-/* ===== Phosphor Bold tab-iconen ===== */
+/* ===== HYBRIDE tab-iconen: Fill (actief) + Regular (inactief) ===== */
 .tab-icon {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   width: 26px;
   height: 26px;
+  position: relative;
 }
 .tab-icon i {
-  font-size: 21px;
+  font-size: 22px;
   line-height: 1;
   color: currentColor;
   display: block;
+  transition: opacity .18s ease, transform .18s ease;
 }
-.tab.active .tab-icon i {
-  text-shadow: 0 0 14px var(--accent-glow-strong, rgba(224,168,87,.6));
+.tab-icon .icon-regular {
+  display: block;
+  opacity: .72;
+}
+.tab-icon .icon-fill {
+  display: none;
+  opacity: 1;
+}
+.tab.active .tab-icon .icon-regular {
+  display: none;
+  opacity: 0;
+}
+.tab.active .tab-icon .icon-fill {
+  display: block;
+  opacity: 1;
+  filter: drop-shadow(0 0 10px var(--accent-glow-strong, rgba(224,168,87,.55)));
+}
+.tab.active .tab-icon {
+  transform: translateY(-1px) scale(1.08);
 }
 </style>
 </head>
@@ -517,11 +523,41 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
 </main>
 
 <nav class="bottom-tabs" role="tablist">
-  <button class="tab active" data-view="news" role="tab" aria-selected="true"><span class="tab-icon"><i class="ph-bold ph-newspaper"></i></span><span class="tab-label">Nieuws</span></button>
-  <button class="tab" data-view="map" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-map-trifold"></i></span><span class="tab-label">Kaart</span></button>
-  <button class="tab" data-view="iptv" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-television"></i></span><span class="tab-label">IPTV</span></button>
-  <button class="tab" data-view="vod" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-film-slate"></i></span><span class="tab-label">VOD</span></button>
-  <button class="tab" data-view="ai" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-chat-circle"></i></span><span class="tab-label">AI</span></button>
+  <button class="tab active" data-view="news" role="tab" aria-selected="true">
+    <span class="tab-icon">
+      <i class="ph ph-newspaper icon-regular"></i>
+      <i class="ph-fill ph-newspaper icon-fill"></i>
+    </span>
+    <span class="tab-label">Nieuws</span>
+  </button>
+  <button class="tab" data-view="map" role="tab" aria-selected="false">
+    <span class="tab-icon">
+      <i class="ph ph-map-trifold icon-regular"></i>
+      <i class="ph-fill ph-map-trifold icon-fill"></i>
+    </span>
+    <span class="tab-label">Kaart</span>
+  </button>
+  <button class="tab" data-view="iptv" role="tab" aria-selected="false">
+    <span class="tab-icon">
+      <i class="ph ph-television icon-regular"></i>
+      <i class="ph-fill ph-television icon-fill"></i>
+    </span>
+    <span class="tab-label">IPTV</span>
+  </button>
+  <button class="tab" data-view="vod" role="tab" aria-selected="false">
+    <span class="tab-icon">
+      <i class="ph ph-film-slate icon-regular"></i>
+      <i class="ph-fill ph-film-slate icon-fill"></i>
+    </span>
+    <span class="tab-label">VOD</span>
+  </button>
+  <button class="tab" data-view="ai" role="tab" aria-selected="false">
+    <span class="tab-icon">
+      <i class="ph ph-chat-circle icon-regular"></i>
+      <i class="ph-fill ph-chat-circle icon-fill"></i>
+    </span>
+    <span class="tab-label">AI</span>
+  </button>
 </nav>
 
 <div class="sheet-overlay" id="sheetOverlay"></div>
