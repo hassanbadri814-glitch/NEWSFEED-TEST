@@ -1,14 +1,14 @@
 /* ============================================================
-   WAR DESK v27.12 — Nieuws Logica + EventBus
+   WAR DESK v27.13 — Nieuws Logica + EventBus
+   - v27.13: Alleen Arabisch + Frans vertalen (niet EN/DE/IT)
    - v27.12: MyMemory email voor 10x hogere vertaal-limiet
    - v27.11: Dynamische breaking cooldown + notif-drempel + debug
-   - v27.10: P0.4 — tijdgebaseerde disabled-reset
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.12";
+  window.__newsVersion = "v27.13";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -510,6 +510,14 @@
     if(TRANSLATION_SEM.queue.length > 0){ const next = TRANSLATION_SEM.queue.shift(); next(); }
     else { TRANSLATION_SEM.active--; }
   };
+
+  /* v27.13: Alleen Arabisch + Frans vertalen */
+  function isTranslatableLang(lang){
+    if(!lang) return false;
+    var L = String(lang).toLowerCase();
+    return L === "ar" || L === "fr";
+  }
+
   async function fetchTranslation(text, sourceLang) {
     if(!text) return null;
     const cleanText = text.replace(/\s+/g, " ").trim().slice(0, 500);
@@ -552,8 +560,11 @@
     }catch(e){}
     return null;
   }
+
   async function translateItem(item) {
-    if(!item?.title || !item.lang || item.lang === "nl" || !state.translateEnabled) return null;
+    if(!item?.title || !state.translateEnabled) return null;
+    /* v27.13: alleen ar/fr vertalen */
+    if(!isTranslatableLang(item.lang)) return null;
     const key = titleHashKey(item.lang, item.title);
     if(state.translations[key]) return state.translations[key];
     const cached = await NewsDB.loadTranslation(key);
@@ -575,15 +586,21 @@
     }
     return null;
   }
+
   async function translateVisibleItems(items) {
     if(!state.translateEnabled) return;
-    const toTranslate = items.filter(it => it.lang && it.lang !== "nl" && !state.translations[titleHashKey(it.lang, it.title)]);
+    /* v27.13: alleen ar/fr in de queue */
+    const toTranslate = items.filter(it =>
+      isTranslatableLang(it.lang) &&
+      !state.translations[titleHashKey(it.lang, it.title)]
+    );
     if(!toTranslate.length) return;
     await Promise.all(toTranslate.map(async it => {
       const translated = await translateItem(it);
       if(translated) updateCardTitle(it, translated);
     }));
   }
+
   const updateCardTitle = (item, translatedTitle) => {
     const cards = document.querySelectorAll(".news-card[data-link]");
     for(const card of cards){
@@ -602,19 +619,21 @@
       }
     }
   };
+
   const getDisplayTitle = (it) => {
-    if(!state.translateEnabled || !it.lang || it.lang === "nl") return { title: it.title, original: null };
+    if(!state.translateEnabled || !isTranslatableLang(it.lang)) return { title: it.title, original: null };
     const key = titleHashKey(it.lang, it.title);
     if(state.translations[key]) return { title: state.translations[key], original: it.title };
     return { title: it.title, original: null };
   };
+
   window.__setTranslate = (enabled) => {
     state.translateEnabled = !!enabled;
     if(window.WDStorage) WDStorage.set("translate", enabled ? "1" : "0");
     const btn = $("toggleTranslate");
     if(btn) btn.classList.toggle("toggle-on", enabled);
     renderNews();
-    if(window.showToast) window.showToast(enabled ? "Vertaling aan" : "Vertaling uit");
+    if(window.showToast) window.showToast(enabled ? "Vertaling aan (AR+FR)" : "Vertaling uit");
     if(enabled){
       const toShow = filterItems().slice(0, 100);
       translateVisibleItems(toShow);
@@ -640,7 +659,6 @@
     if(el) el.textContent = Object.keys(state.favorites).length;
   };
 
-  /* Notificatie via ServiceWorkerRegistration (Android-proof) */
   async function sendNotification(title, options){
     if(!("serviceWorker" in navigator)) return false;
     try {
@@ -876,7 +894,6 @@
     }catch(e){}
   }
 
-  /* Dynamische cooldown + betere debug */
   const detectBreaking = () => {
     const cooldown = (state.lastBreakingSources >= 6) ? 300000 : 900000;
     if(Date.now() - state.breakingShownAt < cooldown){
