@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v27.15 — Nieuws Logica + EventBus
+   WAR DESK v27.16 — Nieuws Logica + EventBus
+   - v27.16: Voetbal/Oranje correct in Sport-categorie
    - v27.15: Beschrijving (desc) ook vertalen voor AR/FR
    - v27.14: Sport is exclusieve categorie
    - v27.13: Alleen Arabisch + Frans vertalen
@@ -8,7 +9,7 @@
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.15";
+  window.__newsVersion = "v27.16";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -274,6 +275,9 @@
     };
   })();
 
+  /* ============================================================
+     TAGS — v27.16: voetbal/oranje → sport
+     ============================================================ */
   function extractTags(title, desc, sourceCat){
     const tags = [];
     const t = ((title || "") + " " + (desc || "")).toLowerCase();
@@ -286,10 +290,15 @@
     if(["ukraine","gaza","yemen","iran","sudan","war"].includes(sourceCat)) tags.push("war");
     if(sourceCat === "sport") tags.push("sport");
 
-    const sportStrong = /\b(eredivisie|eerste divisie|knvb|johan cruijff schaal|champions league|europa league|conference league|wk voetbal|ek voetbal|formule 1|grand prix|motogp|tour de france|giro d'italia|vuelta|wimbledon|roland garros|us open tennis|australian open|olympische spelen|glory kickboxing|ufc|nba|nfl|nhl|mlb)\b/.test(t);
+    const sportStrong = /\b(eredivisie|eerste divisie|knvb|johan cruijff schaal|champions league|europa league|conference league|wk voetbal|ek voetbal|nations league|formule 1|grand prix|motogp|tour de france|giro d'italia|vuelta|wimbledon|roland garros|us open tennis|australian open|olympische spelen|glory kickboxing|ufc|nba|nfl|nhl|mlb)\b/.test(t);
     const sportTeam = /\b(ajax|psv|feyenoord|az alkmaar|fc utrecht|fc twente|vitesse|sc heerenveen|sparta rotterdam|willem ii|go ahead eagles|pec zwolle|rkc waalwijk|fortuna sittard|excelsior|almere city|heracles|n\.e\.c\.|real madrid|barcelona|atletico madrid|manchester united|manchester city|liverpool|chelsea|arsenal|tottenham|juventus|inter milan|ac milan|bayern münchen|borussia dortmund|paris saint-germain|psg)\b/.test(t);
+
+    /* Voetbal-specifiek (Oranje, elftal, etc.) */
+    const voetbalNl = /\b(oranje|het oranje|nederlands elftal|het nederlands elftal|bondscoach|ek voetbal|wk voetbal|oefeninterland|oefenwedstrijd|voetbal|voetballer|voetbalploeg|voetbalclub|voetbalwedstrijd|voetbaltoernooi|doelman|keeper|spits|middenvelder|scheidsrechter|arbiter|penalty|strafschoppenserie|buitenspel|doelpunt|doelpunten|rode kaart|gele kaart|europees kampioenschap|wereldkampioenschap|ek finale|wk finale|ek kwalificatie|wk kwalificatie)\b/.test(t);
+
     const warBlock = /\b(airstrike|raketaanval|invasion|invasie|massacre|bloedbad|shelling|beschieting|offensief|oorlog|war)\b/.test(t);
-    if((sportStrong || sportTeam) && !warBlock && !tags.includes("sport")) tags.push("sport");
+
+    if((sportStrong || sportTeam || voetbalNl) && !warBlock && !tags.includes("sport")) tags.push("sport");
 
     const mideastContent = /\b(gaza|rafah|khan younis|hamas|hezbollah|idf|netanyahu|westelijke jordaanoever|palestijn|palestinian|israelisch|israeli|iran|irgc|tehran|khamenei|syrië|syria|damascus|assad|libanon|lebanon|beirut|jemen|yemen|houthi|irak|iraq|bagdad|saudi-arabië|riyadh|qatar|doha|aboe dhabi|dubai|jordanië|amman|jeruzalem|jerusalem|tel aviv|beiroet)\b/.test(t);
     if(mideastContent && !tags.includes("mideast")) tags.push("mideast");
@@ -494,7 +503,6 @@
     }
   }
 
-  /* v27.15: semaphore van 3 → 5 voor snellere vertaling */
   const TRANSLATION_SEM = { active: 0, max: 5, queue: [] };
 
   const titleHashKey = (lang, title) => {
@@ -564,7 +572,6 @@
     return null;
   }
 
-  /* v27.15: vertaal titel (bestaand) */
   async function translateItem(item) {
     if(!item?.title || !state.translateEnabled) return null;
     if(!isTranslatableLang(item.lang)) return null;
@@ -590,7 +597,6 @@
     return null;
   }
 
-  /* v27.15: NIEUW — vertaal beschrijving */
   async function translateDescItem(item) {
     if(!item?.desc || item.desc.length < 5 || !state.translateEnabled) return null;
     if(!isTranslatableLang(item.lang)) return null;
@@ -602,7 +608,6 @@
     state.translationPending[descKey] = true;
     await translationAcquire();
     try {
-      /* Max 300 chars om MyMemory-limiet niet te overschrijden */
       const textToTranslate = item.desc.slice(0, 300);
       const translated = await fetchTranslation(textToTranslate, item.lang);
       if(translated){
@@ -617,7 +622,6 @@
     return null;
   }
 
-  /* v27.15: vertaal titel + desc voor zichtbare items */
   async function translateVisibleItems(items) {
     if(!state.translateEnabled) return;
     const toTranslate = items.filter(it =>
@@ -626,7 +630,6 @@
     );
     if(!toTranslate.length) return;
 
-    /* Vertaal titel + desc parallel */
     await Promise.all(toTranslate.map(async it => {
       const [translatedTitle, translatedDesc] = await Promise.all([
         translateItem(it),
@@ -638,7 +641,6 @@
     }));
   }
 
-  /* v27.15: updateCardTitle accepteert nu ook desc */
   const updateCardTitle = (item, translatedTitle, translatedDesc) => {
     const cards = document.querySelectorAll(".news-card[data-link]");
     for(const card of cards){
@@ -656,7 +658,6 @@
           newEl.textContent = item.title;
           titleEl.parentNode.insertBefore(newEl, titleEl.nextSibling);
         }
-        /* v27.15: ook desc updaten */
         if(translatedDesc){
           const descEl = card.querySelector(".card-desc");
           if(descEl){
@@ -669,7 +670,6 @@
     }
   };
 
-  /* v27.15: getDisplayTitle geeft ook vertaalde desc terug */
   const getDisplayTitle = (it) => {
     if(!state.translateEnabled || !isTranslatableLang(it.lang)){
       return { title: it.title, original: null, desc: it.desc || "" };
@@ -1095,7 +1095,6 @@
         if(it.img){
           html += `<div class="card-thumb"><img data-src="${esc(it.img)}" loading="lazy" alt="" onerror="this.parentNode.remove()"></div>`;
         }
-        /* v27.15: gebruik disp.desc (kan vertaald zijn) */
         const displayDesc = disp.desc || it.desc || "";
         const descDir = (state.translateEnabled && isTranslated && displayDesc !== it.desc) ? "ltr" : (isArabic ? "rtl" : "ltr");
         html += `<div class="card-body">
