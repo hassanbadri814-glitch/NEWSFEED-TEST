@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK v14.32 — Configuratie
+   WAR DESK v14.33 — Configuratie
+   - v14.33: +3 OSINT (OSINTdefender, Faytuks, NOELreports) → 10 X-feeds
    - v14.32: TAGS_VERSION 5 (sport als exclusieve categorie)
    - v14.31: MyMemory email voor 10x hogere vertaal-limiet
-   - v14.30: +Liveuamap +GeoConfirmed (7 X-feeds totaal)
    ============================================================ */
 
-window.APP_VERSION = "v14.32";
+window.APP_VERSION = "v14.33";
 window.TAGS_VERSION = "5";
 window.MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
@@ -114,7 +114,8 @@ window.HIGH_PRIORITY = [
   "Reuters","AP News","TRT World","Times of Israel","Jerusalem Post",
   "NOS","NOS Sport","De Telegraaf","AD.nl","RTL Nieuws",
   "Reuters TG","Clash Report TG","Al Jazeera AR TG","Al Arabiya TG",
-  "Middle East Eye TG","Liveuamap TG","GeoConfirmed TG"
+  "Middle East Eye TG","Liveuamap TG","GeoConfirmed TG",
+  "OSINTdefender TG","Faytuks TG","NOELreports TG"
 ];
 
 window.KEYWORDS_HIGH = [
@@ -315,16 +316,28 @@ window.FEEDS = [
   {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"},
 
   /* ============================================================
-     X / TWITTER — 7 accounts via Worker proxy
+     X / TWITTER — 10 accounts via Worker proxy
      ============================================================ */
 
+  /* Nieuws agentschappen */
   {n:"Reuters TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Reuters"},
+
+  /* Arabisch */
   {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=ajarabic"},
   {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=AlArabiya"},
+
+  /* Algemeen */
   {n:"Clash Report TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=clashreport"},
   {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=MiddleEastEye"},
+
+  /* OSINT voor kaart-events */
   {n:"Liveuamap TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Liveuamap"},
-  {n:"GeoConfirmed TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=GeoConfirmed"}
+  {n:"GeoConfirmed TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=GeoConfirmed"},
+
+  /* v14.33: Nieuwe OSINT accounts */
+  {n:"OSINTdefender TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=OSINTdefender"},
+  {n:"Faytuks TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Faytuks"},
+  {n:"NOELreports TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=NOELreports"}
 ];
 
 wdLog.info(`[WAR DESK] config.js ${window.APP_VERSION} geladen — ${window.FEEDS.length} feeds`);
