@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WAR DESK · Icon Preview</title>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<style>
+  :root {
+    --bg: #070c16;
+    --bg-2: #0d1522;
+    --bg-3: #131e30;
+    --card: #111b2d;
+    --line: #1a2540;
+    --line-2: #26344f;
+    --ink: #e6ebf5;
+    --ink-2: #8a94a8;
+    --ink-3: #6b7a93;
+    --amber: #e0a857;
+    --amber-2: #f0c78a;
+    --amber-3: #8a5c26;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 1rem;
+    padding-bottom: 120px;
+    line-height: 1.5;
+  }
+  h1 {
+    font-size: 1.4rem;
+    background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: .25rem;
+  }
+  .subtitle {
+    color: var(--ink-3);
+    font-size: .85rem;
+    margin-bottom: 2rem;
+  }
+  h2 {
+    font-size: 1rem;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    margin: 2rem 0 .75rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .comparison {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1rem;
+  }
+  .panel-label {
+    font-size: .75rem;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: .75rem;
+    font-weight: 600;
+  }
+  .tab-row {
+    display: flex;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: .5rem;
+    gap: .25rem;
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .3rem;
+    padding: .5rem .25rem;
+    border-radius: 8px;
+    color: var(--ink-3);
+    font-size: .7rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    transition: all .2s;
+  }
+  .tab.active {
+    color: var(--amber);
+    background: rgba(224,168,87,.08);
+  }
+  .tab-icon {
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+  .tab .lucide {
+    width: 22px;
+    height: 22px;
+    stroke-width: 2;
+  }
+
+  /* Optie-kaarten */
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: .6rem;
+  }
+  .option {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: .9rem .5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    cursor: pointer;
+    transition: all .18s;
+    position: relative;
+    user-select: none;
+  }
+  .option:hover {
+    border-color: var(--amber);
+    background: #1a2540;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px -8px rgba(224,168,87,.4);
+  }
+  .option.selected {
+    border-color: var(--amber);
+    background: linear-gradient(180deg, rgba(224,168,87,.15), rgba(224,168,87,.03));
+    box-shadow: 0 0 0 1px var(--amber) inset, 0 0 20px -8px rgba(224,168,87,.5);
+  }
+  .option.selected::after {
+    content: "✓";
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    color: var(--amber);
+    font-weight: 800;
+    font-size: .85rem;
+  }
+  .option .lucide {
+    width: 28px;
+    height: 28px;
+    color: var(--amber);
+    stroke-width: 2;
+  }
+  .option-name {
+    font-size: .72rem;
+    color: var(--ink-2);
+    font-family: 'SF Mono', Monaco, monospace;
+    text-align: center;
+    word-break: break-all;
+  }
+
+  /* Live preview balk */
+  .live-preview {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(180deg, rgba(13,21,34,.98), var(--bg-2));
+    border-top: 1px solid var(--line);
+    padding: .5rem;
+    padding-bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(0,0,0,.5);
+  }
+  .live-preview .tab-row {
+    background: transparent;
+    border: none;
+    padding: 0;
+  }
+  .live-preview .label {
+    text-align: center;
+    font-size: .7rem;
+    color: var(--ink-3);
+    margin-bottom: .4rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+  }
+  .reset-btn {
+    display: block;
+    margin: 1.5rem auto;
+    padding: .6rem 1.2rem;
+    background: var(--bg-3);
+    border: 1px solid var(--line-2);
+    color: var(--ink-2);
+    border-radius: 8px;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .reset-btn:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .info {
+    background: rgba(224,168,87,.08);
+    border-left: 3px solid var(--amber);
+    padding: .75rem 1rem;
+    border-radius: 8px;
+    font-size: .82rem;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin-bottom: 1.5rem;
+  }
+  .info strong { color: var(--amber); }
+  @media (max-width: 500px) {
+    .comparison { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>WAR DESK · Icon Preview</h1>
+<div class="subtitle">Kies de mooiste Lucide-iconen voor je bottom-tabs</div>
+
+<div class="info">
+  <strong>Hoe werkt het:</strong> klik op een icoon om het te kiezen. Onderaan zie je direct hoe je bottom-tab eruit komt te zien. Als je klaar bent, stuur je me de 5 namen (bijv. "newspaper, map-pin, radio, film, bot").
+</div>
+
+<h2>Vergelijking</h2>
+<div class="comparison">
+  <div class="panel">
+    <div class="panel-label">Nu (emoji)</div>
+    <div class="tab-row">
+      <div class="tab active"><span class="tab-icon">📰</span><span>Nieuws</span></div>
+      <div class="tab"><span class="tab-icon">🗺️</span><span>Kaart</span></div>
+      <div class="tab"><span class="tab-icon">📡</span><span>IPTV</span></div>
+      <div class="tab"><span class="tab-icon">🎬</span><span>VOD</span></div>
+      <div class="tab"><span class="tab-icon">🤖</span><span>AI</span></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-label">Straks (Lucide)</div>
+    <div class="tab-row" id="preview-static">
+      <div class="tab active" data-cat="news"><i data-lucide="newspaper"></i><span>Nieuws</span></div>
+      <div class="tab" data-cat="map"><i data-lucide="map"></i><span>Kaart</span></div>
+      <div class="tab" data-cat="iptv"><i data-lucide="radio"></i><span>IPTV</span></div>
+      <div class="tab" data-cat="vod"><i data-lucide="clapperboard"></i><span>VOD</span></div>
+      <div class="tab" data-cat="ai"><i data-lucide="bot"></i><span>AI</span></div>
+    </div>
+  </div>
+</div>
+
+<h2>Nieuws</h2>
+<div class="options-grid" data-cat="news">
+  <div class="option" data-icon="newspaper"><i data-lucide="newspaper"></i><span class="option-name">newspaper</span></div>
+  <div class="option" data-icon="file-text"><i data-lucide="file-text"></i><span class="option-name">file-text</span></div>
+  <div class="option" data-icon="rss"><i data-lucide="rss"></i><span class="option-name">rss</span></div>
+  <div class="option" data-icon="globe"><i data-lucide="globe"></i><span class="option-name">globe</span></div>
+  <div class="option" data-icon="book-open"><i data-lucide="book-open"></i><span class="option-name">book-open</span></div>
+  <div class="option" data-icon="layers"><i data-lucide="layers"></i><span class="option-name">layers</span></div>
+</div>
+
+<h2>Kaart</h2>
+<div class="options-grid" data-cat="map">
+  <div class="option" data-icon="map"><i data-lucide="map"></i><span class="option-name">map</span></div>
+  <div class="option" data-icon="map-pin"><i data-lucide="map-pin"></i><span class="option-name">map-pin</span></div>
+  <div class="option" data-icon="globe-2"><i data-lucide="globe-2"></i><span class="option-name">globe-2</span></div>
+  <div class="option" data-icon="compass"><i data-lucide="compass"></i><span class="option-name">compass</span></div>
+  <div class="option" data-icon="navigation"><i data-lucide="navigation"></i><span class="option-name">navigation</span></div>
+  <div class="option" data-icon="crosshair"><i data-lucide="crosshair"></i><span class="option-name">crosshair</span></div>
+</div>
+
+<h2>IPTV</h2>
+<div class="options-grid" data-cat="iptv">
+  <div class="option" data-icon="radio"><i data-lucide="radio"></i><span class="option-name">radio</span></div>
+  <div class="option" data-icon="tv"><i data-lucide="tv"></i><span class="option-name">tv</span></div>
+  <div class="option" data-icon="antenna"><i data-lucide="antenna"></i><span class="option-name">antenna</span></div>
+  <div class="option" data-icon="satellite"><i data-lucide="satellite"></i><span class="option-name">satellite</span></div>
+  <div class="option" data-icon="signal"><i data-lucide="signal"></i><span class="option-name">signal</span></div>
+  <div class="option" data-icon="radio-tower"><i data-lucide="radio-tower"></i><span class="option-name">radio-tower</span></div>
+</div>
+
+<h2>VOD</h2>
+<div class="options-grid" data-cat="vod">
+  <div class="option" data-icon="clapperboard"><i data-lucide="clapperboard"></i><span class="option-name">clapperboard</span></div>
+  <div class="option" data-icon="film"><i data-lucide="film"></i><span class="option-name">film</span></div>
+  <div class="option" data-icon="play-circle"><i data-lucide="play-circle"></i><span class="option-name">play-circle</span></div>
+  <div class="option" data-icon="video"><i data-lucide="video"></i><span class="option-name">video</span></div>
+  <div class="option" data-icon="monitor-play"><i data-lucide="monitor-play"></i><span class="option-name">monitor-play</span></div>
+  <div class="option" data-icon="popcorn"><i data-lucide="popcorn"></i><span class="option-name">popcorn</span></div>
+</div>
+
+<h2>AI</h2>
+<div class="options-grid" data-cat="ai">
+  <div class="option" data-icon="bot"><i data-lucide="bot"></i><span class="option-name">bot</span></div>
+  <div class="option" data-icon="brain"><i data-lucide="brain"></i><span class="option-name">brain</span></div>
+  <div class="option" data-icon="sparkles"><i data-lucide="sparkles"></i><span class="option-name">sparkles</span></div>
+  <div class="option" data-icon="cpu"><i data-lucide="cpu"></i><span class="option-name">cpu</span></div>
+  <div class="option" data-icon="message-circle"><i data-lucide="message-circle"></i><span class="option-name">message-circle</span></div>
+  <div class="option" data-icon="wand-2"><i data-lucide="wand-2"></i><span class="option-name">wand-2</span></div>
+</div>
+
+<button class="reset-btn" id="resetBtn">↺ Reset naar standaard</button>
+
+<!-- Live preview balk -->
+<div class="live-preview">
+  <div class="label">Live preview</div>
+  <div class="tab-row" id="livePreview">
+    <div class="tab active"><i data-lucide="newspaper" id="live-news"></i><span>Nieuws</span></div>
+    <div class="tab"><i data-lucide="map" id="live-map"></i><span>Kaart</span></div>
+    <div class="tab"><i data-lucide="radio" id="live-iptv"></i><span>IPTV</span></div>
+    <div class="tab"><i data-lucide="clapperboard" id="live-vod"></i><span>VOD</span></div>
+    <div class="tab"><i data-lucide="bot" id="live-ai"></i><span>AI</span></div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  var DEFAULTS = {
+    news: "newspaper",
+    map: "map",
+    iptv: "radio",
+    vod: "clapperboard",
+    ai: "bot"
+  };
+
+  var selected = Object.assign({}, DEFAULTS);
+
+  /* Icon vervangen in DOM: Lucide werkt via data-lucide → createIcons()
+     Voor dynamisch wisselen: nieuwe <i> element maken en createIcons aanroepen. */
+  function setIcon(element, name){
+    if(!element) return;
+    /* Vervang door nieuwe <i data-lucide="..."> */
+    var parent = element.parentNode;
+    var newEl = document.createElement("i");
+    newEl.setAttribute("data-lucide", name);
+    newEl.id = element.id;
+    if(element.className && element.className.indexOf("lucide") === -1){
+      newEl.className = element.className;
+    }
+    parent.replaceChild(newEl, element);
+    /* Re-render alle lucide iconen */
+    if(window.lucide) window.lucide.createIcons();
+    return newEl;
+  }
+
+  function applySelection(cat, iconName){
+    selected[cat] = iconName;
+
+    /* Markeer de gekozen optie */
+    document.querySelectorAll('.options-grid[data-cat="' + cat + '"] .option').forEach(function(el){
+      el.classList.toggle("selected", el.dataset.icon === iconName);
+    });
+
+    /* Update de statische preview */
+    var staticTab = document.querySelector('#preview-static .tab[data-cat="' + cat + '"] i');
+    if(staticTab) setIcon(staticTab, iconName);
+
+    /* Update de live preview */
+    var liveIcon = document.getElementById("live-" + cat);
+    if(liveIcon) setIcon(liveIcon, iconName);
+
+    /* Log keuze */
+    console.log("[Icon] " + cat + " → " + iconName);
+  }
+
+  function bindOptions(){
+    document.querySelectorAll(".options-grid").forEach(function(grid){
+      var cat = grid.dataset.cat;
+      grid.querySelectorAll(".option").forEach(function(option){
+        option.addEventListener("click", function(){
+          applySelection(cat, option.dataset.icon);
+        });
+      });
+    });
+  }
+
+  function resetAll(){
+    Object.keys(DEFAULTS).forEach(function(cat){
+      applySelection(cat, DEFAULTS[cat]);
+    });
+    console.log("[Icon] Reset naar standaard");
+  }
+
+  function exportChoice(){
+    var out = Object.keys(selected).map(function(k){ return k + ": " + selected[k]; }).join(", ");
+    console.log("[Icon] Huidige keuze: " + out);
+    return out;
+  }
+
+  /* Init */
+  document.addEventListener("DOMContentLoaded", function(){
+    if(window.lucide) window.lucide.createIcons();
+    bindOptions();
+
+    /* Markeer defaults */
+    Object.keys(DEFAULTS).forEach(function(cat){
+      var opt = document.querySelector('.options-grid[data-cat="' + cat + '"] .option[data-icon="' + DEFAULTS[cat] + '"]');
+      if(opt) opt.classList.add("selected");
+    });
+
+    document.getElementById("resetBtn").addEventListener("click", resetAll);
+
+    /* Klik op de live preview om de keuze te exporteren */
+    document.getElementById("livePreview").addEventListener("click", function(){
+      var txt = exportChoice();
+      alert("Jouw keuze:\n\n" + txt + "\n\nStuur dit naar de developer.");
+    });
+  });
+
+  /* Lucide moet soms opnieuw na fonts laden */
+  window.addEventListener("load", function(){
+    if(window.lucide) window.lucide.createIcons();
+  });
+})();
+</script>
+
+</body>
+</html>
