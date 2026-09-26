@@ -1,11 +1,10 @@
 /* ============================================================
-   WAR DESK v14.29 — Configuratie
-   - v14.29: 5 X-feeds via Worker proxy (stabiel)
-   - v14.28: 16 X-feeds (te veel → regressie)
-   - v14.27: 5 bewezen accounts
+   WAR DESK v14.30 — Configuratie
+   - v14.30: +Liveuamap +GeoConfirmed (7 X-feeds totaal)
+   - v14.29: 5 X-feeds via Worker proxy
    ============================================================ */
 
-window.APP_VERSION = "v14.29";
+window.APP_VERSION = "v14.30";
 window.TAGS_VERSION = "4";
 
 if (typeof window.WD_DEBUG === "undefined") {
@@ -112,7 +111,8 @@ window.HIGH_PRIORITY = [
   "Al Jazeera","Al Jazeera AR","BBC World","BBC Arabic","BBC UK",
   "Reuters","AP News","TRT World","Times of Israel","Jerusalem Post",
   "NOS","NOS Sport","De Telegraaf","AD.nl","RTL Nieuws",
-  "Reuters TG","Clash Report TG","Al Jazeera AR TG","Al Arabiya TG","Middle East Eye TG"
+  "Reuters TG","Clash Report TG","Al Jazeera AR TG","Al Arabiya TG",
+  "Middle East Eye TG","Liveuamap TG","GeoConfirmed TG"
 ];
 
 window.KEYWORDS_HIGH = [
@@ -313,14 +313,23 @@ window.FEEDS = [
   {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"},
 
   /* ============================================================
-     X / TWITTER — 5 bewezen accounts via Worker proxy
+     X / TWITTER — 7 accounts via Worker proxy
      ============================================================ */
 
+  /* Nieuws agentschappen */
+  {n:"Reuters TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Reuters"},
+
+  /* Arabisch */
   {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=ajarabic"},
   {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=AlArabiya"},
+
+  /* Algemeen */
   {n:"Clash Report TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=clashreport"},
   {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=MiddleEastEye"},
-  {n:"Reuters TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Reuters"}
+
+  /* OSINT voor kaart-events */
+  {n:"Liveuamap TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Liveuamap"},
+  {n:"GeoConfirmed TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=GeoConfirmed"}
 ];
 
 wdLog.info(`[WAR DESK] config.js ${window.APP_VERSION} geladen — ${window.FEEDS.length} feeds`);
