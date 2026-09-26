@@ -1,14 +1,14 @@
 /* ============================================================
-   WAR DESK v27.11 — Nieuws Logica + EventBus
+   WAR DESK v27.12 — Nieuws Logica + EventBus
+   - v27.12: MyMemory email voor 10x hogere vertaal-limiet
    - v27.11: Dynamische breaking cooldown + notif-drempel + debug
    - v27.10: P0.4 — tijdgebaseerde disabled-reset
-   - v27.9: prioriteit feeds + idle score refresh
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.11";
+  window.__newsVersion = "v27.12";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -514,8 +514,14 @@
     if(!text) return null;
     const cleanText = text.replace(/\s+/g, " ").trim().slice(0, 500);
     if(!cleanText) return null;
+
+    /* v27.12: MyMemory email voor 10x hogere limiet */
+    const emailParam = (window.MYMEMORY_EMAIL && window.MYMEMORY_EMAIL.length > 3)
+      ? "&de=" + encodeURIComponent(window.MYMEMORY_EMAIL)
+      : "";
+
     try {
-      const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText)}&langpair=${encodeURIComponent(sourceLang || "en")}|nl`;
+      const mmUrl = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(cleanText)}&langpair=${encodeURIComponent(sourceLang || "en")}|nl${emailParam}`;
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 8000);
       const r = await fetch(mmUrl, { signal: ctrl.signal });
@@ -634,7 +640,7 @@
     if(el) el.textContent = Object.keys(state.favorites).length;
   };
 
-  /* v27.11: Notificatie via ServiceWorkerRegistration (Android-proof) */
+  /* Notificatie via ServiceWorkerRegistration (Android-proof) */
   async function sendNotification(title, options){
     if(!("serviceWorker" in navigator)) return false;
     try {
@@ -683,7 +689,6 @@
 
   const sendBreakingNotification = (group) => {
     if(!state.notificationsEnabled || !("Notification" in window) || Notification.permission !== "granted") return;
-    /* v27.11: drempel verlaagd van 5 → 3 (consistent met banner) */
     if(group.sources.length < 3) return;
     sendNotification("Breaking - " + group.sources.length + " bronnen", {
       body: group.items[0].title.slice(0, 180),
@@ -871,9 +876,8 @@
     }catch(e){}
   }
 
-  /* v27.11: dynamische cooldown + betere debug */
+  /* Dynamische cooldown + betere debug */
   const detectBreaking = () => {
-    /* Dynamische cooldown: 5 min bij groot event, 15 min bij normaal */
     const cooldown = (state.lastBreakingSources >= 6) ? 300000 : 900000;
     if(Date.now() - state.breakingShownAt < cooldown){
       if(window.WD_DEBUG){
@@ -886,7 +890,7 @@
     const now = Date.now();
     const recent = state.items.filter(it => {
       const age = now - tm(it.date);
-      return age > 0 && age < 900000;  // 15 min
+      return age > 0 && age < 900000;
     }).slice(0, 40);
 
     if(recent.length < 3){
