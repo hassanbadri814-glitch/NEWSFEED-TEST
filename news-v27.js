@@ -1,14 +1,14 @@
 /* ============================================================
-   WAR DESK v27.14 — Nieuws Logica + EventBus
-   - v27.14: Sport is exclusieve categorie (niet meer in NL/EU/etc)
-   - v27.13: Alleen Arabisch + Frans vertalen (niet EN/DE/IT)
-   - v27.12: MyMemory email voor 10x hogere vertaal-limiet
+   WAR DESK v27.15 — Nieuws Logica + EventBus
+   - v27.15: Beschrijving (desc) ook vertalen voor AR/FR
+   - v27.14: Sport is exclusieve categorie
+   - v27.13: Alleen Arabisch + Frans vertalen
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.14";
+  window.__newsVersion = "v27.15";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -313,7 +313,6 @@
       tags.push("europe");
     }
 
-    /* v27.14: Sport is een exclusieve categorie — verlaat alle andere tags */
     var final = [...new Set(tags)];
     if(final.indexOf("sport") !== -1){
       final = ["sport"];
@@ -495,7 +494,8 @@
     }
   }
 
-  const TRANSLATION_SEM = { active: 0, max: 3, queue: [] };
+  /* v27.15: semaphore van 3 → 5 voor snellere vertaling */
+  const TRANSLATION_SEM = { active: 0, max: 5, queue: [] };
 
   const titleHashKey = (lang, title) => {
     const str = (lang || "xx") + "|" + (title || "");
@@ -516,7 +516,6 @@
     else { TRANSLATION_SEM.active--; }
   };
 
-  /* v27.13: Alleen Arabisch + Frans vertalen */
   function isTranslatableLang(lang){
     if(!lang) return false;
     var L = String(lang).toLowerCase();
@@ -565,6 +564,7 @@
     return null;
   }
 
+  /* v27.15: vertaal titel (bestaand) */
   async function translateItem(item) {
     if(!item?.title || !state.translateEnabled) return null;
     if(!isTranslatableLang(item.lang)) return null;
@@ -590,6 +590,34 @@
     return null;
   }
 
+  /* v27.15: NIEUW — vertaal beschrijving */
+  async function translateDescItem(item) {
+    if(!item?.desc || item.desc.length < 5 || !state.translateEnabled) return null;
+    if(!isTranslatableLang(item.lang)) return null;
+    const descKey = "desc_" + titleHashKey(item.lang, item.title);
+    if(state.translations[descKey]) return state.translations[descKey];
+    const cached = await NewsDB.loadTranslation(descKey);
+    if(cached){ state.translations[descKey] = cached; return cached; }
+    if(state.translationPending[descKey]) return null;
+    state.translationPending[descKey] = true;
+    await translationAcquire();
+    try {
+      /* Max 300 chars om MyMemory-limiet niet te overschrijden */
+      const textToTranslate = item.desc.slice(0, 300);
+      const translated = await fetchTranslation(textToTranslate, item.lang);
+      if(translated){
+        state.translations[descKey] = translated;
+        NewsDB.saveTranslation(descKey, translated).catch(() => {});
+        return translated;
+      }
+    } finally {
+      translationRelease();
+      delete state.translationPending[descKey];
+    }
+    return null;
+  }
+
+  /* v27.15: vertaal titel + desc voor zichtbare items */
   async function translateVisibleItems(items) {
     if(!state.translateEnabled) return;
     const toTranslate = items.filter(it =>
@@ -597,36 +625,63 @@
       !state.translations[titleHashKey(it.lang, it.title)]
     );
     if(!toTranslate.length) return;
+
+    /* Vertaal titel + desc parallel */
     await Promise.all(toTranslate.map(async it => {
-      const translated = await translateItem(it);
-      if(translated) updateCardTitle(it, translated);
+      const [translatedTitle, translatedDesc] = await Promise.all([
+        translateItem(it),
+        translateDescItem(it)
+      ]);
+      if(translatedTitle || translatedDesc){
+        updateCardTitle(it, translatedTitle, translatedDesc);
+      }
     }));
   }
 
-  const updateCardTitle = (item, translatedTitle) => {
+  /* v27.15: updateCardTitle accepteert nu ook desc */
+  const updateCardTitle = (item, translatedTitle, translatedDesc) => {
     const cards = document.querySelectorAll(".news-card[data-link]");
     for(const card of cards){
       if(card.getAttribute("data-link") === item.link){
         const titleEl = card.querySelector(".card-title");
-        if(titleEl){ titleEl.textContent = translatedTitle; titleEl.setAttribute("dir", "ltr"); }
+        if(titleEl && translatedTitle){
+          titleEl.textContent = translatedTitle;
+          titleEl.setAttribute("dir", "ltr");
+        }
         const origEl = card.querySelector(".card-original");
-        if(!origEl && titleEl){
+        if(!origEl && titleEl && translatedTitle){
           const newEl = document.createElement("p");
           newEl.className = "card-original";
           newEl.setAttribute("dir", item.lang === "ar" ? "rtl" : "ltr");
           newEl.textContent = item.title;
           titleEl.parentNode.insertBefore(newEl, titleEl.nextSibling);
         }
+        /* v27.15: ook desc updaten */
+        if(translatedDesc){
+          const descEl = card.querySelector(".card-desc");
+          if(descEl){
+            descEl.textContent = translatedDesc;
+            descEl.setAttribute("dir", "ltr");
+          }
+        }
         break;
       }
     }
   };
 
+  /* v27.15: getDisplayTitle geeft ook vertaalde desc terug */
   const getDisplayTitle = (it) => {
-    if(!state.translateEnabled || !isTranslatableLang(it.lang)) return { title: it.title, original: null };
+    if(!state.translateEnabled || !isTranslatableLang(it.lang)){
+      return { title: it.title, original: null, desc: it.desc || "" };
+    }
     const key = titleHashKey(it.lang, it.title);
-    if(state.translations[key]) return { title: state.translations[key], original: it.title };
-    return { title: it.title, original: null };
+    const descKey = "desc_" + key;
+    const result = {
+      title: state.translations[key] || it.title,
+      original: state.translations[key] ? it.title : null,
+      desc: state.translations[descKey] || it.desc || ""
+    };
+    return result;
   };
 
   window.__setTranslate = (enabled) => {
@@ -1040,6 +1095,9 @@
         if(it.img){
           html += `<div class="card-thumb"><img data-src="${esc(it.img)}" loading="lazy" alt="" onerror="this.parentNode.remove()"></div>`;
         }
+        /* v27.15: gebruik disp.desc (kan vertaald zijn) */
+        const displayDesc = disp.desc || it.desc || "";
+        const descDir = (state.translateEnabled && isTranslated && displayDesc !== it.desc) ? "ltr" : (isArabic ? "rtl" : "ltr");
         html += `<div class="card-body">
           <div class="card-meta">
             <span class="card-source">${esc(it.source)}</span>
@@ -1049,9 +1107,9 @@
           </div>
           <h3 class="card-title" dir="${titleDir}">${esc(disp.title)}</h3>
           ${isTranslated ? `<p class="card-original" dir="${it.lang === "ar" ? "rtl" : "ltr"}">${esc(disp.original)}</p>` : ''}
-          ${it.desc ? `<p class="card-desc" dir="${it.lang === "ar" ? "rtl" : "ltr"}">${esc(it.desc)}</p>` : ''}
+          ${displayDesc ? `<p class="card-desc" dir="${descDir}">${esc(displayDesc)}</p>` : ''}
           <div class="card-footer">
-            <span>${rtime(it.desc)} min lezen</span>
+            <span>${rtime(displayDesc)} min lezen</span>
             <div class="card-actions">
               <button class="card-fav ${isFav ? "active" : ""}" aria-label="Favoriet">${isFav ? "★" : "☆"}</button>
               <button class="card-action card-share" aria-label="Delen">⇗</button>
