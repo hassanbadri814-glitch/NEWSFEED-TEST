@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.22</title>
+<title>WAR DESK v14.34</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -113,32 +113,26 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.22">
+<link rel="stylesheet" href="styles.css?v=14.9">
 
 <style>
+/* ===== Kritieke layout-fix — overschrijft alles ===== */
+#viewAi:not([hidden]) { display: flex !important; flex-direction: column !important; }
+
+/* Bottom-tabs fix */
 .bottom-tabs {
   position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
-  z-index: 9999999 !important; display: flex !important; justify-content: space-around !important;
-  background: var(--bg-2, #070c16) !important; border-top: 1px solid var(--line-2, #1a2332) !important;
-  padding: 4px 0 !important; padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px)) !important;
-  box-shadow: 0 -4px 12px rgba(0,0,0,0.2) !important;
+  display: flex !important;
 }
-#viewNews, #viewMap, #viewIptv { padding-bottom: 75px !important; min-height: auto !important; overflow-y: auto !important; }
-#viewVod, #viewAi { padding-bottom: 75px !important; min-height: auto !important; }
-
-.sheet-overlay { position: fixed !important; inset: 0 !important; background: rgba(0,0,0,0.6) !important; z-index: 10000000 !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s !important; }
-.sheet-overlay.open { opacity: 1 !important; pointer-events: auto !important; }
-.sheet { position: fixed !important; bottom: -100% !important; left: 0 !important; right: 0 !important; z-index: 10000001 !important; background: var(--bg-2, #070c16) !important; border-radius: 20px 20px 0 0 !important; transition: bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; max-height: 85vh !important; overflow-y: auto !important; padding-bottom: env(safe-area-inset-bottom, 20px) !important; border-top: 1px solid var(--line-2, #1a2332) !important; box-shadow: 0 -10px 40px rgba(0,0,0,0.5) !important; }
-.sheet.open { bottom: 0 !important; }
-
-.vod-detail-modal { position: fixed !important; inset: 0 !important; z-index: 99999999 !important; background: rgba(0,0,0,0.7) !important; display: flex !important; align-items: flex-end !important; justify-content: center !important; padding: 0 !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s !important; }
+.sheet-overlay { position: fixed !important; inset: 0 !important; }
+.sheet { position: fixed !important; left: 0 !important; right: 0 !important; }
+.vod-detail-modal { position: fixed !important; inset: 0 !important; display: flex !important; align-items: flex-end !important; justify-content: center !important; padding: 0 !important; }
 .vod-detail-modal.show { opacity: 1 !important; pointer-events: auto !important; }
-.vod-detail-box { background: var(--bg-2, #070c16) !important; border-radius: 20px 20px 0 0 !important; width: 100% !important; max-width: 100% !important; max-height: 85vh !important; overflow-y: auto !important; border: none !important; border-top: 1px solid var(--line-2, #1a2332) !important; box-shadow: 0 -10px 40px rgba(0,0,0,0.8) !important; padding-bottom: env(safe-area-inset-bottom, 20px) !important; transform: translateY(100%) !important; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; }
-.vod-detail-modal.show .vod-detail-box { transform: translateY(0) !important; }
+.vod-detail-box { width: 100% !important; max-width: 100% !important; max-height: 85vh !important; }
 .vod-detail-body { padding: 16px !important; display: flex !important; flex-direction: column !important; gap: 12px !important; }
 .vod-detail-poster img { max-width: 120px !important; border-radius: 8px !important; display: block !important; }
 
-/* ==== C6: PWA banners ==== */
+/* PWA banners */
 .wd-banner-offline{position:fixed;top:0;left:0;right:0;z-index:10000003;
   background:#3a3a3a;color:#fff;padding:8px 12px;font-size:13px;
   text-align:center;font-weight:500;
@@ -193,6 +187,96 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
 @media (min-width:900px){
   .wd-banner-install{display:none!important}
 }
+
+/* ===== v14.9: Compacte header op niet-Nieuws ===== */
+body:has(#viewMap:not([hidden])) .header-stats,
+body:has(#viewIptv:not([hidden])) .header-stats,
+body:has(#viewVod:not([hidden])) .header-stats,
+body:has(#viewAi:not([hidden])) .header-stats,
+body:has(#viewMap:not([hidden])) #btnTheme,
+body:has(#viewIptv:not([hidden])) #btnTheme,
+body:has(#viewVod:not([hidden])) #btnTheme,
+body:has(#viewAi:not([hidden])) #btnTheme {
+  display: none !important;
+}
+body:has(#viewMap:not([hidden])) .header-inner,
+body:has(#viewIptv:not([hidden])) .header-inner,
+body:has(#viewVod:not([hidden])) .header-inner,
+body:has(#viewAi:not([hidden])) .header-inner {
+  padding: .55rem 1rem !important;
+}
+body:has(#viewMap:not([hidden])) .brand-mark,
+body:has(#viewIptv:not([hidden])) .brand-mark,
+body:has(#viewVod:not([hidden])) .brand-mark,
+body:has(#viewAi:not([hidden])) .brand-mark {
+  width: 34px !important; height: 34px !important;
+  border-radius: 10px !important;
+}
+body:has(#viewMap:not([hidden])) .brand-mark svg,
+body:has(#viewIptv:not([hidden])) .brand-mark svg,
+body:has(#viewVod:not([hidden])) .brand-mark svg,
+body:has(#viewAi:not([hidden])) .brand-mark svg {
+  width: 18px !important; height: 18px !important;
+}
+
+/* ===== v14.9: Hotspot-strip weg (D5) ===== */
+#wdHotspotStrip, .wd-hotspot-strip { display: none !important; }
+
+/* ===== v14.9: Legend inklapbaar op mobiel (C2) ===== */
+@media (max-width: 640px) {
+  .map-legend {
+    top: .55rem !important;
+    left: auto !important;
+    right: .55rem !important;
+    bottom: auto !important;
+    max-width: 44px !important;
+    padding: .45rem !important;
+    overflow: hidden !important;
+    cursor: pointer !important;
+    transition: max-width .25s cubic-bezier(.2,.9,.3,1) !important;
+    z-index: 501 !important;
+  }
+  .map-legend::after {
+    content: "☰";
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.1rem;
+    color: var(--amber);
+    pointer-events: none;
+  }
+  .map-legend.expanded {
+    max-width: 190px !important;
+    padding: .5rem .7rem !important;
+  }
+  .map-legend.expanded::after { display: none; }
+  .map-legend .legend-title,
+  .map-legend #legendItems { opacity: 0; transition: opacity .15s; }
+  .map-legend.expanded .legend-title,
+  .map-legend.expanded #legendItems { opacity: 1; }
+}
+
+/* ===== v14.9: Map controls linksonder (C5) ===== */
+.map-controls {
+  top: auto !important;
+  bottom: .7rem !important;
+  left: .7rem !important;
+  right: auto !important;
+  flex-direction: row !important;
+  gap: .35rem !important;
+}
+.map-ctrl {
+  width: 42px !important;
+  height: 42px !important;
+  font-size: 1.05rem !important;
+}
+.map-ctrl svg { width: 18px !important; height: 18px !important; }
+
+@media (max-width: 640px) {
+  .map-legend.expanded ~ .map-controls {
+    bottom: calc(85px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -221,7 +305,7 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.22</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.34</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -312,7 +396,6 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
   <section class="view" id="viewAi" hidden>
     <div class="section-head">
       <h2>AI Assistent</h2>
-      <button class="btn-mini ai-day-btn" id="aiDayBtn" aria-label="Dagoverzicht">📅</button>
       <button class="btn-mini" id="aiClearBtn" aria-label="Gesprek wissen">🗑</button>
     </div>
     <div class="ai-chat">
@@ -320,6 +403,9 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
       <div class="ai-input-wrap">
         <textarea id="aiInput" placeholder="Stel een vraag over het nieuws..." rows="1"></textarea>
         <button class="ai-send-btn" id="aiSendBtn" aria-label="Versturen">➤</button>
+        <div class="ai-day-bar">
+          <button class="ai-day-btn-bottom" id="aiDayBtn" aria-label="Dagoverzicht">📅 Dagoverzicht</button>
+        </div>
       </div>
     </div>
   </section>
@@ -468,7 +554,7 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.22</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.34</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -631,7 +717,9 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
     setInterval(syncToggles, 400);
   });
 })();
+</script>
 
+<script>
 (function(){
   "use strict";
   var DEBUG = window.WD_DEBUG;
@@ -738,13 +826,26 @@ document.addEventListener("DOMContentLoaded", function(){
 });
 </script>
 
+<script>
+/* v14.9: Legend inklapbaar op mobiel */
+document.addEventListener("DOMContentLoaded", function(){
+  var legend = document.getElementById("mapLegend");
+  if (!legend) return;
+  legend.addEventListener("click", function(e){
+    /* Als gebruiker op een legend-item klikt → niet inklappen */
+    if (e.target.closest(".legend-item")) return;
+    if (window.innerWidth <= 640) legend.classList.toggle("expanded");
+  });
+});
+</script>
+
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
 <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js" defer></script>
 
 <script src="storage.js?v=14.30" defer></script>
-<script src="config.js?v=14.22" defer></script>
+<script src="config.js?v=14.34" defer></script>
 <script src="utils.js?v=14.30" defer></script>
 
 <script src="ai-shared.js?v=1.0" defer></script>
@@ -825,7 +926,6 @@ document.addEventListener("DOMContentLoaded", function(){
 })();
 </script>
 
-<!-- ==== C6: PWA module v2 ==== -->
 <script>
 (function(){
   "use strict";
