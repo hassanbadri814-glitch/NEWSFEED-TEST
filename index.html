@@ -107,7 +107,7 @@
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
@@ -351,7 +351,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   max-height: calc(100dvh - var(--header-h, 62px) - 80px - var(--tabs-h, 62px) - 20px) !important;
 }
 
-/* ===== Phosphor tab-iconen ===== */
+/* ===== Phosphor Bold tab-iconen ===== */
 .tab-icon {
   display: inline-flex !important;
   align-items: center;
@@ -360,13 +360,13 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   height: 26px;
 }
 .tab-icon i {
-  font-size: 22px;
+  font-size: 21px;
   line-height: 1;
   color: currentColor;
   display: block;
 }
 .tab.active .tab-icon i {
-  text-shadow: 0 0 12px var(--accent-glow-strong, rgba(224,168,87,.55));
+  text-shadow: 0 0 14px var(--accent-glow-strong, rgba(224,168,87,.6));
 }
 </style>
 </head>
@@ -517,11 +517,11 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
 </main>
 
 <nav class="bottom-tabs" role="tablist">
-  <button class="tab active" data-view="news" role="tab" aria-selected="true"><span class="tab-icon"><i class="ph ph-newspaper"></i></span><span class="tab-label">Nieuws</span></button>
-  <button class="tab" data-view="map" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph ph-map-trifold"></i></span><span class="tab-label">Kaart</span></button>
-  <button class="tab" data-view="iptv" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph ph-television"></i></span><span class="tab-label">IPTV</span></button>
-  <button class="tab" data-view="vod" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph ph-film-slate"></i></span><span class="tab-label">VOD</span></button>
-  <button class="tab" data-view="ai" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph ph-chat-circle"></i></span><span class="tab-label">AI</span></button>
+  <button class="tab active" data-view="news" role="tab" aria-selected="true"><span class="tab-icon"><i class="ph-bold ph-newspaper"></i></span><span class="tab-label">Nieuws</span></button>
+  <button class="tab" data-view="map" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-map-trifold"></i></span><span class="tab-label">Kaart</span></button>
+  <button class="tab" data-view="iptv" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-television"></i></span><span class="tab-label">IPTV</span></button>
+  <button class="tab" data-view="vod" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-film-slate"></i></span><span class="tab-label">VOD</span></button>
+  <button class="tab" data-view="ai" role="tab" aria-selected="false"><span class="tab-icon"><i class="ph-bold ph-chat-circle"></i></span><span class="tab-label">AI</span></button>
 </nav>
 
 <div class="sheet-overlay" id="sheetOverlay"></div>
