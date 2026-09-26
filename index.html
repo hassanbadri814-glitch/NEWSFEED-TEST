@@ -116,7 +116,7 @@
 <link rel="stylesheet" href="styles.css?v=14.9">
 
 <style>
-/* ===== Kritieke layout-fix — overschrijft alles ===== */
+/* ===== Kritieke layout-fix ===== */
 #viewAi:not([hidden]) { display: flex !important; flex-direction: column !important; }
 
 /* Bottom-tabs fix */
@@ -126,8 +126,25 @@
 }
 .sheet-overlay { position: fixed !important; inset: 0 !important; }
 .sheet { position: fixed !important; left: 0 !important; right: 0 !important; }
-.vod-detail-modal { position: fixed !important; inset: 0 !important; display: flex !important; align-items: flex-end !important; justify-content: center !important; padding: 0 !important; }
-.vod-detail-modal.show { opacity: 1 !important; pointer-events: auto !important; }
+
+/* VOD modal — FIX: verborgen tenzij .show */
+.vod-detail-modal {
+  position: fixed !important;
+  inset: 0 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  transition: opacity .2s ease, visibility .2s ease !important;
+}
+.vod-detail-modal.show {
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
 .vod-detail-box { width: 100% !important; max-width: 100% !important; max-height: 85vh !important; }
 .vod-detail-body { padding: 16px !important; display: flex !important; flex-direction: column !important; gap: 12px !important; }
 .vod-detail-poster img { max-width: 120px !important; border-radius: 8px !important; display: block !important; }
@@ -188,7 +205,7 @@ body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
   .wd-banner-install{display:none!important}
 }
 
-/* ===== v14.9: Compacte header op niet-Nieuws ===== */
+/* Compacte header op niet-Nieuws */
 body:has(#viewMap:not([hidden])) .header-stats,
 body:has(#viewIptv:not([hidden])) .header-stats,
 body:has(#viewVod:not([hidden])) .header-stats,
@@ -219,10 +236,10 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   width: 18px !important; height: 18px !important;
 }
 
-/* ===== v14.9: Hotspot-strip weg (D5) ===== */
+/* Hotspot-strip weg */
 #wdHotspotStrip, .wd-hotspot-strip { display: none !important; }
 
-/* ===== v14.9: Legend inklapbaar op mobiel (C2) ===== */
+/* Legend inklapbaar op mobiel */
 @media (max-width: 640px) {
   .map-legend {
     top: .55rem !important;
@@ -256,7 +273,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   .map-legend.expanded #legendItems { opacity: 1; }
 }
 
-/* ===== v14.9: Map controls linksonder (C5) ===== */
+/* Map controls linksonder */
 .map-controls {
   top: auto !important;
   bottom: .7rem !important;
@@ -827,12 +844,11 @@ document.addEventListener("DOMContentLoaded", function(){
 </script>
 
 <script>
-/* v14.9: Legend inklapbaar op mobiel */
+/* Legend inklapbaar op mobiel */
 document.addEventListener("DOMContentLoaded", function(){
   var legend = document.getElementById("mapLegend");
   if (!legend) return;
   legend.addEventListener("click", function(e){
-    /* Als gebruiker op een legend-item klikt → niet inklappen */
     if (e.target.closest(".legend-item")) return;
     if (window.innerWidth <= 640) legend.classList.toggle("expanded");
   });
