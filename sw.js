@@ -5,7 +5,7 @@
    - v2.6: HTML/JSON network-first, JS/CSS SWR, images cache-first
    ============================================================ */
 
-const CACHE_VERSION = 'v14.34';
+const CACHE_VERSION = 'v14.35';
 const STATIC_CACHE = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE = 'wardesk-media-v1';
 
