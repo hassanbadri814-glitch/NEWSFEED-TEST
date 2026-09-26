@@ -1,13 +1,11 @@
 /* ============================================================
-   WAR DESK Service Worker v2.8
-   - v2.8: split cache (static + media) voor efficiëntere updates
-   - v2.7: HTML fallback naar offline.html
-   - v2.6: HTML/JSON network-first, JS/CSS SWR, images cache-first
+   WAR DESK Service Worker v3.0
+   - v3.0: cache-bump (v14.49) + fix voor Cinemeta JSON responses
    ============================================================ */
 
-const CACHE_VERSION = 'v14.47';
-const STATIC_CACHE = 'wardesk-static-' + CACHE_VERSION;
-const MEDIA_CACHE = 'wardesk-media-v1';
+const CACHE_VERSION = 'v14.49';
+const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
+const MEDIA_CACHE   = 'wardesk-media-v1';
 
 const PRECACHE_ASSETS = [
   './',
@@ -60,11 +58,9 @@ self.addEventListener('message', event => {
 
 self.addEventListener('fetch', event => {
   const req = event.request;
-
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
-
   if (url.origin !== location.origin) return;
 
   const isImage = /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(url.pathname);
@@ -75,22 +71,19 @@ self.addEventListener('fetch', event => {
                || url.pathname.endsWith('/');
   const isJson  = /\.json$/i.test(url.pathname);
 
-  /* ===== MEDIA: images/fonts → MEDIA_CACHE ===== */
   if (isImage || isFont) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(cache =>
         cache.match(req).then(cached => {
           if (cached) {
             fetch(req).then(res => {
-              if (res && res.status === 200) {
-                cache.put(req, res.clone()).catch(() => {});
-              }
-            }).catch(() => {});
+              if (res && res.status === 200) cache.put(req, res.clone()).catch(()=>{});
+            }).catch(()=>{});
             return cached;
           }
           return fetch(req).then(res => {
             if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
-              cache.put(req, res.clone()).catch(() => {});
+              cache.put(req, res.clone()).catch(()=>{});
             }
             return res;
           });
@@ -100,15 +93,12 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* ===== STATIC: JS/CSS → STATIC_CACHE (stale-while-revalidate) ===== */
   if (isAsset) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(cache =>
         cache.match(req).then(cached => {
           const networkFetch = fetch(req).then(res => {
-            if (res && res.status === 200) {
-              cache.put(req, res.clone()).catch(() => {});
-            }
+            if (res && res.status === 200) cache.put(req, res.clone()).catch(()=>{});
             return res;
           }).catch(() => cached);
           return cached || networkFetch;
@@ -118,27 +108,24 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* ===== HTML/JSON → STATIC_CACHE (network-first met offline fallback) ===== */
   if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
         .then(res => {
           if (res && res.status === 200) {
             const clone = res.clone();
-            caches.open(STATIC_CACHE).then(c => c.put(req, clone)).catch(() => {});
+            caches.open(STATIC_CACHE).then(c => c.put(req, clone)).catch(()=>{});
           }
           return res;
         })
-        .catch(() => {
-          return caches.match(req).then(cached => {
-            if (cached) return cached;
-            if (isHtml) return caches.match('./offline.html');
-            return new Response(JSON.stringify({ error: 'offline' }), {
-              status: 503,
-              headers: { 'Content-Type': 'application/json' }
-            });
+        .catch(() => caches.match(req).then(cached => {
+          if (cached) return cached;
+          if (isHtml) return caches.match('./offline.html');
+          return new Response(JSON.stringify({ error: 'offline' }), {
+            status: 503,
+            headers: { 'Content-Type': 'application/json' }
           });
-        })
+        }))
     );
     return;
   }
