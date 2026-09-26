@@ -1,15 +1,17 @@
 /* ============================================================
-   WAR DESK v24.6 — VOD (Robust init + Click Fix + Back Button Fix)
-   - FIX v24.5: A3 (history replaceState), A4 (lege ID fallback)
-   - FIX v24.6: E5 (zoek-debounce 250ms)
+   WAR DESK VOD v24.7 — Robuuste versie
+   - v24.7: centrale WD.fetchJson, POST+GET fallback, modal
+            onerror, duidelijke foutmeldingen, history fix
    ============================================================ */
 
 (function(){
   "use strict";
 
   var $ = function(id){ return document.getElementById(id); };
-  var LOG = function(){ try{ wdLog.info.apply(null, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v24.6 geladen");
+  var LOG = function(){
+    try{ wdLog.info.apply(null, ["[VOD]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
+  };
+  LOG("v24.7 geladen");
 
   var CINEMETA_BASE = "https://v3-cinemeta.strem.io";
 
@@ -28,7 +30,8 @@
     _sidebarBound: false,
     _gridBound: false,
     _searchValue: "",
-    _renderChunkTimer: null
+    _renderChunkTimer: null,
+    _historyActive: false
   };
 
   var CATS = [
@@ -37,18 +40,18 @@
       { id: "series/top", label: "Top series", color: "#e0a857" }
     ]},
     { group: "Film genres", items: [
-      { id: "movie/top/genre=Action",     label: "Actie",    color: "#ef4444" },
-      { id: "movie/top/genre=Comedy",     label: "Komedie",  color: "#f59e0b" },
-      { id: "movie/top/genre=Drama",      label: "Drama",    color: "#a855f7" },
-      { id: "movie/top/genre=Sci-Fi",     label: "Sci-Fi",   color: "#06b6d4" },
-      { id: "movie/top/genre=Thriller",   label: "Thriller", color: "#8b5cf6" }
+      { id: "movie/top/genre=Action",   label: "Actie",    color: "#ef4444" },
+      { id: "movie/top/genre=Comedy",   label: "Komedie",  color: "#f59e0b" },
+      { id: "movie/top/genre=Drama",    label: "Drama",    color: "#a855f7" },
+      { id: "movie/top/genre=Sci-Fi",   label: "Sci-Fi",   color: "#06b6d4" },
+      { id: "movie/top/genre=Thriller", label: "Thriller", color: "#8b5cf6" }
     ]},
     { group: "Serie genres", items: [
-      { id: "series/top/genre=Action",    label: "Actie",    color: "#ef4444" },
-      { id: "series/top/genre=Comedy",    label: "Komedie",  color: "#f59e0b" },
-      { id: "series/top/genre=Drama",     label: "Drama",    color: "#a855f7" },
-      { id: "series/top/genre=Sci-Fi",    label: "Sci-Fi",   color: "#06b6d4" },
-      { id: "series/top/genre=Thriller",  label: "Thriller", color: "#8b5cf6" }
+      { id: "series/top/genre=Action",   label: "Actie",    color: "#ef4444" },
+      { id: "series/top/genre=Comedy",   label: "Komedie",  color: "#f59e0b" },
+      { id: "series/top/genre=Drama",    label: "Drama",    color: "#a855f7" },
+      { id: "series/top/genre=Sci-Fi",   label: "Sci-Fi",   color: "#06b6d4" },
+      { id: "series/top/genre=Thriller", label: "Thriller", color: "#8b5cf6" }
     ]}
   ];
 
@@ -58,10 +61,11 @@
     });
   }
 
+  /* ============================================================
+     FETCH — robuust: WD.fetchJson → direct → POST → GET
+     ============================================================ */
   function getProxies(){
-    if(window.CONFIG && CONFIG.proxies && CONFIG.proxies.length){
-      return CONFIG.proxies.slice();
-    }
+    if(window.CONFIG && CONFIG.proxies && CONFIG.proxies.length) return CONFIG.proxies.slice();
     return ["https://newsfeed2.hassanbadri814.workers.dev/?url="];
   }
 
@@ -74,17 +78,47 @@
         if(!r.ok) throw new Error("HTTP " + r.status);
         return r.json();
       })
-      .catch(function(e){
-        clearTimeout(timer);
-        throw e;
-      });
+      .catch(function(e){ clearTimeout(timer); throw e; });
   }
 
-  function fetchJsonViaProxy(url){
+  function fetchJsonViaPost(url){
     var proxies = getProxies();
     var lastErr = null;
     function tryProxy(idx){
-      if(idx >= proxies.length) return Promise.reject(lastErr || new Error("Alle proxies faalden"));
+      if(idx >= proxies.length) return Promise.reject(lastErr || new Error("Alle POST proxies faalden"));
+      var proxy = proxies[idx];
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 15000);
+      return fetch(proxy, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: url }),
+        signal: ctrl.signal
+      })
+      .then(function(r){
+        clearTimeout(timer);
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      })
+      .then(function(text){
+        try{ return JSON.parse(text); }
+        catch(e){ throw new Error("Geen geldige JSON"); }
+      })
+      .catch(function(e){
+        clearTimeout(timer);
+        lastErr = e;
+        LOG("POST proxy " + (idx+1) + " faalde:", e.message);
+        return tryProxy(idx + 1);
+      });
+    }
+    return tryProxy(0);
+  }
+
+  function fetchJsonViaGet(url){
+    var proxies = getProxies();
+    var lastErr = null;
+    function tryProxy(idx){
+      if(idx >= proxies.length) return Promise.reject(lastErr || new Error("Alle GET proxies faalden"));
       var proxy = proxies[idx];
       var ctrl = new AbortController();
       var timer = setTimeout(function(){ ctrl.abort(); }, 15000);
@@ -97,7 +131,7 @@
         .catch(function(e){
           clearTimeout(timer);
           lastErr = e;
-          LOG("Proxy " + (idx + 1) + " faalde:", e.message);
+          LOG("GET proxy " + (idx+1) + " faalde:", e.message);
           return tryProxy(idx + 1);
         });
     }
@@ -105,48 +139,50 @@
   }
 
   function fetchJson(url){
-    return fetchJsonDirect(url, 12000).catch(function(e){
-      LOG("Direct faalde:", e.message, "- probeer proxy");
-      return fetchJsonViaProxy(url);
-    });
+    if(window.WD && window.WD.fetchJson){
+      return window.WD.fetchJson(url).catch(function(e){
+        LOG("WD.fetchJson faalde:", e.message, "- probeer POST/GET fallback");
+        return fetchJsonViaPost(url).catch(function(){ return fetchJsonViaGet(url); });
+      });
+    }
+    return fetchJsonDirect(url, 12000)
+      .catch(function(e){ LOG("Direct faalde:", e.message, "- probeer POST"); return fetchJsonViaPost(url); })
+      .catch(function(){ return fetchJsonViaGet(url); });
   }
 
+  /* ============================================================
+     URL BUILDERS
+     ============================================================ */
   function buildCatalogUrl(catId, skip){
     var url = CINEMETA_BASE + "/catalog/" + catId;
-    if(typeof skip === "number" && skip > 0){
-      url += "/skip=" + skip;
-    }
+    if(typeof skip === "number" && skip > 0) url += "/skip=" + skip;
     return url + ".json";
   }
-
   function buildSearchUrl(type, query, skip){
     var url = CINEMETA_BASE + "/catalog/" + type + "/top/search=" + encodeURIComponent(query);
-    if(typeof skip === "number" && skip > 0){
-      url += "/skip=" + skip;
-    }
+    if(typeof skip === "number" && skip > 0) url += "/skip=" + skip;
     return url + ".json";
   }
-
   function buildMetaUrl(type, id){
     return CINEMETA_BASE + "/meta/" + type + "/" + encodeURIComponent(id) + ".json";
   }
 
-  function cacheGet(key){
-    var entry = VOD.cache.get(key);
-    return entry ? entry.items : null;
-  }
+  /* ============================================================
+     CACHE
+     ============================================================ */
+  function cacheGet(key){ var e = VOD.cache.get(key); return e ? e.items : null; }
   function cacheSet(key, items){
     VOD.cache.set(key, { items: items, t: Date.now() });
     if(VOD.cache.size > VOD.cacheMaxSize){
-      var oldestKey = null;
-      var oldestT = Infinity;
-      VOD.cache.forEach(function(v, k){
-        if(v.t < oldestT){ oldestT = v.t; oldestKey = k; }
-      });
+      var oldestKey = null, oldestT = Infinity;
+      VOD.cache.forEach(function(v, k){ if(v.t < oldestT){ oldestT = v.t; oldestKey = k; } });
       if(oldestKey) VOD.cache.delete(oldestKey);
     }
   }
 
+  /* ============================================================
+     SIDEBAR
+     ============================================================ */
   function renderSidebar(){
     var wrap = $("vodSidebar");
     if(!wrap) return;
@@ -176,8 +212,7 @@
         if(catId === VOD.currentCatId && !VOD._searchValue) return;
 
         VOD._searchValue = "";
-        var searchInput = $("vodSearchInput");
-        if(searchInput) searchInput.value = "";
+        var s = $("vodSearchInput"); if(s) s.value = "";
 
         VOD.currentCatId = catId;
         VOD.currentLabel = label;
@@ -185,10 +220,8 @@
         VOD.currentSkip = 0;
         VOD.currentItems = [];
 
-        var grid = $("vodGrid");
-        if(grid) grid.innerHTML = "";
-        var lmWrap = $("vodLoadMoreWrap");
-        if(lmWrap) lmWrap.innerHTML = "";
+        var grid = $("vodGrid"); if(grid) grid.innerHTML = "";
+        var lm = $("vodLoadMoreWrap"); if(lm) lm.innerHTML = "";
 
         renderSidebar();
         loadCatalog(false);
@@ -201,11 +234,7 @@
     if(!grid) return;
     var html = "";
     for(var i = 0; i < 12; i++){
-      html += '<div class="vod-skeleton">';
-      html += '<div class="vod-skeleton-img"></div>';
-      html += '<div class="vod-skeleton-line"></div>';
-      html += '<div class="vod-skeleton-line short"></div>';
-      html += '</div>';
+      html += '<div class="vod-skeleton"><div class="vod-skeleton-img"></div><div class="vod-skeleton-line"></div><div class="vod-skeleton-line short"></div></div>';
     }
     grid.innerHTML = html;
   }
@@ -215,16 +244,11 @@
     if(!grid) return;
 
     if(!items.length){
-      if(!VOD.currentItems.length){
-        grid.innerHTML = '<div class="vod-empty">Geen resultaten.</div>';
-      }
+      if(!VOD.currentItems.length) grid.innerHTML = '<div class="vod-empty">Geen resultaten.</div>';
       return;
     }
 
-    if(VOD._renderChunkTimer){
-      cancelAnimationFrame(VOD._renderChunkTimer);
-      VOD._renderChunkTimer = null;
-    }
+    if(VOD._renderChunkTimer){ cancelAnimationFrame(VOD._renderChunkTimer); VOD._renderChunkTimer = null; }
 
     var baseIdx = VOD.currentItems.length;
     var chunkSize = 40;
@@ -245,15 +269,14 @@
 
         var html = '<button class="vod-poster" data-idx="' + idx + '" aria-label="Open ' + esc(name) + '">';
         if(poster){
-          html += '<div class="vod-poster-img"><img src="' + esc(poster) + '" loading="lazy" alt="Poster van ' + esc(name) + '" onerror="this.style.display=\'none\'; if(this.parentNode) this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'"></div>';
+          html += '<div class="vod-poster-img"><img src="' + esc(poster) + '" loading="lazy" alt="" onerror="this.style.display=\'none\'; if(this.parentNode) this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'"></div>';
         } else {
           html += '<div class="vod-poster-img"><span class="vod-poster-fallback">' + esc(initial) + '</span></div>';
         }
         html += '<div class="vod-poster-body">';
         html += '<div class="vod-poster-name">' + esc(name) + '</div>';
         html += '<div class="vod-poster-meta">' + esc(year) + (rating ? ' · ' + esc(rating) : '') + '</div>';
-        html += '</div>';
-        html += '</button>';
+        html += '</div></button>';
 
         var temp = document.createElement('div');
         temp.innerHTML = html;
@@ -277,7 +300,6 @@
   function bindGridEvents(){
     var grid = $("vodGrid");
     if(!grid || VOD._gridBound) return;
-    
     VOD._gridBound = true;
     grid.addEventListener("click", function(e){
       var btn = e.target.closest(".vod-poster");
@@ -289,12 +311,14 @@
     });
   }
 
+  /* ============================================================
+     LOAD CATALOG
+     ============================================================ */
   async function loadCatalog(loadMore){
     var grid = $("vodGrid");
     if(!grid) return;
 
     var myToken = ++VOD.loadToken;
-
     if(loadMore && VOD.isLoading) return;
 
     if(!loadMore){
@@ -302,16 +326,12 @@
       VOD.currentItems = [];
       grid.innerHTML = "";
       showSkeletons();
-      var lmReset = $("vodLoadMoreWrap");
-      if(lmReset) lmReset.innerHTML = "";
+      var lm = $("vodLoadMoreWrap"); if(lm) lm.innerHTML = "";
     }
 
-    var url;
-    if(VOD._searchValue){
-      url = buildSearchUrl(VOD.currentType, VOD._searchValue, VOD.currentSkip);
-    } else {
-      url = buildCatalogUrl(VOD.currentCatId, VOD.currentSkip);
-    }
+    var url = VOD._searchValue
+      ? buildSearchUrl(VOD.currentType, VOD._searchValue, VOD.currentSkip)
+      : buildCatalogUrl(VOD.currentCatId, VOD.currentSkip);
 
     var cacheKey = "c::" + url;
     var cached = cacheGet(cacheKey);
@@ -333,11 +353,9 @@
     try{
       LOG("Fetch:", url);
       var data = await fetchJson(url);
-
       if(myToken !== VOD.loadToken) return;
-
       var items = (data && data.metas) ? data.metas : [];
-      LOG(items.length + " items");
+      LOG(items.length + " items ontvangen");
 
       cacheSet(cacheKey, items);
       if(!loadMore) grid.innerHTML = "";
@@ -350,11 +368,10 @@
       LOG("Fout:", e.message);
       if(!loadMore){
         grid.innerHTML = '<div class="vod-empty">Kon niets laden. Controleer je verbinding en probeer opnieuw.</div>';
-        if(window.showToast) window.showToast("Kon films/series niet laden. Controleer je verbinding.");
+        if(window.showToast) window.showToast("Kon films/series niet laden.");
       } else {
-        var lm = $("vodLoadMoreWrap");
-        if(lm) lm.innerHTML = '<div class="vod-empty" style="padding:1rem">Kon niet meer laden.</div>';
-        if(window.showToast) window.showToast("Kon niet meer laden.");
+        var lm2 = $("vodLoadMoreWrap");
+        if(lm2) lm2.innerHTML = '<div class="vod-empty" style="padding:1rem">Kon niet meer laden.</div>';
       }
     } finally {
       if(myToken === VOD.loadToken){
@@ -389,23 +406,25 @@
     countEl.textContent = label + ' · ' + n + ' resultaten';
   }
 
+  /* ============================================================
+     SEARCH
+     ============================================================ */
   function bindSearch(){
     var input = $("vodSearchInput");
     var clearBtn = $("vodSearchClear");
     if(!input) return;
 
-    var searchTimer;
+    var timer;
     input.addEventListener("input", function(){
-      clearTimeout(searchTimer);
-      searchTimer = setTimeout(function(){
+      clearTimeout(timer);
+      timer = setTimeout(function(){
         var q = input.value.trim();
         if(q.length < 2){
           if(VOD._searchValue){
             VOD._searchValue = "";
             VOD.currentSkip = 0;
             VOD.currentItems = [];
-            var grid = $("vodGrid");
-            if(grid){ grid.innerHTML = ""; showSkeletons(); }
+            var grid = $("vodGrid"); if(grid){ grid.innerHTML = ""; showSkeletons(); }
             loadCatalog(false);
           }
           return;
@@ -413,8 +432,7 @@
         VOD._searchValue = q;
         VOD.currentSkip = 0;
         VOD.currentItems = [];
-        var grid2 = $("vodGrid");
-        if(grid2){ grid2.innerHTML = ""; showSkeletons(); }
+        var g2 = $("vodGrid"); if(g2){ g2.innerHTML = ""; showSkeletons(); }
         loadCatalog(false);
       }, 250);
     });
@@ -426,8 +444,7 @@
           VOD._searchValue = "";
           VOD.currentSkip = 0;
           VOD.currentItems = [];
-          var grid3 = $("vodGrid");
-          if(grid3){ grid3.innerHTML = ""; showSkeletons(); }
+          var g3 = $("vodGrid"); if(g3){ g3.innerHTML = ""; showSkeletons(); }
           loadCatalog(false);
         }
       });
@@ -437,15 +454,28 @@
   function bindScrollTop(){
     var btn = $("vodScrollTop");
     if(!btn) return;
-    function checkScroll(){
-      var scrollY = window.pageYOffset || document.documentElement.scrollTop || 0;
-      btn.classList.toggle("show", scrollY > 400);
+    function check(){
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      btn.classList.toggle("show", y > 400);
     }
-    window.addEventListener("scroll", checkScroll, { passive: true });
-    btn.addEventListener("click", function(){
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    });
-    checkScroll();
+    window.addEventListener("scroll", check, { passive: true });
+    btn.addEventListener("click", function(){ window.scrollTo({ top: 0, behavior: "smooth" }); });
+    check();
+  }
+
+  /* ============================================================
+     DETAIL MODAL
+     ============================================================ */
+  function buildStremioLink(type, id){
+    if(!id) return "stremio:///";
+    return "stremio:///detail/" + type + "/" + encodeURIComponent(id);
+  }
+
+  function resolveTypeFor(item){
+    if(VOD.currentCatId && VOD.currentCatId.indexOf("series/") === 0) return "series";
+    if(VOD._searchValue && item && item.type) return item.type === "series" ? "series" : "movie";
+    if(item && item.type) return item.type === "series" ? "series" : "movie";
+    return "movie";
   }
 
   async function openDetail(item){
@@ -455,39 +485,48 @@
     VOD.currentDetail = item;
     document.body.style.overflow = "hidden";
 
-    $("vodDetailTitle").textContent = item.name || "?";
-    $("vodDetailMeta").textContent = "Laden...";
-    $("vodDetailText").textContent = "";
-    $("vodDetailPoster").innerHTML = item.poster
-      ? '<img src="' + esc(item.poster) + '" alt="Poster van ' + esc(item.name || "") + '">'
-      : '<span class="vod-poster-fallback">' + esc((item.name || "?").charAt(0)) + '</span>';
+    var titleEl = $("vodDetailTitle");
+    var metaEl  = $("vodDetailMeta");
+    var textEl  = $("vodDetailText");
+    var posEl   = $("vodDetailPoster");
+
+    var name = item.name || "?";
+    var initial = name.charAt(0).toUpperCase();
+
+    if(titleEl) titleEl.textContent = name;
+    if(metaEl) metaEl.textContent = "Laden...";
+    if(textEl) textEl.textContent = "";
+
+    if(posEl){
+      if(item.poster){
+        posEl.innerHTML = '<img src="' + esc(item.poster) +
+          '" alt="Poster" onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'">';
+      } else {
+        posEl.innerHTML = '<span class="vod-poster-fallback">' + esc(initial) + '</span>';
+      }
+    }
 
     modal.classList.add("show");
 
-    if (history.state && history.state.vodModal) {
-      history.replaceState({ vodModal: true }, '');
-    } else {
-      history.pushState({ vodModal: true }, '');
+    /* History: 1 pushState per modal-sessie */
+    if(!VOD._historyActive){
+      try {
+        history.pushState({ vodModal: true }, "");
+        VOD._historyActive = true;
+      } catch(e){}
     }
 
-    var type = "movie";
-    if(VOD.currentCatId && VOD.currentCatId.indexOf("series/") === 0){
-      type = "series";
-    } else if(VOD._searchValue && item.type){
-      type = item.type === "series" ? "series" : "movie";
-    }
-
+    var type = resolveTypeFor(item);
     var metaId = item.imdb_id || item.id;
-    if (!metaId) {
-      LOG("Geen metaId beschikbaar voor:", item.name);
-      $("vodDetailMeta").textContent = item.releaseInfo || item.year || "";
-      $("vodDetailText").textContent = item.description || "(geen beschrijving beschikbaar)";
+
+    if(!metaId){
+      LOG("Geen metaId voor:", name);
+      if(metaEl) metaEl.textContent = item.releaseInfo || item.year || "";
+      if(textEl) textEl.textContent = item.description || "(geen beschrijving beschikbaar)";
       var dlBtn0 = $("vodDetailOpenStremio");
-      if(dlBtn0){
-        dlBtn0.onclick = function(){
-          if(window.showToast) window.showToast("Geen Stremio-link beschikbaar");
-        };
-      }
+      if(dlBtn0) dlBtn0.onclick = function(){
+        if(window.showToast) window.showToast("Geen Stremio-link beschikbaar");
+      };
       return;
     }
 
@@ -496,64 +535,66 @@
     try{
       var data = await fetchJson(metaUrl);
       var meta = (data && data.meta) ? data.meta : null;
-      if(meta){
-        $("vodDetailTitle").textContent = meta.name || item.name;
-        var metaParts = [];
-        if(meta.releaseInfo) metaParts.push(meta.releaseInfo);
-        if(meta.runtime) metaParts.push(meta.runtime);
-        if(meta.imdbRating) metaParts.push("⭐ " + meta.imdbRating);
-        if(meta.genres && meta.genres.length) metaParts.push(meta.genres.slice(0, 3).join(", "));
-        $("vodDetailMeta").textContent = metaParts.join(" · ");
-        $("vodDetailText").textContent = meta.description || meta.plot || item.description || "(geen beschrijving)";
 
-        if(meta.poster){
-          $("vodDetailPoster").innerHTML = '<img src="' + esc(meta.poster) + '" alt="Poster van ' + esc(meta.name || "") + '">';
+      if(!VOD.currentDetail || VOD.currentDetail !== item) return;
+
+      if(meta){
+        if(titleEl) titleEl.textContent = meta.name || name;
+        var parts = [];
+        if(meta.releaseInfo) parts.push(meta.releaseInfo);
+        if(meta.runtime) parts.push(meta.runtime);
+        if(meta.imdbRating) parts.push("⭐ " + meta.imdbRating);
+        if(meta.genres && meta.genres.length) parts.push(meta.genres.slice(0, 3).join(", "));
+        if(metaEl) metaEl.textContent = parts.join(" · ");
+        if(textEl) textEl.textContent = meta.description || meta.plot || item.description || "(geen beschrijving)";
+
+        if(meta.poster && posEl){
+          posEl.innerHTML = '<img src="' + esc(meta.poster) +
+            '" alt="Poster" onerror="this.style.display=\'none\'; this.parentNode.innerHTML=\'<span class=&quot;vod-poster-fallback&quot;>' + esc(initial) + '</span>\'">';
         }
 
         var dl = buildStremioLink(type, meta.imdb_id || meta.id);
         var dlBtn = $("vodDetailOpenStremio");
         if(dlBtn){
           dlBtn.onclick = function(){
-            try { window.location.href = dl; }catch(e){
-              if(window.showToast) window.showToast("Kon Stremio niet openen");
-            }
+            try{ window.location.href = dl; }
+            catch(e){ if(window.showToast) window.showToast("Kon Stremio niet openen"); }
           };
         }
+      } else {
+        throw new Error("Geen meta");
       }
     }catch(e){
       LOG("Meta fout:", e.message);
-      $("vodDetailMeta").textContent = "";
-      $("vodDetailText").textContent = item.description || "(geen beschrijving)";
+      if(metaEl) metaEl.textContent = item.releaseInfo || item.year || "Onbekend";
+      if(textEl) textEl.textContent = "Kon details niet laden. Controleer je verbinding en probeer opnieuw.";
       if(window.showToast) window.showToast("Kon details niet laden.");
       var dl2 = buildStremioLink(type, metaId);
       var dlBtn2 = $("vodDetailOpenStremio");
       if(dlBtn2){
         dlBtn2.onclick = function(){
-          try { window.location.href = dl2; }catch(e){}
+          try{ window.location.href = dl2; }catch(e){}
         };
       }
     }
   }
 
-  function buildStremioLink(type, id){
-    if(!id) return "stremio:///";
-    return "stremio:///detail/" + type + "/" + encodeURIComponent(id);
-  }
-
-  function closeDetail(force){
+  function closeDetail(fromPopstate){
     var modal = $("vodDetailModal");
     if(modal) modal.classList.remove("show");
     document.body.style.overflow = "";
     VOD.currentDetail = null;
-    
-    if (!force && history.state && history.state.vodModal) {
-      history.back();
+
+    if(!fromPopstate && VOD._historyActive){
+      VOD._historyActive = false;
+      try{ history.back(); }catch(e){}
     }
   }
 
-  window.addEventListener('popstate', function(e) {
+  window.addEventListener("popstate", function(){
     var modal = $("vodDetailModal");
-    if (modal && modal.classList.contains("show")) {
+    if(modal && modal.classList.contains("show")){
+      VOD._historyActive = false;
       closeDetail(true);
     }
   });
@@ -561,24 +602,25 @@
   function bindDetailModal(){
     var modal = $("vodDetailModal");
     if(!modal) return;
-    var closeBtn = $("vodDetailClose");
-    var closeBtn2 = $("vodDetailCloseBtn");
-    if(closeBtn) closeBtn.addEventListener("click", function() { closeDetail(false); });
-    if(closeBtn2) closeBtn2.addEventListener("click", function() { closeDetail(false); });
+    var c1 = $("vodDetailClose");
+    var c2 = $("vodDetailCloseBtn");
+    if(c1) c1.addEventListener("click", function(){ closeDetail(false); });
+    if(c2) c2.addEventListener("click", function(){ closeDetail(false); });
     modal.addEventListener("click", function(e){
       if(e.target === modal) closeDetail(false);
     });
     document.addEventListener("keydown", function(e){
-      if(e.key === "Escape" && modal.classList.contains("show")){
-        closeDetail(false);
-      }
+      if(e.key === "Escape" && modal.classList.contains("show")) closeDetail(false);
     });
   }
 
+  /* ============================================================
+     INIT
+     ============================================================ */
   async function init(){
     if(VOD._initialized) return;
     VOD._initialized = true;
-    LOG("✅ init - VOD wordt geïnitialiseerd");
+    LOG("init - VOD wordt geïnitialiseerd");
     renderSidebar();
     bindDetailModal();
     bindSearch();
@@ -593,86 +635,51 @@
     VOD.cache.clear();
     VOD.currentSkip = 0;
     VOD.currentItems = [];
-    var grid = $("vodGrid");
-    if(grid){ grid.innerHTML = ""; showSkeletons(); }
+    var grid = $("vodGrid"); if(grid){ grid.innerHTML = ""; showSkeletons(); }
     loadCatalog(false);
   };
-  
+
   window.VODAPI = { init: init, state: VOD };
 
-  function setupVodWatcher() {
+  function setupVodWatcher(){
     var vodView = document.getElementById("viewVod");
-    if (!vodView) {
-      LOG("⚠️ viewVod niet gevonden");
-      return;
-    }
-    LOG("setupVodWatcher - wacht op VOD tab");
+    if(!vodView){ LOG("viewVod niet gevonden"); return; }
 
-    try {
-      var observer = new MutationObserver(function() {
-        if (!vodView.hidden && getComputedStyle(vodView).display !== "none") {
-          if (!VOD._initialized) {
-            LOG("🚀 VOD view werd zichtbaar (MutationObserver)");
-            init();
-          }
+    try{
+      var obs = new MutationObserver(function(){
+        if(!vodView.hidden && getComputedStyle(vodView).display !== "none"){
+          if(!VOD._initialized) init();
         }
       });
-      observer.observe(vodView, { 
-        attributes: true, 
-        attributeFilter: ["hidden", "class", "style"] 
-      });
-    } catch(e) {
-      LOG("MutationObserver faalde:", e.message);
-    }
+      obs.observe(vodView, { attributes: true, attributeFilter: ["hidden","class","style"] });
+    }catch(e){}
 
     document.querySelectorAll(".bottom-tabs .tab").forEach(function(tab){
       tab.addEventListener("click", function(){
-        if (tab.dataset.view === "vod") {
-          setTimeout(function(){
-            if (!VOD._initialized) {
-              LOG("🚀 VOD tab geklikt - init");
-              init();
-            }
-          }, 200);
+        if(tab.dataset.view === "vod"){
+          setTimeout(function(){ if(!VOD._initialized) init(); }, 200);
         }
       });
     });
 
-    var checkCount = 0;
-    var MAX_CHECKS = 60;
-    var POLL_INTERVAL_MS = 1000;
-    var pollInterval = setInterval(function(){
-      checkCount++;
-      if (VOD._initialized) {
-        clearInterval(pollInterval);
-        return;
-      }
-      var view = document.getElementById("viewVod");
-      if (view && !view.hidden && getComputedStyle(view).display !== "none") {
-        LOG("🚀 VOD view zichtbaar (polling) - init");
+    var checks = 0;
+    var poll = setInterval(function(){
+      checks++;
+      if(VOD._initialized){ clearInterval(poll); return; }
+      var v = document.getElementById("viewVod");
+      if(v && !v.hidden && getComputedStyle(v).display !== "none"){
         init();
-        clearInterval(pollInterval);
+        clearInterval(poll);
         return;
       }
-      if (checkCount >= MAX_CHECKS) {
-        LOG("⚠️ VOD polling timeout na " + MAX_CHECKS + " pogingen — gestopt");
-        clearInterval(pollInterval);
-      }
-    }, POLL_INTERVAL_MS);
+      if(checks >= 60) clearInterval(poll);
+    }, 1000);
 
-    if (!vodView.hidden && getComputedStyle(vodView).display !== "none") {
-      LOG("🚀 VOD view al zichtbaar - init direct");
-      init();
-    }
+    if(!vodView.hidden && getComputedStyle(vodView).display !== "none") init();
   }
 
-  if (document.readyState !== "loading") {
-    setTimeout(setupVodWatcher, 500);
-  } else {
-    document.addEventListener("DOMContentLoaded", function(){
-      setTimeout(setupVodWatcher, 500);
-    });
-  }
+  if(document.readyState !== "loading") setTimeout(setupVodWatcher, 500);
+  else document.addEventListener("DOMContentLoaded", function(){ setTimeout(setupVodWatcher, 500); });
 
-  wdLog.info("[WAR DESK] vod-v24.js v24.6 geladen");
+  wdLog.info("[WAR DESK] vod-v24.js v24.7 geladen");
 })();
