@@ -3,14 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>WAR DESK · Icon Preview</title>
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<title>WAR DESK · Icon Comparison</title>
+
+<!-- Tabler Icons webfont -->
+<link rel="stylesheet" href="https://unpkg.com/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+
+<!-- Phosphor Icons regular -->
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+
+<!-- Lucide JS -->
+<script src="https://unpkg.com/lucide@0.400.0/dist/umd/lucide.min.js"></script>
+
 <style>
   :root {
     --bg: #070c16;
     --bg-2: #0d1522;
     --bg-3: #131e30;
     --card: #111b2d;
+    --card-hover: #1a2540;
     --line: #1a2540;
     --line-2: #26344f;
     --ink: #e6ebf5;
@@ -19,6 +30,9 @@
     --amber: #e0a857;
     --amber-2: #f0c78a;
     --amber-3: #8a5c26;
+    --tabler-color: #4ade80;
+    --lucide-color: #60a5fa;
+    --phosphor-color: #f472b6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -26,7 +40,7 @@
     background: var(--bg);
     color: var(--ink);
     padding: 1rem;
-    padding-bottom: 120px;
+    padding-bottom: 140px;
     line-height: 1.5;
   }
   h1 {
@@ -40,129 +54,164 @@
   .subtitle {
     color: var(--ink-3);
     font-size: .85rem;
-    margin-bottom: 2rem;
+    margin-bottom: 1.5rem;
   }
+  .info {
+    background: rgba(224,168,87,.08);
+    border-left: 3px solid var(--amber);
+    padding: .8rem 1rem;
+    border-radius: 8px;
+    font-size: .82rem;
+    color: var(--ink-2);
+    line-height: 1.55;
+    margin-bottom: 1.5rem;
+  }
+  .info strong { color: var(--amber); }
+
   h2 {
-    font-size: 1rem;
+    font-size: 1.05rem;
     color: var(--amber);
     text-transform: uppercase;
     letter-spacing: .08em;
-    margin: 2rem 0 .75rem;
-    padding-bottom: .4rem;
+    margin: 2rem 0 1rem;
+    padding-bottom: .5rem;
     border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: .5rem;
   }
-  .comparison {
+
+  /* Library tabs */
+  .lib-tabs {
+    display: flex;
+    gap: .35rem;
+    margin-bottom: 1rem;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: .35rem;
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+  }
+  .lib-tab {
+    flex: 1;
+    padding: .55rem .5rem;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--ink-3);
+    font-size: .75rem;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all .2s;
+  }
+  .lib-tab.active {
+    color: var(--ink);
+  }
+  .lib-tab[data-lib="tabler"].active {
+    background: rgba(74,222,128,.12);
+    color: var(--tabler-color);
+    box-shadow: 0 0 0 1px rgba(74,222,128,.4) inset;
+  }
+  .lib-tab[data-lib="lucide"].active {
+    background: rgba(96,165,250,.12);
+    color: var(--lucide-color);
+    box-shadow: 0 0 0 1px rgba(96,165,250,.4) inset;
+  }
+  .lib-tab[data-lib="phosphor"].active {
+    background: rgba(244,114,182,.12);
+    color: var(--phosphor-color);
+    box-shadow: 0 0 0 1px rgba(244,114,182,.4) inset;
+  }
+
+  .comparison-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1rem;
-    margin-bottom: 2rem;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: .5rem;
+    margin-bottom: 1rem;
   }
-  .panel {
+  .lib-panel {
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 12px;
-    padding: 1rem;
+    padding: .75rem .5rem;
+    text-align: center;
   }
-  .panel-label {
-    font-size: .75rem;
-    color: var(--ink-3);
+  .lib-panel-label {
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    letter-spacing: .06em;
-    margin-bottom: .75rem;
-    font-weight: 600;
+    margin-bottom: .6rem;
+    padding-bottom: .4rem;
+    border-bottom: 1px solid var(--line);
   }
-  .tab-row {
-    display: flex;
-    background: var(--bg-2);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: .5rem;
-    gap: .25rem;
-  }
-  .tab {
-    flex: 1;
+  .lib-panel[data-lib="tabler"] .lib-panel-label { color: var(--tabler-color); }
+  .lib-panel[data-lib="lucide"] .lib-panel-label { color: var(--lucide-color); }
+  .lib-panel[data-lib="phosphor"] .lib-panel-label { color: var(--phosphor-color); }
+
+  .icon-row {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: .3rem;
-    padding: .5rem .25rem;
-    border-radius: 8px;
-    color: var(--ink-3);
-    font-size: .7rem;
-    font-weight: 600;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-    transition: all .2s;
-  }
-  .tab.active {
-    color: var(--amber);
-    background: rgba(224,168,87,.08);
-  }
-  .tab-icon {
-    font-size: 1.25rem;
-    line-height: 1;
-  }
-  .tab .lucide {
-    width: 22px;
-    height: 22px;
-    stroke-width: 2;
+    gap: .15rem;
   }
 
-  /* Optie-kaarten */
-  .options-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: .6rem;
-  }
-  .option {
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    padding: .9rem .5rem;
+  .icon-item {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: .5rem;
+    justify-content: center;
+    gap: .25rem;
+    padding: .55rem .25rem;
+    border-radius: 8px;
     cursor: pointer;
-    transition: all .18s;
-    position: relative;
+    transition: all .15s;
     user-select: none;
+    border: 1px solid transparent;
   }
-  .option:hover {
-    border-color: var(--amber);
-    background: #1a2540;
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px -8px rgba(224,168,87,.4);
+  .icon-item:hover {
+    background: var(--card-hover);
   }
-  .option.selected {
-    border-color: var(--amber);
-    background: linear-gradient(180deg, rgba(224,168,87,.15), rgba(224,168,87,.03));
-    box-shadow: 0 0 0 1px var(--amber) inset, 0 0 20px -8px rgba(224,168,87,.5);
+  .icon-item.selected {
+    background: rgba(224,168,87,.12);
+    border-color: rgba(224,168,87,.5);
+    box-shadow: 0 0 0 1px rgba(224,168,87,.4) inset;
   }
-  .option.selected::after {
-    content: "✓";
-    position: absolute;
-    top: 6px;
-    right: 8px;
+
+  .icon-item i,
+  .icon-item svg {
+    font-size: 26px;
+    line-height: 1;
+    width: 26px;
+    height: 26px;
+  }
+  .icon-item[data-lib="tabler"] i {
     color: var(--amber);
-    font-weight: 800;
-    font-size: .85rem;
   }
-  .option .lucide {
-    width: 28px;
-    height: 28px;
+  .icon-item[data-lib="lucide"] svg {
     color: var(--amber);
     stroke-width: 2;
   }
-  .option-name {
-    font-size: .72rem;
-    color: var(--ink-2);
+  .icon-item[data-lib="phosphor"] i {
+    color: var(--amber);
+  }
+
+  .icon-name {
+    font-size: .6rem;
+    color: var(--ink-3);
     font-family: 'SF Mono', Monaco, monospace;
     text-align: center;
     word-break: break-all;
+    line-height: 1.2;
+    max-width: 100%;
   }
 
-  /* Live preview balk */
+  /* Live preview */
   .live-preview {
     position: fixed;
     bottom: 0;
@@ -170,24 +219,54 @@
     right: 0;
     background: linear-gradient(180deg, rgba(13,21,34,.98), var(--bg-2));
     border-top: 1px solid var(--line);
-    padding: .5rem;
-    padding-bottom: calc(.5rem + env(safe-area-inset-bottom, 0px));
+    padding: .55rem;
+    padding-bottom: calc(.55rem + env(safe-area-inset-bottom, 0px));
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,.5);
   }
-  .live-preview .tab-row {
-    background: transparent;
-    border: none;
-    padding: 0;
-  }
   .live-preview .label {
     text-align: center;
-    font-size: .7rem;
+    font-size: .65rem;
     color: var(--ink-3);
-    margin-bottom: .4rem;
+    margin-bottom: .35rem;
     text-transform: uppercase;
-    letter-spacing: .08em;
+    letter-spacing: .1em;
+    font-weight: 700;
   }
+  .tab-row {
+    display: flex;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: .4rem;
+    gap: .15rem;
+  }
+  .tab-preview {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .2rem;
+    padding: .4rem .15rem;
+    border-radius: 8px;
+    color: var(--ink-3);
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  .tab-preview.active {
+    color: var(--amber);
+    background: rgba(224,168,87,.08);
+  }
+  .tab-preview i,
+  .tab-preview svg {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+  }
+
   .reset-btn {
     display: block;
     margin: 1.5rem auto;
@@ -205,116 +284,246 @@
     border-color: var(--amber);
     color: var(--amber);
   }
-  .info {
-    background: rgba(224,168,87,.08);
-    border-left: 3px solid var(--amber);
-    padding: .75rem 1rem;
-    border-radius: 8px;
-    font-size: .82rem;
-    color: var(--ink-2);
-    line-height: 1.55;
-    margin-bottom: 1.5rem;
-  }
-  .info strong { color: var(--amber); }
+
   @media (max-width: 500px) {
-    .comparison { grid-template-columns: 1fr; }
+    .comparison-grid { gap: .35rem; }
+    .lib-panel { padding: .55rem .25rem; }
+    .icon-item i, .icon-item svg { font-size: 22px; width: 22px; height: 22px; }
+    .icon-name { font-size: .55rem; }
   }
 </style>
 </head>
 <body>
 
-<h1>WAR DESK · Icon Preview</h1>
-<div class="subtitle">Kies de mooiste Lucide-iconen voor je bottom-tabs</div>
+<h1>WAR DESK · Icon Comparison</h1>
+<div class="subtitle">Tabler vs Lucide vs Phosphor — kies de stijl die bij WAR DESK past</div>
 
 <div class="info">
-  <strong>Hoe werkt het:</strong> klik op een icoon om het te kiezen. Onderaan zie je direct hoe je bottom-tab eruit komt te zien. Als je klaar bent, stuur je me de 5 namen (bijv. "newspaper, map-pin, radio, film, bot").
+  <strong>Hoe werkt het:</strong> je ziet per categorie dezelfde iconen in 3 stijlen naast elkaar. Klik op degene die je mooi vindt. Onderaan zie je direct de live preview van je bottom-tab. Als je klaar bent, klik op de preview om je keuze te exporteren.
 </div>
 
-<h2>Vergelijking</h2>
-<div class="comparison">
-  <div class="panel">
-    <div class="panel-label">Nu (emoji)</div>
-    <div class="tab-row">
-      <div class="tab active"><span class="tab-icon">📰</span><span>Nieuws</span></div>
-      <div class="tab"><span class="tab-icon">🗺️</span><span>Kaart</span></div>
-      <div class="tab"><span class="tab-icon">📡</span><span>IPTV</span></div>
-      <div class="tab"><span class="tab-icon">🎬</span><span>VOD</span></div>
-      <div class="tab"><span class="tab-icon">🤖</span><span>AI</span></div>
+<div class="lib-tabs">
+  <button class="lib-tab" data-lib="tabler">Tabler</button>
+  <button class="lib-tab" data-lib="lucide">Lucide</button>
+  <button class="lib-tab" data-lib="phosphor">Phosphor</button>
+</div>
+
+<!-- NIEUWS -->
+<h2>📰 Nieuws</h2>
+<div class="comparison-grid" data-cat="news">
+  <div class="lib-panel" data-lib="tabler">
+    <div class="lib-panel-label">Tabler</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="tabler" data-icon="news"><i class="ti ti-news"></i><span class="icon-name">news</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="article"><i class="ti ti-article"></i><span class="icon-name">article</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="broadcast"><i class="ti ti-broadcast"></i><span class="icon-name">broadcast</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="rss"><i class="ti ti-rss"></i><span class="icon-name">rss</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="world"><i class="ti ti-world"></i><span class="icon-name">world</span></div>
     </div>
   </div>
-  <div class="panel">
-    <div class="panel-label">Straks (Lucide)</div>
-    <div class="tab-row" id="preview-static">
-      <div class="tab active" data-cat="news"><i data-lucide="newspaper"></i><span>Nieuws</span></div>
-      <div class="tab" data-cat="map"><i data-lucide="map"></i><span>Kaart</span></div>
-      <div class="tab" data-cat="iptv"><i data-lucide="radio"></i><span>IPTV</span></div>
-      <div class="tab" data-cat="vod"><i data-lucide="clapperboard"></i><span>VOD</span></div>
-      <div class="tab" data-cat="ai"><i data-lucide="bot"></i><span>AI</span></div>
+  <div class="lib-panel" data-lib="lucide">
+    <div class="lib-panel-label">Lucide</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="lucide" data-icon="newspaper"><i data-lucide="newspaper"></i><span class="icon-name">newspaper</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="file-text"><i data-lucide="file-text"></i><span class="icon-name">file-text</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="radio"><i data-lucide="radio"></i><span class="icon-name">radio</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="rss"><i data-lucide="rss"></i><span class="icon-name">rss</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="globe"><i data-lucide="globe"></i><span class="icon-name">globe</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="phosphor">
+    <div class="lib-panel-label">Phosphor</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="phosphor" data-icon="newspaper"><i class="ph ph-newspaper"></i><span class="icon-name">newspaper</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="article"><i class="ph ph-article"></i><span class="icon-name">article</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="broadcast"><i class="ph ph-broadcast"></i><span class="icon-name">broadcast</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="rss"><i class="ph ph-rss"></i><span class="icon-name">rss</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="globe-hemisphere-west"><i class="ph ph-globe-hemisphere-west"></i><span class="icon-name">globe</span></div>
     </div>
   </div>
 </div>
 
-<h2>Nieuws</h2>
-<div class="options-grid" data-cat="news">
-  <div class="option" data-icon="newspaper"><i data-lucide="newspaper"></i><span class="option-name">newspaper</span></div>
-  <div class="option" data-icon="file-text"><i data-lucide="file-text"></i><span class="option-name">file-text</span></div>
-  <div class="option" data-icon="rss"><i data-lucide="rss"></i><span class="option-name">rss</span></div>
-  <div class="option" data-icon="globe"><i data-lucide="globe"></i><span class="option-name">globe</span></div>
-  <div class="option" data-icon="book-open"><i data-lucide="book-open"></i><span class="option-name">book-open</span></div>
-  <div class="option" data-icon="layers"><i data-lucide="layers"></i><span class="option-name">layers</span></div>
+<!-- KAART -->
+<h2>🗺️ Kaart</h2>
+<div class="comparison-grid" data-cat="map">
+  <div class="lib-panel" data-lib="tabler">
+    <div class="lib-panel-label">Tabler</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="tabler" data-icon="map"><i class="ti ti-map"></i><span class="icon-name">map</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="map-pin"><i class="ti ti-map-pin"></i><span class="icon-name">map-pin</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="crosshair"><i class="ti ti-crosshair"></i><span class="icon-name">crosshair</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="radar"><i class="ti ti-radar"></i><span class="icon-name">radar</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="target"><i class="ti ti-target"></i><span class="icon-name">target</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="world"><i class="ti ti-world"></i><span class="icon-name">world</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="compass"><i class="ti ti-compass"></i><span class="icon-name">compass</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="lucide">
+    <div class="lib-panel-label">Lucide</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="lucide" data-icon="map"><i data-lucide="map"></i><span class="icon-name">map</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="map-pin"><i data-lucide="map-pin"></i><span class="icon-name">map-pin</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="crosshair"><i data-lucide="crosshair"></i><span class="icon-name">crosshair</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="radar"><i data-lucide="radar"></i><span class="icon-name">radar</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="target"><i data-lucide="target"></i><span class="icon-name">target</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="globe-2"><i data-lucide="globe-2"></i><span class="icon-name">globe-2</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="compass"><i data-lucide="compass"></i><span class="icon-name">compass</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="phosphor">
+    <div class="lib-panel-label">Phosphor</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="phosphor" data-icon="map-trifold"><i class="ph ph-map-trifold"></i><span class="icon-name">map-trifold</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="map-pin"><i class="ph ph-map-pin"></i><span class="icon-name">map-pin</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="crosshair"><i class="ph ph-crosshair"></i><span class="icon-name">crosshair</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="radar"><i class="ph ph-radar"></i><span class="icon-name">radar</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="crosshair-simple"><i class="ph ph-crosshair-simple"></i><span class="icon-name">crosshair-simple</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="globe-hemisphere-west"><i class="ph ph-globe-hemisphere-west"></i><span class="icon-name">globe</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="compass"><i class="ph ph-compass"></i><span class="icon-name">compass</span></div>
+    </div>
+  </div>
 </div>
 
-<h2>Kaart</h2>
-<div class="options-grid" data-cat="map">
-  <div class="option" data-icon="map"><i data-lucide="map"></i><span class="option-name">map</span></div>
-  <div class="option" data-icon="map-pin"><i data-lucide="map-pin"></i><span class="option-name">map-pin</span></div>
-  <div class="option" data-icon="globe-2"><i data-lucide="globe-2"></i><span class="option-name">globe-2</span></div>
-  <div class="option" data-icon="compass"><i data-lucide="compass"></i><span class="option-name">compass</span></div>
-  <div class="option" data-icon="navigation"><i data-lucide="navigation"></i><span class="option-name">navigation</span></div>
-  <div class="option" data-icon="crosshair"><i data-lucide="crosshair"></i><span class="option-name">crosshair</span></div>
+<!-- IPTV -->
+<h2>📡 IPTV</h2>
+<div class="comparison-grid" data-cat="iptv">
+  <div class="lib-panel" data-lib="tabler">
+    <div class="lib-panel-label">Tabler</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="tabler" data-icon="device-tv"><i class="ti ti-device-tv"></i><span class="icon-name">device-tv</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="radio"><i class="ti ti-radio"></i><span class="icon-name">radio</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="antenna"><i class="ti ti-antenna"></i><span class="icon-name">antenna</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="satellite"><i class="ti ti-satellite"></i><span class="icon-name">satellite</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="broadcast"><i class="ti ti-broadcast"></i><span class="icon-name">broadcast</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="signal-4g"><i class="ti ti-signal-4g"></i><span class="icon-name">signal-4g</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="lucide">
+    <div class="lib-panel-label">Lucide</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="lucide" data-icon="tv"><i data-lucide="tv"></i><span class="icon-name">tv</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="radio"><i data-lucide="radio"></i><span class="icon-name">radio</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="antenna"><i data-lucide="antenna"></i><span class="icon-name">antenna</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="satellite"><i data-lucide="satellite"></i><span class="icon-name">satellite</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="radio-tower"><i data-lucide="radio-tower"></i><span class="icon-name">radio-tower</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="signal"><i data-lucide="signal"></i><span class="icon-name">signal</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="phosphor">
+    <div class="lib-panel-label">Phosphor</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="phosphor" data-icon="television"><i class="ph ph-television"></i><span class="icon-name">television</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="radio"><i class="ph ph-radio"></i><span class="icon-name">radio</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="broadcast"><i class="ph ph-broadcast"></i><span class="icon-name">broadcast</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="cell-signal-full"><i class="ph ph-cell-signal-full"></i><span class="icon-name">cell-signal</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="wifi-high"><i class="ph ph-wifi-high"></i><span class="icon-name">wifi-high</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="rss"><i class="ph ph-rss"></i><span class="icon-name">rss</span></div>
+    </div>
+  </div>
 </div>
 
-<h2>IPTV</h2>
-<div class="options-grid" data-cat="iptv">
-  <div class="option" data-icon="radio"><i data-lucide="radio"></i><span class="option-name">radio</span></div>
-  <div class="option" data-icon="tv"><i data-lucide="tv"></i><span class="option-name">tv</span></div>
-  <div class="option" data-icon="antenna"><i data-lucide="antenna"></i><span class="option-name">antenna</span></div>
-  <div class="option" data-icon="satellite"><i data-lucide="satellite"></i><span class="option-name">satellite</span></div>
-  <div class="option" data-icon="signal"><i data-lucide="signal"></i><span class="option-name">signal</span></div>
-  <div class="option" data-icon="radio-tower"><i data-lucide="radio-tower"></i><span class="option-name">radio-tower</span></div>
+<!-- VOD -->
+<h2>🎬 VOD</h2>
+<div class="comparison-grid" data-cat="vod">
+  <div class="lib-panel" data-lib="tabler">
+    <div class="lib-panel-label">Tabler</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="tabler" data-icon="movie"><i class="ti ti-movie"></i><span class="icon-name">movie</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="device-tv-old"><i class="ti ti-device-tv-old"></i><span class="icon-name">device-tv-old</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="video"><i class="ti ti-video"></i><span class="icon-name">video</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="player-play"><i class="ti ti-player-play"></i><span class="icon-name">player-play</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="clapperboard"><i class="ti ti-clapperboard"></i><span class="icon-name">clapperboard</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="photo-video"><i class="ti ti-photo-video"></i><span class="icon-name">photo-video</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="lucide">
+    <div class="lib-panel-label">Lucide</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="lucide" data-icon="film"><i data-lucide="film"></i><span class="icon-name">film</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="clapperboard"><i data-lucide="clapperboard"></i><span class="icon-name">clapperboard</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="video"><i data-lucide="video"></i><span class="icon-name">video</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="play-circle"><i data-lucide="play-circle"></i><span class="icon-name">play-circle</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="monitor-play"><i data-lucide="monitor-play"></i><span class="icon-name">monitor-play</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="popcorn"><i data-lucide="popcorn"></i><span class="icon-name">popcorn</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="phosphor">
+    <div class="lib-panel-label">Phosphor</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="phosphor" data-icon="film-strip"><i class="ph ph-film-strip"></i><span class="icon-name">film-strip</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="film-slate"><i class="ph ph-film-slate"></i><span class="icon-name">film-slate</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="video-camera"><i class="ph ph-video-camera"></i><span class="icon-name">video-camera</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="play-circle"><i class="ph ph-play-circle"></i><span class="icon-name">play-circle</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="monitor-play"><i class="ph ph-monitor-play"></i><span class="icon-name">monitor-play</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="popcorn"><i class="ph ph-popcorn"></i><span class="icon-name">popcorn</span></div>
+    </div>
+  </div>
 </div>
 
-<h2>VOD</h2>
-<div class="options-grid" data-cat="vod">
-  <div class="option" data-icon="clapperboard"><i data-lucide="clapperboard"></i><span class="option-name">clapperboard</span></div>
-  <div class="option" data-icon="film"><i data-lucide="film"></i><span class="option-name">film</span></div>
-  <div class="option" data-icon="play-circle"><i data-lucide="play-circle"></i><span class="option-name">play-circle</span></div>
-  <div class="option" data-icon="video"><i data-lucide="video"></i><span class="option-name">video</span></div>
-  <div class="option" data-icon="monitor-play"><i data-lucide="monitor-play"></i><span class="option-name">monitor-play</span></div>
-  <div class="option" data-icon="popcorn"><i data-lucide="popcorn"></i><span class="option-name">popcorn</span></div>
+<!-- AI -->
+<h2>🤖 AI</h2>
+<div class="comparison-grid" data-cat="ai">
+  <div class="lib-panel" data-lib="tabler">
+    <div class="lib-panel-label">Tabler</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="tabler" data-icon="robot"><i class="ti ti-robot"></i><span class="icon-name">robot</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="brain"><i class="ti ti-brain"></i><span class="icon-name">brain</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="sparkles"><i class="ti ti-sparkles"></i><span class="icon-name">sparkles</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="cpu"><i class="ti ti-cpu"></i><span class="icon-name">cpu</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="message-chatbot"><i class="ti ti-message-chatbot"></i><span class="icon-name">msg-chatbot</span></div>
+      <div class="icon-item" data-lib="tabler" data-icon="wand"><i class="ti ti-wand"></i><span class="icon-name">wand</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="lucide">
+    <div class="lib-panel-label">Lucide</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="lucide" data-icon="bot"><i data-lucide="bot"></i><span class="icon-name">bot</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="brain"><i data-lucide="brain"></i><span class="icon-name">brain</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="sparkles"><i data-lucide="sparkles"></i><span class="icon-name">sparkles</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="cpu"><i data-lucide="cpu"></i><span class="icon-name">cpu</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="message-circle"><i data-lucide="message-circle"></i><span class="icon-name">message-circle</span></div>
+      <div class="icon-item" data-lib="lucide" data-icon="wand-2"><i data-lucide="wand-2"></i><span class="icon-name">wand-2</span></div>
+    </div>
+  </div>
+  <div class="lib-panel" data-lib="phosphor">
+    <div class="lib-panel-label">Phosphor</div>
+    <div class="icon-row">
+      <div class="icon-item" data-lib="phosphor" data-icon="robot"><i class="ph ph-robot"></i><span class="icon-name">robot</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="brain"><i class="ph ph-brain"></i><span class="icon-name">brain</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="sparkle"><i class="ph ph-sparkle"></i><span class="icon-name">sparkle</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="cpu"><i class="ph ph-cpu"></i><span class="icon-name">cpu</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="chat-circle"><i class="ph ph-chat-circle"></i><span class="icon-name">chat-circle</span></div>
+      <div class="icon-item" data-lib="phosphor" data-icon="magic-wand"><i class="ph ph-magic-wand"></i><span class="icon-name">magic-wand</span></div>
+    </div>
+  </div>
 </div>
 
-<h2>AI</h2>
-<div class="options-grid" data-cat="ai">
-  <div class="option" data-icon="bot"><i data-lucide="bot"></i><span class="option-name">bot</span></div>
-  <div class="option" data-icon="brain"><i data-lucide="brain"></i><span class="option-name">brain</span></div>
-  <div class="option" data-icon="sparkles"><i data-lucide="sparkles"></i><span class="option-name">sparkles</span></div>
-  <div class="option" data-icon="cpu"><i data-lucide="cpu"></i><span class="option-name">cpu</span></div>
-  <div class="option" data-icon="message-circle"><i data-lucide="message-circle"></i><span class="option-name">message-circle</span></div>
-  <div class="option" data-icon="wand-2"><i data-lucide="wand-2"></i><span class="option-name">wand-2</span></div>
-</div>
+<button class="reset-btn" id="resetBtn">↺ Reset selectie</button>
 
-<button class="reset-btn" id="resetBtn">↺ Reset naar standaard</button>
-
-<!-- Live preview balk -->
+<!-- Live preview -->
 <div class="live-preview">
-  <div class="label">Live preview</div>
+  <div class="label">Live preview — klik om te exporteren</div>
   <div class="tab-row" id="livePreview">
-    <div class="tab active"><i data-lucide="newspaper" id="live-news"></i><span>Nieuws</span></div>
-    <div class="tab"><i data-lucide="map" id="live-map"></i><span>Kaart</span></div>
-    <div class="tab"><i data-lucide="radio" id="live-iptv"></i><span>IPTV</span></div>
-    <div class="tab"><i data-lucide="clapperboard" id="live-vod"></i><span>VOD</span></div>
-    <div class="tab"><i data-lucide="bot" id="live-ai"></i><span>AI</span></div>
+    <div class="tab-preview active" data-cat="news">
+      <i data-lucide="newspaper" id="live-news"></i>
+      <span>Nieuws</span>
+    </div>
+    <div class="tab-preview" data-cat="map">
+      <i data-lucide="map" id="live-map"></i>
+      <span>Kaart</span>
+    </div>
+    <div class="tab-preview" data-cat="iptv">
+      <i data-lucide="tv" id="live-iptv"></i>
+      <span>IPTV</span>
+    </div>
+    <div class="tab-preview" data-cat="vod">
+      <i data-lucide="clapperboard" id="live-vod"></i>
+      <span>VOD</span>
+    </div>
+    <div class="tab-preview" data-cat="ai">
+      <i data-lucide="bot" id="live-ai"></i>
+      <span>AI</span>
+    </div>
   </div>
 </div>
 
@@ -322,99 +531,110 @@
 (function(){
   "use strict";
 
-  var DEFAULTS = {
-    news: "newspaper",
-    map: "map",
-    iptv: "radio",
-    vod: "clapperboard",
-    ai: "bot"
+  /* Default selecties per categorie */
+  var selection = {
+    news:     { lib: "lucide",   icon: "newspaper" },
+    map:      { lib: "lucide",   icon: "map" },
+    iptv:     { lib: "lucide",   icon: "tv" },
+    vod:      { lib: "lucide",   icon: "clapperboard" },
+    ai:       { lib: "lucide",   icon: "bot" }
   };
 
-  var selected = Object.assign({}, DEFAULTS);
+  /* Render icoon in het live-preview element, afhankelijk van lib */
+  function renderLiveIcon(el, lib, iconName){
+    var parent = el.parentNode;
+    var newEl;
 
-  /* Icon vervangen in DOM: Lucide werkt via data-lucide → createIcons()
-     Voor dynamisch wisselen: nieuwe <i> element maken en createIcons aanroepen. */
-  function setIcon(element, name){
-    if(!element) return;
-    /* Vervang door nieuwe <i data-lucide="..."> */
-    var parent = element.parentNode;
-    var newEl = document.createElement("i");
-    newEl.setAttribute("data-lucide", name);
-    newEl.id = element.id;
-    if(element.className && element.className.indexOf("lucide") === -1){
-      newEl.className = element.className;
+    if(lib === "tabler"){
+      newEl = document.createElement("i");
+      newEl.className = "ti ti-" + iconName;
+    } else if(lib === "phosphor"){
+      newEl = document.createElement("i");
+      newEl.className = "ph ph-" + iconName;
+    } else {
+      /* lucide */
+      newEl = document.createElement("i");
+      newEl.setAttribute("data-lucide", iconName);
     }
-    parent.replaceChild(newEl, element);
-    /* Re-render alle lucide iconen */
-    if(window.lucide) window.lucide.createIcons();
+    newEl.id = el.id;
+    parent.replaceChild(newEl, el);
+
+    if(window.lucide && lib === "lucide") window.lucide.createIcons();
     return newEl;
   }
 
-  function applySelection(cat, iconName){
-    selected[cat] = iconName;
+  function applySelection(cat, lib, iconName){
+    selection[cat] = { lib: lib, icon: iconName };
 
-    /* Markeer de gekozen optie */
-    document.querySelectorAll('.options-grid[data-cat="' + cat + '"] .option').forEach(function(el){
-      el.classList.toggle("selected", el.dataset.icon === iconName);
+    /* Markeer in de grid */
+    document.querySelectorAll('.comparison-grid[data-cat="' + cat + '"] .icon-item').forEach(function(item){
+      var match = item.dataset.lib === lib && item.dataset.icon === iconName;
+      item.classList.toggle("selected", match);
     });
 
-    /* Update de statische preview */
-    var staticTab = document.querySelector('#preview-static .tab[data-cat="' + cat + '"] i');
-    if(staticTab) setIcon(staticTab, iconName);
+    /* Update live preview */
+    var liveEl = document.getElementById("live-" + cat);
+    if(liveEl) renderLiveIcon(liveEl, lib, iconName);
 
-    /* Update de live preview */
-    var liveIcon = document.getElementById("live-" + cat);
-    if(liveIcon) setIcon(liveIcon, iconName);
-
-    /* Log keuze */
-    console.log("[Icon] " + cat + " → " + iconName);
+    console.log("[Icon] " + cat + " → " + lib + ":" + iconName);
   }
 
-  function bindOptions(){
-    document.querySelectorAll(".options-grid").forEach(function(grid){
-      var cat = grid.dataset.cat;
-      grid.querySelectorAll(".option").forEach(function(option){
-        option.addEventListener("click", function(){
-          applySelection(cat, option.dataset.icon);
-        });
+  function bindClicks(){
+    document.querySelectorAll(".icon-item").forEach(function(item){
+      item.addEventListener("click", function(){
+        var grid = item.closest(".comparison-grid");
+        if(!grid) return;
+        var cat = grid.dataset.cat;
+        applySelection(cat, item.dataset.lib, item.dataset.icon);
       });
     });
   }
 
-  function resetAll(){
-    Object.keys(DEFAULTS).forEach(function(cat){
-      applySelection(cat, DEFAULTS[cat]);
-    });
-    console.log("[Icon] Reset naar standaard");
-  }
-
   function exportChoice(){
-    var out = Object.keys(selected).map(function(k){ return k + ": " + selected[k]; }).join(", ");
-    console.log("[Icon] Huidige keuze: " + out);
+    var out = Object.keys(selection).map(function(cat){
+      var s = selection[cat];
+      return cat + ": " + s.lib + ":" + s.icon;
+    }).join("\n");
+    console.log("[Icon] Eindkeuze:\n" + out);
     return out;
   }
 
-  /* Init */
+  function resetAll(){
+    selection = {
+      news:     { lib: "lucide",   icon: "newspaper" },
+      map:      { lib: "lucide",   icon: "map" },
+      iptv:     { lib: "lucide",   icon: "tv" },
+      vod:      { lib: "lucide",   icon: "clapperboard" },
+      ai:       { lib: "lucide",   icon: "bot" }
+    };
+    document.querySelectorAll(".icon-item.selected").forEach(function(el){ el.classList.remove("selected"); });
+    Object.keys(selection).forEach(function(cat){
+      var s = selection[cat];
+      var el = document.getElementById("live-" + cat);
+      if(el) renderLiveIcon(el, s.lib, s.icon);
+    });
+    if(window.lucide) window.lucide.createIcons();
+  }
+
   document.addEventListener("DOMContentLoaded", function(){
     if(window.lucide) window.lucide.createIcons();
-    bindOptions();
+    bindClicks();
 
     /* Markeer defaults */
-    Object.keys(DEFAULTS).forEach(function(cat){
-      var opt = document.querySelector('.options-grid[data-cat="' + cat + '"] .option[data-icon="' + DEFAULTS[cat] + '"]');
-      if(opt) opt.classList.add("selected");
+    Object.keys(selection).forEach(function(cat){
+      var s = selection[cat];
+      var el = document.querySelector('.comparison-grid[data-cat="' + cat + '"] .icon-item[data-lib="' + s.lib + '"][data-icon="' + s.icon + '"]');
+      if(el) el.classList.add("selected");
     });
 
     document.getElementById("resetBtn").addEventListener("click", resetAll);
 
-    /* Klik op de live preview om de keuze te exporteren */
     document.getElementById("livePreview").addEventListener("click", function(){
       var txt = exportChoice();
       alert("Jouw keuze:\n\n" + txt + "\n\nStuur dit naar de developer.");
     });
   });
 
-  /* Lucide moet soms opnieuw na fonts laden */
   window.addEventListener("load", function(){
     if(window.lucide) window.lucide.createIcons();
   });
