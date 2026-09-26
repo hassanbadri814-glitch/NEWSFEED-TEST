@@ -71,9 +71,9 @@
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
-  var MAX_ARTICLES = 12;
-  var MAX_ARTICLES_MILITARY = 4;
-  var MAX_MILITARY = 30;
+  var MAX_ARTICLES = 35;
+  var MAX_ARTICLES_MILITARY = 15;
+  var MAX_MILITARY = 50;
   var STORAGE_KEY = "wardesk_ai_history_v1";
   var CACHE_KEY = "wardesk_ai_cache_v1";
   var STORAGE_MAX_MSGS = 40;
