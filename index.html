@@ -242,6 +242,86 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
 
 /* Hotspot-strip weg */
 #wdHotspotStrip, .wd-hotspot-strip { display: none !important; }
+
+/* ===== AI input — compacte, gebalanceerde layout ===== */
+.ai-input-wrap {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-end !important;
+  gap: 8px !important;
+  padding: .55rem .75rem !important;
+  padding-bottom: calc(.55rem + env(safe-area-inset-bottom, 0px)) !important;
+  grid-template-columns: none !important;
+  grid-template-rows: none !important;
+}
+
+.ai-input-wrap textarea {
+  flex: 1 1 auto !important;
+  min-height: 34px !important;
+  max-height: 80px !important;
+  padding: .45rem .85rem !important;
+  font-size: .88rem !important;
+  border-radius: 18px !important;
+  line-height: 1.35 !important;
+  grid-column: unset !important;
+  grid-row: unset !important;
+}
+
+.ai-input-wrap .ai-send-btn {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 50% !important;
+  font-size: .9rem !important;
+  grid-column: unset !important;
+  grid-row: unset !important;
+  flex-shrink: 0 !important;
+}
+
+.ai-input-wrap .ai-voice-btn {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 50% !important;
+  font-size: .9rem !important;
+  grid-column: unset !important;
+  grid-row: unset !important;
+  flex-shrink: 0 !important;
+}
+
+.ai-input-wrap .ai-clear-btn {
+  width: 34px !important;
+  height: 34px !important;
+  min-width: 34px !important;
+  border-radius: 50% !important;
+  background: var(--bg-3) !important;
+  border: 1px solid var(--line-2) !important;
+  color: var(--ink-2) !important;
+  font-size: .95rem !important;
+  cursor: pointer !important;
+  flex-shrink: 0 !important;
+  padding: 0 !important;
+  display: grid !important;
+  place-items: center !important;
+  transition: all .15s !important;
+}
+.ai-input-wrap .ai-clear-btn:hover {
+  border-color: #e63946 !important;
+  color: #f87171 !important;
+}
+
+.ai-input-wrap .ai-day-bar {
+  display: none !important;
+}
+
+/* ===== VOD sidebar — niet meer over zoekveld ===== */
+@media (max-width: 640px) {
+  .vod-sidebar {
+    top: calc(var(--header-h) + 72px) !important;
+    max-height: calc(100vh - var(--header-h) - var(--tabs-h) - 90px) !important;
+    max-height: calc(100dvh - var(--header-h) - var(--tabs-h) - 90px) !important;
+  }
+}
 </style>
 </head>
 <body>
@@ -360,16 +440,13 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
   <section class="view" id="viewAi" hidden>
     <div class="section-head">
       <h2>AI Assistent</h2>
-      <button class="btn-mini" id="aiClearBtn" aria-label="Gesprek wissen">🗑</button>
     </div>
     <div class="ai-chat">
       <div class="ai-messages" id="aiMessages"></div>
       <div class="ai-input-wrap">
-        <textarea id="aiInput" placeholder="Stel een vraag over het nieuws..." rows="1"></textarea>
+        <textarea id="aiInput" placeholder="Stel een vraag..." rows="1"></textarea>
         <button class="ai-send-btn" id="aiSendBtn" aria-label="Versturen">➤</button>
-        <div class="ai-day-bar">
-          <button class="ai-day-btn-bottom" id="aiDayBtn" aria-label="Dagoverzicht">📅 Dagoverzicht</button>
-        </div>
+        <button class="ai-clear-btn" id="aiClearBtn" aria-label="Gesprek wissen">🗑</button>
       </div>
     </div>
   </section>
