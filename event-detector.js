@@ -1,19 +1,16 @@
+
 /* ============================================================
-   WAR DESK — event-detector.js v1.3
-   - v1.3: extractCityClaim (wie claimt welke stad?)
-   - v1.2: meervoudsvormen + extra varianten
-   - v1.1: future-threats + extra actie-woorden
-   - v1.0: initiële versie
+   WAR DESK — event-detector.js v1.4
+   - v1.4: future-threats uitgebreid (voices readiness, potential, prepares for)
+   - v1.3: extractCityClaim
+   - v1.2: meervoudsvormen
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v1.3";
+  window.WDEventDetectorVersion = "v1.4";
 
-  /* ============================================================
-     ACTIE-WERKWOORDEN
-     ============================================================ */
   var ACTION_PATTERNS = [
     { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
     { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt|aanvallen)\b/i, type: "attack" },
@@ -79,26 +76,6 @@
     { re: /معارك|قتال|اشتباكات/, type: "combat" }
   ];
 
-  /* ============================================================
-     v1.3: CLAIM-ACTIES — controlewijziging van een stad
-     ============================================================ */
-  var CLAIM_PATTERNS = [
-    /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns)\b/i,
-    /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming)\b/i,
-    /\b(lib(erated|erates|erating))\b/i,
-    /\b(took|taken|takes)\s+control\s+of\b/i,
-    /\b(entered|enters|entering)\s+[A-Z][a-z]+/,
-    /\b(veroverde|veroverd|veroverden|veroveren|innam|innamen|innemen|ingenomen)\b/i,
-    /\b(heroverd|heroverde|heroverden|heroveren|bevrijd|bevrijdde|bevrijdden|bevrijden)\b/i,
-    /\b(nam|namen)\s+.*\s+in\b/i,
-    /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
-    /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
-    /سيطر|استولى|حرر|دخل/
-  ];
-
-  /* ============================================================
-     REPORT-WERKWOORDEN
-     ============================================================ */
   var REPORT_PATTERNS = [
     /\b(says?|said|stated|declares?|declared|announces?|announced)\b/i,
     /\b(warns?|warned|highlights?|highlighted)\b/i,
@@ -116,12 +93,25 @@
     /قال|صرح|أعلن|وفقا|حسب/
   ];
 
+  /* ============================================================
+     v1.4: FUTURE_PATTERNS uitgebreid
+     ============================================================ */
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
     /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
     /\b(prêt à|va attaquer|menace de)\b/i,
     /\b(bereit für|wird angreifen|droht mit)\b/i,
-    /مستعد ل|يهدد بـ|سيهاجم/
+    /مستعد ل|يهدد بـ|سيهاجم/,
+    /* v1.4: extra future-verklaringen */
+    /\b(voices?\s+readiness|voiced?\s+readiness)\b/i,
+    /\b(ready\s+for\s+potential|ready\s+for\s+any|ready\s+for\s+renewed)\b/i,
+    /\b(potential\s+(renewed\s+)?(attack|strike|offensive|war|conflict))\b/i,
+    /\b(prepares?\s+for\s+(potential\s+)?(attack|strike|war|offensive|invasion))\b/i,
+    /\b(braces?\s+for\s+(potential\s+)?(attack|strike|war|offensive))\b/i,
+    /\b(warns?\s+of\s+(potential\s+)?(attack|strike|war|offensive))\b/i,
+    /\b(threatens?\s+(renewed\s+|potential\s+)?(attack|strike|war))\b/i,
+    /\b(await(s|ing)?\s+(us\s+)?(response|attack|strike))\b/i,
+    /\b(rhetoric|rhetorisch|verbale\s+dreiging)\b/i
   ];
 
   var PREFIX_PATTERNS = [
@@ -133,9 +123,6 @@
     /^en\s*direct/i
   ];
 
-  /* ============================================================
-     BRON-LAND
-     ============================================================ */
   var SOURCE_COUNTRY = {
     "NOS": "Nederland", "NOS Sport": "Nederland", "NOS Voetbal": "Nederland",
     "De Telegraaf": "Nederland", "AD.nl": "Nederland",
@@ -202,9 +189,6 @@
     "Japan Times": "Japan"
   };
 
-  /* ============================================================
-     HOOFDFUNCTIES
-     ============================================================ */
   function findActionVerbs(text) {
     var found = [];
     ACTION_PATTERNS.forEach(function(p) {
@@ -237,6 +221,19 @@
   }
 
   function hasClaimAction(text) {
+    var CLAIM_PATTERNS = [
+      /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns)\b/i,
+      /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming)\b/i,
+      /\b(lib(erated|erates|erating))\b/i,
+      /\b(took|taken|takes)\s+control\s+of\b/i,
+      /\b(entered|enters|entering)\s+[A-Z][a-z]+/,
+      /\b(veroverde|veroverd|veroverden|veroveren|innam|innamen|innemen|ingenomen)\b/i,
+      /\b(heroverd|heroverde|heroverden|heroveren|bevrijd|bevrijdde|bevrijdden|bevrijden)\b/i,
+      /\b(nam|namen)\s+.*\s+in\b/i,
+      /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
+      /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
+      /سيطر|استولى|حرر|دخل/
+    ];
     for (var i = 0; i < CLAIM_PATTERNS.length; i++) {
       if (CLAIM_PATTERNS[i].test(text)) return true;
     }
@@ -261,7 +258,8 @@
       return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: reportMatches.length > 0 ? "report-only" : "no-action-verb" };
     }
 
-    if (futureMatches.length > 0 && actionMatches.length <= 1) {
+    /* v1.4: als future-pattern matcht → geen fysiek event (strenger) */
+    if (futureMatches.length > 0 && actionMatches.length <= 2) {
       return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: true, reason: "future-threat" };
     }
 
@@ -273,20 +271,12 @@
     return { isPhysicalEvent: true, actionTypes: types, actionCount: actionMatches.length, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: "action-found" };
   }
 
-  /* ============================================================
-     v1.3: EXTRACT CITY CLAIM
-     ------------------------------------------------------------
-     Bepaalt of een event een claim op een stad bevat.
-     @return { city, claimedBy, claimedByISO3 } of null
-     ============================================================ */
   function extractCityClaim(title, desc, actorCountries){
     title = String(title || "");
     desc = String(desc || "");
     var text = title + " " + desc;
-
     if (!hasClaimAction(text)) return null;
 
-    /* Zoek de langste stad-match */
     var cityMatch = null;
     var longest = 0;
     if (window.__wm_locations){
@@ -294,32 +284,19 @@
       for (var key in window.__wm_locations){
         if (!Object.prototype.hasOwnProperty.call(window.__wm_locations, key)) continue;
         if (key.length <= longest) continue;
-        var pattern = " " + key + " ";
-        if (lower.indexOf(pattern) !== -1){
-          cityMatch = key;
-          longest = key.length;
-        }
+        if (lower.indexOf(" " + key + " ") !== -1){ cityMatch = key; longest = key.length; }
       }
     }
-
     if (!cityMatch) return null;
-
-    /* Bepaal wie de claimer is */
     if (!actorCountries || !actorCountries.length) return null;
-    var claimedBy = actorCountries[0];
 
+    var claimedBy = actorCountries[0];
     var claimedByISO3 = null;
     try {
-      if (window.WorldMapData && window.WorldMapData.getISO3){
-        claimedByISO3 = window.WorldMapData.getISO3(claimedBy);
-      }
+      if (window.WorldMapData && window.WorldMapData.getISO3) claimedByISO3 = window.WorldMapData.getISO3(claimedBy);
     } catch(e){}
 
-    return {
-      city: cityMatch,
-      claimedBy: claimedBy,
-      claimedByISO3: claimedByISO3
-    };
+    return { city: cityMatch, claimedBy: claimedBy, claimedByISO3: claimedByISO3 };
   }
 
   function getSourceCountry(sourceName) {
@@ -336,7 +313,6 @@
     extractCityClaim: extractCityClaim,
     getSourceCountry: getSourceCountry,
     _actionPatterns: ACTION_PATTERNS,
-    _claimPatterns: CLAIM_PATTERNS,
     _reportPatterns: REPORT_PATTERNS,
     _futurePatterns: FUTURE_PATTERNS,
     _sourceCountry: SOURCE_COUNTRY
@@ -344,10 +320,10 @@
 
   try {
     if (window.wdLog) {
-      wdLog.info("[EventDetector] v1.3 geladen — " +
+      wdLog.info("[EventDetector] v1.4 geladen — " +
         ACTION_PATTERNS.length + " acties, " +
-        CLAIM_PATTERNS.length + " claims, " +
-        REPORT_PATTERNS.length + " reports");
+        REPORT_PATTERNS.length + " reports, " +
+        FUTURE_PATTERNS.length + " toekomst");
     }
   } catch(e){}
 
