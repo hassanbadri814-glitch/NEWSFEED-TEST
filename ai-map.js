@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.3
-   - v3.3: zwak-civiel filter (alleen echte rampen/ongelukken op kaart)
-   - v3.2: vertaal-integratie via NewsAPI.getTranslatedTitle
-   - v3.1: classifier v3.1 + dedup + sport-block
+   WAR DESK — ai-map.js v3.4
+   - v3.4: ISO3 per event + __wm_locations voor wereldkaart
+   - v3.3: zwak-civiel filter
+   - v3.2: vertaal-integratie
+   - v3.1: classifier + dedup + sport-block
    ============================================================ */
 
 (function(){
@@ -11,7 +12,6 @@
   var MAX_EVENTS = 800;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
-  /* Zwakke civiel-events moeten minstens één van deze woorden in de titel hebben */
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
   var LOCATIONS = {
@@ -52,9 +52,9 @@
     "bryansk":{lat:53.25,lng:34.37,country:"Rusland",region:"Oost-Europa"},
     "saratov":{lat:51.53,lng:46.03,country:"Rusland",region:"Oost-Europa"},
     "voronezh":{lat:51.67,lng:39.21,country:"Rusland",region:"Oost-Europa"},
-    "krim":{lat:45.35,lng:34.00,country:"Krim",region:"Oost-Europa"},
-    "crimea":{lat:45.35,lng:34.00,country:"Krim",region:"Oost-Europa"},
-    "sevastopol":{lat:44.62,lng:33.53,country:"Krim",region:"Oost-Europa"},
+    "krim":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
+    "crimea":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
+    "sevastopol":{lat:44.62,lng:33.53,country:"Oekraïne",region:"Oost-Europa"},
 
     "israël":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "israel":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
@@ -128,7 +128,7 @@
     "karachi":{lat:24.86,lng:67.01,country:"Pakistan",region:"Azië"},
     "india":{lat:28.61,lng:77.21,country:"India",region:"Azië"},
     "new delhi":{lat:28.61,lng:77.21,country:"India",region:"Azië"},
-    "kashmir":{lat:34.08,lng:74.80,country:"Kashmir",region:"Azië"},
+    "kashmir":{lat:34.08,lng:74.80,country:"India",region:"Azië"},
     "china":{lat:39.90,lng:116.40,country:"China",region:"Azië"},
     "taiwan":{lat:25.03,lng:121.56,country:"Taiwan",region:"Azië"},
     "noord-korea":{lat:39.03,lng:125.75,country:"Noord-Korea",region:"Azië"},
@@ -190,6 +190,9 @@
     "venezuela":{lat:10.48,lng:-66.90,country:"Venezuela",region:"Latijns-Amerika"},
     "colombia":{lat:4.71,lng:-74.07,country:"Colombia",region:"Latijns-Amerika"}
   };
+
+  /* v3.4: beschikbaar maken voor wereldkaart */
+  try { window.__wm_locations = LOCATIONS; } catch(e){}
 
   var REGION_LOCATIONS = {
     "Oost-Europa":   { lat: 49.0, lng: 32.0,  country: "Oost-Europa", region: "Oost-Europa" },
@@ -314,6 +317,16 @@
     return null;
   }
 
+  /* v3.4: ISO3 lookup */
+  function getISO3For(countryName){
+    try {
+      if (window.WorldMapData && window.WorldMapData.getISO3) {
+        return window.WorldMapData.getISO3(countryName);
+      }
+    } catch(e){}
+    return null;
+  }
+
   var lastHash = "";
 
   function buildEvents(){
@@ -341,7 +354,6 @@
       var cls = classifyItem(article);
       if (cls.category === "sport") { skippedSport++; continue; }
 
-      /* v3.3: zwakke civiel-events wegfilteren */
       if (cls.category === "civiel") {
         var titleStr = String(article.title || "");
         if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
@@ -353,6 +365,9 @@
       var loc = extractLocation((article.title || "") + " " + (article.description || article.desc || ""));
       if (!loc) loc = extractRegionFallback(article);
       if (!loc) { skippedNoLocation++; continue; }
+
+      /* v3.4: ISO3 toevoegen voor wereldkaart-hitte */
+      var iso3 = getISO3For(loc.country);
 
       var translatedTitle = getTranslatedTitleFor(article);
       var translatedDesc = getTranslatedDescFor(article);
@@ -381,6 +396,7 @@
         scores: cls.scores || {},
         meta: cls.meta || {},
         country: loc.country,
+        countryISO3: iso3,
         region: loc.region,
         date: new Date(ts).toISOString(),
         url: article.link || article.url || "",
@@ -426,7 +442,7 @@
       grouped.forEach(function(e){
         if(counts[e.category] !== undefined) counts[e.category]++;
       });
-      wdLog.info("[Map-AI v3.3] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.4] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -526,7 +542,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.3 geladen (zwak-civiel filter)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.4 geladen (ISO3 + wereldkaart-ready)");
   }
 
   function getCountries(){
