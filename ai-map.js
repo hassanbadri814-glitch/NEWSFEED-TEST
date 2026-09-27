@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.12
-   - v3.12: skip "X-backed"/"X-led" + Pakistaanse regio's
+   WAR DESK — ai-map.js v3.13
+   - v3.13: CityStatus v2.0 integratie (control + attack)
+   - v3.12: suffix-skip + Pakistaanse regio's
    - v3.11: prefix-match in findTargetByPosition
-   - v3.10: actor/target onderscheid via positie
-   - v3.9: context-filter + titel-only
    ============================================================ */
 
 (function(){
@@ -16,31 +15,20 @@
 
   var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen|program|programma|nuclear|nucleair)\b/i;
 
-  /* v3.12: suffix-patronen die betekenen dat het land context is, geen doelwit */
   var CONTEXT_SUFFIX = /^[-\s]?(backed|led|supported|funded|linked|based|allied|sponsored|aligned|occupied|held|controlled|recognized|recognised|declared|designated|proposed|announced|reported|alleged|accused|suspected)\b/i;
 
   var POSITION_ACTION_PATTERNS = [
-    /\b(struck|strikes|striking)\b/i,
-    /\b(attacked|attacks|attacking)\b/i,
-    /\b(bombed|bombing|bombardment|bombardments)\b/i,
-    /\b(shelled|shelling)\b/i,
-    /\b(fired|fires|launched|launches)\b/i,
-    /\b(killed|kills|killing)\b/i,
-    /\b(captured|seized|captures|overran)\b/i,
-    /\b(invaded|invading|invasion)\b/i,
-    /\b(shot down|shoots down|downed|intercepted)\b/i,
-    /\b(exploded|explodes|explosion)\b/i,
-    /\b(raakte|raakten|getroffen|treft)\b/i,
-    /\b(aanviel|aanvielen|aanvalt)\b/i,
-    /\b(bombardeerde|bombardeerden|gebombardeerd)\b/i,
-    /\b(beschoot|beschoten|beschieting)\b/i,
-    /\b(lanceerde|lanceerden|afgevuurd)\b/i,
-    /\b(doodde|doodden|gedood)\b/i,
-    /\b(veroverde|veroverden|ingenomen)\b/i,
-    /\b(viel binnen|vielen binnen|binnengevallen)\b/i,
+    /\b(struck|strikes|striking)\b/i, /\b(attacked|attacks|attacking)\b/i,
+    /\b(bombed|bombing|bombardment|bombardments)\b/i, /\b(shelled|shelling)\b/i,
+    /\b(fired|fires|launched|launches)\b/i, /\b(killed|kills|killing)\b/i,
+    /\b(captured|seized|captures|overran)\b/i, /\b(invaded|invading|invasion)\b/i,
+    /\b(shot down|shoots down|downed|intercepted)\b/i, /\b(exploded|explodes|explosion)\b/i,
+    /\b(raakte|raakten|getroffen|treft)\b/i, /\b(aanviel|aanvielen|aanvalt)\b/i,
+    /\b(bombardeerde|bombardeerden|gebombardeerd)\b/i, /\b(beschoot|beschoten|beschieting)\b/i,
+    /\b(lanceerde|lanceerden|afgevuurd)\b/i, /\b(doodde|doodden|gedood)\b/i,
+    /\b(veroverde|veroverden|ingenomen)\b/i, /\b(viel binnen|vielen binnen|binnengevallen)\b/i,
     /\b(neerschoot|neergeschoten|neergehaald|onderschept)\b/i,
-    /\b(frappé|frappe|attaqué|attaques)\b/i,
-    /\b(angegriffen|getroffen|bombardiert)\b/i,
+    /\b(frappé|frappe|attaqué|attaques)\b/i, /\b(angegriffen|getroffen|bombardiert)\b/i,
     /قصف|غارة|هجوم|قتل|انفجار/
   ];
 
@@ -70,7 +58,6 @@
     "mykolaiv":{lat:46.97,lng:31.99,country:"Oekraïne",region:"Oost-Europa"},
     "dnipro":{lat:48.46,lng:35.05,country:"Oekraïne",region:"Oost-Europa"},
     "lviv":{lat:49.84,lng:24.03,country:"Oekraïne",region:"Oost-Europa"},
-
     "rusland":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
     "russia":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
     "moskou":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
@@ -85,7 +72,6 @@
     "krim":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
     "crimea":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
     "sevastopol":{lat:44.62,lng:33.53,country:"Oekraïne",region:"Oost-Europa"},
-
     "israël":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "israel":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "tel aviv":{lat:32.08,lng:34.78,country:"Israël",region:"Midden-Oosten"},
@@ -100,7 +86,6 @@
     "west bank":{lat:32.00,lng:35.30,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
     "ramallah":{lat:31.90,lng:35.20,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
     "jenin":{lat:32.46,lng:35.30,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
-
     "libanon":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "lebanon":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "beiroet":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
@@ -109,7 +94,6 @@
     "syria":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "damascus":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "aleppo":{lat:36.20,lng:37.13,country:"Syrië",region:"Midden-Oosten"},
-
     "iran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
     "teheran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
     "tehran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
@@ -118,7 +102,6 @@
     "iraq":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "bagdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "baghdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
-
     "jemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "yemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "sanaa":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
@@ -131,7 +114,6 @@
     "kuwait":{lat:29.31,lng:47.48,country:"Koeweit",region:"Midden-Oosten"},
     "dubai":{lat:25.20,lng:55.27,country:"VAE",region:"Midden-Oosten"},
     "abu dhabi":{lat:24.45,lng:54.38,country:"VAE",region:"Midden-Oosten"},
-
     "sudan":{lat:15.55,lng:32.53,country:"Sudan",region:"Afrika"},
     "khartoum":{lat:15.55,lng:32.53,country:"Sudan",region:"Afrika"},
     "darfur":{lat:13.00,lng:25.00,country:"Sudan",region:"Afrika"},
@@ -150,13 +132,11 @@
     "kinshasa":{lat:-4.44,lng:15.27,country:"Congo",region:"Afrika"},
     "goma":{lat:-1.68,lng:29.23,country:"Congo",region:"Afrika"},
     "mozambique":{lat:-25.97,lng:32.57,country:"Mozambique",region:"Afrika"},
-
     "afghanistan":{lat:34.53,lng:69.17,country:"Afghanistan",region:"Azië"},
     "kabul":{lat:34.53,lng:69.17,country:"Afghanistan",region:"Azië"},
     "pakistan":{lat:33.68,lng:73.05,country:"Pakistan",region:"Azië"},
     "islamabad":{lat:33.68,lng:73.05,country:"Pakistan",region:"Azië"},
     "karachi":{lat:24.86,lng:67.01,country:"Pakistan",region:"Azië"},
-    /* v3.12: Pakistaanse regio's */
     "balochistan":{lat:28.97,lng:66.47,country:"Pakistan",region:"Azië"},
     "baluchistan":{lat:28.97,lng:66.47,country:"Pakistan",region:"Azië"},
     "sindh":{lat:25.89,lng:68.34,country:"Pakistan",region:"Azië"},
@@ -164,7 +144,6 @@
     "gilgit":{lat:35.42,lng:74.98,country:"Pakistan",region:"Azië"},
     "waziristan":{lat:32.72,lng:69.83,country:"Pakistan",region:"Azië"},
     "khyber":{lat:34.10,lng:71.15,country:"Pakistan",region:"Azië"},
-
     "india":{lat:28.61,lng:77.21,country:"India",region:"Azië"},
     "new delhi":{lat:28.61,lng:77.21,country:"India",region:"Azië"},
     "kashmir":{lat:34.08,lng:74.80,country:"India",region:"Azië"},
@@ -173,7 +152,6 @@
     "noord-korea":{lat:39.03,lng:125.75,country:"Noord-Korea",region:"Azië"},
     "north korea":{lat:39.03,lng:125.75,country:"Noord-Korea",region:"Azië"},
     "myanmar":{lat:19.75,lng:96.10,country:"Myanmar",region:"Azië"},
-
     "nederland":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
     "netherlands":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
     "amsterdam":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
@@ -292,9 +270,6 @@
     return firstPos;
   }
 
-  /* ============================================================
-     v3.12: findTargetByPosition met suffix-skip
-     ============================================================ */
   function findTargetByPosition(title, actorCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -318,7 +293,6 @@
       var loc = LOCATIONS[key];
       if (actorCountries && loc.country && actorCountries.indexOf(loc.country) !== -1) continue;
 
-      /* v3.12: skip "X-backed", "X-led" (context, niet doelwit) */
       var afterIdx = idx + m[0].length;
       var nextChunk = afterVerb.slice(afterIdx, afterIdx + 20);
       if (CONTEXT_SUFFIX.test(nextChunk)) continue;
@@ -456,7 +430,8 @@
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
     var events = [];
     var skippedOld = 0, skippedSport = 0, skippedWeakCiviel = 0;
-    var skippedNoLocation = 0, skippedNonPhysical = 0, claimCount = 0;
+    var skippedNoLocation = 0, skippedNonPhysical = 0;
+    var controlCount = 0, attackCount = 0;
     var positionHits = 0, contextHits = 0;
 
     for (var i = 0; i < items.length; i++) {
@@ -491,13 +466,30 @@
 
       var iso3 = getISO3For(loc.country);
 
+      /* v3.13: CityStatus v2.0 integratie */
       if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
-          window.WDEventDetector.extractCityClaim){
+          window.WDEventDetector.extractCityEvent){
         try {
-          var claim = window.WDEventDetector.extractCityClaim(article.title, article.description || article.desc, actorCountries);
-          if (claim && claim.city && claim.claimedBy){
-            claimCount++;
-            window.CityStatus.recordClaim(claim.city, claim.claimedBy, claim.claimedByISO3, article.source).catch(function(){});
+          var cityEvent = window.WDEventDetector.extractCityEvent(
+            article.title,
+            article.description || article.desc,
+            actorCountries
+          );
+          if (cityEvent && cityEvent.city && cityEvent.actor){
+            var originCountry = sourceCountry;
+            if (cityEvent.type === "control" && window.CityStatus.recordControlClaim){
+              controlCount++;
+              window.CityStatus.recordControlClaim(
+                cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
+                article.source, originCountry
+              ).catch(function(){});
+            } else if (cityEvent.type === "attack" && window.CityStatus.recordAttackClaim){
+              attackCount++;
+              window.CityStatus.recordAttackClaim(
+                cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
+                article.source, originCountry
+              ).catch(function(){});
+            }
           }
         } catch(e){}
       }
@@ -560,12 +552,13 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.12] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.13] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
         " | skip sport:" + skippedSport + " zwak-civiel:" + skippedWeakCiviel +
-        " niet-fysiek:" + skippedNonPhysical + " claim:" + claimCount +
+        " niet-fysiek:" + skippedNonPhysical +
+        " control:" + controlCount + " attack:" + attackCount +
         " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
         " | loc-pos:" + positionHits + " loc-ctx:" + contextHits +
         " | " + Math.round(elapsed) + "ms");
@@ -638,7 +631,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.12 geladen (suffix-skip + regio's)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.13 geladen (CityStatus v2.0)");
   }
 
   function getCountries(){
