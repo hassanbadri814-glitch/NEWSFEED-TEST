@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.8
-   - v3.8: CityStatus integratie (claim → stad-controller)
+   WAR DESK — ai-map.js v3.9
+   - v3.9: context-filter in extractLocation + alleen titel voor locatie
+   - v3.8: CityStatus integratie
    - v3.7: bron-country skip alleen bij niet-fysiek
    - v3.6: event-detector integratie
-   - v3.5: actor-detectie
    ============================================================ */
 
 (function(){
@@ -13,6 +13,9 @@
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
+
+  /* Context-woorden — als deze NA een locatie komen is het geen doelwit */
+  var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen)\b/i;
 
   var LOCATIONS = {
     "oekraïne":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
@@ -240,6 +243,9 @@
     return candidates[0];
   };
 
+  /* ============================================================
+     v3.9: EXTRACTLOCATION met context-filter
+     ============================================================ */
   function extractLocation(text, skipCountries){
     if (!text) return null;
     var skip = [];
@@ -249,11 +255,22 @@
     }
     var lower = " " + String(text).toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
     var found = null, foundLen = 0;
+    var skippedContext = 0;
+
     for (var key in LOCATIONS) {
       var pattern = " " + key + " ";
-      if (lower.indexOf(pattern) !== -1) {
+      var idx = lower.indexOf(pattern);
+      if (idx !== -1) {
         var loc = LOCATIONS[key];
         if (loc.country && skip.indexOf(loc.country) !== -1) continue;
+
+        /* v3.9: Context-filter — als woord erna context is, skip */
+        var after = lower.slice(idx + pattern.length).trim();
+        if (CONTEXT_AFTER.test(after)) {
+          skippedContext++;
+          continue;
+        }
+
         if (key.length > foundLen) { found = loc; foundLen = key.length; }
       }
     }
@@ -379,12 +396,8 @@
 
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
     var events = [];
-    var skippedOld = 0;
-    var skippedSport = 0;
-    var skippedWeakCiviel = 0;
-    var skippedNoLocation = 0;
-    var skippedNonPhysical = 0;
-    var claimCount = 0;
+    var skippedOld = 0, skippedSport = 0, skippedWeakCiviel = 0;
+    var skippedNoLocation = 0, skippedNonPhysical = 0, claimCount = 0;
 
     for (var i = 0; i < items.length; i++) {
       var article = items[i];
@@ -404,14 +417,11 @@
       }
 
       var detection = detectPhysicalEvent(article.title, article.description || article.desc);
-
       var sourceCountry = getSourceCountry(article.source);
       var skipForLoc = detection.isPhysicalEvent ? null : sourceCountry;
 
-      var loc = extractLocation(
-        (article.title || "") + " " + (article.description || article.desc || ""),
-        skipForLoc
-      );
+      /* v3.9: alleen TITEL gebruiken voor locatie (beschrijving nooit scannen) */
+      var loc = extractLocation(article.title || "", skipForLoc);
       if (!loc) loc = extractRegionFallback(article, skipForLoc);
       if (!loc) { skippedNoLocation++; continue; }
 
@@ -423,7 +433,7 @@
       var iso3 = getISO3For(loc.country);
       var actorCountries = detectActorCountries(article.title, article.description || article.desc);
 
-      /* v3.8: CityStatus — registreer claim op stad */
+      /* CityStatus — registreer claim op stad */
       if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
           window.WDEventDetector.extractCityClaim){
         try {
@@ -434,12 +444,8 @@
           );
           if (claim && claim.city && claim.claimedBy){
             claimCount++;
-            /* Fire-and-forget */
             window.CityStatus.recordClaim(
-              claim.city,
-              claim.claimedBy,
-              claim.claimedByISO3,
-              article.source
+              claim.city, claim.claimedBy, claim.claimedByISO3, article.source
             ).catch(function(){});
           }
         } catch(e){}
@@ -506,7 +512,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.8] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.9] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -591,7 +597,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.8 geladen (CityStatus integratie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.9 geladen (context-filter + titel-only)");
   }
 
   function getCountries(){
