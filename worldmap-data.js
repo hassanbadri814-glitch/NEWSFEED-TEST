@@ -9,7 +9,7 @@
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v2.1";
+  window.WORLDMAP_VERSION = "v2.2";
 
   /* ============================================================
      ALLIANTIES — alleen voor actor-positie bepaling (niet rendering)
