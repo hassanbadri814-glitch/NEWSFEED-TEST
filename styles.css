@@ -75,6 +75,7 @@ html[data-oled="true"] {
   --shadow-card:0 2px 8px rgba(0,0,0,.6);
   --shadow-deep:0 8px 32px rgba(0,0,0,.8);
 }
+html[data-oled="true"] .news-card.read { opacity: 0.82; }
 }
 
 html[data-font-size="small"]  { font-size: 14px; }
