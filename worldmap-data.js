@@ -1,19 +1,19 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v2.4
+   WAR DESK — worldmap-data.js v2.5
    ------------------------------------------------------------
+   - v2.5: batch A (geen databestandwijzigingen, alleen versie)
    - v2.4: period_days voor periode-filter
-   - v2.1: COUNTRY_TO_ISO3 mapping + ISO3 helper
-   - v2.0: ACTOR_MAP + CONFLICT_COLORS (conflict-kaart)
-   - v1.0: allianties + feed tiers
+   - v2.1: COUNTRY_TO_ISO3 mapping
+   - v2.0: ACTOR_MAP + CONFLICT_COLORS
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v2.4";
+  window.WORLDMAP_VERSION = "v2.5";
 
   /* ============================================================
-     ALLIANTIES — alleen voor actor-positie bepaling (niet rendering)
+     ALLIANTIES
      ============================================================ */
   window.ALLIANCES = {
     "USA":"west", "GBR":"west", "FRA":"west", "DEU":"west", "ITA":"west",
@@ -49,9 +49,6 @@
     "_default":"neutral"
   };
 
-  /* ============================================================
-     ALLIANCE COLORS — niet gebruikt voor rendering
-     ============================================================ */
   window.ALLIANCE_COLORS = {
     west:     "#3b82f6",
     east:     "#e63946",
@@ -60,9 +57,6 @@
     disputed: "#a855f7"
   };
 
-  /* ============================================================
-     CONFLICT COLORS
-     ============================================================ */
   window.CONFLICT_COLORS = {
     cold:       "#2f2f38",
     warm:       "#7a4040",
@@ -74,79 +68,37 @@
     borderHot:  "#ff0000"
   };
 
-  /* ============================================================
-     ACTOR_MAP — bekende actoren → land
-     ============================================================ */
   window.ACTOR_MAP = {
-    /* Midden-Oosten */
-    "houthi": "Jemen",
-    "houthis": "Jemen",
-    "houthi rebels": "Jemen",
-    "hezbollah": "Libanon",
-    "hamas": "Gaza",
-    "palestinian islamic jihad": "Gaza",
-    "pij": "Gaza",
-    "idf": "Israël",
-    "israeli army": "Israël",
-    "israeli forces": "Israël",
+    "houthi": "Jemen", "houthis": "Jemen", "houthi rebels": "Jemen",
+    "hezbollah": "Libanon", "hamas": "Gaza",
+    "palestinian islamic jihad": "Gaza", "pij": "Gaza",
+    "idf": "Israël", "israeli army": "Israël", "israeli forces": "Israël",
     "israeli military": "Israël",
-    "iranian army": "Iran",
-    "irgc": "Iran",
-    "iranian forces": "Iran",
-    "syrian army": "Syrië",
-    "assad forces": "Syrië",
-    "iraqi army": "Irak",
-    "islamic state": "Syrië",
-    "isis": "Syrië",
-    "isil": "Syrië",
-    "daesh": "Syrië",
-    "al-qaeda": "Syrië",
-    "al qaeda": "Syrië",
-
-    /* Oekraïne/Rusland */
-    "russian army": "Rusland",
-    "russian forces": "Rusland",
-    "russian military": "Rusland",
-    "kremlin": "Rusland",
-    "wagner": "Rusland",
-    "wagner group": "Rusland",
-    "ukrainian army": "Oekraïne",
-    "ukrainian forces": "Oekraïne",
-    "ukrainian military": "Oekraïne",
-    "afu": "Oekraïne",
-    "zsu": "Oekraïne",
-
-    /* Afrika */
-    "rsf": "Sudan",
-    "rapid support forces": "Sudan",
-    "sudanese army": "Sudan",
-    "al-shabaab": "Somalië",
-    "al shabaab": "Somalië",
-    "boko haram": "Nigeria",
-    "m23": "Congo",
-
-    /* Azië */
-    "taliban": "Afghanistan",
-    "afghan army": "Afghanistan",
-    "pakistani army": "Pakistan",
-    "indian army": "India",
-    "myanmar military": "Myanmar",
-    "junta": "Myanmar",
+    "iranian army": "Iran", "irgc": "Iran", "iranian forces": "Iran",
+    "syrian army": "Syrië", "assad forces": "Syrië",
+    "iraqi army": "Irak", "islamic state": "Syrië",
+    "isis": "Syrië", "isil": "Syrië", "daesh": "Syrië",
+    "al-qaeda": "Syrië", "al qaeda": "Syrië",
+    "russian army": "Rusland", "russian forces": "Rusland",
+    "russian military": "Rusland", "kremlin": "Rusland",
+    "wagner": "Rusland", "wagner group": "Rusland",
+    "ukrainian army": "Oekraïne", "ukrainian forces": "Oekraïne",
+    "ukrainian military": "Oekraïne", "afu": "Oekraïne", "zsu": "Oekraïne",
+    "rsf": "Sudan", "rapid support forces": "Sudan", "sudanese army": "Sudan",
+    "al-shabaab": "Somalië", "al shabaab": "Somalië",
+    "boko haram": "Nigeria", "m23": "Congo",
+    "taliban": "Afghanistan", "afghan army": "Afghanistan",
+    "pakistani army": "Pakistan", "indian army": "India",
+    "myanmar military": "Myanmar", "junta": "Myanmar",
     "north korean army": "Noord-Korea",
-    "chinese military": "China",
-    "pla": "China"
+    "chinese military": "China", "pla": "China"
   };
 
-  /* ============================================================
-     FEED TIERS — 100% neutrale persbureaus
-     ============================================================ */
   window.FEED_TIERS = {
-    /* TIER 1A — 100% */
     "NOS": 1.0, "BBC World": 1.0, "BBC UK": 1.0, "BBC Arabic": 1.0,
     "France24 EN": 1.0, "France24 AR": 1.0,
     "Reuters": 1.0, "AP News": 1.0, "Reuters TG": 1.0,
 
-    /* TIER 1B — 85% */
     "Al Jazeera": 0.85, "Al Jazeera AR": 0.85, "Al Jazeera AR TG": 0.85,
     "Al Arabiya TG": 0.85, "Al-Ahram": 0.85, "Arab News": 0.85,
     "Saudi Gazette": 0.85, "The National": 0.85, "Gulf News": 0.85,
@@ -156,10 +108,8 @@
     "RT Arabic": 0.85, "RT News": 0.85, "TASS": 0.85,
     "Times of Israel": 0.85, "Jerusalem Post": 0.85, "Ynet": 0.85,
     "Kyiv Independent": 0.85, "Ukrinform": 0.85,
-    "Mehr News Iran": 0.85,
-    "MAP": 0.85,
+    "Mehr News Iran": 0.85, "MAP": 0.85,
 
-    /* TIER 2 — 70% */
     "De Telegraaf": 0.7, "AD.nl": 0.7, "De Volkskrant": 0.7,
     "Het Parool": 0.7, "Trouw": 0.7, "RTL Nieuws": 0.7, "Nu.nl": 0.7,
     "HLN": 0.7, "Nieuwsblad": 0.7, "De Standaard": 0.7,
@@ -179,7 +129,6 @@
     "NUsport": 0.7, "RTL Sport": 0.7,
     "Egypt Independent": 0.7,
 
-    /* TIER 3 — 50% */
     "Omroep Brabant": 0.5, "Omroep Flevoland": 0.5, "NH Nieuws": 0.5,
     "RTV Utrecht": 0.5, "Omroep Gelderland": 0.5, "L1": 0.5,
     "RTV Oost": 0.5, "Omroep West": 0.5,
@@ -190,7 +139,6 @@
     "Enab Baladi": 0.5, "Sudan Tribune": 0.5, "Radio Dabanga": 0.5,
     "Middle East Monitor": 0.5, "Mondoweiss": 0.5,
 
-    /* TIER 4 — 30% (OSINT) */
     "Clash Report TG": 0.3, "Liveuamap TG": 0.3, "GeoConfirmed TG": 0.3,
     "OSINTdefender TG": 0.3, "Faytuks TG": 0.3, "NOELreports TG": 0.3,
     "Middle East Eye TG": 0.3,
@@ -198,9 +146,6 @@
     "_default": 0.5
   };
 
-  /* ============================================================
-     THRESHOLDS
-     ============================================================ */
   window.WORLDMAP_THRESHOLDS = {
     consensus_min: 0.70,
     confirm_min_sources: 3,
@@ -222,7 +167,6 @@
     actor_ring_min: 3,
     actor_ring_hot: 15,
 
-    /* v2.4: periode-filter (1=24u, 7=week, 30=maand, 365=alles) */
     period_days: 7,
 
     conflict_ring_min: 5,
@@ -234,7 +178,6 @@
      LANDNAAM → ISO3
      ============================================================ */
   var COUNTRY_TO_ISO3 = {
-    /* Conflictgebieden */
     "oekraïne": "UKR", "ukraine": "UKR",
     "rusland": "RUS", "russia": "RUS",
     "israël": "ISR", "israel": "ISR",
@@ -249,36 +192,21 @@
     "qatar": "QAT",
     "koeweit": "KWT", "kuwait": "KWT",
     "vae": "ARE", "uae": "ARE", "emiraten": "ARE",
-
-    /* Afrika */
-    "sudan": "SDN",
-    "mali": "MLI",
-    "burkina faso": "BFA",
-    "niger": "NER",
-    "nigeria": "NGA",
+    "sudan": "SDN", "mali": "MLI", "burkina faso": "BFA",
+    "niger": "NER", "nigeria": "NGA",
     "somalië": "SOM", "somalia": "SOM",
     "ethiopië": "ETH", "ethiopia": "ETH",
-    "congo": "COD", "drc": "COD",
-    "mozambique": "MOZ",
+    "congo": "COD", "drc": "COD", "mozambique": "MOZ",
     "libië": "LBY", "libya": "LBY",
     "egypte": "EGY", "egypt": "EGY",
     "marokko": "MAR", "morocco": "MAR",
     "algerije": "DZA", "tunesië": "TUN",
     "kenia": "KEN", "kenya": "KEN",
-
-    /* Azië */
-    "afghanistan": "AFG",
-    "pakistan": "PAK",
-    "india": "IND",
-    "china": "CHN",
-    "taiwan": "TWN",
+    "afghanistan": "AFG", "pakistan": "PAK",
+    "india": "IND", "china": "CHN", "taiwan": "TWN",
     "noord-korea": "PRK", "north korea": "PRK",
     "zuid-korea": "KOR", "south korea": "KOR",
-    "myanmar": "MMR",
-    "japan": "JPN",
-    "indonesië": "IDN",
-
-    /* Europa */
+    "myanmar": "MMR", "japan": "JPN", "indonesië": "IDN",
     "nederland": "NLD", "netherlands": "NLD",
     "belgië": "BEL", "belgium": "BEL",
     "duitsland": "DEU", "germany": "DEU",
@@ -287,54 +215,28 @@
     "polen": "POL", "poland": "POL",
     "spanje": "ESP", "spain": "ESP",
     "italië": "ITA", "italy": "ITA",
-    "zwitserland": "CHE",
-    "oostenrijk": "AUT",
-    "zweden": "SWE",
-    "noorwegen": "NOR",
-    "denemarken": "DNK",
-    "finland": "FIN",
-    "ierland": "IRL",
-    "portugal": "PRT",
-    "griekenland": "GRC",
+    "zwitserland": "CHE", "oostenrijk": "AUT",
+    "zweden": "SWE", "noorwegen": "NOR",
+    "denemarken": "DNK", "finland": "FIN",
+    "ierland": "IRL", "portugal": "PRT", "griekenland": "GRC",
     "turkije": "TUR", "turkey": "TUR",
-    "roemenië": "ROU",
-    "hongarije": "HUN",
-    "tsjechië": "CZE",
-    "servië": "SRB",
-    "kroatië": "HRV",
-    "bulgarije": "BGR",
-    "moldavië": "MDA",
-    "georgië": "GEO",
-    "armenië": "ARM",
+    "roemenië": "ROU", "hongarije": "HUN", "tsjechië": "CZE",
+    "servië": "SRB", "kroatië": "HRV", "bulgarije": "BGR",
+    "moldavië": "MDA", "georgië": "GEO", "armenië": "ARM",
     "azerbeidzjan": "AZE",
     "wit-rusland": "BLR", "belarus": "BLR",
-
-    /* Amerika */
     "vs": "USA", "verenigde staten": "USA", "usa": "USA",
-    "canada": "CAN",
-    "mexico": "MEX",
+    "canada": "CAN", "mexico": "MEX",
     "brazilië": "BRA", "brazil": "BRA",
-    "venezuela": "VEN",
-    "colombia": "COL",
-    "argentië": "ARG",
-    "chili": "CHL",
-    "peru": "PER",
-    "cuba": "CUB",
-
-    /* Regio-fallbacks */
-    "oost-europa": "REG-EE",
-    "midden-oosten": "REG-ME",
-    "west-europa": "REG-WE",
-    "afrika": "REG-AF",
-    "sahel": "REG-SH",
-    "azië": "REG-AS",
-    "noord-amerika": "REG-NA",
-    "latijns-amerika": "REG-LA"
+    "venezuela": "VEN", "colombia": "COL",
+    "argentië": "ARG", "chili": "CHL",
+    "peru": "PER", "cuba": "CUB",
+    "oost-europa": "REG-EE", "midden-oosten": "REG-ME",
+    "west-europa": "REG-WE", "afrika": "REG-AF",
+    "sahel": "REG-SH", "azië": "REG-AS",
+    "noord-amerika": "REG-NA", "latijns-amerika": "REG-LA"
   };
 
-  /* ============================================================
-     HELPERS
-     ============================================================ */
   window.WorldMapData = {
     getAlliance: function(iso3){
       if (!iso3) return "neutral";
@@ -359,7 +261,6 @@
       if (level === "warm") return c.warm;
       return c.cold;
     },
-    /* Landnaam → ISO3 */
     getISO3: function(countryName){
       if (!countryName) return null;
       var key = String(countryName).toLowerCase().trim();
@@ -395,6 +296,6 @@
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.4 geladen — periode-filter"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.5 geladen"); } catch(e){}
 
 })();
