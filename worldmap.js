@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — worldmap.js v1.0
+   WAR DESK — worldmap.js v1.1
    ------------------------------------------------------------
+   - v1.1: GeoJSON van CDN ipv lokaal bestand
    - Leaflet GeoJSON laag voor landen
    - Kleur op basis van alliantie + hitte-overlay
    - Stad-stippen voor controller-status
@@ -12,32 +13,35 @@
 
   var LOG = function(){ try{ wdLog.info.apply(null, ["[WM]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
-  var GEOJSON_URL = "countries.geojson";
+  /* CDN URLs — jsdelivr is primair, github raw is fallback */
+  var GEOJSON_URLS = [
+    "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
+    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
+  ];
   var CACHE_KEY = "wardesk_countries_geojson";
   var CACHE_VERSION = "v1";
+  var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; /* 30 dagen */
 
-  /* ============================================================
-     STATE
-     ============================================================ */
   var WM = {
-    layer: null,           /* Leaflet GeoJSON laag */
-    cityLayer: null,       /* Leaflet layerGroup voor steden */
-    heatByCountry: {},     /* { "UKR": 45, "RUS": 120, ... } */
+    layer: null,
+    cityLayer: null,
+    heatByCountry: {},
     isLoaded: false,
-    isEnabled: true,       /* togglebaar via menu */
+    isEnabled: true,
     lastHeatCalc: 0,
     map: null
   };
 
   /* ============================================================
-     GEOJSON LADEN — met cache in localStorage
+     GEOJSON LADEN — cache eerst, dan CDN
      ============================================================ */
   async function loadGeoJSON(){
     /* Probeer cache eerst */
     try {
       var cached = localStorage.getItem(CACHE_KEY);
+      var cachedTime = parseInt(localStorage.getItem(CACHE_KEY + "_t") || "0", 10);
       var cachedVer = localStorage.getItem(CACHE_KEY + "_ver");
-      if (cached && cachedVer === CACHE_VERSION){
+      if (cached && cachedVer === CACHE_VERSION && (Date.now() - cachedTime) < CACHE_MAX_AGE_MS){
         var parsed = JSON.parse(cached);
         if (parsed && parsed.features && parsed.features.length > 100){
           LOG("GeoJSON uit cache: " + parsed.features.length + " features");
@@ -46,34 +50,42 @@
       }
     } catch(e){}
 
-    /* Fetch van server */
-    try {
-      var ctrl = new AbortController();
-      var timer = setTimeout(function(){ ctrl.abort(); }, 15000);
-      var res = await fetch(GEOJSON_URL, { signal: ctrl.signal });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      var json = await res.json();
-      if (!json.features || json.features.length < 50){
-        throw new Error("Te weinig features");
-      }
-      /* Cache opslaan (kan groot zijn, doe in try-catch) */
+    /* Fetch van CDN — probeer URL voor URL */
+    for (var i = 0; i < GEOJSON_URLS.length; i++){
       try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify(json));
-        localStorage.setItem(CACHE_KEY + "_ver", CACHE_VERSION);
+        LOG("GeoJSON laden van: " + GEOJSON_URLS[i].slice(0, 60) + "...");
+        var ctrl = new AbortController();
+        var timer = setTimeout(function(){ ctrl.abort(); }, 20000);
+        var res = await fetch(GEOJSON_URLS[i], { signal: ctrl.signal });
+        clearTimeout(timer);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        var json = await res.json();
+        if (!json.features || json.features.length < 50){
+          throw new Error("Te weinig features");
+        }
+
+        /* Cache opslaan — sommige browsers weigeren bij > 5MB */
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(json));
+          localStorage.setItem(CACHE_KEY + "_t", String(Date.now()));
+          localStorage.setItem(CACHE_KEY + "_ver", CACHE_VERSION);
+        } catch(e){
+          LOG("GeoJSON te groot voor localStorage — werk zonder cache");
+        }
+
+        LOG("GeoJSON geladen: " + json.features.length + " features");
+        return json;
       } catch(e){
-        LOG("GeoJSON te groot voor localStorage-cache");
+        LOG("URL " + i + " faalde: " + e.message);
       }
-      LOG("GeoJSON geladen van server: " + json.features.length + " features");
-      return json;
-    } catch(e){
-      LOG("GeoJSON laden faalde: " + e.message);
-      return null;
     }
+
+    LOG("Kon GeoJSON niet laden van enige CDN");
+    return null;
   }
 
   /* ============================================================
-     ISO3 OPHALEN — ondersteunt meerdere property-namen
+     ISO3 OPHALEN
      ============================================================ */
   function getISO3(feature){
     if (!feature || !feature.properties) return null;
@@ -83,11 +95,7 @@
   }
 
   /* ============================================================
-     HITTE BEREKENEN — per land
-     ------------------------------------------------------------
-     Wordt aangeroepen door ai-map.js wanneer er nieuwe events zijn.
-     Neemt een array van events (met .country en .source) en telt
-     gewogen events per land (max 3 per bron per dag, met decay).
+     HITTE BEREKENEN
      ============================================================ */
   function calculateHeat(events){
     var now = Date.now();
@@ -96,7 +104,7 @@
     var weekAgo = now - 7 * 24 * 60 * 60 * 1000;
     var maxPerSource = thresholds.max_events_per_source_per_day || 3;
 
-    var byCountry = {}; /* { country: { total: 0, bySource: {}, lastEvents: [] } } */
+    var byCountry = {};
 
     events.forEach(function(ev){
       if (!ev || !ev.country) return;
@@ -105,19 +113,15 @@
       var ts = new Date(ev.date).getTime();
       if (ts < weekAgo) return;
 
-      /* Decay weight — hoe ouder, hoe minder zwaar */
       var age = now - ts;
       var decayFactor = Math.pow(0.5, age / decayHalfLife);
 
-      /* Bron weight */
       var tierWeight = window.WorldMapData
         ? window.WorldMapData.getTier(ev.source)
         : 0.5;
 
-      /* Totaal gewicht voor dit event */
       var weight = decayFactor * tierWeight;
 
-      /* Max events per bron per dag per land */
       var dayKey = new Date(ts).toISOString().slice(0, 10);
       var sourceKey = (ev.source || "?") + "|" + dayKey;
 
@@ -134,7 +138,6 @@
       byCountry[ev.country].count++;
     });
 
-    /* Omzetten naar een simpele map { country: heatScore } */
     var heatMap = {};
     Object.keys(byCountry).forEach(function(c){
       heatMap[c] = Math.round(byCountry[c].total * 10) / 10;
@@ -143,13 +146,10 @@
     WM.heatByCountry = heatMap;
     WM.lastHeatCalc = now;
 
-    LOG("Heat herberekend: " + Object.keys(heatMap).length + " landen met activiteit");
+    LOG("Heat herberekend: " + Object.keys(heatMap).length + " landen");
     return heatMap;
   }
 
-  /* ============================================================
-     HITTE → KLEUR
-     ============================================================ */
   function getHeatOpacity(heat){
     var th = (window.WORLDMAP_THRESHOLDS || {}).heat || {};
     var cold = th.cold || 0;
@@ -170,7 +170,7 @@
   }
 
   /* ============================================================
-     STIJL — per land
+     STIJL per land
      ============================================================ */
   function styleCountry(feature){
     var iso3 = getISO3(feature);
@@ -195,7 +195,7 @@
   }
 
   /* ============================================================
-     HOVER — tooltip op land
+     HOVER
      ============================================================ */
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
@@ -205,10 +205,11 @@
       ? window.WorldMapData.getAlliance(iso3)
       : "neutral";
     var heat = WM.heatByCountry[iso3] || 0;
+    var allianceLabel = { west: "West", east: "Oost", neutral: "Neutraal" }[alliance] || alliance;
 
     layer.bindTooltip(
       "<b>" + name + "</b><br>" +
-      "Positie: " + alliance + "<br>" +
+      "Positie: " + allianceLabel + "<br>" +
       "Militaire events (7d): " + heat.toFixed(1),
       { sticky: true, direction: "top", className: "wm-tooltip" }
     );
@@ -229,7 +230,7 @@
   }
 
   /* ============================================================
-     CITY-STIPPEN — controller-status per stad
+     CITY-STIPPEN
      ============================================================ */
   function renderCityDots(map){
     if (!window.CityStatus) return;
@@ -240,12 +241,7 @@
     cities.forEach(function(c){
       if (!c || !c.city) return;
 
-      /* Zoek de lat/lng van de stad — via bestaande LOCATIONS uit ai-map */
       var loc = null;
-      if (window.MapAI && window.MapAI.getCountries){
-        /* Fallback: zoek via de bekende lijst van ai-map */
-      }
-      /* We proberen via window.__wm_locations — die wordt door ai-map gevuld */
       if (window.__wm_locations && window.__wm_locations[c.city]){
         loc = window.__wm_locations[c.city];
       }
@@ -283,7 +279,7 @@
   }
 
   /* ============================================================
-     LEGENDA — klein paneel rechtsonder
+     LEGENDA
      ============================================================ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
@@ -302,7 +298,7 @@
   }
 
   /* ============================================================
-     STYLES INJECTEREN
+     STYLES
      ============================================================ */
   function injectStyles(){
     if (document.getElementById("wmStyles")) return;
@@ -324,7 +320,7 @@
   }
 
   /* ============================================================
-     INIT — koppelen aan bestaande Leaflet-map
+     INIT
      ============================================================ */
   async function init(map){
     if (!map || WM.isLoaded) return;
@@ -345,9 +341,7 @@
       interactive: true
     });
 
-    /* Voeg LAAG ONDER de bestaande markers toe */
     WM.layer.addTo(map);
-    /* Zorg dat markers erboven blijven */
     if (window.MAP && window.MAP.cluster && window.MAP.cluster.bringToFront){
       window.MAP.cluster.bringToFront();
     }
@@ -359,7 +353,7 @@
   }
 
   /* ============================================================
-     REFRESH — heat opnieuw berekenen + layer updaten
+     REFRESH
      ============================================================ */
   function refresh(events){
     if (!WM.isLoaded) return;
@@ -369,13 +363,11 @@
     var now = Date.now();
     var recalc = (window.WORLDMAP_THRESHOLDS || {}).heat_recalc_interval_ms || (30 * 60 * 1000);
     if (now - WM.lastHeatCalc < recalc && Object.keys(WM.heatByCountry).length > 0){
-      /* Te recent — sla over */
       return;
     }
 
     calculateHeat(events);
 
-    /* Re-style alle landen */
     if (WM.layer){
       WM.layer.eachLayer(function(layer){
         if (layer.feature){
@@ -384,12 +376,11 @@
       });
     }
 
-    /* Update stad-stippen */
     if (WM.map) renderCityDots(WM.map);
   }
 
   /* ============================================================
-     TOGGLE — aan/uit zetten
+     TOGGLE
      ============================================================ */
   function setEnabled(enabled){
     WM.isEnabled = !!enabled;
@@ -406,9 +397,6 @@
     LOG("Wereldkaart " + (WM.isEnabled ? "aan" : "uit"));
   }
 
-  /* ============================================================
-     EXPORT
-     ============================================================ */
   window.WorldMap = {
     init: init,
     refresh: refresh,
@@ -420,6 +408,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v1.0 geladen");
+  LOG("worldmap.js v1.1 geladen (CDN mode)");
 
 })();
