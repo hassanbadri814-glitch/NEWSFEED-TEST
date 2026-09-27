@@ -1,11 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.1
-   Event-generator met classifier v3.1 + dedup integratie
-   
-   - Sport wordt volledig weggefilterd
-   - Report-mode alleen titel
-   - Deduplicatie via WDEventDedup
-   - 5 categorieën
+   WAR DESK — ai-map.js v3.2
+   - v3.2: vertaal-integratie via NewsAPI.getTranslatedTitle
+   - v3.1: classifier v3.1 + dedup + sport-block
    ============================================================ */
 
 (function(){
@@ -275,9 +271,6 @@
     return String(h);
   }
 
-  /* ============================================================
-     CLASSIFIER-INTEGRATIE
-     ============================================================ */
   function classifyItem(article){
     if (window.WDClassifier && window.WDClassifier.classify) {
       try {
@@ -299,9 +292,25 @@
     return { category: "civiel", subtype: "Overig", confidence: 50, uncertain: true, scores: {}, meta: {} };
   }
 
-  /* ============================================================
-     EVENT-BUILDER
-     ============================================================ */
+  /* v3.2: vertaal-helper */
+  function getTranslatedTitleFor(article){
+    try {
+      if (window.NewsAPI && window.NewsAPI.getTranslatedTitle) {
+        return window.NewsAPI.getTranslatedTitle(article);
+      }
+    } catch(e){}
+    return null;
+  }
+
+  function getTranslatedDescFor(article){
+    try {
+      if (window.NewsAPI && window.NewsAPI.getTranslatedDesc) {
+        return window.NewsAPI.getTranslatedDesc(article);
+      }
+    } catch(e){}
+    return null;
+  }
+
   var lastHash = "";
 
   function buildEvents(){
@@ -322,20 +331,22 @@
     for (var i = 0; i < items.length; i++) {
       var article = items[i];
 
-      /* Leeftijd */
       var ts = getTimestamp(article) || Date.now();
       if (Date.now() - ts > MAX_AGE_MS) { skippedOld++; continue; }
 
-      /* Classificeer */
       var cls = classifyItem(article);
-
-      /* SPORT: skip volledig */
       if (cls.category === "sport") { skippedSport++; continue; }
 
-      /* Locatie */
       var loc = extractLocation((article.title || "") + " " + (article.description || article.desc || ""));
       if (!loc) loc = extractRegionFallback(article);
       if (!loc) { skippedNoLocation++; continue; }
+
+      /* v3.2: vertaling ophalen als beschikbaar */
+      var translatedTitle = getTranslatedTitleFor(article);
+      var translatedDesc = getTranslatedDescFor(article);
+
+      var finalTitle = translatedTitle || article.title || "Onbekend";
+      var finalDesc = translatedDesc || article.description || article.desc || article.summary || "";
 
       var subtype = cls.subtype || "Overig";
       var eventId = "ev-" + i + "-" + cls.category + "-" + subtype;
@@ -344,9 +355,12 @@
         id: eventId,
         lat: loc.lat,
         lng: loc.lng,
-        title: article.title || "Onbekend",
-        description: article.description || article.desc || article.summary || "",
-        fullDescription: loc.country + " · " + loc.region + "\n\n" + (article.description || article.desc || article.summary || ""),
+        title: finalTitle,
+        originalTitle: translatedTitle ? (article.title || "") : null,
+        isTranslated: !!translatedTitle,
+        description: finalDesc,
+        fullDescription: loc.country + " · " + loc.region + "\n\n" + finalDesc +
+          (translatedTitle ? "\n\nOrigineel: " + (article.title || "") : ""),
         category: cls.category,
         subtype: subtype,
         type: cls.category,
@@ -363,7 +377,7 @@
       });
     }
 
-    /* ===== DEDUPLICATIE ===== */
+    /* Dedup */
     var beforeDedup = events.length;
     var grouped = events;
     if (window.WDEventDedup && window.WDEventDedup.group) {
@@ -380,6 +394,21 @@
 
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
+    /* v3.2: trigger async vertalingen voor AR/FR items */
+    try {
+      if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
+        var arItems = [];
+        for (var k = 0; k < items.length; k++) {
+          var it = items[k];
+          if (it && (it.lang === "ar" || it.lang === "fr")) {
+            arItems.push(it);
+            if (arItems.length >= 30) break;
+          }
+        }
+        if (arItems.length) window.NewsAPI.ensureTranslations(arItems);
+      }
+    } catch(e){}
+
     var elapsed = ((window.performance && performance.now) ? performance.now() : Date.now()) - startTime;
 
     if (window.wdLog) {
@@ -387,7 +416,7 @@
       grouped.forEach(function(e){
         if(counts[e.category] !== undefined) counts[e.category]++;
       });
-      wdLog.info("[Map-AI v3.1] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.2] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -449,6 +478,11 @@
     bus.emit("map:hotspots", calculateHotspots(events));
   }
 
+  function forceRun(){
+    lastHash = "";
+    run();
+  }
+
   function init(){
     var bus = getBus();
     if (!bus) {
@@ -459,10 +493,31 @@
       var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
       idle(function(){ run(); }, { timeout: 3000 });
     });
+
+    /* v3.2: rerun bij nieuwe vertaling */
+    bus.on("translation:added", function(){
+      try {
+        var mapTab = document.querySelector('.tab[data-view="map"]');
+        if (mapTab && mapTab.classList.contains("active")) {
+          forceRun();
+        }
+      } catch(e){}
+    });
+
+    /* v3.2: rerun bij toggle-wijziging */
+    bus.on("translation:toggle", function(){
+      try {
+        var mapTab = document.querySelector('.tab[data-view="map"]');
+        if (mapTab && mapTab.classList.contains("active")) {
+          forceRun();
+        }
+      } catch(e){}
+    });
+
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.1 geladen (dedup + sport-block)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.2 geladen (vertaal-integratie)");
   }
 
   function getCountries(){
@@ -476,6 +531,7 @@
 
   window.MapAI = {
     run: run,
+    forceRun: forceRun,
     getEventsSync: function(){
       try { lastHash = ""; var ev = buildEvents(); return (Array.isArray(ev) && ev.length) ? ev : []; }
       catch(e){ return []; }
