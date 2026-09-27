@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAR DESK · Classifier Test</title>
+<style>
+  :root {
+    --bg:#070c16; --bg-2:#0d1522; --bg-3:#131e30;
+    --card:#111b2d; --card-hover:#18253c;
+    --line:#1a2540; --line-2:#26344f;
+    --ink:#e6ebf5; --ink-2:#8a94a8; --ink-3:#6b7a93;
+    --amber:#e0a857; --amber-2:#f0c78a; --amber-3:#8a5c26;
+    --militair:#e63950; --crime:#a855f7; --cyber:#06b6d4;
+    --politiek:#3b82f6; --civiel:#6b7a93;
+    --good:#10b981; --warn:#f59e0b; --bad:#ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    padding: 1rem;
+    line-height: 1.5;
+    font-size: 15px;
+  }
+  h1 {
+    font-size: 1.3rem;
+    background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3));
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: .25rem;
+  }
+  .subtitle { color: var(--ink-3); font-size: .85rem; margin-bottom: 1.5rem; }
+  h2 {
+    font-size: .95rem; color: var(--amber); text-transform: uppercase;
+    letter-spacing: .08em; margin: 1.75rem 0 .75rem;
+    padding-bottom: .4rem; border-bottom: 1px solid var(--line);
+  }
+  .row { display: flex; gap: .5rem; margin-bottom: .65rem; flex-wrap: wrap; }
+  .row label { font-size: .78rem; color: var(--ink-3); min-width: 90px; align-self: center; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  input, textarea {
+    flex: 1; min-width: 200px;
+    padding: .65rem .85rem;
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    color: var(--ink); border-radius: 9px;
+    font-size: .9rem; font-family: inherit; outline: none;
+    resize: vertical;
+  }
+  input:focus, textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(224,168,87,.25); }
+  textarea { min-height: 60px; }
+  button {
+    padding: .7rem 1.2rem;
+    background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3));
+    color: #070c16; border: none; border-radius: 9px;
+    font-weight: 700; font-size: .88rem; cursor: pointer;
+    font-family: inherit;
+    transition: filter .15s, transform .1s;
+  }
+  button:hover { filter: brightness(1.08); }
+  button:active { transform: scale(.97); }
+  button.secondary {
+    background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2);
+  }
+  button.secondary:hover { border-color: var(--amber); color: var(--amber); }
+
+  .result {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 1.1rem 1.25rem;
+    margin-top: 1rem;
+  }
+  .result.cat-militair { border-left: 4px solid var(--militair); }
+  .result.cat-crime { border-left: 4px solid var(--crime); }
+  .result.cat-politiek { border-left: 4px solid var(--politiek); }
+  .result.cat-civiel { border-left: 4px solid var(--civiel); }
+  .result-header {
+    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+    margin-bottom: .75rem; padding-bottom: .75rem;
+    border-bottom: 1px solid var(--line);
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    padding: .35rem .85rem; border-radius: 999px;
+    font-size: .82rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+  }
+  .badge.militair { background: rgba(230,57,80,.15); color: #ff6070; border: 1px solid rgba(230,57,80,.4); }
+  .badge.crime { background: rgba(168,85,247,.15); color: #c084fc; border: 1px solid rgba(168,85,247,.4); }
+  .badge.politiek { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.4); }
+  .badge.civiel { background: rgba(107,122,147,.15); color: #8a94a8; border: 1px solid rgba(107,122,147,.4); }
+  .badge.subtype { background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2); }
+
+  .conf {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-size: .8rem; color: var(--ink-3);
+  }
+  .conf-bar {
+    width: 100px; height: 6px; background: var(--bg-3);
+    border-radius: 3px; overflow: hidden; position: relative;
+  }
+  .conf-fill { height: 100%; background: var(--good); transition: width .3s; }
+  .conf-fill.med { background: var(--warn); }
+  .conf-fill.low { background: var(--bad); }
+
+  .scores-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: .5rem; margin-top: .75rem;
+  }
+  .score-box {
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    border-radius: 8px; padding: .6rem .5rem; text-align: center;
+  }
+  .score-box .cat {
+    font-size: .65rem; text-transform: uppercase; letter-spacing: .06em;
+    font-weight: 700; margin-bottom: .2rem;
+  }
+  .score-box .val { font-size: 1.3rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .score-box.militair .cat, .score-box.militair .val { color: var(--militair); }
+  .score-box.crime .cat, .score-box.crime .val { color: var(--crime); }
+  .score-box.politiek .cat, .score-box.politiek .val { color: var(--politiek); }
+  .score-box.civiel .cat, .score-box.civiel .val { color: var(--civiel); }
+
+  .signals {
+    margin-top: .75rem; padding-top: .75rem;
+    border-top: 1px solid var(--line);
+    font-size: .82rem; color: var(--ink-2);
+  }
+  .signal-line { margin-bottom: .3rem; }
+  .signal-cat { font-weight: 700; color: var(--ink); }
+  .signal-word {
+    display: inline-block;
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    padding: .1rem .45rem; margin: .1rem .15rem;
+    border-radius: 5px; font-size: .75rem;
+  }
+  .signal-word.w3 { border-color: rgba(230,57,80,.4); color: #ff8090; }
+  .signal-word.w2 { border-color: rgba(245,158,11,.4); color: #fbbf24; }
+  .signal-word.w1 { border-color: var(--line-2); color: var(--ink-3); }
+
+  .meta-line {
+    margin-top: .5rem; padding-top: .5rem;
+    border-top: 1px solid var(--line);
+    font-size: .75rem; color: var(--ink-3);
+  }
+  .meta-tag {
+    display: inline-block;
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    padding: .15rem .5rem; margin-right: .3rem;
+    border-radius: 5px;
+  }
+  .meta-tag.ok { color: var(--good); border-color: rgba(16,185,129,.4); }
+  .meta-tag.warn { color: var(--warn); border-color: rgba(245,158,11,.4); }
+
+  .presets {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: .5rem; margin-top: .75rem;
+  }
+  .preset {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 9px; padding: .65rem .8rem;
+    cursor: pointer; transition: all .15s;
+    font-size: .82rem; line-height: 1.35;
+  }
+  .preset:hover {
+    background: var(--card-hover); border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px -10px rgba(224,168,87,.4);
+  }
+  .preset-title { font-weight: 700; color: var(--ink); margin-bottom: .15rem; }
+  .preset-desc { color: var(--ink-3); font-size: .75rem; }
+
+  .batch-table {
+    width: 100%; border-collapse: collapse; margin-top: .75rem;
+    font-size: .82rem;
+  }
+  .batch-table th {
+    text-align: left; padding: .5rem .55rem;
+    background: var(--bg-3); color: var(--ink-3);
+    font-size: .7rem; text-transform: uppercase; letter-spacing: .06em;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .batch-table td {
+    padding: .55rem; border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  .batch-table tr:hover { background: var(--card-hover); }
+  .batch-table .cat-cell { font-weight: 700; white-space: nowrap; }
+  .batch-table .cat-militair { color: var(--militair); }
+  .batch-table .cat-crime { color: var(--crime); }
+  .batch-table .cat-politiek { color: var(--politiek); }
+  .batch-table .cat-civiel { color: var(--civiel); }
+  .batch-table .score-cell { font-variant-numeric: tabular-nums; text-align: center; }
+  .batch-table .score-best { color: var(--good); font-weight: 700; }
+
+  .legend {
+    background: var(--bg-3); border: 1px solid var(--line-2);
+    border-radius: 9px; padding: .75rem 1rem;
+    font-size: .78rem; color: var(--ink-2);
+    margin-top: 1rem;
+  }
+  .legend strong { color: var(--ink); }
+  .legend code {
+    background: var(--bg); padding: .1rem .35rem; border-radius: 4px;
+    font-size: .75rem; color: var(--amber);
+  }
+</style>
+</head>
+<body>
+
+<h1>WAR DESK · Classifier Test</h1>
+<div class="subtitle">Test het classificatie-systeem met voorbeeldartikelen of eigen tekst</div>
+
+<div class="legend">
+  <strong>Hoe werkt de score?</strong> Elk woord telt mee: <code>3 punten</code> = sterk signaal,
+  <code>2 punten</code> = context, <code>1 punt</code> = zwak. Conflictgebied geeft +2 bonus.
+  OSINT-bron geeft +2 bonus. Bij gelijke score wint Militair &gt; Crime &gt; Politiek &gt; Civiel.
+</div>
+
+<h2>Handmatig testen</h2>
+
+<div class="row"><label>Titel</label><input type="text" id="inTitle" placeholder="bv. Raketaanval op Kiev"></div>
+<div class="row"><label>Beschrijving</label><textarea id="inDesc" placeholder="bv. Bij een raketaanval op de Oekraïense hoofdstad zijn meerdere doden gevallen..."></textarea></div>
+<div class="row"><label>Bron</label><input type="text" id="inSource" placeholder="bv. Reuters"></div>
+<div class="row">
+  <button id="btnClassify">Classify</button>
+  <button class="secondary" id="btnClear">Wis</button>
+</div>
+
+<div id="result"></div>
+
+<h2>Voorbeelden — klik om te testen</h2>
+<div class="presets" id="presets"></div>
+
+<h2>Batch-test — alle voorbeelden in één tabel</h2>
+<div class="row">
+  <button class="secondary" id="btnBatch">Alle voorbeelden classificeren</button>
+</div>
+<div id="batchResult"></div>
+
+<script src="classifier.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var PRESETS = [
+    {
+      label: "Barbecue De Wilp",
+      title: "Meerdere gewonden door steekvlam bij buurtbarbecue De Wilp",
+      desc: "Tijdens een buurtbarbecue in De Wilp zijn zaterdagavond meerdere mensen gewond geraakt door een steekvlam.",
+      source: "AD.nl",
+      expected: "civiel"
+    },
+    {
+      label: "Gaslek Athene",
+      title: "Four American tourists among 6 killed in suspected gas leak blast in Athens",
+      desc: "Six people died in a suspected gas leak explosion in a hotel in central Athens. Among the victims are four American tourists.",
+      source: "France24 EN",
+      expected: "civiel"
+    },
+    {
+      label: "Bus Khenifra",
+      title: "28 gewonden bij botsing tussen bus en vrachtwagen bij Khenifra",
+      desc: "Bij een botsing tussen een bus en een vrachtwagen op de N8 bij Khenifra zijn 28 mensen gewond geraakt.",
+      source: "MAROKKO.nl",
+      expected: "civiel"
+    },
+    {
+      label: "Raketaanval Kiev",
+      title: "Raketaanval op Kiev: minstens 5 doden en 20 gewonden",
+      desc: "Rusland heeft vannacht raketten afgevuurd op de Oekraïense hoofdstad Kiev. Bij de aanval zijn minstens 5 mensen gedood.",
+      source: "Reuters",
+      expected: "militair"
+    },
+    {
+      label: "Gaza aanval",
+      title: "Seven Palestinians killed in Gaza Strip during Israeli attacks — Health Ministry",
+      desc: "The Health Ministry in Gaza says seven Palestinians were killed and several wounded in Israeli strikes across the Gaza Strip.",
+      source: "Al Jazeera",
+      expected: "militair"
+    },
+    {
+      label: "Aanslag Brussel",
+      title: "Aanslag in Brussel: verdachte opgepakt, twee doden",
+      desc: "Bij een aanslag in het centrum van Brussel zijn twee mensen omgekomen. De politie heeft een verdachte opgepakt. Het motief is nog onduidelijk.",
+      source: "VRT NWS",
+      expected: "crime"
+    },
+    {
+      label: "Aanslag Tel Aviv",
+      title: "Terrorist attack in Tel Aviv leaves three dead",
+      desc: "A terrorist opened fire in central Tel Aviv, killing three people and wounding several others. The attacker was neutralized by security forces.",
+      source: "Times of Israel",
+      expected: "militair"
+    },
+    {
+      label: "13 doden Gaza",
+      title: "13 doden bij Israëlische luchtaanval op school in Gaza",
+      desc: "Bij een Israëlische luchtaanval op een school in Gaza zijn dertien mensen gedood. Het IDF zegt een Hamas-doelwit te hebben geraakt.",
+      source: "NOS",
+      expected: "militair"
+    },
+    {
+      label: "Verkiezing VS",
+      title: "Trump wint Amerikaanse presidentsverkiezingen",
+      desc: "Donald Trump heeft de Amerikaanse presidentsverkiezingen gewonnen. Hij versloeg zijn Democratische tegenstander in meerdere swing-states.",
+      source: "NYT US",
+      expected: "politiek"
+    },
+    {
+      label: "Woningbrand Amsterdam",
+      title: "Grote woningbrand in Amsterdam, bewoners geëvacueerd",
+      desc: "In Amsterdam is een grote woningbrand uitgebroken. De brandweer heeft meerdere bewoners geëvacueerd.",
+      source: "AT5",
+      expected: "civiel"
+    },
+    {
+      label: "Overval juwelier",
+      title: "Gewapende overval op juwelier in Rotterdam",
+      desc: "Twee verdachten hebben een juwelier in Rotterdam overvallen. De politie is op zoek naar de daders.",
+      source: "AD.nl",
+      expected: "crime"
+    },
+    {
+      label: "Fraude schandaal",
+      title: "Grootschalige fraude bij zorginstelling: 12 miljoen euro verduisterd",
+      desc: "Bij een zorginstelling in Utrecht is 12 miljoen euro verduisterd door grootschalige fraude. De directie is opgepakt.",
+      source: "FD",
+      expected: "crime"
+    },
+    {
+      label: "Drugskartel Mexico",
+      title: "Kartelgeweld in Mexico: 15 doden bij schietpartij",
+      desc: "Bij een schietpartij tussen rivaliserende drugskartels in Noord-Mexico zijn 15 mensen omgekomen.",
+      source: "Reuters",
+      expected: "crime"
+    },
+    {
+      label: "Vliegtuigongeluk",
+      title: "Vliegtuigongeluk in Frankrijk: 8 doden",
+      desc: "Bij een vliegtuigongeluk in Zuid-Frankrijk zijn alle 8 inzittenden omgekomen. De oorzaak is nog onbekend.",
+      source: "AFP",
+      expected: "civiel"
+    },
+    {
+      label: "Overstroming Spanje",
+      title: "Dodental overstromingen Spanje loopt op naar 95",
+      desc: "Het dodental als gevolg van de overstromingen in de regio Valencia is opgelopen tot 95. Er zijn nog tientallen vermisten.",
+      source: "El País",
+      expected: "civiel"
+    },
+    {
+      label: "Politieke moord Rusland",
+      title: "Russische oppositieleider vermoord in Moskou",
+      desc: "Een prominente Russische oppositieleider is in Moskou vermoord. De politie onderzoekt de zaak. Westerse landen eisen uitleg van het Kremlin.",
+      source: "BBC World",
+      expected: "crime"
+    }
+  ];
+
+  /* ============================================================
+     RENDER
+     ============================================================ */
+
+  function esc(s){
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function catLabel(cat){
+    return { militair:"Militair", crime:"Crime", politiek:"Politiek", civiel:"Civiel" }[cat] || cat;
+  }
+
+  function renderSignals(signals){
+    var out = [];
+    ["militair","crime","politiek","civiel"].forEach(function(cat){
+      var hits = signals[cat];
+      if (!hits || !hits.length) return;
+      var words = hits.map(function(h){
+        var cls = "w" + h.weight;
+        return '<span class="signal-word ' + cls + '">' + esc(h.word) + ' <sub>' + h.weight + '</sub></span>';
+      }).join("");
+      out.push('<div class="signal-line"><span class="signal-cat">' + catLabel(cat) + ':</span> ' + words + '</div>');
+    });
+    return out.join("") || '<div class="signal-line"><em>Geen signaalwoorden herkend</em></div>';
+  }
+
+  function renderMeta(meta){
+    var tags = [];
+    if (meta.conflictLocation) tags.push('<span class="meta-tag ok">Conflictgebied: ' + esc(meta.conflictLocation) + ' (+2)</span>');
+    if (meta.instableLocation) tags.push('<span class="meta-tag warn">Instabiel: ' + esc(meta.instableLocation) + ' (+1)</span>');
+    if (meta.isOsint) tags.push('<span class="meta-tag ok">OSINT-bron (+2)</span>');
+    if (meta.terrorWord) tags.push('<span class="meta-tag warn">Terrorisme-woord: ' + esc(meta.terrorWord) + ' → ' + (meta.conflictLocation ? 'Militair' : 'Crime') + ' (+5)</span>');
+    if (!tags.length) tags.push('<span class="meta-tag">Geen speciale regels actief</span>');
+    return tags.join("");
+  }
+
+  function renderResult(result){
+    var el = document.getElementById("result");
+    var confClass = result.confidence >= 85 ? "" : (result.confidence >= 65 ? "med" : "low");
+    var html = '';
+    html += '<div class="result cat-' + result.category + '">';
+    html += '<div class="result-header">';
+    html += '<span class="badge ' + result.category + '">' + catLabel(result.category) + '</span>';
+    if (result.subtype) html += '<span class="badge subtype">' + esc(result.subtype) + '</span>';
+    if (result.uncertain) html += '<span class="badge subtype" style="color:#f59e0b">?</span>';
+    html += '<span class="conf">' +
+      '<span>Confidence: ' + result.confidence + '%</span>' +
+      '<span class="conf-bar"><span class="conf-fill ' + confClass + '" style="width:' + result.confidence + '%"></span></span>' +
+    '</span>';
+    html += '</div>';
+
+    html += '<div class="scores-grid">';
+    html += '<div class="score-box militair"><div class="cat">Militair</div><div class="val">' + result.scores.militair + '</div></div>';
+    html += '<div class="score-box crime"><div class="cat">Crime</div><div class="val">' + result.scores.crime + '</div></div>';
+    html += '<div class="score-box politiek"><div class="cat">Politiek</div><div class="val">' + result.scores.politiek + '</div></div>';
+    html += '<div class="score-box civiel"><div class="cat">Civiel</div><div class="val">' + result.scores.civiel + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="signals">' + renderSignals(result.signals) + '</div>';
+    html += '<div class="meta-line">' + renderMeta(result.meta) + '</div>';
+    html += '</div>';
+    el.innerHTML = html;
+  }
+
+  /* ============================================================
+     HANDLERS
+     ============================================================ */
+
+  function classifyNow(){
+    if (!window.WDClassifier) {
+      alert("classifier.js niet geladen!");
+      return;
+    }
+    var title = document.getElementById("inTitle").value;
+    var desc = document.getElementById("inDesc").value;
+    var source = document.getElementById("inSource").value;
+    var result = window.WDClassifier.classify(title, desc, source);
+    renderResult(result);
+  }
+
+  function fillForm(preset){
+    document.getElementById("inTitle").value = preset.title;
+    document.getElementById("inDesc").value = preset.desc;
+    document.getElementById("inSource").value = preset.source;
+    classifyNow();
+    document.getElementById("result").scrollIntoView({ behavior:"smooth", block:"start" });
+  }
+
+  function clearForm(){
+    document.getElementById("inTitle").value = "";
+    document.getElementById("inDesc").value = "";
+    document.getElementById("inSource").value = "";
+    document.getElementById("result").innerHTML = "";
+  }
+
+  function renderPresets(){
+    var wrap = document.getElementById("presets");
+    var html = "";
+    PRESETS.forEach(function(p, i){
+      html += '<div class="preset" data-idx="' + i + '">';
+      html += '<div class="preset-title">' + esc(p.label) + '</div>';
+      html += '<div class="preset-desc">' + esc(p.title) + '</div>';
+      html += '</div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll(".preset").forEach(function(el){
+      el.addEventListener("click", function(){
+        fillForm(PRESETS[parseInt(el.dataset.idx, 10)]);
+      });
+    });
+  }
+
+  function runBatch(){
+    var wrap = document.getElementById("batchResult");
+    if (!window.WDClassifier) { wrap.innerHTML = "classifier.js niet geladen"; return; }
+
+    var html = '<table class="batch-table"><thead><tr>' +
+      '<th>#</th><th>Label</th><th>Resultaat</th><th>Subtype</th>' +
+      '<th>M</th><th>C</th><th>P</th><th>Ci</th><th>Conf</th><th>Verwacht</th>' +
+    '</tr></thead><tbody>';
+
+    var correct = 0;
+    PRESETS.forEach(function(p, i){
+      var r = window.WDClassifier.classify(p.title, p.desc, p.source);
+      var ok = (r.category === p.expected);
+      if (ok) correct++;
+      var rowStyle = ok ? "" : ' style="background:rgba(239,68,68,.08)"';
+      html += '<tr' + rowStyle + '>';
+      html += '<td>' + (i+1) + '</td>';
+      html += '<td>' + esc(p.label) + '</td>';
+      html += '<td class="cat-cell cat-' + r.category + '">' + catLabel(r.category) + '</td>';
+      html += '<td>' + esc(r.subtype) + (r.uncertain ? ' <span style="color:#f59e0b">?</span>' : '') + '</td>';
+      html += '<td class="score-cell' + (r.category === "militair" ? ' score-best' : '') + '">' + r.scores.militair + '</td>';
+      html += '<td class="score-cell' + (r.category === "crime" ? ' score-best' : '') + '">' + r.scores.crime + '</td>';
+      html += '<td class="score-cell' + (r.category === "politiek" ? ' score-best' : '') + '">' + r.scores.politiek + '</td>';
+      html += '<td class="score-cell' + (r.category === "civiel" ? ' score-best' : '') + '">' + r.scores.civiel + '</td>';
+      html += '<td class="score-cell">' + r.confidence + '%</td>';
+      html += '<td>' + (ok ? '<span style="color:#10b981">✓ ' + catLabel(p.expected) + '</span>' : '<span style="color:#ef4444">✗ ' + catLabel(p.expected) + '</span>') + '</td>';
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    html += '<div style="margin-top:.75rem;font-size:.85rem;color:var(--ink-2)">';
+    html += '<strong>Score: ' + correct + ' / ' + PRESETS.length + '</strong> correct';
+    if (correct === PRESETS.length) html += ' — <span style="color:var(--good)">Perfect</span>';
+    else if (correct >= PRESETS.length * 0.8) html += ' — <span style="color:var(--warn)">Goed, kleine verbeteringen mogelijk</span>';
+    else html += ' — <span style="color:var(--bad)">Woordenlijsten moeten worden bijgewerkt</span>';
+    html += '</div>';
+
+    wrap.innerHTML = html;
+  }
+
+  /* ============================================================
+     INIT
+     ============================================================ */
+
+  document.addEventListener("DOMContentLoaded", function(){
+    document.getElementById("btnClassify").addEventListener("click", classifyNow);
+    document.getElementById("btnClear").addEventListener("click", clearForm);
+    document.getElementById("btnBatch").addEventListener("click", runBatch);
+    renderPresets();
+
+    if (!window.WDClassifier) {
+      document.getElementById("result").innerHTML =
+        '<div class="result" style="border-left:4px solid #ef4444">' +
+        '<strong style="color:#ef4444">Fout:</strong> classifier.js niet gevonden. ' +
+        'Zorg dat beide bestanden in dezelfde map staan.' +
+        '</div>';
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
