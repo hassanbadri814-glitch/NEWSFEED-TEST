@@ -1,12 +1,10 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.7
+   WAR DESK — worldmap.js v2.8
    ------------------------------------------------------------
-   - v2.7: CityStatus integratie (renderCityDots met controller)
-   - v2.6: grammatica fix (1 bron / 1 land)
-   - v2.5: confidence in opacity + tooltip update
-   - v2.4: Batch A — periode-filter positie + schalende drempels
-   - v2.3: land-panel + confidence + periode-filter
-   - v2.2: alleen countsForHeat events + REG-skip + compacte legenda
+   - v2.8: lagere city-drempel (0.15) + betere display + logging
+   - v2.7: CityStatus integratie
+   - v2.6: grammatica fix
+   - v2.5: confidence in opacity
    ============================================================ */
 
 (function(){
@@ -95,9 +93,6 @@
     return p.NAME_NL || p.name_nl || p.NAME || p.name || p.ADMIN || p.admin || "?";
   }
 
-  /* ============================================================
-     DREMPELS SCHALEN MET PERIODE
-     ============================================================ */
   function getPeriodScale(periodDays){
     if (periodDays <= 1) return 0.3;
     if (periodDays <= 7) return 1.0;
@@ -120,7 +115,6 @@
     var targetByCountry = {};
     var actorByCountry = {};
     var countryMeta = {};
-
     var skippedNonPhysical = 0;
     var skippedReg = 0;
     var skippedOld = 0;
@@ -157,7 +151,6 @@
           targetByCountry[targetKey].bySource[sourceKey]++;
           targetByCountry[targetKey].total += weight;
           targetByCountry[targetKey].count++;
-
           if (ev.source) countryMeta[targetKey].sources[ev.source] = true;
           try {
             if (window.WDEventDetector && window.WDEventDetector.getSourceCountry){
@@ -183,7 +176,6 @@
         var actorKey = actorIso || actorCountry;
         if (actorKey.indexOf(SKIP_PREFIX) === 0) return;
         if (actorKey === targetKey) return;
-
         if (!actorByCountry[actorKey]){
           actorByCountry[actorKey] = { total: 0, bySource: {}, count: 0 };
         }
@@ -202,28 +194,22 @@
     Object.keys(targetByCountry).forEach(function(c){
       targetHeatMap[c] = Math.round(targetByCountry[c].total * 10) / 10;
     });
-
     var actorHeatMap = {};
     Object.keys(actorByCountry).forEach(function(c){
       actorHeatMap[c] = Math.round(actorByCountry[c].total * 10) / 10;
     });
-
     var confMap = {};
     Object.keys(countryMeta).forEach(function(iso3){
       var m = countryMeta[iso3];
       var sourceCount = Object.keys(m.sources).length;
       var originCount = Object.keys(m.origins).length;
-
       var sourceScore = Math.min(1, sourceCount / 8);
       var originScore = Math.min(1, originCount / 3);
       var score = (sourceScore * 0.6) + (originScore * 0.4);
       if (sourceCount >= 2 && originCount >= 2) score = Math.min(1, score + 0.05);
-
       confMap[iso3] = {
         confidence: Math.round(score * 100),
-        sources: sourceCount,
-        origins: originCount,
-        count: m.count
+        sources: sourceCount, origins: originCount, count: m.count
       };
     });
 
@@ -236,14 +222,11 @@
       var sortedTargets = Object.keys(targetHeatMap).map(function(k){
         return { key: k, val: targetHeatMap[k] };
       }).sort(function(a, b){ return b.val - a.val; }).slice(0, 5);
-      var targetStr = sortedTargets.map(function(x){ return x.key + ":" + x.val; }).join(" ");
-      LOG("Heat top-5 doelwitten (" + periodDays + "d): " + (targetStr || "(leeg)"));
-
+      LOG("Heat top-5 doelwitten (" + periodDays + "d): " + sortedTargets.map(function(x){ return x.key + ":" + x.val; }).join(" "));
       var sortedActors = Object.keys(actorHeatMap).map(function(k){
         return { key: k, val: actorHeatMap[k] };
       }).sort(function(a, b){ return b.val - a.val; }).slice(0, 3);
-      var actorStr = sortedActors.map(function(x){ return x.key + ":" + x.val; }).join(" ");
-      LOG("Heat top-3 aanvallers: " + (actorStr || "(leeg)"));
+      LOG("Heat top-3 aanvallers: " + sortedActors.map(function(x){ return x.key + ":" + x.val; }).join(" "));
     } catch(e){}
 
     LOG("Heat herberekend (" + periodDays + "d): " + Object.keys(targetHeatMap).length + " doelwitten, " +
@@ -252,18 +235,13 @@
     return { targets: targetHeatMap, actors: actorHeatMap };
   }
 
-  /* ============================================================
-     CONFLICT-LEVEL (met periode-schaling)
-     ============================================================ */
   function getConflictLevel(heat){
     var th = (window.WORLDMAP_THRESHOLDS || {}).heat || {};
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var scale = getPeriodScale(periodDays);
-
     var warm = (th.warm || 0.5) * scale;
     var hot = (th.hot || 1.5) * scale;
     var scorching = (th.scorching || 3) * scale;
-
     if (heat >= scorching) return "scorching";
     if (heat >= hot) return "hot";
     if (heat >= warm) return "warm";
@@ -284,7 +262,6 @@
     else if (level === "hot") baseOpacity = 0.78;
     else if (level === "warm") baseOpacity = 0.65;
     else return 0.30;
-
     if (typeof confidence === "number" && confidence >= 0){
       var confNorm = Math.max(0, Math.min(100, confidence));
       var factor = 0.55 + (confNorm / 100) * 0.45;
@@ -301,55 +278,32 @@
     var cc = window.CONFLICT_COLORS || {};
     var conf = WM.countryConfidence[iso3];
     var confPct = conf ? conf.confidence : null;
-
     if (totalHeat < 0.1){
-      return {
-        fillColor: cc.cold || "#2f2f38",
-        fillOpacity: 0.30,
-        color: cc.border || "rgba(255,255,255,0.12)",
-        weight: 0.5
-      };
+      return { fillColor: cc.cold || "#2f2f38", fillOpacity: 0.30, color: cc.border || "rgba(255,255,255,0.12)", weight: 0.5 };
     }
-
     var level = getConflictLevel(targetHeat);
     var fillColor = getFillColor(level);
     var fillOpacity = getFillOpacity(level, confPct);
-
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var scale = getPeriodScale(periodDays);
-
     var actorThreshold = ((window.WORLDMAP_THRESHOLDS || {}).actor_ring_min || 3) * scale;
     var actorHotThreshold = ((window.WORLDMAP_THRESHOLDS || {}).actor_ring_hot || 15) * scale;
     var borderColor = cc.border || "rgba(255,255,255,0.12)";
     var borderWeight = 0.5;
     var dashArray = null;
-
     if (actorHeat >= actorHotThreshold){
-      borderColor = cc.actorHot || "#ff2222";
-      borderWeight = 2.5;
+      borderColor = cc.actorHot || "#ff2222"; borderWeight = 2.5;
     } else if (actorHeat >= actorThreshold){
-      borderColor = cc.actorRing || "#ff6666";
-      borderWeight = 1.8;
+      borderColor = cc.actorRing || "#ff6666"; borderWeight = 1.8;
     }
-
     if (level === "scorching"){
       borderColor = cc.borderHot || "#ff0000";
       borderWeight = Math.max(borderWeight, 2);
       dashArray = "4 2";
     }
-
-    return {
-      fillColor: fillColor,
-      fillOpacity: fillOpacity,
-      color: borderColor,
-      weight: borderWeight,
-      dashArray: dashArray
-    };
+    return { fillColor: fillColor, fillOpacity: fillOpacity, color: borderColor, weight: borderWeight, dashArray: dashArray };
   }
 
-  /* ============================================================
-     HELPERS
-     ============================================================ */
   function pluralize(count, singular, plural){
     return count + " " + (count === 1 ? singular : plural);
   }
@@ -370,45 +324,30 @@
     return Math.floor(diff / 86400) + "d";
   }
 
-  /* ============================================================
-     TOOLTIP GENERATOR
-     ============================================================ */
+  function capitalizeCity(s){
+    if (!s) return "";
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
   function buildTooltipHtml(iso3, name){
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var conf = WM.countryConfidence[iso3];
-
     var lines = ["<b>" + name + "</b>"];
-
     if (targetHeat > 0 || actorHeat > 0){
-      if (targetHeat > 0){
-        lines.push("🎯 Doelwit: " + targetHeat.toFixed(1) + " events");
-      }
-      if (actorHeat > 0){
-        lines.push("⚔️ Aanvaller: " + actorHeat.toFixed(1) + " events");
-      }
-      if (conf){
-        lines.push("📊 " + conf.confidence + "% confidence (" +
-          pluralize(conf.sources, "bron", "bronnen") + ", " +
-          pluralize(conf.origins, "land", "landen") + ")");
-      }
+      if (targetHeat > 0) lines.push("🎯 Doelwit: " + targetHeat.toFixed(1) + " events");
+      if (actorHeat > 0) lines.push("⚔️ Aanvaller: " + actorHeat.toFixed(1) + " events");
+      if (conf) lines.push("📊 " + conf.confidence + "% confidence (" + pluralize(conf.sources, "bron", "bronnen") + ", " + pluralize(conf.origins, "land", "landen") + ")");
     } else {
       lines.push("Rustig — geen fysieke militaire events");
     }
-
     return lines.join("<br>");
   }
 
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
     var name = getCountryName(feature);
-
-    layer.bindTooltip(buildTooltipHtml(iso3, name), {
-      sticky: true,
-      direction: "top",
-      className: "wm-tooltip"
-    });
-
+    layer.bindTooltip(buildTooltipHtml(iso3, name), { sticky: true, direction: "top", className: "wm-tooltip" });
     layer.on({
       mouseover: function(e){
         var l = e.target;
@@ -417,15 +356,9 @@
         var conf = WM.countryConfidence[iso3];
         var confPct = conf ? conf.confidence : null;
         var currentOpacity = getFillOpacity(level, confPct);
-        l.setStyle({
-          weight: 2.5,
-          color: "#e0a857",
-          fillOpacity: Math.min(0.9, currentOpacity + 0.15)
-        });
+        l.setStyle({ weight: 2.5, color: "#e0a857", fillOpacity: Math.min(0.9, currentOpacity + 0.15) });
       },
-      mouseout: function(e){
-        if (WM.layer) WM.layer.resetStyle(e.target);
-      },
+      mouseout: function(e){ if (WM.layer) WM.layer.resetStyle(e.target); },
       click: function(e){
         if (L.DomEvent) L.DomEvent.stopPropagation(e);
         openCountryPanel(iso3, name);
@@ -441,18 +374,11 @@
       var name = getCountryName(layer.feature);
       try {
         layer.unbindTooltip();
-        layer.bindTooltip(buildTooltipHtml(iso3, name), {
-          sticky: true,
-          direction: "top",
-          className: "wm-tooltip"
-        });
+        layer.bindTooltip(buildTooltipHtml(iso3, name), { sticky: true, direction: "top", className: "wm-tooltip" });
       } catch(e){}
     });
   }
 
-  /* ============================================================
-     LAND-PANEL
-     ============================================================ */
   function ensurePanel(){
     if (WM.panel) return WM.panel;
     var panel = document.createElement("div");
@@ -467,30 +393,21 @@
       '<div class="wm-panel-events" id="wmPanelEvents"></div>';
     document.body.appendChild(panel);
     WM.panel = panel;
-
     panel.querySelector("#wmPanelClose").addEventListener("click", closeCountryPanel);
-    panel.addEventListener("click", function(e){
-      if (e.target === panel) closeCountryPanel();
-    });
-
+    panel.addEventListener("click", function(e){ if (e.target === panel) closeCountryPanel(); });
     return panel;
   }
 
   function openCountryPanel(iso3, countryName){
     if (!iso3) return;
     var panel = ensurePanel();
-
-    var titleEl = panel.querySelector("#wmPanelTitle");
-    titleEl.textContent = countryName || iso3;
-
+    panel.querySelector("#wmPanelTitle").textContent = countryName || iso3;
     var conf = WM.countryConfidence[iso3];
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var statsEl = panel.querySelector("#wmPanelStats");
-
     if (!conf && targetHeat === 0 && actorHeat === 0){
-      statsEl.innerHTML =
-        '<div class="wm-panel-empty">Geen fysieke militaire events in de laatste ' +
+      statsEl.innerHTML = '<div class="wm-panel-empty">Geen fysieke militaire events in de laatste ' +
         ((window.WORLDMAP_THRESHOLDS || {}).period_days || 7) + ' dagen</div>';
     } else {
       var confPct = conf ? conf.confidence : 0;
@@ -502,33 +419,19 @@
           pluralize(conf.origins, "land", "landen") + ' van herkomst</div>';
       }
       statsEl.innerHTML =
-        '<div class="wm-panel-stat">' +
-          '<div class="wm-panel-stat-val">' + targetHeat.toFixed(1) + '</div>' +
-          '<div class="wm-panel-stat-lbl">Doelwit</div>' +
-        '</div>' +
-        '<div class="wm-panel-stat">' +
-          '<div class="wm-panel-stat-val">' + actorHeat.toFixed(1) + '</div>' +
-          '<div class="wm-panel-stat-lbl">Aanvaller</div>' +
-        '</div>' +
-        '<div class="wm-panel-stat ' + confClass + '">' +
-          '<div class="wm-panel-stat-val">' + confPct + '%</div>' +
-          '<div class="wm-panel-stat-lbl">Confidence</div>' +
-        '</div>' +
+        '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + targetHeat.toFixed(1) + '</div><div class="wm-panel-stat-lbl">Doelwit</div></div>' +
+        '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + actorHeat.toFixed(1) + '</div><div class="wm-panel-stat-lbl">Aanvaller</div></div>' +
+        '<div class="wm-panel-stat ' + confClass + '"><div class="wm-panel-stat-val">' + confPct + '%</div><div class="wm-panel-stat-lbl">Confidence</div></div>' +
         confDetail;
     }
-
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
     var myEvents = (WM._allEvents || []).filter(function(e){
       if (!e) return false;
       if (e.category !== "militair") return false;
       if (e.countryISO3 !== iso3) return false;
-      var ts = new Date(e.date).getTime();
-      return ts >= periodAgo;
-    }).sort(function(a, b){
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    }).slice(0, 15);
-
+      return new Date(e.date).getTime() >= periodAgo;
+    }).sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); }).slice(0, 15);
     var evEl = panel.querySelector("#wmPanelEvents");
     if (!myEvents.length){
       evEl.innerHTML = '<div class="wm-panel-empty">Geen events in deze periode</div>';
@@ -537,7 +440,6 @@
         var physical = ev.countsForHeat !== false;
         var actionTag = physical ? "Fysiek" : "Niet-fysiek";
         var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
-        var subtype = ev.subtype || "—";
         return '<div class="wm-panel-event">' +
           '<div class="wm-panel-event-title">' + escapeHtml(ev.title) + '</div>' +
           '<div class="wm-panel-event-meta">' +
@@ -545,64 +447,81 @@
             '<span class="wm-panel-event-dot">·</span>' +
             '<span>' + timeAgoShort(ev.date) + '</span>' +
             '<span class="' + actionClass + '">' + actionTag + '</span>' +
-            '<span class="wm-panel-event-sub">' + escapeHtml(subtype) + '</span>' +
+            '<span class="wm-panel-event-sub">' + escapeHtml(ev.subtype || "—") + '</span>' +
           '</div>' +
         '</div>';
       }).join("");
     }
-
-    requestAnimationFrame(function(){
-      panel.classList.add("show");
-    });
+    requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
-  function closeCountryPanel(){
-    if (WM.panel){
-      WM.panel.classList.remove("show");
-    }
-  }
+  function closeCountryPanel(){ if (WM.panel) WM.panel.classList.remove("show"); }
 
   /* ============================================================
-     v2.7: CITY-DOTS met CityStatus integratie
+     v2.8: CITY-DOTS met lagere drempel + betere logging
      ============================================================ */
   function renderCityDots(map){
-    if (!window.CityStatus) return;
+    if (!window.CityStatus){
+      LOG("CityStatus niet beschikbaar");
+      return;
+    }
     if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
     else { WM.cityLayer = L.layerGroup().addTo(map); }
 
     var cities = window.CityStatus.getAllCities();
+    var total = cities.length;
     var rendered = 0;
+    var skippedLowConf = 0;
+    var skippedNoLoc = 0;
 
     cities.forEach(function(c){
       if (!c || !c.city) return;
-      /* Filter te onzekere claims */
-      if ((c.confidence || 0) < 0.4) return;
+
+      /* v2.8: drempel 0.4 → 0.15 */
+      if ((c.confidence || 0) < 0.15) { skippedLowConf++; return; }
 
       var loc = null;
       if (window.__wm_locations && window.__wm_locations[c.city]){
         loc = window.__wm_locations[c.city];
       }
-      if (!loc) return;
+      if (!loc) { skippedNoLoc++; return; }
 
-      /* Effectieve controller: controller als bevestigd, anders claimedBy */
+      /* Bepaal effectieve controller — probeer beide velden */
       var effController = c.controller || c.claimedBy;
       var effISO3 = null;
       try {
         if (window.WorldMapData && window.WorldMapData.getISO3){
-          effISO3 = window.WorldMapData.getISO3(effController);
+          /* Als effController al ISO3-code is, skip lookup */
+          if (effController && effController.length === 3 && effController === effController.toUpperCase()){
+            effISO3 = effController;
+          } else {
+            effISO3 = window.WorldMapData.getISO3(effController);
+          }
         }
       } catch(e){}
+
+      /* Voor weergave: gebruik de ISO3 of de naam */
+      var displayController = effController || "?";
+
       var alliance = window.WorldMapData
         ? window.WorldMapData.getAlliance(effISO3 || effController)
         : "neutral";
       var color = window.WorldMapData
         ? window.WorldMapData.getColor(alliance)
         : "#6b7280";
-      var isClaim = c.confidence < 0.7;
+
+      var conf = c.confidence || 0;
+      var isClaim = conf < 0.7;
+
+      /* Grootte schaalt met confidence: 8px (zwak) → 14px (sterk) */
+      var size = Math.round(8 + conf * 6);
+
+      /* Opacity schaalt ook */
+      var opacity = Math.round((0.5 + conf * 0.5) * 100) / 100;
 
       var html = '<div style="' +
-        'width:12px;height:12px;border-radius:50%;' +
-        'background:' + color + ';' +
+        'width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
+        'background:' + color + ';opacity:' + opacity + ';' +
         'box-shadow:0 0 10px ' + color + ',0 0 0 1.5px rgba(0,0,0,0.6);' +
         (isClaim
           ? 'border:2px dashed rgba(255,255,255,0.9);box-sizing:border-box;'
@@ -612,48 +531,38 @@
       var icon = L.divIcon({
         className: "wm-city-dot",
         html: html,
-        iconSize: [12, 12],
-        iconAnchor: [6, 6]
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2]
       });
 
       var marker = L.marker([loc.lat, loc.lng], { icon: icon });
 
       var statusLabel = isClaim ? "Claim" : "Bevestigd";
-      var controllerLabel = effController || "?";
-      var confPct = Math.round((c.confidence || 0) * 100);
+      var confPct = Math.round(conf * 100);
       var sinceDate = c.since ? new Date(c.since).toISOString().slice(0, 10) : "";
+      var cityDisplay = capitalizeCity(c.city);
+
       var tooltipHtml =
-        '<b>' + escapeHtml(c.city) + '</b>' +
+        '<b>' + escapeHtml(cityDisplay) + '</b>' +
         (loc.country ? ' · ' + escapeHtml(loc.country) : '') + '<br>' +
-        '🎛️ Controller: <b>' + escapeHtml(controllerLabel) + '</b><br>' +
+        '🎛️ Controller: <b>' + escapeHtml(displayController) + '</b><br>' +
         '📊 ' + statusLabel + ' · ' + confPct + '% confidence' +
         (sinceDate ? '<br>📅 Sinds ' + sinceDate : '') +
         (c.sources && c.sources.length ? '<br>📰 ' + pluralize(c.sources.length, "bron", "bronnen") : '');
 
-      marker.bindTooltip(tooltipHtml, {
-        direction: "top",
-        className: "wm-tooltip",
-        offset: [0, -6]
-      });
+      marker.bindTooltip(tooltipHtml, { direction: "top", className: "wm-tooltip", offset: [0, -6] });
 
       WM.cityLayer.addLayer(marker);
       rendered++;
     });
 
-    if (rendered > 0){
-      LOG("City-dots gerenderd: " + rendered + " steden");
-    }
+    LOG("City-dots: " + rendered + " gerenderd van " + total + " totaal (skip laag-conf:" + skippedLowConf + " geen-loc:" + skippedNoLoc + ")");
   }
 
-  /* ============================================================
-     PERIODE-FILTER
-     ============================================================ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
     if (!wrap || wrap.querySelector(".wm-period-filter")) return;
-
     var currentPeriod = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
-
     var div = document.createElement("div");
     div.className = "wm-period-filter";
     div.innerHTML =
@@ -661,27 +570,19 @@
       '<button data-days="7"' + (currentPeriod === 7 ? ' class="active"' : '') + '>7d</button>' +
       '<button data-days="30"' + (currentPeriod === 30 ? ' class="active"' : '') + '>30d</button>' +
       '<button data-days="365"' + (currentPeriod === 365 ? ' class="active"' : '') + '>Alles</button>';
-
     Array.prototype.forEach.call(div.querySelectorAll("button"), function(btn){
       btn.addEventListener("click", function(){
         var days = parseInt(btn.dataset.days, 10);
         if (isNaN(days)) return;
-        if (window.WORLDMAP_THRESHOLDS){
-          window.WORLDMAP_THRESHOLDS.period_days = days;
-        }
-        try {
-          if (window.WDStorage) WDStorage.set("worldmap_period", String(days));
-        } catch(e){}
+        if (window.WORLDMAP_THRESHOLDS) window.WORLDMAP_THRESHOLDS.period_days = days;
+        try { if (window.WDStorage) WDStorage.set("worldmap_period", String(days)); } catch(e){}
         div.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
         LOG("Periode gewijzigd naar " + days + " dagen (scale=" + getPeriodScale(days) + ")");
         WM.lastHeatCalc = 0;
-        if (WM._allEvents && WM._allEvents.length){
-          refresh(WM._allEvents, true);
-        }
+        if (WM._allEvents && WM._allEvents.length) refresh(WM._allEvents, true);
       });
     });
-
     wrap.appendChild(div);
   }
 
@@ -690,16 +591,11 @@
       var saved = window.WDStorage ? WDStorage.get("worldmap_period") : null;
       if (saved){
         var days = parseInt(saved, 10);
-        if (!isNaN(days) && window.WORLDMAP_THRESHOLDS){
-          window.WORLDMAP_THRESHOLDS.period_days = days;
-        }
+        if (!isNaN(days) && window.WORLDMAP_THRESHOLDS) window.WORLDMAP_THRESHOLDS.period_days = days;
       }
     } catch(e){}
   }
 
-  /* ============================================================
-     LEGENDA + TOGGLE
-     ============================================================ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -713,7 +609,6 @@
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
       '<div class="wm-legend-hint">Klik op een land voor details</div>';
-
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
   }
@@ -730,9 +625,7 @@
       var leg = document.getElementById("wmLegend");
       if (leg) leg.style.display = WM.isLegendVisible ? "" : "none";
       btn.classList.toggle("off", !WM.isLegendVisible);
-      try {
-        if (window.WDStorage) WDStorage.set("worldmap_legend", WM.isLegendVisible ? "1" : "0");
-      } catch(e){}
+      try { if (window.WDStorage) WDStorage.set("worldmap_legend", WM.isLegendVisible ? "1" : "0"); } catch(e){}
     });
     wrap.appendChild(btn);
   }
@@ -750,9 +643,6 @@
     } catch(e){}
   }
 
-  /* ============================================================
-     STYLES
-     ============================================================ */
   function injectStyles(){
     if (document.getElementById("wmStyles")) return;
     var s = document.createElement("style");
@@ -826,68 +716,39 @@
     document.head.appendChild(s);
   }
 
-  /* ============================================================
-     INIT
-     ============================================================ */
   async function init(map){
     if (!map || WM.isLoaded) return;
     WM.map = map;
     injectStyles();
-
     var geo = await loadGeoJSON();
-    if (!geo){
-      LOG("Kon GeoJSON niet laden");
-      return;
-    }
-
-    WM.layer = L.geoJSON(geo, {
-      style: styleCountry,
-      onEachFeature: onEachCountry,
-      smoothFactor: 1,
-      interactive: true
-    });
-
+    if (!geo){ LOG("Kon GeoJSON niet laden"); return; }
+    WM.layer = L.geoJSON(geo, { style: styleCountry, onEachFeature: onEachCountry, smoothFactor: 1, interactive: true });
     WM.layer.addTo(map);
-
     if (window.MAP && window.MAP.cluster && window.MAP.cluster.bringToFront){
       window.MAP.cluster.bringToFront();
     }
-
     ensureLegend(map);
     ensureLegendToggle();
     ensurePeriodFilter();
     restoreLegendVisibility();
     restorePeriodFilter();
-
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.7 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.8 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
     if (!WM.isLoaded) return;
     if (!WM.isEnabled) return;
     if (!Array.isArray(events)) return;
-
     WM._allEvents = events.slice();
-
     var now = Date.now();
     var recalc = (window.WORLDMAP_THRESHOLDS || {}).heat_recalc_interval_ms || (5 * 60 * 1000);
-    if (!force && now - WM.lastHeatCalc < recalc && Object.keys(WM.targetHeatByCountry).length > 0){
-      return;
-    }
-
+    if (!force && now - WM.lastHeatCalc < recalc && Object.keys(WM.targetHeatByCountry).length > 0) return;
     calculateHeat(events);
-
     if (WM.layer){
-      WM.layer.eachLayer(function(layer){
-        if (layer.feature){
-          layer.setStyle(styleCountry(layer.feature));
-        }
-      });
+      WM.layer.eachLayer(function(layer){ if (layer.feature) layer.setStyle(styleCountry(layer.feature)); });
     }
-
     refreshTooltips();
-
     if (WM.map) renderCityDots(WM.map);
   }
 
@@ -912,9 +773,7 @@
   }
 
   window.WorldMap = {
-    init: init,
-    refresh: refresh,
-    setEnabled: setEnabled,
+    init: init, refresh: refresh, setEnabled: setEnabled,
     isEnabled: function(){ return WM.isEnabled; },
     isLoaded: function(){ return WM.isLoaded; },
     calculateHeat: calculateHeat,
@@ -924,6 +783,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.7 geladen (CityStatus integratie)");
+  LOG("worldmap.js v2.8 geladen (city-drempel 0.15)");
 
 })();
