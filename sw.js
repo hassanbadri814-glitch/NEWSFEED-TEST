@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK Service Worker v3.3
-   - v3.3: classifier.js toegevoegd aan precache
+   WAR DESK Service Worker v3.4
+   - v3.4: event-dedup.js toegevoegd aan precache
    ============================================================ */
 
-const CACHE_VERSION = 'v15.3';
+const CACHE_VERSION = 'v15.4';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -14,7 +14,8 @@ const PRECACHE_ASSETS = [
   './icon.svg',
   './manifest.json',
   './world-status.js',
-  './classifier.js'
+  './classifier.js',
+  './event-dedup.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
