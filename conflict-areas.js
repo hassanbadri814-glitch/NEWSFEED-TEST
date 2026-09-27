@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v1.1
+   WAR DESK — conflict-areas.js v1.2
    ------------------------------------------------------------
    FASE 1: Gebieds-GeoJSON laden (Oekraïne oblasten)
-   - v1.1: robuuste bronkeuze (geoBoundaries API → Natural Earth)
+   - v1.2: GADM 4.1 als primaire bron + WD.fetchJson (proxy fallback)
+   - v1.1: robuuste bronkeuze
    - v1.0: eerste opzet
    ============================================================ */
 
@@ -14,21 +15,21 @@
   };
 
   /* ============================================================
-     BRONNEN (in volgorde van voorkeur)
+     BRONNEN
      ============================================================ */
   var GEOJSON_SOURCES = [
-    /* 1. geoBoundaries API: klein metadata-bestand met download-URL */
-    { type: "gbapi", url: "https://www.geoboundaries.org/api/current/gbOpen/UKR/ADM1/" },
+    /* 1. GADM 4.1 — Oekraïne level 1 (oblasts) */
+    { type: "gadm", url: "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json" },
 
-    /* 2. Natural Earth 50m admin-1 (filter op Oekraïne) */
-    { type: "ne", url: "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_50m_admin_1_states_provinces.geojson" },
+    /* 2. GADM 4.0 fallback */
+    { type: "gadm", url: "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json" },
 
-    /* 3. Natural Earth 10m admin-1 (gedetailleerder, groter bestand) */
-    { type: "ne", url: "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_10m_admin_1_states_provinces.geojson" }
+    /* 3. geoBoundaries via raw.githubusercontent (CORS-vriendelijk) */
+    { type: "gbraw", url: "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/UKR/ADM1/geoBoundaries-UKR-ADM1_simplified.geojson" }
   ];
 
   var CACHE_KEY = "wardesk_ukraine_oblasts";
-  var CACHE_VERSION = "v2"; /* gebumpt → oude cache wordt genegeerd */
+  var CACHE_VERSION = "v3"; /* gebumpt → oude cache wordt genegeerd */
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
@@ -124,56 +125,63 @@
   }
 
   /* ============================================================
-     HTTP helper — geeft ALTIJD JSON of gooit een error
+     Fetch helpers — probeert eerst WD.fetchJson (proxy), dan raw
      ============================================================ */
-  function fetchJson(url, timeoutMs){
+  function parseJsonText(text){
+    var trimmed = String(text).replace(/^\uFEFF/, "").replace(/^\s+/, "");
+    if(trimmed.charAt(0) !== "{" && trimmed.charAt(0) !== "["){
+      throw new Error("Response is geen JSON (kreeg: " + trimmed.slice(0, 40).replace(/\s+/g, " ") + ")");
+    }
+    try { return JSON.parse(text); }
+    catch(e){ throw new Error("JSON parse fout: " + e.message); }
+  }
+
+  function fetchJsonRaw(url, timeoutMs){
     var ctrl = new AbortController();
-    var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 20000);
+    var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 30000);
     return fetch(url, { signal: ctrl.signal })
       .then(function(r){
         clearTimeout(timer);
         if(!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
       })
-      .then(function(text){
-        var trimmed = text.replace(/^\uFEFF/, "").replace(/^\s+/, "");
-        if(trimmed.charAt(0) !== "{" && trimmed.charAt(0) !== "["){
-          throw new Error("Response is geen JSON (kreeg: " + trimmed.slice(0, 30).replace(/\s+/g, " ") + ")");
-        }
-        try { return JSON.parse(text); }
-        catch(e){ throw new Error("JSON parse fout: " + e.message); }
-      })
+      .then(function(text){ clearTimeout(timer); return parseJsonText(text); })
       .catch(function(e){ clearTimeout(timer); throw e; });
   }
 
-  /* ============================================================
-     Natural Earth: filter Oekraïne + normaliseer properties
-     ============================================================ */
-  function filterAndNormalizeNE(json){
-    if(!json || !json.features) throw new Error("Geen features in NE bestand");
-
-    var ukrFeatures = json.features.filter(function(f){
-      if(!f || !f.properties) return false;
-      var p = f.properties;
-      return (p.adm0_a3 === "UKR") ||
-             (p.iso_a2 === "UA") ||
-             (p.admin === "Ukraine") ||
-             (p.sovereignt === "Ukraine");
-    });
-
-    if(!ukrFeatures.length){
-      throw new Error("Geen Oekraïense features in NE bestand (" + json.features.length + " totaal)");
+  /* Gebruikt WD.fetchJson (heeft ingebouwde proxy-fallback) */
+  function fetchJsonSmart(url){
+    if(window.WD && typeof window.WD.fetchJson === "function"){
+      return window.WD.fetchJson(url).then(function(json){
+        if(!json || typeof json !== "object"){
+          throw new Error("Lege of ongeldige response");
+        }
+        return json;
+      }).catch(function(e){
+        LOG("WD.fetchJson faalde (" + e.message + "), probeer raw fetch");
+        return fetchJsonRaw(url);
+      });
     }
+    return fetchJsonRaw(url);
+  }
 
-    ukrFeatures.forEach(function(f){
+  /* ============================================================
+     GADM normalisatie
+     ============================================================ */
+  function normalizeGADM(json){
+    if(!json || !json.features) throw new Error("Geen features in GADM bestand");
+
+    json.features.forEach(function(f){
+      if(!f || !f.properties) return;
       var p = f.properties;
-      var name = p.name || p.name_nl || p.NAME || p.admin || "?";
-      var iso = p.iso_3166_2 || p.iso_3166_2_l || p.postal || "";
-      var id = (iso || name).toString().toLowerCase().replace(/\s+/g, "-");
+      var name = p.NAME_1 || p.name_1 || p.VARNAME_1 || p.NAME || "?";
+      var iso = p.ISO_1 || p.GID_1 || "";
+      var id = (p.GID_1 || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
       f.properties = {
         id: id,
         name: name,
         iso: iso,
+        type: p.TYPE_1 || p.ENGTYPE_1 || "Oblast",
         controller: null,
         control_confidence: 0,
         territory_gain: false,
@@ -181,12 +189,11 @@
         last_update: null
       };
     });
-
-    return { type: "FeatureCollection", features: ukrFeatures };
+    return json;
   }
 
   /* ============================================================
-     geoBoundaries: normaliseer properties
+     geoBoundaries normalisatie
      ============================================================ */
   function normalizeGB(json){
     if(!json || !json.features) throw new Error("Geen features in geoBoundaries bestand");
@@ -200,6 +207,7 @@
         id: id,
         name: name,
         iso: iso,
+        type: "Oblast",
         controller: null,
         control_confidence: 0,
         territory_gain: false,
@@ -213,30 +221,18 @@
   /* ============================================================
      Bron-specifieke fetchers
      ============================================================ */
-
-  /* geoBoundaries API: 2-staps (metadata → echte GeoJSON URL) */
-  function fetchFromGBAPI(apiUrl){
-    return fetchJson(apiUrl).then(function(meta){
-      if(!meta || !meta.gjDownloadURL){
-        throw new Error("API geeft geen gjDownloadURL (" + JSON.stringify(meta).slice(0, 100) + ")");
-      }
-      LOG("API download-URL: " + meta.gjDownloadURL.slice(0, 80));
-      return fetchJson(meta.gjDownloadURL, 30000).then(function(gj){
-        return normalizeGB(gj);
-      });
+  function fetchFromGADM(url){
+    return fetchJsonSmart(url).then(function(json){
+      return normalizeGADM(json);
     });
   }
 
-  /* Natural Earth: download + filter + normaliseer */
-  function fetchFromNE(url){
-    return fetchJson(url, 60000).then(function(json){
-      return filterAndNormalizeNE(json);
+  function fetchFromGBRaw(url){
+    return fetchJsonSmart(url).then(function(json){
+      return normalizeGB(json);
     });
   }
 
-  /* ============================================================
-     Alle bronnen proberen
-     ============================================================ */
   function fetchGeoJSON(){
     var lastErr = null;
 
@@ -248,8 +244,8 @@
       LOG("Probeer bron " + (idx+1) + "/" + GEOJSON_SOURCES.length + " (" + src.type + ")");
 
       var p;
-      if(src.type === "gbapi") p = fetchFromGBAPI(src.url);
-      else p = fetchFromNE(src.url);
+      if(src.type === "gadm") p = fetchFromGADM(src.url);
+      else p = fetchFromGBRaw(src.url);
 
       return p.then(function(json){
         if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON na verwerking");
@@ -387,7 +383,7 @@
     destroy: destroy,
     clearCache: clearCache,
     state: CA,
-    _version: "v1.1",
+    _version: "v1.2",
     _sources: GEOJSON_SOURCES
   };
 
@@ -425,5 +421,5 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  LOG("conflict-areas.js v1.1 geladen — wacht op map init");
+  LOG("conflict-areas.js v1.2 geladen — wacht op map init");
 })();
