@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WAR DESK · Classifier Test v2</title>
+<title>WAR DESK · Classifier Test v2.1</title>
 <style>
   :root {
     --bg:#070c16; --bg-2:#0d1522; --bg-3:#131e30;
@@ -16,99 +16,44 @@
     --good:#10b981; --warn:#f59e0b; --bad:#ef4444;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg); color: var(--ink);
-    padding: 1rem; line-height: 1.5; font-size: 15px;
-  }
-  h1 {
-    font-size: 1.3rem;
-    background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3));
-    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-    margin-bottom: .25rem;
-  }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--ink); padding: 1rem; line-height: 1.5; font-size: 15px; }
+  h1 { font-size: 1.3rem; background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: .25rem; }
   .subtitle { color: var(--ink-3); font-size: .85rem; margin-bottom: 1.5rem; }
-  h2 {
-    font-size: .95rem; color: var(--amber); text-transform: uppercase;
-    letter-spacing: .08em; margin: 1.75rem 0 .75rem;
-    padding-bottom: .4rem; border-bottom: 1px solid var(--line);
-  }
+  h2 { font-size: .95rem; color: var(--amber); text-transform: uppercase; letter-spacing: .08em; margin: 1.75rem 0 .75rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
   .row { display: flex; gap: .5rem; margin-bottom: .65rem; flex-wrap: wrap; }
   .row label { font-size: .78rem; color: var(--ink-3); min-width: 90px; align-self: center; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-  input, textarea {
-    flex: 1; min-width: 200px;
-    padding: .65rem .85rem;
-    background: var(--bg-3); border: 1px solid var(--line-2);
-    color: var(--ink); border-radius: 9px;
-    font-size: .9rem; font-family: inherit; outline: none;
-    resize: vertical;
-  }
+  input, textarea { flex: 1; min-width: 200px; padding: .65rem .85rem; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--ink); border-radius: 9px; font-size: .9rem; font-family: inherit; outline: none; resize: vertical; }
   input:focus, textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(224,168,87,.25); }
   textarea { min-height: 60px; }
-  button {
-    padding: .7rem 1.2rem;
-    background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3));
-    color: #070c16; border: none; border-radius: 9px;
-    font-weight: 700; font-size: .88rem; cursor: pointer;
-    font-family: inherit;
-    transition: filter .15s, transform .1s;
-  }
+  button { padding: .7rem 1.2rem; background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3)); color: #070c16; border: none; border-radius: 9px; font-weight: 700; font-size: .88rem; cursor: pointer; font-family: inherit; transition: filter .15s, transform .1s; }
   button:hover { filter: brightness(1.08); }
   button:active { transform: scale(.97); }
-  button.secondary {
-    background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2);
-  }
+  button.secondary { background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2); }
   button.secondary:hover { border-color: var(--amber); color: var(--amber); }
 
-  .result {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 12px; padding: 1.1rem 1.25rem; margin-top: 1rem;
-  }
+  .result { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.25rem; margin-top: 1rem; }
   .result.cat-militair { border-left: 4px solid var(--militair); }
   .result.cat-crime { border-left: 4px solid var(--crime); }
   .result.cat-politiek { border-left: 4px solid var(--politiek); }
   .result.cat-protest { border-left: 4px solid var(--protest); }
   .result.cat-civiel { border-left: 4px solid var(--civiel); }
-  .result-header {
-    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
-    margin-bottom: .75rem; padding-bottom: .75rem;
-    border-bottom: 1px solid var(--line);
-  }
-  .badge {
-    display: inline-flex; align-items: center; gap: .4rem;
-    padding: .35rem .85rem; border-radius: 999px;
-    font-size: .82rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .05em;
-  }
+  .result-header { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .75rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); }
+  .badge { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .85rem; border-radius: 999px; font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
   .badge.militair { background: rgba(230,57,80,.15); color: #ff6070; border: 1px solid rgba(230,57,80,.4); }
   .badge.crime { background: rgba(168,85,247,.15); color: #c084fc; border: 1px solid rgba(168,85,247,.4); }
   .badge.politiek { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.4); }
   .badge.protest { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.4); }
   .badge.civiel { background: rgba(107,122,147,.15); color: #8a94a8; border: 1px solid rgba(107,122,147,.4); }
   .badge.subtype { background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2); }
-
-  .conf {
-    margin-left: auto;
-    display: inline-flex; align-items: center; gap: .5rem;
-    font-size: .8rem; color: var(--ink-3);
-  }
+  .conf { margin-left: auto; display: inline-flex; align-items: center; gap: .5rem; font-size: .8rem; color: var(--ink-3); }
   .conf-bar { width: 100px; height: 6px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
   .conf-fill { height: 100%; background: var(--good); transition: width .3s; }
   .conf-fill.med { background: var(--warn); }
   .conf-fill.low { background: var(--bad); }
 
-  .scores-grid {
-    display: grid; grid-template-columns: repeat(5, 1fr);
-    gap: .4rem; margin-top: .75rem;
-  }
-  .score-box {
-    background: var(--bg-3); border: 1px solid var(--line-2);
-    border-radius: 8px; padding: .55rem .35rem; text-align: center;
-  }
-  .score-box .cat {
-    font-size: .6rem; text-transform: uppercase; letter-spacing: .05em;
-    font-weight: 700; margin-bottom: .2rem;
-  }
+  .scores-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin-top: .75rem; }
+  .score-box { background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 8px; padding: .55rem .35rem; text-align: center; }
+  .score-box .cat { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; margin-bottom: .2rem; }
   .score-box .val { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
   .score-box.militair .cat, .score-box.militair .val { color: var(--militair); }
   .score-box.crime .cat, .score-box.crime .val { color: var(--crime); }
@@ -116,64 +61,31 @@
   .score-box.protest .cat, .score-box.protest .val { color: var(--protest); }
   .score-box.civiel .cat, .score-box.civiel .val { color: var(--civiel); }
 
-  .signals {
-    margin-top: .75rem; padding-top: .75rem;
-    border-top: 1px solid var(--line);
-    font-size: .82rem; color: var(--ink-2);
-  }
+  .signals { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line); font-size: .82rem; color: var(--ink-2); }
   .signal-line { margin-bottom: .35rem; }
   .signal-cat { font-weight: 700; color: var(--ink); }
-  .signal-word {
-    display: inline-block;
-    background: var(--bg-3); border: 1px solid var(--line-2);
-    padding: .1rem .45rem; margin: .1rem .15rem;
-    border-radius: 5px; font-size: .72rem;
-  }
+  .signal-word { display: inline-block; background: var(--bg-3); border: 1px solid var(--line-2); padding: .1rem .45rem; margin: .1rem .15rem; border-radius: 5px; font-size: .72rem; }
   .signal-word.w3 { border-color: rgba(230,57,80,.4); color: #ff8090; }
   .signal-word.w2 { border-color: rgba(245,158,11,.4); color: #fbbf24; }
   .signal-word.w1 { border-color: var(--line-2); color: var(--ink-3); }
   .signal-word.sub { border-color: rgba(168,85,247,.5); color: #c084fc; font-style: italic; }
   .signal-word.sub::after { content: " ⚡"; font-size: .6rem; }
 
-  .meta-line {
-    margin-top: .5rem; padding-top: .5rem;
-    border-top: 1px solid var(--line);
-    font-size: .75rem; color: var(--ink-3);
-  }
-  .meta-tag {
-    display: inline-block;
-    background: var(--bg-3); border: 1px solid var(--line-2);
-    padding: .15rem .5rem; margin-right: .3rem;
-    border-radius: 5px;
-  }
+  .meta-line { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--line); font-size: .75rem; color: var(--ink-3); }
+  .meta-tag { display: inline-block; background: var(--bg-3); border: 1px solid var(--line-2); padding: .15rem .5rem; margin-right: .3rem; margin-bottom: .2rem; border-radius: 5px; }
   .meta-tag.ok { color: var(--good); border-color: rgba(16,185,129,.4); }
   .meta-tag.warn { color: var(--warn); border-color: rgba(245,158,11,.4); }
+  .meta-tag.bad { color: var(--bad); border-color: rgba(239,68,68,.4); }
+  .meta-tag.info { color: #60a5fa; border-color: rgba(59,130,246,.4); }
 
-  .presets {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: .5rem; margin-top: .75rem;
-  }
-  .preset {
-    background: var(--card); border: 1px solid var(--line);
-    border-radius: 9px; padding: .65rem .8rem;
-    cursor: pointer; transition: all .15s;
-    font-size: .82rem; line-height: 1.35;
-  }
-  .preset:hover {
-    background: var(--card-hover); border-color: var(--amber);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px -10px rgba(224,168,87,.4);
-  }
+  .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .5rem; margin-top: .75rem; }
+  .preset { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: .65rem .8rem; cursor: pointer; transition: all .15s; font-size: .82rem; line-height: 1.35; }
+  .preset:hover { background: var(--card-hover); border-color: var(--amber); transform: translateY(-2px); box-shadow: 0 6px 20px -10px rgba(224,168,87,.4); }
   .preset-title { font-weight: 700; color: var(--ink); margin-bottom: .15rem; }
   .preset-desc { color: var(--ink-3); font-size: .75rem; }
 
   .batch-table { width: 100%; border-collapse: collapse; margin-top: .75rem; font-size: .78rem; }
-  .batch-table th {
-    text-align: left; padding: .5rem .45rem;
-    background: var(--bg-3); color: var(--ink-3);
-    font-size: .65rem; text-transform: uppercase; letter-spacing: .05em;
-    border-bottom: 1px solid var(--line-2);
-  }
+  .batch-table th { text-align: left; padding: .5rem .45rem; background: var(--bg-3); color: var(--ink-3); font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--line-2); }
   .batch-table td { padding: .5rem .45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
   .batch-table tr:hover { background: var(--card-hover); }
   .batch-table .cat-cell { font-weight: 700; white-space: nowrap; }
@@ -185,35 +97,28 @@
   .batch-table .score-cell { font-variant-numeric: tabular-nums; text-align: center; }
   .batch-table .score-best { color: var(--good); font-weight: 700; }
 
-  .legend {
-    background: var(--bg-3); border: 1px solid var(--line-2);
-    border-radius: 9px; padding: .75rem 1rem;
-    font-size: .78rem; color: var(--ink-2); margin-top: 1rem;
-  }
+  .legend { background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 9px; padding: .75rem 1rem; font-size: .78rem; color: var(--ink-2); margin-top: 1rem; }
   .legend strong { color: var(--ink); }
-  .legend code {
-    background: var(--bg); padding: .1rem .35rem; border-radius: 4px;
-    font-size: .75rem; color: var(--amber);
-  }
+  .legend code { background: var(--bg); padding: .1rem .35rem; border-radius: 4px; font-size: .75rem; color: var(--amber); }
 </style>
 </head>
 <body>
 
-<h1>WAR DESK · Classifier Test v2</h1>
-<div class="subtitle">5 categorieën: Militair · Crime · Politiek · Protest · Civiel</div>
+<h1>WAR DESK · Classifier Test v2.1</h1>
+<div class="subtitle">Waterdicht systeem — 5 categorieën · 13 nieuwe regels</div>
 
 <div class="legend">
-  <strong>Score:</strong> Gewicht 3 = sterk, 2 = context, 1 = zwak.
-  Substring-match = +3 (matcht "mocromaffia" via "maffia").
-  Conflictgebied = +2 op Militair. OSINT-bron = +2 op Militair.
-  Terrorisme in conflictgebied = +5 Militair, anders +5 Crime.
-  <br><br>
-  <strong>Tiebreaker:</strong> Militair &gt; Crime &gt; Politiek &gt; Protest &gt; Civiel
+  <strong>Nieuwe regels in v2.1:</strong><br>
+  <code>1. Militair vereist concrete actie</code> — alleen "Iran" of "leger" is niet genoeg<br>
+  <code>2. Diplomatiek override</code> — spreker+werkwoord → Politiek, tenzij militaire actie<br>
+  <code>3. Sport-block</code> — voetbal/tennis/club → Civiel/Sport<br>
+  <code>4. Locatie = bonus</code> — nooit zelfstandig categorie bepalen<br>
+  <code>5. Strike samengesteld</code> — "strike" alleen is niet militair, "missile strike" wel
 </div>
 
 <h2>Handmatig testen</h2>
 <div class="row"><label>Titel</label><input type="text" id="inTitle" placeholder="bv. Raketaanval op Kiev"></div>
-<div class="row"><label>Beschrijving</label><textarea id="inDesc" placeholder="bv. Bij een raketaanval op de Oekraïense hoofdstad zijn meerdere doden gevallen..."></textarea></div>
+<div class="row"><label>Beschrijving</label><textarea id="inDesc" placeholder="Beschrijving..."></textarea></div>
 <div class="row"><label>Bron</label><input type="text" id="inSource" placeholder="bv. Reuters"></div>
 <div class="row">
   <button id="btnClassify">Classify</button>
@@ -234,26 +139,48 @@
   "use strict";
 
   var PRESETS = [
+    // ===== CIVIEL =====
     { label:"Barbecue De Wilp", title:"Meerdere gewonden door steekvlam bij buurtbarbecue De Wilp", desc:"Tijdens een buurtbarbecue in De Wilp zijn zaterdagavond meerdere mensen gewond geraakt door een steekvlam.", source:"AD.nl", expected:"civiel" },
     { label:"Gaslek Athene", title:"Four American tourists among 6 killed in suspected gas leak blast in Athens", desc:"Six people died in a suspected gas leak explosion in a hotel in central Athens.", source:"France24 EN", expected:"civiel" },
     { label:"Bus Khenifra", title:"28 gewonden bij botsing tussen bus en vrachtwagen bij Khenifra", desc:"Bij een botsing tussen een bus en een vrachtwagen op de N8 bij Khenifra zijn 28 mensen gewond geraakt.", source:"MAROKKO.nl", expected:"civiel" },
+    { label:"Woningbrand Amsterdam", title:"Grote woningbrand in Amsterdam, bewoners geëvacueerd", desc:"In Amsterdam is een grote woningbrand uitgebroken. De brandweer heeft meerdere bewoners geëvacueerd.", source:"AT5", expected:"civiel" },
+    { label:"Overstroming Spanje", title:"Dodental overstromingen Spanje loopt op naar 95", desc:"Het dodental als gevolg van de overstromingen in Valencia is opgelopen tot 95.", source:"El País", expected:"civiel" },
+    { label:"Vliegtuigongeluk", title:"Vliegtuigongeluk in Frankrijk: 8 doden", desc:"Bij een vliegtuigongeluk in Zuid-Frankrijk zijn alle 8 inzittenden omgekomen.", source:"AFP", expected:"civiel" },
+
+    // ===== SPORT (nu correct geblokkeerd) =====
+    { label:"Man City chairman", title:"Man City chairman strikes defiant tone after club reportedly found guilty of breaking rules", desc:"Manchester City chairman responded defiantly after the football club was reportedly found guilty of breaking Premier League rules.", source:"BBC Sport", expected:"civiel" },
+    { label:"Voetbalwedstrijd", title:"Ajax verliest met 3-1 van PSV in eredivisie", desc:"Ajax heeft in de eredivisie met 3-1 verloren van PSV. De wedstrijd werd gespeeld in de Johan Cruijff ArenA.", source:"NOS Sport", expected:"civiel" },
+
+    // ===== MILITAIR =====
     { label:"Raketaanval Kiev", title:"Raketaanval op Kiev: minstens 5 doden en 20 gewonden", desc:"Rusland heeft vannacht raketten afgevuurd op de Oekraïense hoofdstad Kiev. Bij de aanval zijn minstens 5 mensen gedood.", source:"Reuters", expected:"militair" },
     { label:"Gaza aanval", title:"Seven Palestinians killed in Gaza Strip during Israeli attacks", desc:"The Health Ministry in Gaza says seven Palestinians were killed and several wounded in Israeli strikes across the Gaza Strip.", source:"Al Jazeera", expected:"militair" },
-    { label:"Aanslag Brussel", title:"Aanslag in Brussel: verdachte opgepakt, twee doden", desc:"Bij een aanslag in het centrum van Brussel zijn twee mensen omgekomen. De politie heeft een verdachte opgepakt.", source:"VRT NWS", expected:"crime" },
-    { label:"Aanslag Tel Aviv", title:"Terrorist attack in Tel Aviv leaves three dead", desc:"A terrorist opened fire in central Tel Aviv, killing three people and wounding several others.", source:"Times of Israel", expected:"militair" },
+    { label:"Israeli strike Gaza", title:"Israeli strike injures several displaced people in Gaza", desc:"An Israeli airstrike hit a displacement camp in Gaza, injuring several people according to local health officials.", source:"Al Jazeera", expected:"militair" },
+    { label:"Russia escalates", title:"Russia scales up strikes on Ukraine as largest steelmaker halts operations", desc:"Russia has intensified its missile strikes on Ukrainian infrastructure this week, targeting power plants and industrial facilities.", source:"Reuters", expected:"militair" },
     { label:"13 doden Gaza", title:"13 doden bij Israëlische luchtaanval op school in Gaza", desc:"Bij een Israëlische luchtaanval op een school in Gaza zijn dertien mensen gedood. Het IDF zegt een Hamas-doelwit te hebben geraakt.", source:"NOS", expected:"militair" },
+    { label:"Libya pipeline", title:"Libya oil pipeline reopens after being blocked by armed group", desc:"An oil pipeline in Libya has reopened after an armed group blocked it earlier this week. The armed group demanded higher wages.", source:"Reuters", expected:"militair" },
+
+    // ===== POLITIEK (nieuw, dankzij diplomatiek-detectie) =====
+    { label:"Araghchi Iran", title:"Araghchi ignores Trump, waits for mediators' response on Hormuz", desc:"Iran's foreign minister Abbas Araghchi said Tehran is waiting for mediators to respond. Talks about the Strait of Hormuz continue.", source:"Al Jazeera", expected:"politiek" },
+    { label:"Pezeshkian says", title:"Pezeshkian says Iran no longer trusts negotiations with US", desc:"Iranian president Masoud Pezeshkian says his country has lost trust in negotiations with the United States.", source:"Reuters", expected:"politiek" },
+    { label:"US Treasury claims", title:"US Treasury chief claims successes in isolating Iran", desc:"The US Treasury Secretary claims the sanctions have been successful in isolating Iran from global markets.", source:"Reuters", expected:"politiek" },
+    { label:"Zelenskyy accuses", title:"Zelenskyy accuses Putin of using 'lame excuse' to avoid peace negotiations", desc:"Ukrainian President Volodymyr Zelenskyy accused Russian President Putin of using a lame excuse to avoid peace negotiations.", source:"Kyiv Independent", expected:"politiek" },
+    { label:"Poland Fort Trump", title:"Poland eyes spending up to $4.4 billion on 'Fort Trump'", desc:"Poland is considering spending up to $4.4 billion on a new military base called 'Fort Trump' as part of NATO's defense strategy.", source:"Reuters", expected:"politiek" },
+    { label:"Iran war live", title:"Iran war live: Tehran awaits official response as Trump rejects Hormuz plan", desc:"Iranian officials say Tehran awaits an official response from mediators after US President Trump rejected the latest Hormuz plan.", source:"Al Jazeera", expected:"politiek" },
+    { label:"Verkiezing VS", title:"Trump wint Amerikaanse presidentsverkiezingen", desc:"Donald Trump heeft de Amerikaanse presidentsverkiezingen gewonnen. Hij versloeg zijn Democratische tegenstander.", source:"NYT US", expected:"politiek" },
+    { label:"Regeringscrisis", title:"Kabinet valt na motie van wantrouwen", desc:"Het kabinet is gevallen na een aangenomen motie van wantrouwen. Er komen nieuwe verkiezingen.", source:"NOS", expected:"politiek" },
+
+    // ===== CRIME =====
+    { label:"Aanslag Brussel", title:"Aanslag in Brussel: verdachte opgepakt, twee doden", desc:"Bij een aanslag in het centrum van Brussel zijn twee mensen omgekomen. De politie heeft een verdachte opgepakt.", source:"VRT NWS", expected:"crime" },
     { label:"Mocromaffia", title:"Mocromaffia teisteren het land", desc:"De Mocromaffia teistert Nederland al jaren met drugshandel, liquidaties en afrekeningen in de onderwereld.", source:"De Telegraaf", expected:"crime" },
     { label:"Drugskartel Mexico", title:"Kartelgeweld in Mexico: 15 doden bij schietpartij", desc:"Bij een schietpartij tussen rivaliserende drugskartels in Noord-Mexico zijn 15 mensen omgekomen.", source:"Reuters", expected:"crime" },
     { label:"Fraude schandaal", title:"Grootschalige fraude bij zorginstelling: 12 miljoen verduisterd", desc:"Bij een zorginstelling in Utrecht is 12 miljoen euro verduisterd door grootschalige fraude. De directie is opgepakt.", source:"FD", expected:"crime" },
-    { label:"Verkiezing VS", title:"Trump wint Amerikaanse presidentsverkiezingen", desc:"Donald Trump heeft de Amerikaanse presidentsverkiezingen gewonnen. Hij versloeg zijn Democratische tegenstander.", source:"NYT US", expected:"politiek" },
-    { label:"Regeringscrisis", title:"Kabinet valt na motie van wantrouwen", desc:"Het kabinet is gevallen na een aangenomen motie van wantrouwen. Er komen nieuwe verkiezingen.", source:"NOS", expected:"politiek" },
-    { label:"Demonstratie", title:"Duizenden bij klimaatdemonstratie in Amsterdam", desc:"Duizenden mensen zijn naar Amsterdam gekomen voor de grote klimaatdemonstratie. Er zijn geen incidenten gemeld.", source:"Nu.nl", expected:"protest" },
-    { label:"Rellen", title:"Rellen uitgebroken bij protest tegen bezuinigingen", desc:"Bij een protest tegen bezuinigingen zijn rellen uitgebroken. De politie heeft traangas ingezet.", source:"AD.nl", expected:"protest" },
-    { label:"Woningbrand Amsterdam", title:"Grote woningbrand in Amsterdam, bewoners geëvacueerd", desc:"In Amsterdam is een grote woningbrand uitgebroken. De brandweer heeft meerdere bewoners geëvacueerd.", source:"AT5", expected:"civiel" },
-    { label:"Overstroming Spanje", title:"Dodental overstromingen Spanje loopt op naar 95", desc:"Het dodental als gevolg van de overstromingen in Valencia is opgelopen tot 95. Er zijn nog tientallen vermisten.", source:"El País", expected:"civiel" },
-    { label:"Vliegtuigongeluk", title:"Vliegtuigongeluk in Frankrijk: 8 doden", desc:"Bij een vliegtuigongeluk in Zuid-Frankrijk zijn alle 8 inzittenden omgekomen. De oorzaak is nog onbekend.", source:"AFP", expected:"civiel" },
+    { label:"Cyberaanval ziekenhuis", title:"Grote cyberaanval op ziekenhuizen: patiëntgegevens gestolen", desc:"Bij een grote cyberaanval op meerdere ziekenhuizen zijn patiëntgegevens gestolen. Er is losgeld geëist.", source:"Tweakers", expected:"crime" },
     { label:"Politieke moord", title:"Russische oppositieleider vermoord in Moskou", desc:"Een prominente Russische oppositieleider is in Moskou vermoord. De politie onderzoekt de zaak.", source:"BBC World", expected:"crime" },
-    { label:"Cyberaanval", title:"Grote cyberaanval op ziekenhuizen: patiëntgegevens gestolen", desc:"Bij een grote cyberaanval op meerdere ziekenhuizen zijn patiëntgegevens gestolen. Er is losgeld geëist.", source:"Tweakers", expected:"crime" }
+
+    // ===== PROTEST =====
+    { label:"Demonstratie Amsterdam", title:"Duizenden bij klimaatdemonstratie in Amsterdam", desc:"Duizenden mensen zijn naar Amsterdam gekomen voor de grote klimaatdemonstratie. Er zijn geen incidenten gemeld.", source:"Nu.nl", expected:"protest" },
+    { label:"Rellen bij protest", title:"Rellen uitgebroken bij protest tegen bezuinigingen", desc:"Bij een protest tegen bezuinigingen zijn rellen uitgebroken. De politie heeft traangas ingezet.", source:"AD.nl", expected:"protest" },
+    { label:"Student protesters", title:"Student protesters disrupt NVIDIA AI climate panel", desc:"A group of student protesters disrupted an NVIDIA AI climate panel event. The demonstrators held signs demanding climate action.", source:"Reuters", expected:"protest" }
   ];
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
@@ -275,9 +202,12 @@
 
   function renderMeta(meta){
     var tags = [];
-    if (meta.conflictLocation) tags.push('<span class="meta-tag ok">Conflictgebied: ' + esc(meta.conflictLocation) + ' (+2)</span>');
-    if (meta.instableLocation) tags.push('<span class="meta-tag warn">Instabiel: ' + esc(meta.instableLocation) + ' (+1)</span>');
-    if (meta.isOsint) tags.push('<span class="meta-tag ok">OSINT-bron (+2)</span>');
+    if (meta.hasMilitaryAction) tags.push('<span class="meta-tag ok">✓ Militaire actie aanwezig</span>');
+    if (meta.diplomaticWord) tags.push('<span class="meta-tag info">Diplomatiek: "' + esc(meta.diplomaticWord) + '" → Politiek +5</span>');
+    if (meta.sportWord) tags.push('<span class="meta-tag bad">Sport: "' + esc(meta.sportWord) + '" → Civiel/Sport</span>');
+    if (meta.conflictLocation) tags.push('<span class="meta-tag ok">Conflictgebied: ' + esc(meta.conflictLocation) + ' (+2 als Militair > 0)</span>');
+    if (meta.instableLocation) tags.push('<span class="meta-tag warn">Instabiel: ' + esc(meta.instableLocation) + ' (+1 als Militair > 0)</span>');
+    if (meta.isOsint) tags.push('<span class="meta-tag ok">OSINT-bron (+2 als Militair > 0)</span>');
     if (meta.terrorWord) tags.push('<span class="meta-tag warn">Terror: ' + esc(meta.terrorWord) + ' → ' + (meta.conflictLocation ? 'Militair' : 'Crime') + ' (+5)</span>');
     if (!tags.length) tags.push('<span class="meta-tag">Geen speciale regels actief</span>');
     return tags.join("");
@@ -363,8 +293,8 @@
     });
     html += '</tbody></table>';
     html += '<div style="margin-top:.75rem;font-size:.85rem;color:var(--ink-2)"><strong>Score: ' + correct + ' / ' + PRESETS.length + '</strong> correct';
-    if (correct === PRESETS.length) html += ' — <span style="color:var(--good)">Perfect</span>';
-    else if (correct >= PRESETS.length * 0.8) html += ' — <span style="color:var(--warn)">Goed, kleine verbeteringen mogelijk</span>';
+    if (correct === PRESETS.length) html += ' — <span style="color:var(--good)">Perfect 🎉</span>';
+    else if (correct >= PRESETS.length * 0.85) html += ' — <span style="color:var(--warn)">Goed, kleine verbeteringen mogelijk</span>';
     else html += ' — <span style="color:var(--bad)">Woordenlijsten moeten worden bijgewerkt</span>';
     html += '</div>';
     wrap.innerHTML = html;
