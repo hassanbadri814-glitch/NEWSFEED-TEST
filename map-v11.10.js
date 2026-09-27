@@ -1,10 +1,7 @@
 /* ============================================================
-   WAR DESK v14.0 — Conflictkaart met 5 categorieën
+   WAR DESK v14.1 — Conflictkaart met 5 categorieën + dedup
+   - v14.1: dedup-badge voor cluster-events
    - v14.0: 5 filters (Militair/Crime/Politiek/Protest/Civiel)
-            met live tellers, default = Militair
-   - v13.8: bron-knop met fallback-zoek in State.items
-   - v13.7: "Open bron" knop in event-detail modal
-   - v13.6: legenda uit, kleinere markers, meer events (1000)
    ============================================================ */
 
 (function(){
@@ -15,46 +12,20 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.0 geladen — 5 categorieën + tellers");
+  LOG("v14.1 geladen — 5 categorieën + dedup-badge");
 
-  /* ============================================================
-     CATEGORIEËN + KLEUREN + LABELS
-     ============================================================ */
   var CATEGORIES = {
-    militair: {
-      label: "Militair",
-      color: "#e63950",
-      icon: "ph-crosshair"
-    },
-    crime: {
-      label: "Crime",
-      color: "#a855f7",
-      icon: "ph-handcuffs"
-    },
-    politiek: {
-      label: "Politiek",
-      color: "#3b82f6",
-      icon: "ph-bank"
-    },
-    protest: {
-      label: "Protest",
-      color: "#f59e0b",
-      icon: "ph-megaphone"
-    },
-    civiel: {
-      label: "Civiel",
-      color: "#6b7a93",
-      icon: "ph-warning"
-    }
+    militair: { label: "Militair", color: "#e63950", icon: "ph-crosshair" },
+    crime:    { label: "Crime",    color: "#a855f7", icon: "ph-handcuffs" },
+    politiek: { label: "Politiek", color: "#3b82f6", icon: "ph-bank" },
+    protest:  { label: "Protest",  color: "#f59e0b", icon: "ph-megaphone" },
+    civiel:   { label: "Civiel",   color: "#6b7a93", icon: "ph-warning" }
   };
 
-  /* Sub-kleur voor cyber/fraude binnen Crime */
   function resolveColor(event){
     if(!event) return CATEGORIES.civiel.color;
     var cat = event.category || "civiel";
     var subtype = (event.subtype || "").toLowerCase();
-
-    /* Crime: cyber/fraude = cyaan, anders paars */
     if(cat === "crime"){
       if(/cyber|fraude|phishing|hacking/.test(subtype)) return "#06b6d4";
       return CATEGORIES.crime.color;
@@ -62,30 +33,6 @@
     return CATEGORIES[cat] ? CATEGORIES[cat].color : CATEGORIES.civiel.color;
   }
 
-  function resolveIcon(event){
-    if(!event) return "";
-    var cat = event.category || "civiel";
-    var catCfg = CATEGORIES[cat] || CATEGORIES.civiel;
-
-    /* Subtype-iconen voor militaire events */
-    if(cat === "militair"){
-      var st = (event.subtype || "").toLowerCase();
-      if(st.indexOf("raketaanval") !== -1) return "▲"; /* driehoek */
-      if(st.indexOf("drone") !== -1) return "◆";
-      if(st.indexOf("bombardement") !== -1) return "●";
-      if(st.indexOf("luchtaanval") !== -1) return "▲";
-      if(st.indexOf("beschieting") !== -1) return "■";
-      if(st.indexOf("luchtafweer") !== -1) return "◈";
-      if(st.indexOf("offensief") !== -1 || st.indexOf("invasie") !== -1) return "▶";
-      if(st.indexOf("gevecht") !== -1) return "⚔";
-      return "▲";
-    }
-    return "";
-  }
-
-  /* ============================================================
-     ICONEN (SVG fallback voor markers)
-     ============================================================ */
   var ICONS = {
     militair: '<svg viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 L22 21 L2 21 Z"/></svg>',
     crime:    '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="currentColor"/></svg>',
@@ -94,28 +41,19 @@
     civiel:   '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>'
   };
 
-  function iconFor(cat){
-    return ICONS[cat] || ICONS.civiel;
-  }
+  function iconFor(cat){ return ICONS[cat] || ICONS.civiel; }
 
   function resolveTypeConfig(e){
     if(!e) return { color: CATEGORIES.civiel.color, filter: "civiel", label: "Onbekend" };
     var cat = e.category || "civiel";
     var cfg = CATEGORIES[cat] || CATEGORIES.civiel;
-    return {
-      color: resolveColor(e),
-      filter: cat,
-      label: e.subtype || cfg.label
-    };
+    return { color: resolveColor(e), filter: cat, label: e.subtype || cfg.label };
   }
 
-  /* ============================================================
-     MAP STATE
-     ============================================================ */
   var MAP = {
     instance: null, cluster: null, tileLayers: {}, events: [],
     militaryEvents: [], hotspots: [],
-    currentFilter: "militair",           /* default = militair */
+    currentFilter: "militair",
     refreshTimer: null, isFullscreen: false,
     currentTheme: "dark", themeObserver: null, _timeModeInterval: null,
     currentDetailEvent: null, _lastNewsCount: 0, _busBound: false,
@@ -199,9 +137,6 @@
     }catch(e){}
   }
 
-  /* ============================================================
-     CSS INJECTIE
-     ============================================================ */
   function injectMapStyles(){
     if($("wdMapStyles")) return;
     var s = document.createElement("style");
@@ -236,7 +171,10 @@
       ".wd-hotspot-strip{display:none!important}" +
       ".wd-detail-foot{flex-wrap:wrap!important}" +
       ".wd-detail-type{text-transform:uppercase;letter-spacing:.5px;font-size:10px;font-weight:800}" +
-      ".live-event-mil{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(255,60,60,0.15);color:#ff5050;font-size:9.5px;font-weight:700;letter-spacing:0.5px}";
+      ".live-event-mil{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(255,60,60,0.15);color:#ff5050;font-size:9.5px;font-weight:700;letter-spacing:0.5px}" +
+      ".live-event-multi{display:inline-flex;align-items:center;gap:.2rem;padding:.05rem .4rem;border-radius:5px;background:rgba(96,165,250,.15);color:#93c5fd;border:1px solid rgba(96,165,250,.35);font-size:.58rem;font-weight:800;letter-spacing:.02em;margin-left:.25rem}" +
+      ".pop-sources-list{margin-top:.4rem;font-size:.72rem;color:var(--ink-3);line-height:1.5}" +
+      ".pop-sources-list strong{color:var(--ink);font-weight:700}";
     document.head.appendChild(s);
   }
 
@@ -282,6 +220,7 @@
         '<div class="wd-detail-body">' +
           '<div class="wd-detail-meta" id="wdDetailMeta">—</div>' +
           '<div class="wd-detail-text" id="wdDetailText">—</div>' +
+          '<div class="pop-sources-list" id="wdDetailSources" style="display:none"></div>' +
         '</div>' +
         '<div class="wd-detail-foot">' +
           '<button type="button" id="wdDetailSource" style="display:none;order:-1;flex:1 1 100%;width:100%;padding:.8rem 1rem;background:linear-gradient(135deg,#f0c78a,#e0a857 50%,#8a5c26);color:#070c16;border:1px solid #e0a857;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;align-items:center;justify-content:center;gap:.45rem;font-family:inherit">↗ Open bronartikel</button>' +
@@ -302,12 +241,10 @@
     if(!event) return "";
     var url = String(event.url || event.link || "").trim();
     if(/^https?:\/\//i.test(url)) return url;
-
     try {
       var items = (window.State && window.State.items) || [];
       var title = String(event.title || "").toLowerCase().trim();
       if (title.length < 10) return "";
-
       for (var i = 0; i < items.length; i++) {
         var it = items[i];
         if (!it) continue;
@@ -317,20 +254,18 @@
           if (/^https?:\/\//i.test(link)) return link;
         }
       }
-
-      var shortNeedle = title.slice(0, Math.max(20, Math.floor(title.length * 0.6)));
+      var needle = title.slice(0, Math.max(20, Math.floor(title.length * 0.6)));
       for (var j = 0; j < items.length; j++) {
         var it2 = items[j];
         if (!it2) continue;
         var itTitle2 = String(it2.title || "").toLowerCase().trim();
         if (itTitle2.length < 10) continue;
-        if (itTitle2.indexOf(shortNeedle) !== -1 || shortNeedle.indexOf(itTitle2.slice(0, 20)) !== -1) {
+        if (itTitle2.indexOf(needle) !== -1 || needle.indexOf(itTitle2.slice(0, 20)) !== -1) {
           var link2 = String(it2.link || it2.url || "").trim();
           if (/^https?:\/\//i.test(link2)) return link2;
         }
       }
     } catch(e){}
-
     return "";
   }
 
@@ -348,14 +283,34 @@
     if(event.country) metaParts.push(event.country);
     if(event.date) metaParts.push(timeAgo(event.date));
     if(event.source) metaParts.push(event.source);
+    if(event.isCluster && event.sources && event.sources.length > 1){
+      metaParts.push(event.sources.length + " bronnen");
+    }
     $("wdDetailMeta").textContent = metaParts.join(" · ");
 
     $("wdDetailText").textContent = event.fullDescription || event.title || "(geen beschrijving)";
 
+    /* Bronnen-lijst (alleen voor clusters) */
+    var srcList = $("wdDetailSources");
+    if(srcList){
+      if(event.isCluster && event.sources && event.sources.length > 1){
+        var html = '<strong>Bronnen (' + event.sources.length + '):</strong><br>';
+        event.sources.slice(0, 8).forEach(function(s){
+          html += '• ' + escapeHtml(s.name) + '<br>';
+        });
+        if(event.sources.length > 8){
+          html += '• ... en ' + (event.sources.length - 8) + ' meer';
+        }
+        srcList.innerHTML = html;
+        srcList.style.display = 'block';
+      } else {
+        srcList.style.display = 'none';
+      }
+    }
+
     var srcBtn = $("wdDetailSource");
     if(srcBtn){
       var url = findArticleUrlForEvent(event);
-      LOG("Source URL voor event:", url || "(geen)");
       if(url){
         srcBtn.style.display = "inline-flex";
         srcBtn.onclick = function(e){
@@ -397,8 +352,6 @@
       if(counters[c] !== undefined) counters[c]++;
     }
     MAP._counters = counters;
-
-    /* Update DOM knoppen */
     Object.keys(counters).forEach(function(cat){
       var el = document.querySelector('.live-filter[data-cat="' + cat + '"] .lf-count');
       if(el) el.textContent = counters[cat];
@@ -421,18 +374,14 @@
     });
     wrap.innerHTML = html;
 
-    /* Bind clicks */
     Array.prototype.forEach.call(wrap.querySelectorAll(".live-filter"), function(btn){
       btn.addEventListener("click", function(){
         var cat = btn.dataset.cat;
         if(cat === MAP.currentFilter) return;
-
         MAP.currentFilter = cat;
         if(window.WDStorage) WDStorage.set("map_filter_v2", cat);
-
         wrap.querySelectorAll(".live-filter").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
-
         renderMarkers();
         renderLiveList();
         setTimeout(fitToMarkers, 200);
@@ -445,70 +394,20 @@
   function restoreFilter(){
     try {
       var saved = window.WDStorage ? WDStorage.get("map_filter_v2") : null;
-      if(saved && CATEGORIES[saved]){
-        MAP.currentFilter = saved;
-      }
+      if(saved && CATEGORIES[saved]) MAP.currentFilter = saved;
     }catch(e){}
   }
 
   /* ============================================================
-     FALLBACK EVENTS (als ai-map geen data stuurt)
-     ============================================================ */
-  function buildFallbackEvents(){
-    if(!window.State || !State.items || !State.items.length) return [];
-    var events = [];
-    var byCat = {};
-    State.items.forEach(function(it){
-      var cat = it.cat || "";
-      if(!LOCATIONS_MINI[cat]) return;
-      if(!byCat[cat]) byCat[cat] = [];
-      byCat[cat].push(it);
-    });
-    Object.keys(byCat).forEach(function(cat){
-      var loc = LOCATIONS_MINI[cat];
-      var items = byCat[cat].sort(function(a,b){
-        return (new Date(b.date).getTime()||0) - (new Date(a.date).getTime()||0);
-      }).slice(0, 3);
-      items.forEach(function(it, i){
-        var off = i * 0.15;
-        events.push({
-          id: "fb-" + cat + "-" + i,
-          lat: loc.lat + off, lng: loc.lng + off,
-          title: it.title || "Geen titel",
-          fullDescription: (it.description || it.desc || "") || (it.title || ""),
-          category: (cat === "war" || cat === "ukraine") ? "militair" : "politiek",
-          subtype: "Conflict",
-          type: "conflict",
-          country: loc.country,
-          date: it.date || new Date().toISOString(),
-          url: it.link || it.url || "", source: it.source || "",
-          isMilitary: (cat === "war")
-        });
-      });
-    });
-    if (events.length > 1000) events = events.slice(0, 1000);
-    return events;
-  }
-
-  var LOCATIONS_MINI = {
-    "mideast": { lat: 31.77, lng: 35.22, country: "Midden-Oosten" },
-    "gaza":    { lat: 31.35, lng: 34.31, country: "Gaza" },
-    "il":      { lat: 31.77, lng: 35.22, country: "Israël" },
-    "iran":    { lat: 35.69, lng: 51.39, country: "Iran" },
-    "iraq":    { lat: 33.31, lng: 44.36, country: "Irak" },
-    "yemen":   { lat: 15.37, lng: 44.19, country: "Jemen" },
-    "qa":      { lat: 25.28, lng: 51.53, country: "Qatar" },
-    "sa":      { lat: 24.71, lng: 46.68, country: "Saudi-Arabië" },
-    "ae":      { lat: 24.47, lng: 54.37, country: "V.A.E." },
-    "eg":      { lat: 30.04, lng: 31.24, country: "Egypte" },
-    "sudan":   { lat: 15.55, lng: 32.53, country: "Sudan" },
-    "ukraine": { lat: 50.45, lng: 30.52, country: "Oekraïne" },
-    "war":     { lat: 50.45, lng: 30.52, country: "Conflictgebied" }
-  };
-
-  /* ============================================================
      MARKERS
      ============================================================ */
+  function getFilteredEvents(){
+    if(MAP.currentFilter === "all") return MAP.events.slice();
+    return MAP.events.filter(function(e){
+      return (e.category || "civiel") === MAP.currentFilter;
+    });
+  }
+
   function fitToMarkers(){
     if(!MAP.instance) return;
     var visible = getFilteredEvents();
@@ -520,21 +419,13 @@
     } catch(e){}
   }
 
-  function getFilteredEvents(){
-    if(MAP.currentFilter === "all") return MAP.events.slice();
-    return MAP.events.filter(function(e){
-      return (e.category || "civiel") === MAP.currentFilter;
-    });
-  }
-
   function refreshFromNews(){
     var events;
     if (MAP.militaryEvents.length > 0) {
       events = MAP.militaryEvents.slice();
       LOG("Gebruik " + events.length + " events uit ai-map");
     } else {
-      events = buildFallbackEvents();
-      LOG("Fallback: " + events.length + " standaard events");
+      events = [];
     }
 
     if(!events.length){
@@ -585,11 +476,16 @@
 
       var catCfg = CATEGORIES[cat] || CATEGORIES.civiel;
       var sourceLine = e.source ? '<div class="pop-meta">' + escapeHtml(e.source) + '</div>' : '';
+      var clusterLine = (e.isCluster && e.sources && e.sources.length > 1)
+        ? '<div class="pop-meta" style="color:#93c5fd">📰 ' + e.sources.length + ' bronnen</div>'
+        : '';
+
       var popupHtml =
         '<div class="pop-cat" style="--cat-color:' + color + '">' + escapeHtml(catCfg.label) + ' · ' + escapeHtml(e.subtype || "") + '</div>' +
         '<div class="pop-title">' + escapeHtml(e.title) + '</div>' +
         '<div class="pop-meta">' + escapeHtml(e.country || "?") + (e.region ? " · " + escapeHtml(e.region) : "") + '</div>' +
         sourceLine +
+        clusterLine +
         '<button class="pop-more" data-id="' + escapeHtml(String(e.id)) + '">Details →</button>';
       marker.bindPopup(popupHtml);
       marker.on("popupopen", function(){
@@ -605,7 +501,7 @@
   }
 
   /* ============================================================
-     LIVE LIST
+     LIVE LIST — met dedup-badge
      ============================================================ */
   function renderLiveList(){
     var list = $("liveList");
@@ -625,9 +521,13 @@
       var catCfg = CATEGORIES[cat] || CATEGORIES.civiel;
       var color = resolveColor(e);
       var badgeClass = 'live-event-cat cat-' + cat;
+      var multiBadge = (e.isCluster && e.sources && e.sources.length > 1)
+        ? '<span class="live-event-multi">+' + (e.sources.length - 1) + ' bron' + (e.sources.length > 2 ? 'nen' : '') + '</span>'
+        : '';
+
       return '<div class="live-event" data-id="' + escapeHtml(String(e.id)) + '" style="--cat-color:' + color + '">' +
         '<div class="live-event-body">' +
-          '<div class="live-event-title">' + escapeHtml(e.title) + '</div>' +
+          '<div class="live-event-title">' + escapeHtml(e.title) + multiBadge + '</div>' +
           '<div class="live-event-meta">' +
             '<span class="live-event-loc">' + escapeHtml(e.country || "—") + '</span>' +
             '<span>·</span>' +
@@ -647,9 +547,6 @@
     });
   }
 
-  /* ============================================================
-     HELPERS
-     ============================================================ */
   function escapeHtml(s){
     return (s || "").replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
@@ -666,9 +563,6 @@
     return Math.floor(diff / 86400) + " d";
   }
 
-  /* ============================================================
-     INIT MAP
-     ============================================================ */
   function initMap(){
     if(MAP.instance || typeof L === "undefined") return;
     var mapEl = $("map");
@@ -713,9 +607,6 @@
     });
   }
 
-  /* ============================================================
-     EVENTBUS
-     ============================================================ */
   function bindEventBus(){
     if(MAP._busBound) return;
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
@@ -748,9 +639,6 @@
     return mapTab && mapTab.classList.contains("active");
   }
 
-  /* ============================================================
-     MODULE INIT
-     ============================================================ */
   window.__mapRefresh = function(){
     MAP._lastNewsCount = 0;
     MAP._lastZoomHash = "";
@@ -819,5 +707,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.0 geladen (5 categorieën)");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.1 geladen");
 })();
