@@ -69,8 +69,10 @@ html.light {
 html[data-oled="true"] {
   --bg:#000000; --bg-2:#050505; --bg-3:#0d0d0d; --card:#080808;
   --card-hover:#141414; --line:#141414; --line-2:#242424;
+  --ink:#ffffff;   /* ← NIEUW: titels zuiver wit in OLED */
   --shadow-card:0 2px 8px rgba(0,0,0,.6);
   --shadow-deep:0 8px 32px rgba(0,0,0,.8);
+}
 }
 
 html[data-font-size="small"]  { font-size: 14px; }
