@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v2.0
+   WAR DESK — conflict-areas.js v2.1
    ------------------------------------------------------------
-   FASE 2: Controller-kleuring (rood/blauw) op basis van DeepState
-   - v2.0: DeepState fetcher + turf.js centroid + point-in-polygon
-   - v1.3: proxy-first fetch + GADM oblasten
+   FASE 2: Controller-kleuring met verfijnde visuele stijl
+   - v2.1: schonere kleuren, subtiele randen, lagere opacity
+   - v2.0: DeepState + turf.js integratie
    ============================================================ */
 
 (function(){
@@ -13,20 +13,15 @@
     try{ wdLog.info.apply(null, ["[AREA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  /* ============================================================
-     BRONNEN
-     ============================================================ */
   var OBLAST_SOURCES = [
     "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
     "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json"
   ];
 
-  /* DeepState bezette gebieden — meerdere mirrors */
   var DEEPSTATE_SOURCES = [
     "https://deepstatemap.live/api/history/last",
     "https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/deepstate-map-data.geojson",
-    "https://raw.githubusercontent.com/Andkto/ukraine-war-map/main/deepstate.geojson",
-    "https://raw.githubusercontent.com/cyterat/DeepStateMap-Data/main/data.geojson"
+    "https://raw.githubusercontent.com/Andkto/ukraine-war-map/main/deepstate.geojson"
   ];
 
   var PROXIES = [
@@ -35,24 +30,17 @@
     "https://api.allorigins.win/raw?url="
   ];
 
-  /* Fallback: hardcoded lijst van bezette oblasten (september 2025)
-     Substrings, case-insensitive match tegen oblast-naam */
+  /* Fallback-lijst van bezette oblasten (wordt gebruikt als DeepState faalt) */
   var FALLBACK_OCCUPIED = [
-    "luhan",     /* Luhanska — vrijwel volledig bezet */
-    "donets",    /* Donetska — grotendeels bezet */
-    "zaporiz",   /* Zaporizka — deels bezet */
-    "kherson",   /* Khersonska — deels bezet */
-    "krym",      /* Krim — volledig bezet */
-    "crimea",    /* Engelse naam Krim */
-    "sevastopol" /* Sebastopol — volledig bezet */
+    "luhan", "donets", "zaporiz", "kherson", "krym", "crimea", "sevastopol"
   ];
 
   var CACHE_KEY = "wardesk_ukraine_oblasts";
   var CACHE_KEY_DS = "wardesk_deepstate_geo";
-  var CACHE_VERSION = "v5";
-  var CACHE_VERSION_DS = "v1";
+  var CACHE_VERSION = "v6";
+  var CACHE_VERSION_DS = "v2";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-  var DS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; /* 24 uur */
+  var DS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
@@ -60,13 +48,19 @@
   var PANE_NAME = "conflictAreasPane";
   var PANE_Z = 420;
 
-  /* Kleuren */
+  /* ============================================================
+     KLEUREN — schoon en elegant
+     ============================================================ */
   var COLORS = {
-    russia:   "#8B0000",   /* diep robijnrood */
-    ukraine:  "#1E3A8A",   /* diep koningsblauw */
-    border:   "#e0a857",   /* amber */
-    unknown:  "transparent"
+    russiaFill:    "#C62828",          /* elegant dieprood */
+    ukraineFill:   "#2A6FDB",          /* mooi koningsblauw */
+    russiaBorder:  "rgba(180,40,40,0.55)",
+    ukraineBorder: "rgba(50,110,200,0.55)",
+    neutralBorder: "rgba(255,255,255,0.10)"
   };
+
+  var FILL_OPACITY = 0.45;              /* subtieler dan 0.55 */
+  var BORDER_WEIGHT = 0.6;              /* dun en strak */
 
   var CA = {
     map: null,
@@ -123,9 +117,6 @@
     });
   }
 
-  /* ============================================================
-     Cache helpers
-     ============================================================ */
   function isValidGeoJSON(json){
     return json && json.features && Array.isArray(json.features) && json.features.length > 5;
   }
@@ -161,7 +152,7 @@
   function parseJsonText(text){
     var trimmed = String(text).replace(/^\uFEFF/, "").replace(/^\s+/, "");
     if(trimmed.charAt(0) !== "{" && trimmed.charAt(0) !== "["){
-      throw new Error("Response is geen JSON: " + trimmed.slice(0, 60).replace(/\s+/g, " "));
+      throw new Error("Response is geen JSON");
     }
     try { return JSON.parse(text); }
     catch(e){ throw new Error("JSON parse fout: " + e.message); }
@@ -184,7 +175,7 @@
     var idx = 0;
     function tryNext(){
       if(idx >= PROXIES.length){
-        return Promise.reject(new Error("Alle " + PROXIES.length + " proxies faalden"));
+        return Promise.reject(new Error("Alle proxies faalden"));
       }
       var proxy = PROXIES[idx];
       var fullUrl = proxy + encodeURIComponent(targetUrl);
@@ -197,7 +188,7 @@
   }
 
   /* ============================================================
-     Oblasten laden (GADM)
+     Oblast normalisatie
      ============================================================ */
   function normalizeOblast(json){
     json.features.forEach(function(f){
@@ -257,18 +248,12 @@
   }
 
   /* ============================================================
-     DeepState laden
+     DeepState extractie
      ============================================================ */
   function extractDeepStateGeometry(json){
-    /* DeepState API kan verschillende formaten teruggeven:
-       - FeatureCollection met 1 multipolygon
-       - Array met wijzigingen (dan is de geometry per item)
-       We proberen beide. */
     if(!json) return null;
 
-    /* Formaat 1: FeatureCollection */
     if(json.type === "FeatureCollection" && json.features){
-      /* Zoek het grootste multipolygon */
       var best = null, bestArea = 0;
       json.features.forEach(function(f){
         if(!f.geometry) return;
@@ -276,22 +261,17 @@
         if(f.geometry.type === "Polygon"){
           area = f.geometry.coordinates.length;
         } else if(f.geometry.type === "MultiPolygon"){
-          area = f.geometry.coordinates.length;
-          f.geometry.coordinates.forEach(function(poly){
-            area += poly.length;
-          });
+          f.geometry.coordinates.forEach(function(poly){ area += poly.length; });
         }
         if(area > bestArea){ bestArea = area; best = f; }
       });
       if(best) return best;
     }
 
-    /* Formaat 2: Array met items */
     if(Array.isArray(json) && json.length){
       var polys = [];
       json.forEach(function(item){
         if(!item) return;
-        /* Soms is het {geometry: {...}} */
         if(item.geometry && item.geometry.type === "MultiPolygon"){
           polys = polys.concat(item.geometry.coordinates);
         } else if(item.geometry && item.geometry.type === "Polygon"){
@@ -310,7 +290,6 @@
         };
       }
     }
-
     return null;
   }
 
@@ -329,7 +308,7 @@
           return feat;
         })
         .then(function(feat){
-          LOG("  ✓ DeepState polygoon geladen");
+          LOG("  ✓ DeepState geladen");
           return feat;
         })
         .catch(function(e){
@@ -353,8 +332,8 @@
           return feat;
         });
       }).catch(function(e){
-        LOG("DeepState laden faalde volledig: " + e.message);
-        return null; /* Fallback wordt gebruikt */
+        LOG("DeepState laden faalde: " + e.message);
+        return null;
       });
     });
   }
@@ -362,8 +341,8 @@
   /* ============================================================
      Controller berekening
      ============================================================ */
-  function checkFallbackOccupied(oblastName){
-    var lname = String(oblastName || "").toLowerCase();
+  function checkFallbackOccupied(name){
+    var lname = String(name || "").toLowerCase();
     for(var i = 0; i < FALLBACK_OCCUPIED.length; i++){
       if(lname.indexOf(FALLBACK_OCCUPIED[i]) !== -1) return true;
     }
@@ -390,33 +369,17 @@
         try {
           var centroid = window.turf.centroid(feature);
           var inOccupied = window.turf.booleanPointInPolygon(centroid, CA.deepStateGeo);
-          if(inOccupied){
-            controller = "Rusland";
-            stats.russia++;
-          } else {
-            controller = "Oekraïne";
-            stats.ukraine++;
-          }
+          controller = inOccupied ? "Rusland" : "Oekraïne";
         } catch(e){
-          /* Fallback bij turf-fout */
-          if(checkFallbackOccupied(props.name)){
-            controller = "Rusland";
-            stats.russia++;
-          } else {
-            controller = "Oekraïne";
-            stats.ukraine++;
-          }
+          controller = checkFallbackOccupied(props.name) ? "Rusland" : "Oekraïne";
         }
       } else {
-        /* Geen DeepState of turf — gebruik hardcoded fallback */
-        if(checkFallbackOccupied(props.name)){
-          controller = "Rusland";
-          stats.russia++;
-        } else {
-          controller = "Oekraïne";
-          stats.ukraine++;
-        }
+        controller = checkFallbackOccupied(props.name) ? "Rusland" : "Oekraïne";
       }
+
+      if(controller === "Rusland") stats.russia++;
+      else if(controller === "Oekraïne") stats.ukraine++;
+      else stats.unknown++;
 
       props.controller = controller;
       props.control_confidence = controller ? 0.7 : 0;
@@ -431,25 +394,32 @@
   /* ============================================================
      Styling
      ============================================================ */
-  function getFillColor(controller){
-    if(controller === "Rusland") return COLORS.russia;
-    if(controller === "Oekraïne") return COLORS.ukraine;
-    return COLORS.unknown;
-  }
-
   function styleArea(feature){
     var props = (feature && feature.properties) || {};
     var controller = props.controller;
-    var fillColor = getFillColor(controller);
-    var fillOpacity = controller ? 0.35 : 0;
+    var fillColor, borderColor;
+
+    if(controller === "Rusland"){
+      fillColor = COLORS.russiaFill;
+      borderColor = COLORS.russiaBorder;
+    } else if(controller === "Oekraïne"){
+      fillColor = COLORS.ukraineFill;
+      borderColor = COLORS.ukraineBorder;
+    } else {
+      fillColor = "transparent";
+      borderColor = COLORS.neutralBorder;
+    }
+
     return {
       fillColor: fillColor,
-      fillOpacity: fillOpacity,
-      color: COLORS.border,
-      weight: 1.3,
+      fillOpacity: controller ? FILL_OPACITY : 0,
+      color: borderColor,
+      weight: BORDER_WEIGHT,
       opacity: 0.7,
       dashArray: null,
-      interactive: false
+      interactive: false,
+      lineCap: "round",
+      lineJoin: "round"
     };
   }
 
@@ -467,7 +437,6 @@
     if(!CA.map || !CA.geojson) return;
     ensurePane(CA.map);
 
-    /* Verwijder bestaande layer */
     if(CA.layer){
       try{ CA.map.removeLayer(CA.layer); }catch(e){}
     }
@@ -475,7 +444,7 @@
     CA.layer = L.geoJSON(CA.geojson, {
       style: styleArea,
       pane: PANE_NAME,
-      smoothFactor: 1.2
+      smoothFactor: 1.5
     });
 
     CA.layer.addTo(CA.map);
@@ -503,9 +472,6 @@
   function init(mapInstance){
     if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
     if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
-    if(!window.turf){
-      LOG("WAARSCHUWING: turf.js niet geladen — fallback modus");
-    }
 
     CA.map = mapInstance;
     LOG("Init gestart");
@@ -514,7 +480,6 @@
       .then(function(){ return loadOblasts(); })
       .then(function(oblastsJson){
         CA.geojson = oblastsJson;
-        /* DeepState ophalen (optioneel — mag falen) */
         return loadDeepState().then(function(dsFeat){
           CA.deepStateGeo = dsFeat;
           calculateControllers();
@@ -535,28 +500,21 @@
   function refresh(){
     if(!CA.isInitialized) return Promise.resolve();
     LOG("Refresh — DeepState opnieuw ophalen");
-    /* Wis DeepState cache om nieuwe data te forceren */
-    return dbPut(CACHE_KEY_DS, {
-      version: CACHE_VERSION_DS + "-expired", t: 0, geojson: null
-    }).then(function(){
-      return loadDeepState();
-    }).then(function(dsFeat){
-      CA.deepStateGeo = dsFeat;
-      calculateControllers();
-      renderLayer();
-      LOG("Refresh klaar — " + CA.stats.russia + " rood, " + CA.stats.ukraine + " blauw");
-      return true;
-    });
+    return dbPut(CACHE_KEY_DS, { version: "cleared", t: 0, geojson: null })
+      .then(function(){ return loadDeepState(); })
+      .then(function(dsFeat){
+        CA.deepStateGeo = dsFeat;
+        calculateControllers();
+        renderLayer();
+        return true;
+      });
   }
 
   function clearCache(){
     return Promise.all([
       dbPut(CACHE_KEY, { version: "cleared", t: 0, geojson: null }),
       dbPut(CACHE_KEY_DS, { version: "cleared", t: 0, geojson: null })
-    ]).then(function(){
-      LOG("Alle caches gewist");
-      return true;
-    });
+    ]).then(function(){ LOG("Caches gewist"); return true; });
   }
 
   function destroy(){
@@ -564,15 +522,11 @@
     CA.layer = null; CA.isInitialized = false; CA.isLoaded = false;
   }
 
-  function getStats(){
-    return CA.stats;
-  }
+  function getStats(){ return CA.stats; }
 
   window.ConflictAreas = {
     init: init, refresh: refresh, destroy: destroy, clearCache: clearCache,
-    getStats: getStats,
-    state: CA,
-    _version: "v2.0"
+    getStats: getStats, state: CA, _version: "v2.1"
   };
 
   /* ============================================================
@@ -602,5 +556,5 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  LOG("conflict-areas.js v2.0 geladen — wacht op map init");
+  LOG("conflict-areas.js v2.1 geladen");
 })();
