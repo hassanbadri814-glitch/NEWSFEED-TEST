@@ -1,22 +1,20 @@
 /* ============================================================
-   WAR DESK — event-detector.js v1.2
-   Detecteert of een artikel een FYSIEKE militaire actie beschrijft.
-   
-   v1.2: meervoudsvormen + extra varianten (airstrikes, shoots down, shells)
-   v1.1: future-threats + extra actie-woorden
-   v1.0: initiële versie
+   WAR DESK — event-detector.js v1.3
+   - v1.3: extractCityClaim (wie claimt welke stad?)
+   - v1.2: meervoudsvormen + extra varianten
+   - v1.1: future-threats + extra actie-woorden
+   - v1.0: initiële versie
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v1.2";
+  window.WDEventDetectorVersion = "v1.3";
 
   /* ============================================================
-     ACTIE-WERKWOORDEN — fysieke militaire acties
+     ACTIE-WERKWOORDEN
      ============================================================ */
   var ACTION_PATTERNS = [
-    /* ==== NL ==== */
     { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
     { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt|aanvallen)\b/i, type: "attack" },
     { re: /\b(bombardeerde|bombardeerden|gebombardeerd|bombardement|bombardementen)\b/i, type: "bombing" },
@@ -32,7 +30,6 @@
     { re: /\b(gevecht|gevechten|vuurgevecht|grondgevecht|grondgevechten)\b/i, type: "combat" },
     { re: /\b(offensief|offensieven|tegenoffensief)\b/i, type: "offensive" },
 
-    /* ==== EN ==== */
     { re: /\b(struck|strikes|striking|hit|hits|hitting)\b/i, type: "strike" },
     { re: /\b(attacked|attacks|attacking)\b/i, type: "attack" },
     { re: /\b(bombed|bombing|bombings|bombardment|bombardments)\b/i, type: "bombing" },
@@ -51,17 +48,13 @@
     { re: /\b(repelled|repelling|repels)\b/i, type: "defense" },
     { re: /\b(counterattack|counterattacks|counter-attack|counter-attacks)\b/i, type: "attack" },
 
-    /* ==== Extra aanvallen (v1.1) ==== */
     { re: /\b(targeted|targets|targeting)\b/i, type: "strike" },
     { re: /\b(rocket|missile|drone) (attacks?|strikes?|launch(es)?|barrages?)\b/i, type: "specific-strike" },
     { re: /\b(barrage|barrages|salvo|salvos) of\b/i, type: "launch" },
-
-    /* ==== Extra v1.2 — luchtaanvallen en militaire termen ==== */
     { re: /\b(warplanes?|jets?|fighter jets?|aircraft|planes?|bombers?)\s+(hit|struck|attacked|bombed|targeted|carried out|launched)/i, type: "specific-strike" },
     { re: /\b(carried out|launched|conducted|mounted)\s+\d*\s*(airstrikes?|attacks?|strikes?|raids?|offensives?|operations?|bombardments?)/i, type: "specific-strike" },
     { re: /\b(air raid|air raids)\b/i, type: "specific-strike" },
 
-    /* ==== FR ==== */
     { re: /\b(frappé|frappe|frappes)\b/i, type: "strike" },
     { re: /\b(attaqué|attaque|attaques)\b/i, type: "attack" },
     { re: /\b(bombardé|bombardement|bombardements)\b/i, type: "bombing" },
@@ -69,7 +62,6 @@
     { re: /\b(blessé|blessés)\b/i, type: "wound" },
     { re: /\b(invasion|envahi|envahie)\b/i, type: "invasion" },
 
-    /* ==== DE ==== */
     { re: /\b(getroffen|treffer|angriff|angriffe)\b/i, type: "strike" },
     { re: /\b(angegriffen|greift an)\b/i, type: "attack" },
     { re: /\b(bombardiert|bombardement)\b/i, type: "bombing" },
@@ -77,7 +69,6 @@
     { re: /\b(verletzt|verletzte)\b/i, type: "wound" },
     { re: /\b(invasion|invadiert)\b/i, type: "invasion" },
 
-    /* ==== AR ==== */
     { re: /قصف|غارة|غارات|ضربة|ضربات/, type: "strike" },
     { re: /هجوم|هجمات|اعتداء/, type: "attack" },
     { re: /قتل|قتلى|مقتل|مصرع/, type: "kill" },
@@ -89,7 +80,24 @@
   ];
 
   /* ============================================================
-     REPORT-WERKWOORDEN — communicatie, geen fysieke actie
+     v1.3: CLAIM-ACTIES — controlewijziging van een stad
+     ============================================================ */
+  var CLAIM_PATTERNS = [
+    /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns)\b/i,
+    /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming)\b/i,
+    /\b(lib(erated|erates|erating))\b/i,
+    /\b(took|taken|takes)\s+control\s+of\b/i,
+    /\b(entered|enters|entering)\s+[A-Z][a-z]+/,
+    /\b(veroverde|veroverd|veroverden|veroveren|innam|innamen|innemen|ingenomen)\b/i,
+    /\b(heroverd|heroverde|heroverden|heroveren|bevrijd|bevrijdde|bevrijdden|bevrijden)\b/i,
+    /\b(nam|namen)\s+.*\s+in\b/i,
+    /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
+    /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
+    /سيطر|استولى|حرر|دخل/
+  ];
+
+  /* ============================================================
+     REPORT-WERKWOORDEN
      ============================================================ */
   var REPORT_PATTERNS = [
     /\b(says?|said|stated|declares?|declared|announces?|announced)\b/i,
@@ -108,9 +116,6 @@
     /قال|صرح|أعلن|وفقا|حسب/
   ];
 
-  /* ============================================================
-     v1.1: TOEKOMST-DREIGINGEN
-     ============================================================ */
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
     /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
@@ -119,9 +124,6 @@
     /مستعد ل|يهدد بـ|سيهاجم/
   ];
 
-  /* ============================================================
-     PREFIXES — rapport-modus
-     ============================================================ */
   var PREFIX_PATTERNS = [
     /^live\s*:/i, /^live\s*[-–]/i, /^live\s+updates?/i,
     /^report\s*:/i, /^analysis\s*:/i, /^opinion\s*:/i,
@@ -132,7 +134,7 @@
   ];
 
   /* ============================================================
-     BRON-LAND — thuisbasis van de bron
+     BRON-LAND
      ============================================================ */
   var SOURCE_COUNTRY = {
     "NOS": "Nederland", "NOS Sport": "Nederland", "NOS Voetbal": "Nederland",
@@ -148,29 +150,22 @@
     "Voetbalprimeur": "Nederland", "FCUpdate": "Nederland",
     "Soccernews": "Nederland", "Glory Kickboxing": "Nederland",
     "MMA DNA": "Nederland",
-
     "HLN": "België", "Nieuwsblad": "België", "De Standaard": "België",
     "VRT NWS": "België", "De Morgen": "België", "De Tijd": "België",
-
     "Spiegel": "Duitsland", "Bild": "Duitsland", "Zeit": "Duitsland",
     "FAZ": "Duitsland", "Süddeutsche": "Duitsland",
     "Tagesschau": "Duitsland", "Die Welt": "Duitsland",
-
     "Le Monde": "Frankrijk", "FranceInfo": "Frankrijk",
     "Libération": "Frankrijk", "France24 EN": "Frankrijk",
     "France24 AR": "Frankrijk",
-
     "Corriere della Sera": "Italië", "Repubblica": "Italië",
     "La Stampa": "Italië", "ANSA": "Italië",
-
     "BBC UK": "VK", "BBC World": "VK", "BBC Arabic": "VK",
     "Guardian UK": "VK", "Guardian": "VK",
     "Telegraph": "VK", "Sky News": "VK", "Independent": "VK", "FT": "VK",
-
     "NYT US": "VS", "NYT World": "VS", "CNN": "VS",
     "Washington Post": "VS", "NPR": "VS",
     "AP News": "VS", "Reuters": "VK", "Reuters TG": "VK",
-
     "Al Jazeera": "Qatar", "Al Jazeera AR": "Qatar",
     "Al Jazeera AR TG": "Qatar",
     "Al Arabiya TG": "Saudi-Arabië", "Arab News": "Saudi-Arabië",
@@ -179,15 +174,12 @@
     "The Peninsula": "Qatar",
     "Asharq Al-Awsat": "Saudi-Arabië",
     "Al-Ahram": "Egypte", "Egypt Independent": "Egypte",
-    "CNN Arabic": "VAE",
-    "Al Quds Al Arabi": "VK",
+    "CNN Arabic": "VAE", "Al Quds Al Arabi": "VK",
     "Anadolu AR": "Turkije", "TRT World": "Turkije",
-
     "Hespress": "Marokko", "Le360": "Marokko",
     "MAP": "Marokko", "Yabiladi": "Marokko",
     "Lakome2": "Marokko", "TelQuel": "Marokko",
     "Bladna.nl": "Marokko", "Marokko.nl": "Marokko",
-
     "Times of Israel": "Israël", "Jerusalem Post": "Israël",
     "Ynet": "Israël",
     "Kyiv Independent": "Oekraïne", "Ukrinform": "Oekraïne",
@@ -197,7 +189,6 @@
     "Enab Baladi": "Syrië",
     "Sudan Tribune": "Sudan", "Radio Dabanga": "Sudan",
     "L'Orient-Le Jour": "Libanon", "Naharnet": "Libanon",
-
     "Liveuamap TG": "Oekraïne",
     "GeoConfirmed TG": "Oekraïne",
     "OSINTdefender TG": "VS",
@@ -217,9 +208,7 @@
   function findActionVerbs(text) {
     var found = [];
     ACTION_PATTERNS.forEach(function(p) {
-      if (p.re.test(text)) {
-        found.push({ type: p.type });
-      }
+      if (p.re.test(text)) found.push({ type: p.type });
     });
     return found;
   }
@@ -227,9 +216,7 @@
   function findReportVerbs(text) {
     var found = [];
     REPORT_PATTERNS.forEach(function(p) {
-      if (p.test(text)) {
-        found.push(p.source);
-      }
+      if (p.test(text)) found.push(p.source);
     });
     return found;
   }
@@ -237,9 +224,7 @@
   function findFuturePatterns(text) {
     var found = [];
     FUTURE_PATTERNS.forEach(function(p) {
-      if (p.test(text)) {
-        found.push(p.source);
-      }
+      if (p.test(text)) found.push(p.source);
     });
     return found;
   }
@@ -247,6 +232,13 @@
   function hasPrefix(title) {
     for (var i = 0; i < PREFIX_PATTERNS.length; i++) {
       if (PREFIX_PATTERNS[i].test(title)) return true;
+    }
+    return false;
+  }
+
+  function hasClaimAction(text) {
+    for (var i = 0; i < CLAIM_PATTERNS.length; i++) {
+      if (CLAIM_PATTERNS[i].test(text)) return true;
     }
     return false;
   }
@@ -261,59 +253,72 @@
     var reportMatches = findReportVerbs(text);
     var futureMatches = findFuturePatterns(text);
 
-    /* Case 1: prefix + geen actie → report */
     if (prefixMatch && actionMatches.length === 0) {
-      return {
-        isPhysicalEvent: false,
-        actionTypes: [],
-        actionCount: 0,
-        reportMatch: reportMatches.length > 0,
-        prefixMatch: prefixMatch,
-        futureMatch: false,
-        reason: "prefix-no-action"
-      };
+      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: false, reason: "prefix-no-action" };
     }
 
-    /* Case 2: geen actie-verb → geen fysieke actie */
     if (actionMatches.length === 0) {
-      return {
-        isPhysicalEvent: false,
-        actionTypes: [],
-        actionCount: 0,
-        reportMatch: reportMatches.length > 0,
-        prefixMatch: prefixMatch,
-        futureMatch: futureMatches.length > 0,
-        reason: reportMatches.length > 0 ? "report-only" : "no-action-verb"
-      };
+      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: reportMatches.length > 0 ? "report-only" : "no-action-verb" };
     }
 
-    /* Case 3: toekomst/dreiging → geen fysiek event */
     if (futureMatches.length > 0 && actionMatches.length <= 1) {
-      return {
-        isPhysicalEvent: false,
-        actionTypes: [],
-        actionCount: 0,
-        reportMatch: reportMatches.length > 0,
-        prefixMatch: prefixMatch,
-        futureMatch: true,
-        reason: "future-threat"
-      };
+      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: true, reason: "future-threat" };
     }
 
-    /* Case 4: actie-verbs → fysiek event */
     var types = [];
     actionMatches.forEach(function(m) {
       if (types.indexOf(m.type) === -1) types.push(m.type);
     });
 
+    return { isPhysicalEvent: true, actionTypes: types, actionCount: actionMatches.length, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: "action-found" };
+  }
+
+  /* ============================================================
+     v1.3: EXTRACT CITY CLAIM
+     ------------------------------------------------------------
+     Bepaalt of een event een claim op een stad bevat.
+     @return { city, claimedBy, claimedByISO3 } of null
+     ============================================================ */
+  function extractCityClaim(title, desc, actorCountries){
+    title = String(title || "");
+    desc = String(desc || "");
+    var text = title + " " + desc;
+
+    if (!hasClaimAction(text)) return null;
+
+    /* Zoek de langste stad-match */
+    var cityMatch = null;
+    var longest = 0;
+    if (window.__wm_locations){
+      var lower = " " + text.toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
+      for (var key in window.__wm_locations){
+        if (!Object.prototype.hasOwnProperty.call(window.__wm_locations, key)) continue;
+        if (key.length <= longest) continue;
+        var pattern = " " + key + " ";
+        if (lower.indexOf(pattern) !== -1){
+          cityMatch = key;
+          longest = key.length;
+        }
+      }
+    }
+
+    if (!cityMatch) return null;
+
+    /* Bepaal wie de claimer is */
+    if (!actorCountries || !actorCountries.length) return null;
+    var claimedBy = actorCountries[0];
+
+    var claimedByISO3 = null;
+    try {
+      if (window.WorldMapData && window.WorldMapData.getISO3){
+        claimedByISO3 = window.WorldMapData.getISO3(claimedBy);
+      }
+    } catch(e){}
+
     return {
-      isPhysicalEvent: true,
-      actionTypes: types,
-      actionCount: actionMatches.length,
-      reportMatch: reportMatches.length > 0,
-      prefixMatch: prefixMatch,
-      futureMatch: futureMatches.length > 0,
-      reason: "action-found"
+      city: cityMatch,
+      claimedBy: claimedBy,
+      claimedByISO3: claimedByISO3
     };
   }
 
@@ -321,17 +326,17 @@
     return SOURCE_COUNTRY[sourceName] || null;
   }
 
-  /* ============================================================
-     EXPORT
-     ============================================================ */
   window.WDEventDetector = {
     analyze: analyze,
     findActionVerbs: findActionVerbs,
     findReportVerbs: findReportVerbs,
     findFuturePatterns: findFuturePatterns,
     hasPrefix: hasPrefix,
+    hasClaimAction: hasClaimAction,
+    extractCityClaim: extractCityClaim,
     getSourceCountry: getSourceCountry,
     _actionPatterns: ACTION_PATTERNS,
+    _claimPatterns: CLAIM_PATTERNS,
     _reportPatterns: REPORT_PATTERNS,
     _futurePatterns: FUTURE_PATTERNS,
     _sourceCountry: SOURCE_COUNTRY
@@ -339,10 +344,10 @@
 
   try {
     if (window.wdLog) {
-      wdLog.info("[EventDetector] v1.2 geladen — " +
-        ACTION_PATTERNS.length + " actie-patronen, " +
-        REPORT_PATTERNS.length + " report-patronen, " +
-        FUTURE_PATTERNS.length + " toekomst-patronen");
+      wdLog.info("[EventDetector] v1.3 geladen — " +
+        ACTION_PATTERNS.length + " acties, " +
+        CLAIM_PATTERNS.length + " claims, " +
+        REPORT_PATTERNS.length + " reports");
     }
   } catch(e){}
 
