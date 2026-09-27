@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.4
+   WAR DESK — worldmap.js v2.5
    ------------------------------------------------------------
+   - v2.5: Batch B — confidence weegt in opacity + tooltip update
    - v2.4: Batch A — periode-filter positie + schalende drempels
-        + "Niet-fysiek" label
    - v2.3: land-panel + confidence + periode-filter
    - v2.2: alleen countsForHeat events + REG-skip + compacte legenda
    ============================================================ */
@@ -94,7 +94,7 @@
   }
 
   /* ============================================================
-     v2.4: DREMPELS SCHALEN MET PERIODE
+     DREMPELS SCHALEN MET PERIODE
      ============================================================ */
   function getPeriodScale(periodDays){
     if (periodDays <= 1) return 0.3;
@@ -251,7 +251,7 @@
   }
 
   /* ============================================================
-     v2.4: CONFLICT-LEVEL met periode-schaling
+     CONFLICT-LEVEL (met periode-schaling)
      ============================================================ */
   function getConflictLevel(heat){
     var th = (window.WORLDMAP_THRESHOLDS || {}).heat || {};
@@ -276,11 +276,27 @@
     return c.cold || "#2f2f38";
   }
 
-  function getFillOpacity(level){
-    if (level === "scorching") return 0.88;
-    if (level === "hot") return 0.78;
-    if (level === "warm") return 0.65;
-    return 0.30;
+  /* ============================================================
+     v2.5: FILL OPACITY met confidence factor
+     ============================================================ */
+  function getFillOpacity(level, confidence){
+    var baseOpacity;
+    if (level === "scorching") baseOpacity = 0.88;
+    else if (level === "hot") baseOpacity = 0.78;
+    else if (level === "warm") baseOpacity = 0.65;
+    else return 0.30;
+
+    /* v2.5: confidence-factor
+       - 0%   conf → 0.55 × base (onzeker = lichter)
+       - 50%  conf → 0.775 × base
+       - 100% conf → 1.0 × base (zeker = vol)
+    */
+    if (typeof confidence === "number" && confidence >= 0){
+      var confNorm = Math.max(0, Math.min(100, confidence));
+      var factor = 0.55 + (confNorm / 100) * 0.45;
+      return baseOpacity * factor;
+    }
+    return baseOpacity;
   }
 
   function styleCountry(feature){
@@ -289,6 +305,8 @@
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var totalHeat = targetHeat + actorHeat;
     var cc = window.CONFLICT_COLORS || {};
+    var conf = WM.countryConfidence[iso3];
+    var confPct = conf ? conf.confidence : null;
 
     if (totalHeat < 0.1){
       return {
@@ -301,7 +319,7 @@
 
     var level = getConflictLevel(targetHeat);
     var fillColor = getFillColor(level);
-    var fillOpacity = getFillOpacity(level);
+    var fillOpacity = getFillOpacity(level, confPct);
 
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var scale = getPeriodScale(periodDays);
@@ -336,11 +354,9 @@
   }
 
   /* ============================================================
-     TOOLTIP + CLICK
+     v2.5: TOOLTIP GENERATOR (herbruikbaar)
      ============================================================ */
-  function onEachCountry(feature, layer){
-    var iso3 = getISO3(feature);
-    var name = getCountryName(feature);
+  function buildTooltipHtml(iso3, name){
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var conf = WM.countryConfidence[iso3];
@@ -362,7 +378,14 @@
       lines.push("Rustig — geen fysieke militaire events");
     }
 
-    layer.bindTooltip(lines.join("<br>"), {
+    return lines.join("<br>");
+  }
+
+  function onEachCountry(feature, layer){
+    var iso3 = getISO3(feature);
+    var name = getCountryName(feature);
+
+    layer.bindTooltip(buildTooltipHtml(iso3, name), {
       sticky: true,
       direction: "top",
       className: "wm-tooltip"
@@ -371,8 +394,11 @@
     layer.on({
       mouseover: function(e){
         var l = e.target;
+        var targetHeat = WM.targetHeatByCountry[iso3] || 0;
         var level = getConflictLevel(targetHeat);
-        var currentOpacity = getFillOpacity(level);
+        var conf = WM.countryConfidence[iso3];
+        var confPct = conf ? conf.confidence : null;
+        var currentOpacity = getFillOpacity(level, confPct);
         l.setStyle({
           weight: 2.5,
           color: "#e0a857",
@@ -386,6 +412,26 @@
         if (L.DomEvent) L.DomEvent.stopPropagation(e);
         openCountryPanel(iso3, name);
       }
+    });
+  }
+
+  /* ============================================================
+     v2.5: TOOLTIPS VERNIEUWEN na heat update
+     ============================================================ */
+  function refreshTooltips(){
+    if (!WM.layer) return;
+    WM.layer.eachLayer(function(layer){
+      if (!layer.feature) return;
+      var iso3 = getISO3(layer.feature);
+      var name = getCountryName(layer.feature);
+      try {
+        layer.unbindTooltip();
+        layer.bindTooltip(buildTooltipHtml(iso3, name), {
+          sticky: true,
+          direction: "top",
+          className: "wm-tooltip"
+        });
+      } catch(e){}
     });
   }
 
@@ -468,7 +514,6 @@
     } else {
       evEl.innerHTML = myEvents.map(function(ev){
         var physical = ev.countsForHeat !== false;
-        /* v2.4: "Politiek" → "Niet-fysiek" */
         var actionTag = physical ? "Fysiek" : "Niet-fysiek";
         var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
         var subtype = ev.subtype || "—";
@@ -513,7 +558,7 @@
   }
 
   /* ============================================================
-     v2.4: PERIODE-FILTER — onder Wereldkaart-knop
+     PERIODE-FILTER
      ============================================================ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
@@ -643,7 +688,6 @@
       ".wm-legend-toggle svg{width:14px;height:14px;}" +
       ".map-wrap:has(#wmLegend[style*='display: none']) .wm-legend-toggle{display:grid;}" +
       "@supports not selector(:has(*)){.wm-legend-toggle{display:grid!important;bottom:.6rem;right:.6rem;}.wm-legend{right:2.7rem;}}" +
-      /* v2.4: periode-filter onder Wereldkaart-knop */
       ".wm-period-filter{position:absolute;top:3.4rem;left:.7rem;z-index:500;display:flex;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:2px;box-shadow:0 4px 14px rgba(0,0,0,.45);}" +
       "html.light .wm-period-filter{background:rgba(255,255,255,.95);border-color:rgba(0,0,0,.12);}" +
       ".wm-period-filter button{background:transparent;border:none;color:#e6ebf5;font-size:.65rem;font-weight:700;padding:.35rem .55rem;border-radius:7px;cursor:pointer;font-family:inherit;transition:all .15s;letter-spacing:.02em;}" +
@@ -728,7 +772,7 @@
     restorePeriodFilter();
 
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.4 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.5 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -753,6 +797,9 @@
         }
       });
     }
+
+    /* v2.5: tooltips vernieuwen met nieuwe heat-data */
+    refreshTooltips();
 
     if (WM.map) renderCityDots(WM.map);
   }
@@ -827,6 +874,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.4 geladen (batch A — periode + niet-fysiek)");
+  LOG("worldmap.js v2.5 geladen (batch B — confidence + tooltip fix)");
 
 })();
