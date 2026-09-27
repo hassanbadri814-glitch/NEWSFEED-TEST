@@ -1,65 +1,70 @@
 /* ============================================================
-   WAR DESK — event-detector.js v1.1
+   WAR DESK — event-detector.js v1.2
    Detecteert of een artikel een FYSIEKE militaire actie beschrijft.
    
-   v1.1: future-threats uitsluiten + extra actie-woorden
+   v1.2: meervoudsvormen + extra varianten (airstrikes, shoots down, shells)
+   v1.1: future-threats + extra actie-woorden
    v1.0: initiële versie
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v1.1";
+  window.WDEventDetectorVersion = "v1.2";
 
   /* ============================================================
      ACTIE-WERKWOORDEN — fysieke militaire acties
      ============================================================ */
   var ACTION_PATTERNS = [
     /* ==== NL ==== */
-    { re: /\b(raakte|raakten|getroffen|treft)\b/i, type: "strike" },
-    { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt)\b/i, type: "attack" },
-    { re: /\b(bombardeerde|bombardeerden|gebombardeerd|bombardement)\b/i, type: "bombing" },
+    { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
+    { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt|aanvallen)\b/i, type: "attack" },
+    { re: /\b(bombardeerde|bombardeerden|gebombardeerd|bombardement|bombardementen)\b/i, type: "bombing" },
     { re: /\b(beschoot|beschoten|beschieting|beschietingen)\b/i, type: "shelling" },
-    { re: /\b(lanceerde|lanceerden|afgevuurd|gelanceerd|lanceert)\b/i, type: "launch" },
+    { re: /\b(lanceerde|lanceerden|afgevuurd|gelanceerd|lanceert|lanceren)\b/i, type: "launch" },
     { re: /\b(doodde|doodden|gedood|dodelijk getroffen)\b/i, type: "kill" },
     { re: /\b(verwondde|verwondden|verwond geraakt|gewond geraakt|gewonden vielen)\b/i, type: "wound" },
-    { re: /\b(veroverde|veroverden|ingenomen|innam|innamen|heroverd|heroverde)\b/i, type: "capture" },
-    { re: /\b(viel binnen|vielen binnen|binnengevallen|invasie)\b/i, type: "invasion" },
-    { re: /\b(neerschoot|neergeschoten|neergehaald|onderschept)\b/i, type: "shootdown" },
-    { re: /\b(ontplofte|ontploften|opgeblazen|explosie|explosies)\b/i, type: "explosion" },
+    { re: /\b(veroverde|veroverden|ingenomen|innam|innamen|heroverd|heroverde|heroveren)\b/i, type: "capture" },
+    { re: /\b(viel binnen|vielen binnen|binnengevallen|invasie|invasies)\b/i, type: "invasion" },
+    { re: /\b(neerschoot|neergeschoten|neergehaald|onderschept|onderscheppen|neerhalen)\b/i, type: "shootdown" },
+    { re: /\b(ontplofte|ontploften|opgeblazen|explosie|explosies|ontploffing|ontploffingen)\b/i, type: "explosion" },
     { re: /\b(raketaanval|raketinslag|luchtaanval|droneaanval|drone-aanval|mortieraanval|artillerievuur|granaatinslag)\b/i, type: "specific-strike" },
     { re: /\b(gevecht|gevechten|vuurgevecht|grondgevecht|grondgevechten)\b/i, type: "combat" },
+    { re: /\b(offensief|offensieven|tegenoffensief)\b/i, type: "offensive" },
 
     /* ==== EN ==== */
     { re: /\b(struck|strikes|striking|hit|hits|hitting)\b/i, type: "strike" },
     { re: /\b(attacked|attacks|attacking)\b/i, type: "attack" },
-    { re: /\b(bombed|bombing|bombardment|bombardments)\b/i, type: "bombing" },
-    { re: /\b(shelled|shelling)\b/i, type: "shelling" },
-    { re: /\b(fired|firing|launched|launching|launches)\b/i, type: "launch" },
+    { re: /\b(bombed|bombing|bombings|bombardment|bombardments)\b/i, type: "bombing" },
+    { re: /\b(shelled|shelling|shells)\b/i, type: "shelling" },
+    { re: /\b(fired|fires|firing|launched|launches|launching)\b/i, type: "launch" },
     { re: /\b(killed|kills|killing|dead|deaths)\b/i, type: "kill" },
     { re: /\b(wounded|injured|injures|injuring|casualties)\b/i, type: "wound" },
-    { re: /\b(captured|seized|seizing|captures|overran)\b/i, type: "capture" },
-    { re: /\b(invaded|invading|invasion)\b/i, type: "invasion" },
-    { re: /\b(shot down|downed|intercepted|intercepts)\b/i, type: "shootdown" },
-    { re: /\b(exploded|explodes|explosion|blast|blasts)\b/i, type: "explosion" },
-    { re: /\b(airstrike|missile strike|drone strike|artillery fire|rocket attack)\b/i, type: "specific-strike" },
-    { re: /\b(combat|clashes|fighting|firefight)\b/i, type: "combat" },
+    { re: /\b(captured|seized|seizing|captures|overran|overruns)\b/i, type: "capture" },
+    { re: /\b(invaded|invading|invasion|invasions)\b/i, type: "invasion" },
+    { re: /\b(shot down|shoots down|shooting down|downed|downs|intercepted|intercepts|intercepting)\b/i, type: "shootdown" },
+    { re: /\b(exploded|explodes|exploding|explosion|explosions|blast|blasts)\b/i, type: "explosion" },
+    { re: /\b(airstrikes?|air strikes?|missile strikes?|drone strikes?|artillery fire|rocket attacks?)\b/i, type: "specific-strike" },
+    { re: /\b(combat|clashes|fighting|firefight|battle|battles)\b/i, type: "combat" },
+    { re: /\b(offensive|offensives|counteroffensive|counter-offensive)\b/i, type: "offensive" },
+    { re: /\b(raid|raids|raided|raiding)\b/i, type: "raid" },
+    { re: /\b(repelled|repelling|repels)\b/i, type: "defense" },
+    { re: /\b(counterattack|counterattacks|counter-attack|counter-attacks)\b/i, type: "attack" },
 
     /* ==== Extra aanvallen (v1.1) ==== */
     { re: /\b(targeted|targets|targeting)\b/i, type: "strike" },
-    { re: /\b(intercepted|intercepting)\b/i, type: "shootdown" },
-    { re: /\b(downed|shooting down)\b/i, type: "shootdown" },
-    { re: /\b(rocket|missile|drone) (attack|strike|launch|barrage)\b/i, type: "specific-strike" },
-    { re: /\b(rocket|missile|drone) attacks?\b/i, type: "specific-strike" },
-    { re: /\b(barrage|salvo) of\b/i, type: "launch" },
-    { re: /\b(raids?|raided)\b/i, type: "raid" },
-    { re: /\b(repelled|repelling)\b/i, type: "defense" },
-    { re: /\b(counterattack|counter-attack)\b/i, type: "attack" },
+    { re: /\b(rocket|missile|drone) (attacks?|strikes?|launch(es)?|barrages?)\b/i, type: "specific-strike" },
+    { re: /\b(barrage|barrages|salvo|salvos) of\b/i, type: "launch" },
+
+    /* ==== Extra v1.2 — luchtaanvallen en militaire termen ==== */
+    { re: /\b(warplanes?|jets?|fighter jets?|aircraft|planes?|bombers?)\s+(hit|struck|attacked|bombed|targeted|carried out|launched)/i, type: "specific-strike" },
+    { re: /\b(carried out|launched|conducted|mounted)\s+\d*\s*(airstrikes?|attacks?|strikes?|raids?|offensives?|operations?|bombardments?)/i, type: "specific-strike" },
+    { re: /\b(air raid|air raids)\b/i, type: "specific-strike" },
 
     /* ==== FR ==== */
     { re: /\b(frappé|frappe|frappes)\b/i, type: "strike" },
     { re: /\b(attaqué|attaque|attaques)\b/i, type: "attack" },
-    { re: /\b(bombardé|bombardement)\b/i, type: "bombing" },
+    { re: /\b(bombardé|bombardement|bombardements)\b/i, type: "bombing" },
     { re: /\b(tué|tués|mort|morts)\b/i, type: "kill" },
     { re: /\b(blessé|blessés)\b/i, type: "wound" },
     { re: /\b(invasion|envahi|envahie)\b/i, type: "invasion" },
@@ -104,7 +109,7 @@
   ];
 
   /* ============================================================
-     v1.1: TOEKOMST-DREIGINGEN — geen fysieke actie, alleen plannen
+     v1.1: TOEKOMST-DREIGINGEN
      ============================================================ */
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
@@ -246,9 +251,6 @@
     return false;
   }
 
-  /* ============================================================
-     ANALYSE (v1.1)
-     ============================================================ */
   function analyze(title, desc) {
     title = String(title || "");
     desc = String(desc || "");
@@ -285,7 +287,7 @@
       };
     }
 
-    /* Case 3 (v1.1): toekomst/dreiging → geen fysiek event */
+    /* Case 3: toekomst/dreiging → geen fysiek event */
     if (futureMatches.length > 0 && actionMatches.length <= 1) {
       return {
         isPhysicalEvent: false,
@@ -337,7 +339,7 @@
 
   try {
     if (window.wdLog) {
-      wdLog.info("[EventDetector] v1.1 geladen — " +
+      wdLog.info("[EventDetector] v1.2 geladen — " +
         ACTION_PATTERNS.length + " actie-patronen, " +
         REPORT_PATTERNS.length + " report-patronen, " +
         FUTURE_PATTERNS.length + " toekomst-patronen");
