@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.10
-   - v3.10: actor/target onderscheid via positie in titel
+   WAR DESK — ai-map.js v3.11
+   - v3.11: prefix-match in findTargetByPosition (ukraine → ukrainian)
+   - v3.10: actor/target onderscheid via positie
    - v3.9: context-filter + titel-only
    - v3.8: CityStatus integratie
-   - v3.7: bron-country skip alleen bij niet-fysiek
    ============================================================ */
 
 (function(){
@@ -16,7 +16,6 @@
 
   var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen|program|programma|nuclear|nucleair)\b/i;
 
-  /* v3.10: actie-werkwoorden voor positie-bepaling (subset van event-detector) */
   var POSITION_ACTION_PATTERNS = [
     /\b(struck|strikes|striking)\b/i,
     /\b(attacked|attacks|attacking)\b/i,
@@ -41,9 +40,6 @@
     /\b(angegriffen|getroffen|bombardiert)\b/i,
     /قصف|غارة|هجوم|قتل|انفجار/
   ];
-
-  /* Target-preposities — land ná deze woorden = doelwit */
-  var TARGET_PREPS = ["in", "at", "on", "op", "bij", "nabij", "near", "against", "over", "upon", "towards", "into", "onto", "across", "above", "below", "over", "near", "by"];
 
   var LOCATIONS = {
     "oekraïne":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
@@ -271,9 +267,6 @@
     return candidates[0];
   };
 
-  /* ============================================================
-     v3.10: POSITIE-BEPALING
-     ============================================================ */
   function findFirstActionPosition(title){
     if (!title) return -1;
     var lower = String(title).toLowerCase();
@@ -287,6 +280,9 @@
     return firstPos;
   }
 
+  /* ============================================================
+     v3.11: PREFIX-MATCH in findTargetByPosition
+     ============================================================ */
   function findTargetByPosition(title, actorCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -300,10 +296,14 @@
     for (var key in LOCATIONS){
       if (!Object.prototype.hasOwnProperty.call(LOCATIONS, key)) continue;
       if (key.length < 4) continue;
-      var idx = afterVerb.indexOf(" " + key + " ");
-      if (idx === -1) continue;
+
+      var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      var re = new RegExp("\\b" + escaped + "\\w*\\b", "i");
+      var m = afterVerb.match(re);
+      if (!m) continue;
+
+      var idx = m.index;
       var loc = LOCATIONS[key];
-      /* Skip als het de actor is */
       if (actorCountries && loc.country && actorCountries.indexOf(loc.country) !== -1) continue;
       if (bestPos === -1 || idx < bestPos){
         best = loc;
@@ -337,7 +337,6 @@
     return found;
   }
 
-  /* v3.10: nieuwe hoofdfunctie voor locatie */
   function extractTargetLocation(title, actorCountries, skipCountries){
     var byPos = findTargetByPosition(title, actorCountries);
     if (byPos) return { loc: byPos, method: "position" };
@@ -455,14 +454,11 @@
         if (!STRONG_CIVIEL_PATTERN.test(titleStr)) { skippedWeakCiviel++; continue; }
       }
 
-      /* v3.10: actor-detectie eerst, dan target */
       var actorCountries = detectActorCountries(article.title, article.description || article.desc);
-
       var detection = detectPhysicalEvent(article.title, article.description || article.desc);
       var sourceCountry = getSourceCountry(article.source);
       var skipForLoc = detection.isPhysicalEvent ? null : sourceCountry;
 
-      /* v3.10: gebruik extractTargetLocation */
       var targetResult = extractTargetLocation(article.title || "", actorCountries, skipForLoc);
       var loc = targetResult.loc;
       if (targetResult.method === "position") positionHits++;
@@ -545,7 +541,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.10] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.11] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -623,7 +619,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.10 geladen (actor/target via positie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.11 geladen (prefix-match fix)");
   }
 
   function getCountries(){
