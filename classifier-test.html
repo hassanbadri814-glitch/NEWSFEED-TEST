@@ -105,15 +105,15 @@
 <body>
 
 <h1>WAR DESK · Classifier Test v2.1</h1>
-<div class="subtitle">Waterdicht systeem — 5 categorieën · 13 nieuwe regels</div>
+<div class="subtitle">Waterdicht systeem — 5 categorieën</div>
 
 <div class="legend">
   <strong>Nieuwe regels in v2.1:</strong><br>
-  <code>1. Militair vereist concrete actie</code> — alleen "Iran" of "leger" is niet genoeg<br>
-  <code>2. Diplomatiek override</code> — spreker+werkwoord → Politiek, tenzij militaire actie<br>
-  <code>3. Sport-block</code> — voetbal/tennis/club → Civiel/Sport<br>
-  <code>4. Locatie = bonus</code> — nooit zelfstandig categorie bepalen<br>
-  <code>5. Strike samengesteld</code> — "strike" alleen is niet militair, "missile strike" wel
+  <code>1. Militair vereist concrete actie</code><br>
+  <code>2. Diplomatiek override</code> — spreker+werkwoord → Politiek<br>
+  <code>3. Sport-block</code><br>
+  <code>4. Locatie = bonus</code><br>
+  <code>5. Strike samengesteld</code>
 </div>
 
 <h2>Handmatig testen</h2>
@@ -139,27 +139,20 @@
   "use strict";
 
   var PRESETS = [
-    // ===== CIVIEL =====
     { label:"Barbecue De Wilp", title:"Meerdere gewonden door steekvlam bij buurtbarbecue De Wilp", desc:"Tijdens een buurtbarbecue in De Wilp zijn zaterdagavond meerdere mensen gewond geraakt door een steekvlam.", source:"AD.nl", expected:"civiel" },
     { label:"Gaslek Athene", title:"Four American tourists among 6 killed in suspected gas leak blast in Athens", desc:"Six people died in a suspected gas leak explosion in a hotel in central Athens.", source:"France24 EN", expected:"civiel" },
     { label:"Bus Khenifra", title:"28 gewonden bij botsing tussen bus en vrachtwagen bij Khenifra", desc:"Bij een botsing tussen een bus en een vrachtwagen op de N8 bij Khenifra zijn 28 mensen gewond geraakt.", source:"MAROKKO.nl", expected:"civiel" },
     { label:"Woningbrand Amsterdam", title:"Grote woningbrand in Amsterdam, bewoners geëvacueerd", desc:"In Amsterdam is een grote woningbrand uitgebroken. De brandweer heeft meerdere bewoners geëvacueerd.", source:"AT5", expected:"civiel" },
     { label:"Overstroming Spanje", title:"Dodental overstromingen Spanje loopt op naar 95", desc:"Het dodental als gevolg van de overstromingen in Valencia is opgelopen tot 95.", source:"El País", expected:"civiel" },
     { label:"Vliegtuigongeluk", title:"Vliegtuigongeluk in Frankrijk: 8 doden", desc:"Bij een vliegtuigongeluk in Zuid-Frankrijk zijn alle 8 inzittenden omgekomen.", source:"AFP", expected:"civiel" },
-
-    // ===== SPORT (nu correct geblokkeerd) =====
     { label:"Man City chairman", title:"Man City chairman strikes defiant tone after club reportedly found guilty of breaking rules", desc:"Manchester City chairman responded defiantly after the football club was reportedly found guilty of breaking Premier League rules.", source:"BBC Sport", expected:"civiel" },
     { label:"Voetbalwedstrijd", title:"Ajax verliest met 3-1 van PSV in eredivisie", desc:"Ajax heeft in de eredivisie met 3-1 verloren van PSV. De wedstrijd werd gespeeld in de Johan Cruijff ArenA.", source:"NOS Sport", expected:"civiel" },
-
-    // ===== MILITAIR =====
     { label:"Raketaanval Kiev", title:"Raketaanval op Kiev: minstens 5 doden en 20 gewonden", desc:"Rusland heeft vannacht raketten afgevuurd op de Oekraïense hoofdstad Kiev. Bij de aanval zijn minstens 5 mensen gedood.", source:"Reuters", expected:"militair" },
     { label:"Gaza aanval", title:"Seven Palestinians killed in Gaza Strip during Israeli attacks", desc:"The Health Ministry in Gaza says seven Palestinians were killed and several wounded in Israeli strikes across the Gaza Strip.", source:"Al Jazeera", expected:"militair" },
     { label:"Israeli strike Gaza", title:"Israeli strike injures several displaced people in Gaza", desc:"An Israeli airstrike hit a displacement camp in Gaza, injuring several people according to local health officials.", source:"Al Jazeera", expected:"militair" },
     { label:"Russia escalates", title:"Russia scales up strikes on Ukraine as largest steelmaker halts operations", desc:"Russia has intensified its missile strikes on Ukrainian infrastructure this week, targeting power plants and industrial facilities.", source:"Reuters", expected:"militair" },
     { label:"13 doden Gaza", title:"13 doden bij Israëlische luchtaanval op school in Gaza", desc:"Bij een Israëlische luchtaanval op een school in Gaza zijn dertien mensen gedood. Het IDF zegt een Hamas-doelwit te hebben geraakt.", source:"NOS", expected:"militair" },
-    { label:"Libya pipeline", title:"Libya oil pipeline reopens after being blocked by armed group", desc:"An oil pipeline in Libya has reopened after an armed group blocked it earlier this week. The armed group demanded higher wages.", source:"Reuters", expected:"militair" },
-
-    // ===== POLITIEK (nieuw, dankzij diplomatiek-detectie) =====
+    { label:"Libya pipeline", title:"Libya oil pipeline reopens after being blocked by armed group", desc:"An oil pipeline in Libya has reopened after an armed group blocked it earlier this week.", source:"Reuters", expected:"militair" },
     { label:"Araghchi Iran", title:"Araghchi ignores Trump, waits for mediators' response on Hormuz", desc:"Iran's foreign minister Abbas Araghchi said Tehran is waiting for mediators to respond. Talks about the Strait of Hormuz continue.", source:"Al Jazeera", expected:"politiek" },
     { label:"Pezeshkian says", title:"Pezeshkian says Iran no longer trusts negotiations with US", desc:"Iranian president Masoud Pezeshkian says his country has lost trust in negotiations with the United States.", source:"Reuters", expected:"politiek" },
     { label:"US Treasury claims", title:"US Treasury chief claims successes in isolating Iran", desc:"The US Treasury Secretary claims the sanctions have been successful in isolating Iran from global markets.", source:"Reuters", expected:"politiek" },
@@ -168,16 +161,12 @@
     { label:"Iran war live", title:"Iran war live: Tehran awaits official response as Trump rejects Hormuz plan", desc:"Iranian officials say Tehran awaits an official response from mediators after US President Trump rejected the latest Hormuz plan.", source:"Al Jazeera", expected:"politiek" },
     { label:"Verkiezing VS", title:"Trump wint Amerikaanse presidentsverkiezingen", desc:"Donald Trump heeft de Amerikaanse presidentsverkiezingen gewonnen. Hij versloeg zijn Democratische tegenstander.", source:"NYT US", expected:"politiek" },
     { label:"Regeringscrisis", title:"Kabinet valt na motie van wantrouwen", desc:"Het kabinet is gevallen na een aangenomen motie van wantrouwen. Er komen nieuwe verkiezingen.", source:"NOS", expected:"politiek" },
-
-    // ===== CRIME =====
     { label:"Aanslag Brussel", title:"Aanslag in Brussel: verdachte opgepakt, twee doden", desc:"Bij een aanslag in het centrum van Brussel zijn twee mensen omgekomen. De politie heeft een verdachte opgepakt.", source:"VRT NWS", expected:"crime" },
     { label:"Mocromaffia", title:"Mocromaffia teisteren het land", desc:"De Mocromaffia teistert Nederland al jaren met drugshandel, liquidaties en afrekeningen in de onderwereld.", source:"De Telegraaf", expected:"crime" },
     { label:"Drugskartel Mexico", title:"Kartelgeweld in Mexico: 15 doden bij schietpartij", desc:"Bij een schietpartij tussen rivaliserende drugskartels in Noord-Mexico zijn 15 mensen omgekomen.", source:"Reuters", expected:"crime" },
     { label:"Fraude schandaal", title:"Grootschalige fraude bij zorginstelling: 12 miljoen verduisterd", desc:"Bij een zorginstelling in Utrecht is 12 miljoen euro verduisterd door grootschalige fraude. De directie is opgepakt.", source:"FD", expected:"crime" },
     { label:"Cyberaanval ziekenhuis", title:"Grote cyberaanval op ziekenhuizen: patiëntgegevens gestolen", desc:"Bij een grote cyberaanval op meerdere ziekenhuizen zijn patiëntgegevens gestolen. Er is losgeld geëist.", source:"Tweakers", expected:"crime" },
     { label:"Politieke moord", title:"Russische oppositieleider vermoord in Moskou", desc:"Een prominente Russische oppositieleider is in Moskou vermoord. De politie onderzoekt de zaak.", source:"BBC World", expected:"crime" },
-
-    // ===== PROTEST =====
     { label:"Demonstratie Amsterdam", title:"Duizenden bij klimaatdemonstratie in Amsterdam", desc:"Duizenden mensen zijn naar Amsterdam gekomen voor de grote klimaatdemonstratie. Er zijn geen incidenten gemeld.", source:"Nu.nl", expected:"protest" },
     { label:"Rellen bij protest", title:"Rellen uitgebroken bij protest tegen bezuinigingen", desc:"Bij een protest tegen bezuinigingen zijn rellen uitgebroken. De politie heeft traangas ingezet.", source:"AD.nl", expected:"protest" },
     { label:"Student protesters", title:"Student protesters disrupt NVIDIA AI climate panel", desc:"A group of student protesters disrupted an NVIDIA AI climate panel event. The demonstrators held signs demanding climate action.", source:"Reuters", expected:"protest" }
