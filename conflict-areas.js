@@ -1,10 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v1.2
+   WAR DESK — conflict-areas.js v1.3
    ------------------------------------------------------------
    FASE 1: Gebieds-GeoJSON laden (Oekraïne oblasten)
-   - v1.2: GADM 4.1 als primaire bron + WD.fetchJson (proxy fallback)
-   - v1.1: robuuste bronkeuze
-   - v1.0: eerste opzet
+   - v1.3: proxy-first + meerdere bronnen + uitgebreide logging
    ============================================================ */
 
 (function(){
@@ -14,22 +12,21 @@
     try{ wdLog.info.apply(null, ["[AREA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  /* ============================================================
-     BRONNEN
-     ============================================================ */
-  var GEOJSON_SOURCES = [
-    /* 1. GADM 4.1 — Oekraïne level 1 (oblasts) */
-    { type: "gadm", url: "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json" },
+  var SOURCES = [
+    "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
+    "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json",
+    "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/UKR/ADM1/geoBoundaries-UKR-ADM1_simplified.geojson",
+    "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/master/releaseData/gbOpen/UKR/ADM1/geoBoundaries-UKR-ADM1_simplified.geojson"
+  ];
 
-    /* 2. GADM 4.0 fallback */
-    { type: "gadm", url: "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json" },
-
-    /* 3. geoBoundaries via raw.githubusercontent (CORS-vriendelijk) */
-    { type: "gbraw", url: "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/UKR/ADM1/geoBoundaries-UKR-ADM1_simplified.geojson" }
+  var PROXIES = [
+    "https://newsfeed2.hassanbadri814.workers.dev/?url=",
+    "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
+    "https://api.allorigins.win/raw?url="
   ];
 
   var CACHE_KEY = "wardesk_ukraine_oblasts";
-  var CACHE_VERSION = "v3"; /* gebumpt → oude cache wordt genegeerd */
+  var CACHE_VERSION = "v4";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
@@ -37,20 +34,12 @@
   var PANE_NAME = "conflictAreasPane";
   var PANE_Z = 420;
 
-  var CA = {
-    map: null,
-    layer: null,
-    geojson: null,
-    areas: [],
-    isLoaded: false,
-    isInitialized: false
-  };
+  var CA = { map: null, layer: null, geojson: null, areas: [], isLoaded: false, isInitialized: false };
+  var db = null;
 
   /* ============================================================
      IndexedDB
      ============================================================ */
-  var db = null;
-
   function openDB(){
     return new Promise(function(resolve){
       try {
@@ -67,7 +56,6 @@
       } catch(e){ resolve(null); }
     });
   }
-
   function dbPut(key, value){
     if(!db) return Promise.resolve(false);
     return new Promise(function(res){
@@ -79,7 +67,6 @@
       } catch(e){ res(false); }
     });
   }
-
   function dbGet(key){
     if(!db) return Promise.resolve(null);
     return new Promise(function(res){
@@ -91,7 +78,6 @@
       } catch(e){ res(null); }
     });
   }
-
   function dbDelete(key){
     if(!db) return Promise.resolve(false);
     return new Promise(function(res){
@@ -110,7 +96,6 @@
   function isValidGeoJSON(json){
     return json && json.features && Array.isArray(json.features) && json.features.length > 5;
   }
-
   function loadFromCache(){
     return dbGet(CACHE_KEY).then(function(cached){
       if(!cached || !cached.v) return null;
@@ -125,20 +110,20 @@
   }
 
   /* ============================================================
-     Fetch helpers — probeert eerst WD.fetchJson (proxy), dan raw
+     Fetch helpers
      ============================================================ */
   function parseJsonText(text){
     var trimmed = String(text).replace(/^\uFEFF/, "").replace(/^\s+/, "");
     if(trimmed.charAt(0) !== "{" && trimmed.charAt(0) !== "["){
-      throw new Error("Response is geen JSON (kreeg: " + trimmed.slice(0, 40).replace(/\s+/g, " ") + ")");
+      throw new Error("Response is geen JSON: " + trimmed.slice(0, 60).replace(/\s+/g, " "));
     }
     try { return JSON.parse(text); }
     catch(e){ throw new Error("JSON parse fout: " + e.message); }
   }
 
-  function fetchJsonRaw(url, timeoutMs){
+  function fetchRaw(url, timeoutMs){
     var ctrl = new AbortController();
-    var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 30000);
+    var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 25000);
     return fetch(url, { signal: ctrl.signal })
       .then(function(r){
         clearTimeout(timer);
@@ -149,130 +134,99 @@
       .catch(function(e){ clearTimeout(timer); throw e; });
   }
 
-  /* Gebruikt WD.fetchJson (heeft ingebouwde proxy-fallback) */
-  function fetchJsonSmart(url){
-    if(window.WD && typeof window.WD.fetchJson === "function"){
-      return window.WD.fetchJson(url).then(function(json){
-        if(!json || typeof json !== "object"){
-          throw new Error("Lege of ongeldige response");
-        }
-        return json;
-      }).catch(function(e){
-        LOG("WD.fetchJson faalde (" + e.message + "), probeer raw fetch");
-        return fetchJsonRaw(url);
+  function fetchViaProxy(targetUrl){
+    var idx = 0;
+    function tryNext(){
+      if(idx >= PROXIES.length){
+        return Promise.reject(new Error("Alle " + PROXIES.length + " proxies faalden"));
+      }
+      var proxy = PROXIES[idx];
+      var fullUrl = proxy + encodeURIComponent(targetUrl);
+      var proxyNum = idx + 1;
+      idx++;
+      LOG("  → proxy " + proxyNum + "/" + PROXIES.length);
+      return fetchRaw(fullUrl, 30000).catch(function(e){
+        LOG("  proxy " + proxyNum + " faalde: " + e.message);
+        return tryNext();
       });
     }
-    return fetchJsonRaw(url);
+    return tryNext();
   }
 
   /* ============================================================
-     GADM normalisatie
+     Normalisatie
      ============================================================ */
-  function normalizeGADM(json){
-    if(!json || !json.features) throw new Error("Geen features in GADM bestand");
+  function detectSourceFormat(json){
+    if(!json || !json.features || !json.features.length) return "unknown";
+    var p = json.features[0].properties || {};
+    if(p.GID_1 || p.NAME_1 || p.VARNAME_1) return "gadm";
+    if(p.shapeName || p.shapeID || p.shapeISO) return "gbound";
+    return "unknown";
+  }
 
+  function normalize(json){
+    var format = detectSourceFormat(json);
+    LOG("  formaat: " + format);
     json.features.forEach(function(f){
       if(!f || !f.properties) return;
       var p = f.properties;
-      var name = p.NAME_1 || p.name_1 || p.VARNAME_1 || p.NAME || "?";
-      var iso = p.ISO_1 || p.GID_1 || "";
-      var id = (p.GID_1 || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
+      var name, iso, id;
+      if(format === "gadm"){
+        name = p.NAME_1 || p.VARNAME_1 || p.name_1 || "?";
+        iso  = p.ISO_1 || p.GID_1 || "";
+        id   = (p.GID_1 || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
+      } else {
+        name = p.shapeName || p.NAME_1 || p.name || "?";
+        iso  = p.shapeISO || p.ISO_1 || "";
+        id   = (p.shapeID || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
+      }
       f.properties = {
-        id: id,
-        name: name,
-        iso: iso,
-        type: p.TYPE_1 || p.ENGTYPE_1 || "Oblast",
-        controller: null,
-        control_confidence: 0,
-        territory_gain: false,
-        attack_intensity: 0,
-        last_update: null
+        id: id, name: name, iso: iso,
+        controller: null, control_confidence: 0,
+        territory_gain: false, attack_intensity: 0, last_update: null
       };
     });
     return json;
   }
 
   /* ============================================================
-     geoBoundaries normalisatie
+     Hoofd fetch-flow
      ============================================================ */
-  function normalizeGB(json){
-    if(!json || !json.features) throw new Error("Geen features in geoBoundaries bestand");
-    json.features.forEach(function(f){
-      if(!f || !f.properties) return;
-      var p = f.properties;
-      var name = p.shapeName || p.NAME_1 || p.name || "?";
-      var iso  = p.shapeISO  || p.ISO_1  || "";
-      var id   = p.shapeID   || p.id     || (iso || name).toLowerCase().replace(/\s+/g, "-");
-      f.properties = {
-        id: id,
-        name: name,
-        iso: iso,
-        type: "Oblast",
-        controller: null,
-        control_confidence: 0,
-        territory_gain: false,
-        attack_intensity: 0,
-        last_update: null
-      };
-    });
-    return json;
-  }
-
-  /* ============================================================
-     Bron-specifieke fetchers
-     ============================================================ */
-  function fetchFromGADM(url){
-    return fetchJsonSmart(url).then(function(json){
-      return normalizeGADM(json);
-    });
-  }
-
-  function fetchFromGBRaw(url){
-    return fetchJsonSmart(url).then(function(json){
-      return normalizeGB(json);
-    });
-  }
-
   function fetchGeoJSON(){
     var lastErr = null;
-
-    function trySource(idx){
-      if(idx >= GEOJSON_SOURCES.length){
+    function trySource(srcIdx){
+      if(srcIdx >= SOURCES.length){
         return Promise.reject(lastErr || new Error("Alle bronnen faalden"));
       }
-      var src = GEOJSON_SOURCES[idx];
-      LOG("Probeer bron " + (idx+1) + "/" + GEOJSON_SOURCES.length + " (" + src.type + ")");
+      var url = SOURCES[srcIdx];
+      var shortUrl = url.replace(/^https?:\/\//, "").slice(0, 60);
+      LOG("Bron " + (srcIdx+1) + "/" + SOURCES.length + ": " + shortUrl);
 
-      var p;
-      if(src.type === "gadm") p = fetchFromGADM(src.url);
-      else p = fetchFromGBRaw(src.url);
-
-      return p.then(function(json){
-        if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON na verwerking");
-        LOG("Bron " + (idx+1) + " OK — " + json.features.length + " features");
-        return json;
-      }).catch(function(e){
-        LOG("Bron " + (idx+1) + " faalde: " + e.message);
-        lastErr = e;
-        return trySource(idx+1);
-      });
+      return fetchViaProxy(url)
+        .then(function(json){
+          if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON na fetch");
+          return normalize(json);
+        })
+        .then(function(json){
+          LOG("  ✓ " + json.features.length + " features van bron " + (srcIdx+1));
+          return json;
+        })
+        .catch(function(e){
+          LOG("Bron " + (srcIdx+1) + " faalde: " + e.message);
+          lastErr = e;
+          return trySource(srcIdx + 1);
+        });
     }
-
     return trySource(0);
   }
 
-  /* ============================================================
-     Volledige laad-flow
-     ============================================================ */
   function loadGeoJSON(){
     return loadFromCache().then(function(cached){
       if(cached) return cached;
-      LOG("Cache leeg — fetch externe bron");
+      LOG("Cache leeg — start proxy fetch");
       return fetchGeoJSON().then(function(json){
         return dbPut(CACHE_KEY, {
-          version: CACHE_VERSION,
-          t: Date.now(),
-          geojson: json
+          version: CACHE_VERSION, t: Date.now(), geojson: json
         }).then(function(){
           LOG("GeoJSON opgeslagen in cache");
           return json;
@@ -282,7 +236,7 @@
   }
 
   /* ============================================================
-     Pane + Styling + Render
+     Pane + Render
      ============================================================ */
   function ensurePane(map){
     if(map.getPane(PANE_NAME)) return;
@@ -291,30 +245,21 @@
     map.getPane(PANE_NAME).style.pointerEvents = "none";
   }
 
-  function styleArea(feature){
+  function styleArea(){
     return {
-      fillColor: "#b42828",
-      fillOpacity: 0,
-      color: "#e0a857",
-      weight: 1.2,
-      opacity: 0.65,
-      dashArray: null,
-      interactive: false
+      fillColor: "#b42828", fillOpacity: 0,
+      color: "#e0a857", weight: 1.2,
+      opacity: 0.65, dashArray: null, interactive: false
     };
   }
 
   function renderLayer(){
     if(!CA.map || !CA.geojson) return;
     ensurePane(CA.map);
-
     CA.layer = L.geoJSON(CA.geojson, {
-      style: styleArea,
-      pane: PANE_NAME,
-      smoothFactor: 1.2
+      style: styleArea, pane: PANE_NAME, smoothFactor: 1.2
     });
-
     CA.layer.addTo(CA.map);
-
     CA.areas = [];
     CA.layer.eachLayer(function(l){
       if(l.feature && l.feature.properties){
@@ -322,12 +267,10 @@
           id: l.feature.properties.id,
           name: l.feature.properties.name,
           iso: l.feature.properties.iso,
-          layer: l,
-          feature: l.feature
+          layer: l, feature: l.feature
         });
       }
     });
-
     LOG("Gebiedslaag gerenderd: " + CA.areas.length + " gebieden");
   }
 
@@ -335,17 +278,10 @@
      Public API
      ============================================================ */
   function init(mapInstance){
-    if(CA.isInitialized){
-      LOG("Al geïnitialiseerd — skip");
-      return Promise.resolve();
-    }
-    if(!mapInstance){
-      return Promise.reject(new Error("Geen geldige map instance"));
-    }
-
+    if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
+    if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
     CA.map = mapInstance;
-    LOG("Init gestart — laden GeoJSON…");
-
+    LOG("Init gestart");
     return openDB()
       .then(loadGeoJSON)
       .then(function(json){
@@ -353,7 +289,7 @@
         renderLayer();
         CA.isInitialized = true;
         CA.isLoaded = true;
-        LOG("Init klaar — " + CA.areas.length + " oblasten geladen");
+        LOG("Init klaar — " + CA.areas.length + " oblasten");
         return true;
       })
       .catch(function(e){
@@ -370,43 +306,28 @@
   }
 
   function destroy(){
-    if(CA.layer && CA.map){
-      try{ CA.map.removeLayer(CA.layer); }catch(e){}
-    }
-    CA.layer = null;
-    CA.isInitialized = false;
-    CA.isLoaded = false;
+    if(CA.layer && CA.map){ try{ CA.map.removeLayer(CA.layer); }catch(e){} }
+    CA.layer = null; CA.isInitialized = false; CA.isLoaded = false;
   }
 
   window.ConflictAreas = {
-    init: init,
-    destroy: destroy,
-    clearCache: clearCache,
-    state: CA,
-    _version: "v1.2",
-    _sources: GEOJSON_SOURCES
+    init: init, destroy: destroy, clearCache: clearCache,
+    state: CA, _version: "v1.3", _sources: SOURCES
   };
 
   /* ============================================================
      Auto-init
      ============================================================ */
-  var tryInitAttempts = 0;
-  var MAX_TRIES = 60;
-
+  var tries = 0, MAX = 60;
   function tryInit(){
     if(CA.isInitialized) return;
-    tryInitAttempts++;
+    tries++;
     var m = window.MAPAPI && window.MAPAPI.state && window.MAPAPI.state.instance;
     if(m){
-      init(m).catch(function(e){
-        LOG("Auto-init faalde: " + (e.message || "?"));
-      });
+      init(m).catch(function(e){ LOG("Auto-init faalde: " + (e.message || "?")); });
       return;
     }
-    if(tryInitAttempts >= MAX_TRIES){
-      LOG("Auto-init opgegeven na " + MAX_TRIES + " pogingen");
-      return;
-    }
+    if(tries >= MAX){ LOG("Auto-init opgegeven"); return; }
     setTimeout(tryInit, 500);
   }
 
@@ -421,5 +342,5 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  LOG("conflict-areas.js v1.2 geladen — wacht op map init");
+  LOG("conflict-areas.js v1.3 geladen — wacht op map init");
 })();
