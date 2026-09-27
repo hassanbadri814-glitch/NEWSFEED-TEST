@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v1.3
+   WAR DESK — conflict-areas.js v2.0
    ------------------------------------------------------------
-   FASE 1: Gebieds-GeoJSON laden (Oekraïne oblasten)
-   - v1.3: proxy-first + meerdere bronnen + uitgebreide logging
+   FASE 2: Controller-kleuring (rood/blauw) op basis van DeepState
+   - v2.0: DeepState fetcher + turf.js centroid + point-in-polygon
+   - v1.3: proxy-first fetch + GADM oblasten
    ============================================================ */
 
 (function(){
@@ -12,11 +13,20 @@
     try{ wdLog.info.apply(null, ["[AREA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  var SOURCES = [
+  /* ============================================================
+     BRONNEN
+     ============================================================ */
+  var OBLAST_SOURCES = [
     "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
-    "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json",
-    "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/main/releaseData/gbOpen/UKR/ADM1/geoBoundaries-UKR-ADM1_simplified.geojson",
-    "https://raw.githubusercontent.com/wmgeolab/geoBoundaries/master/releaseData/gbOpen/UKR/ADM1/geoBoundaries-UKR-ADM1_simplified.geojson"
+    "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json"
+  ];
+
+  /* DeepState bezette gebieden — meerdere mirrors */
+  var DEEPSTATE_SOURCES = [
+    "https://deepstatemap.live/api/history/last",
+    "https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/deepstate-map-data.geojson",
+    "https://raw.githubusercontent.com/Andkto/ukraine-war-map/main/deepstate.geojson",
+    "https://raw.githubusercontent.com/cyterat/DeepStateMap-Data/main/data.geojson"
   ];
 
   var PROXIES = [
@@ -25,16 +35,50 @@
     "https://api.allorigins.win/raw?url="
   ];
 
+  /* Fallback: hardcoded lijst van bezette oblasten (september 2025)
+     Substrings, case-insensitive match tegen oblast-naam */
+  var FALLBACK_OCCUPIED = [
+    "luhan",     /* Luhanska — vrijwel volledig bezet */
+    "donets",    /* Donetska — grotendeels bezet */
+    "zaporiz",   /* Zaporizka — deels bezet */
+    "kherson",   /* Khersonska — deels bezet */
+    "krym",      /* Krim — volledig bezet */
+    "crimea",    /* Engelse naam Krim */
+    "sevastopol" /* Sebastopol — volledig bezet */
+  ];
+
   var CACHE_KEY = "wardesk_ukraine_oblasts";
-  var CACHE_VERSION = "v4";
+  var CACHE_KEY_DS = "wardesk_deepstate_geo";
+  var CACHE_VERSION = "v5";
+  var CACHE_VERSION_DS = "v1";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  var DS_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000; /* 24 uur */
+
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
   var STORE_GEOJSON = "geojson";
   var PANE_NAME = "conflictAreasPane";
   var PANE_Z = 420;
 
-  var CA = { map: null, layer: null, geojson: null, areas: [], isLoaded: false, isInitialized: false };
+  /* Kleuren */
+  var COLORS = {
+    russia:   "#8B0000",   /* diep robijnrood */
+    ukraine:  "#1E3A8A",   /* diep koningsblauw */
+    border:   "#e0a857",   /* amber */
+    unknown:  "transparent"
+  };
+
+  var CA = {
+    map: null,
+    layer: null,
+    geojson: null,
+    areas: [],
+    deepStateGeo: null,
+    isLoaded: false,
+    isInitialized: false,
+    stats: { total: 0, russia: 0, ukraine: 0, unknown: 0 }
+  };
+
   var db = null;
 
   /* ============================================================
@@ -78,31 +122,33 @@
       } catch(e){ res(null); }
     });
   }
-  function dbDelete(key){
-    if(!db) return Promise.resolve(false);
-    return new Promise(function(res){
-      try {
-        var tx = db.transaction(STORE_GEOJSON, "readwrite");
-        tx.objectStore(STORE_GEOJSON).delete(key);
-        tx.oncomplete = function(){ res(true); };
-        tx.onerror = function(){ res(false); };
-      } catch(e){ res(false); }
-    });
-  }
 
   /* ============================================================
-     Cache
+     Cache helpers
      ============================================================ */
   function isValidGeoJSON(json){
     return json && json.features && Array.isArray(json.features) && json.features.length > 5;
   }
-  function loadFromCache(){
+
+  function loadOblastsFromCache(){
     return dbGet(CACHE_KEY).then(function(cached){
       if(!cached || !cached.v) return null;
       if(cached.v.version === CACHE_VERSION &&
          (Date.now() - cached.v.t) < CACHE_MAX_AGE_MS &&
          isValidGeoJSON(cached.v.geojson)){
-        LOG("GeoJSON uit cache (" + cached.v.geojson.features.length + " features)");
+        LOG("Oblasten uit cache (" + cached.v.geojson.features.length + " features)");
+        return cached.v.geojson;
+      }
+      return null;
+    });
+  }
+
+  function loadDeepStateFromCache(){
+    return dbGet(CACHE_KEY_DS).then(function(cached){
+      if(!cached || !cached.v) return null;
+      if(cached.v.version === CACHE_VERSION_DS &&
+         (Date.now() - cached.v.t) < DS_CACHE_MAX_AGE_MS){
+        LOG("DeepState uit cache");
         return cached.v.geojson;
       }
       return null;
@@ -142,11 +188,8 @@
       }
       var proxy = PROXIES[idx];
       var fullUrl = proxy + encodeURIComponent(targetUrl);
-      var proxyNum = idx + 1;
       idx++;
-      LOG("  → proxy " + proxyNum + "/" + PROXIES.length);
       return fetchRaw(fullUrl, 30000).catch(function(e){
-        LOG("  proxy " + proxyNum + " faalde: " + e.message);
         return tryNext();
       });
     }
@@ -154,32 +197,15 @@
   }
 
   /* ============================================================
-     Normalisatie
+     Oblasten laden (GADM)
      ============================================================ */
-  function detectSourceFormat(json){
-    if(!json || !json.features || !json.features.length) return "unknown";
-    var p = json.features[0].properties || {};
-    if(p.GID_1 || p.NAME_1 || p.VARNAME_1) return "gadm";
-    if(p.shapeName || p.shapeID || p.shapeISO) return "gbound";
-    return "unknown";
-  }
-
-  function normalize(json){
-    var format = detectSourceFormat(json);
-    LOG("  formaat: " + format);
+  function normalizeOblast(json){
     json.features.forEach(function(f){
       if(!f || !f.properties) return;
       var p = f.properties;
-      var name, iso, id;
-      if(format === "gadm"){
-        name = p.NAME_1 || p.VARNAME_1 || p.name_1 || "?";
-        iso  = p.ISO_1 || p.GID_1 || "";
-        id   = (p.GID_1 || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
-      } else {
-        name = p.shapeName || p.NAME_1 || p.name || "?";
-        iso  = p.shapeISO || p.ISO_1 || "";
-        id   = (p.shapeID || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
-      }
+      var name = p.NAME_1 || p.VARNAME_1 || p.name_1 || "?";
+      var iso  = p.ISO_1 || p.GID_1 || "";
+      var id   = (p.GID_1 || iso || name).toString().toLowerCase().replace(/\s+/g, "-");
       f.properties = {
         id: id, name: name, iso: iso,
         controller: null, control_confidence: 0,
@@ -189,46 +215,41 @@
     return json;
   }
 
-  /* ============================================================
-     Hoofd fetch-flow
-     ============================================================ */
-  function fetchGeoJSON(){
+  function fetchOblasts(){
     var lastErr = null;
-    function trySource(srcIdx){
-      if(srcIdx >= SOURCES.length){
-        return Promise.reject(lastErr || new Error("Alle bronnen faalden"));
+    function trySource(idx){
+      if(idx >= OBLAST_SOURCES.length){
+        return Promise.reject(lastErr || new Error("Alle oblast-bronnen faalden"));
       }
-      var url = SOURCES[srcIdx];
-      var shortUrl = url.replace(/^https?:\/\//, "").slice(0, 60);
-      LOG("Bron " + (srcIdx+1) + "/" + SOURCES.length + ": " + shortUrl);
-
+      var url = OBLAST_SOURCES[idx];
+      LOG("Oblasten bron " + (idx+1) + "/" + OBLAST_SOURCES.length);
       return fetchViaProxy(url)
         .then(function(json){
-          if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON na fetch");
-          return normalize(json);
+          if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON");
+          return normalizeOblast(json);
         })
         .then(function(json){
-          LOG("  ✓ " + json.features.length + " features van bron " + (srcIdx+1));
+          LOG("  ✓ " + json.features.length + " oblasten");
           return json;
         })
         .catch(function(e){
-          LOG("Bron " + (srcIdx+1) + " faalde: " + e.message);
+          LOG("  bron " + (idx+1) + " faalde: " + e.message);
           lastErr = e;
-          return trySource(srcIdx + 1);
+          return trySource(idx+1);
         });
     }
     return trySource(0);
   }
 
-  function loadGeoJSON(){
-    return loadFromCache().then(function(cached){
+  function loadOblasts(){
+    return loadOblastsFromCache().then(function(cached){
       if(cached) return cached;
-      LOG("Cache leeg — start proxy fetch");
-      return fetchGeoJSON().then(function(json){
+      LOG("Oblast-cache leeg — fetch externe bron");
+      return fetchOblasts().then(function(json){
         return dbPut(CACHE_KEY, {
           version: CACHE_VERSION, t: Date.now(), geojson: json
         }).then(function(){
-          LOG("GeoJSON opgeslagen in cache");
+          LOG("Oblasten opgeslagen in cache");
           return json;
         });
       });
@@ -236,7 +257,204 @@
   }
 
   /* ============================================================
-     Pane + Render
+     DeepState laden
+     ============================================================ */
+  function extractDeepStateGeometry(json){
+    /* DeepState API kan verschillende formaten teruggeven:
+       - FeatureCollection met 1 multipolygon
+       - Array met wijzigingen (dan is de geometry per item)
+       We proberen beide. */
+    if(!json) return null;
+
+    /* Formaat 1: FeatureCollection */
+    if(json.type === "FeatureCollection" && json.features){
+      /* Zoek het grootste multipolygon */
+      var best = null, bestArea = 0;
+      json.features.forEach(function(f){
+        if(!f.geometry) return;
+        var area = 0;
+        if(f.geometry.type === "Polygon"){
+          area = f.geometry.coordinates.length;
+        } else if(f.geometry.type === "MultiPolygon"){
+          area = f.geometry.coordinates.length;
+          f.geometry.coordinates.forEach(function(poly){
+            area += poly.length;
+          });
+        }
+        if(area > bestArea){ bestArea = area; best = f; }
+      });
+      if(best) return best;
+    }
+
+    /* Formaat 2: Array met items */
+    if(Array.isArray(json) && json.length){
+      var polys = [];
+      json.forEach(function(item){
+        if(!item) return;
+        /* Soms is het {geometry: {...}} */
+        if(item.geometry && item.geometry.type === "MultiPolygon"){
+          polys = polys.concat(item.geometry.coordinates);
+        } else if(item.geometry && item.geometry.type === "Polygon"){
+          polys.push(item.geometry.coordinates);
+        } else if(item.type === "MultiPolygon"){
+          polys = polys.concat(item.coordinates);
+        } else if(item.type === "Polygon"){
+          polys.push(item.coordinates);
+        }
+      });
+      if(polys.length){
+        return {
+          type: "Feature",
+          properties: { name: "deepstate_occupied" },
+          geometry: { type: "MultiPolygon", coordinates: polys }
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function fetchDeepState(){
+    var lastErr = null;
+    function trySource(idx){
+      if(idx >= DEEPSTATE_SOURCES.length){
+        return Promise.reject(lastErr || new Error("Alle DeepState bronnen faalden"));
+      }
+      var url = DEEPSTATE_SOURCES[idx];
+      LOG("DeepState bron " + (idx+1) + "/" + DEEPSTATE_SOURCES.length);
+      return fetchViaProxy(url)
+        .then(function(json){
+          var feat = extractDeepStateGeometry(json);
+          if(!feat) throw new Error("Geen polygoon in response");
+          return feat;
+        })
+        .then(function(feat){
+          LOG("  ✓ DeepState polygoon geladen");
+          return feat;
+        })
+        .catch(function(e){
+          LOG("  bron " + (idx+1) + " faalde: " + e.message);
+          lastErr = e;
+          return trySource(idx+1);
+        });
+    }
+    return trySource(0);
+  }
+
+  function loadDeepState(){
+    return loadDeepStateFromCache().then(function(cached){
+      if(cached) return cached;
+      LOG("DeepState cache leeg — fetch externe bron");
+      return fetchDeepState().then(function(feat){
+        return dbPut(CACHE_KEY_DS, {
+          version: CACHE_VERSION_DS, t: Date.now(), geojson: feat
+        }).then(function(){
+          LOG("DeepState opgeslagen in cache");
+          return feat;
+        });
+      }).catch(function(e){
+        LOG("DeepState laden faalde volledig: " + e.message);
+        return null; /* Fallback wordt gebruikt */
+      });
+    });
+  }
+
+  /* ============================================================
+     Controller berekening
+     ============================================================ */
+  function checkFallbackOccupied(oblastName){
+    var lname = String(oblastName || "").toLowerCase();
+    for(var i = 0; i < FALLBACK_OCCUPIED.length; i++){
+      if(lname.indexOf(FALLBACK_OCCUPIED[i]) !== -1) return true;
+    }
+    return false;
+  }
+
+  function calculateControllers(){
+    if(!CA.geojson || !CA.geojson.features) return;
+
+    var hasDeepState = !!CA.deepStateGeo;
+    var hasTurf = !!(window.turf && window.turf.centroid && window.turf.booleanPointInPolygon);
+
+    LOG("Controller berekening — DeepState: " + hasDeepState + ", turf: " + hasTurf);
+
+    var stats = { total: 0, russia: 0, ukraine: 0, unknown: 0 };
+
+    CA.geojson.features.forEach(function(feature){
+      if(!feature || !feature.properties) return;
+      stats.total++;
+      var props = feature.properties;
+      var controller = null;
+
+      if(hasDeepState && hasTurf){
+        try {
+          var centroid = window.turf.centroid(feature);
+          var inOccupied = window.turf.booleanPointInPolygon(centroid, CA.deepStateGeo);
+          if(inOccupied){
+            controller = "Rusland";
+            stats.russia++;
+          } else {
+            controller = "Oekraïne";
+            stats.ukraine++;
+          }
+        } catch(e){
+          /* Fallback bij turf-fout */
+          if(checkFallbackOccupied(props.name)){
+            controller = "Rusland";
+            stats.russia++;
+          } else {
+            controller = "Oekraïne";
+            stats.ukraine++;
+          }
+        }
+      } else {
+        /* Geen DeepState of turf — gebruik hardcoded fallback */
+        if(checkFallbackOccupied(props.name)){
+          controller = "Rusland";
+          stats.russia++;
+        } else {
+          controller = "Oekraïne";
+          stats.ukraine++;
+        }
+      }
+
+      props.controller = controller;
+      props.control_confidence = controller ? 0.7 : 0;
+      props.last_update = new Date().toISOString();
+    });
+
+    CA.stats = stats;
+    LOG("Controllers: " + stats.total + " oblasten | Rusland: " + stats.russia +
+        " | Oekraïne: " + stats.ukraine);
+  }
+
+  /* ============================================================
+     Styling
+     ============================================================ */
+  function getFillColor(controller){
+    if(controller === "Rusland") return COLORS.russia;
+    if(controller === "Oekraïne") return COLORS.ukraine;
+    return COLORS.unknown;
+  }
+
+  function styleArea(feature){
+    var props = (feature && feature.properties) || {};
+    var controller = props.controller;
+    var fillColor = getFillColor(controller);
+    var fillOpacity = controller ? 0.35 : 0;
+    return {
+      fillColor: fillColor,
+      fillOpacity: fillOpacity,
+      color: COLORS.border,
+      weight: 1.3,
+      opacity: 0.7,
+      dashArray: null,
+      interactive: false
+    };
+  }
+
+  /* ============================================================
+     Render
      ============================================================ */
   function ensurePane(map){
     if(map.getPane(PANE_NAME)) return;
@@ -245,21 +463,23 @@
     map.getPane(PANE_NAME).style.pointerEvents = "none";
   }
 
-  function styleArea(){
-    return {
-      fillColor: "#b42828", fillOpacity: 0,
-      color: "#e0a857", weight: 1.2,
-      opacity: 0.65, dashArray: null, interactive: false
-    };
-  }
-
   function renderLayer(){
     if(!CA.map || !CA.geojson) return;
     ensurePane(CA.map);
+
+    /* Verwijder bestaande layer */
+    if(CA.layer){
+      try{ CA.map.removeLayer(CA.layer); }catch(e){}
+    }
+
     CA.layer = L.geoJSON(CA.geojson, {
-      style: styleArea, pane: PANE_NAME, smoothFactor: 1.2
+      style: styleArea,
+      pane: PANE_NAME,
+      smoothFactor: 1.2
     });
+
     CA.layer.addTo(CA.map);
+
     CA.areas = [];
     CA.layer.eachLayer(function(l){
       if(l.feature && l.feature.properties){
@@ -267,10 +487,13 @@
           id: l.feature.properties.id,
           name: l.feature.properties.name,
           iso: l.feature.properties.iso,
-          layer: l, feature: l.feature
+          controller: l.feature.properties.controller,
+          layer: l,
+          feature: l.feature
         });
       }
     });
+
     LOG("Gebiedslaag gerenderd: " + CA.areas.length + " gebieden");
   }
 
@@ -280,17 +503,28 @@
   function init(mapInstance){
     if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
     if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
+    if(!window.turf){
+      LOG("WAARSCHUWING: turf.js niet geladen — fallback modus");
+    }
+
     CA.map = mapInstance;
     LOG("Init gestart");
+
     return openDB()
-      .then(loadGeoJSON)
-      .then(function(json){
-        CA.geojson = json;
-        renderLayer();
-        CA.isInitialized = true;
-        CA.isLoaded = true;
-        LOG("Init klaar — " + CA.areas.length + " oblasten");
-        return true;
+      .then(function(){ return loadOblasts(); })
+      .then(function(oblastsJson){
+        CA.geojson = oblastsJson;
+        /* DeepState ophalen (optioneel — mag falen) */
+        return loadDeepState().then(function(dsFeat){
+          CA.deepStateGeo = dsFeat;
+          calculateControllers();
+          renderLayer();
+          CA.isInitialized = true;
+          CA.isLoaded = true;
+          LOG("Init klaar — " + CA.areas.length + " oblasten (" +
+              CA.stats.russia + " rood, " + CA.stats.ukraine + " blauw)");
+          return true;
+        });
       })
       .catch(function(e){
         LOG("Init faalde: " + (e.message || "?"));
@@ -298,9 +532,29 @@
       });
   }
 
+  function refresh(){
+    if(!CA.isInitialized) return Promise.resolve();
+    LOG("Refresh — DeepState opnieuw ophalen");
+    /* Wis DeepState cache om nieuwe data te forceren */
+    return dbPut(CACHE_KEY_DS, {
+      version: CACHE_VERSION_DS + "-expired", t: 0, geojson: null
+    }).then(function(){
+      return loadDeepState();
+    }).then(function(dsFeat){
+      CA.deepStateGeo = dsFeat;
+      calculateControllers();
+      renderLayer();
+      LOG("Refresh klaar — " + CA.stats.russia + " rood, " + CA.stats.ukraine + " blauw");
+      return true;
+    });
+  }
+
   function clearCache(){
-    return dbDelete(CACHE_KEY).then(function(){
-      LOG("Cache gewist");
+    return Promise.all([
+      dbPut(CACHE_KEY, { version: "cleared", t: 0, geojson: null }),
+      dbPut(CACHE_KEY_DS, { version: "cleared", t: 0, geojson: null })
+    ]).then(function(){
+      LOG("Alle caches gewist");
       return true;
     });
   }
@@ -310,9 +564,15 @@
     CA.layer = null; CA.isInitialized = false; CA.isLoaded = false;
   }
 
+  function getStats(){
+    return CA.stats;
+  }
+
   window.ConflictAreas = {
-    init: init, destroy: destroy, clearCache: clearCache,
-    state: CA, _version: "v1.3", _sources: SOURCES
+    init: init, refresh: refresh, destroy: destroy, clearCache: clearCache,
+    getStats: getStats,
+    state: CA,
+    _version: "v2.0"
   };
 
   /* ============================================================
@@ -342,5 +602,5 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  LOG("conflict-areas.js v1.3 geladen — wacht op map init");
+  LOG("conflict-areas.js v2.0 geladen — wacht op map init");
 })();
