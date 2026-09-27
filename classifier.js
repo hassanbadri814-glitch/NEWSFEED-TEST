@@ -1,45 +1,164 @@
 /* ============================================================
-   WAR DESK — classifier.js v2.3
-   Waterdicht 5-categorie systeem — v2.3 fixes:
-
-   1. hasMilitaryAction: ALLEEN actor + violence-verb
-      (geen locatie-shortcut meer)
-   2. Dreigingen (threatening/warns/denies/plots) → Politiek
-   3. "Report:" prefix → Politiek
-   4. Duits "gewarnt", "soll" toegevoegd
-   5. "diplomacy", "FM", "foreign-minister" → Politiek
-   6. Subtype fix: neergestoken → Steekpartij (was Moord)
+   WAR DESK — classifier.js v3.0
+   Fundamentele herstructurering: ACTIE vs RAPPORTAGE
+   
+   KERNPRINCIPE:
+   - Militair = UITGEVOERDE fysieke militaire actie
+   - Politiek = rapporten, verklaringen, dreigingen, plannen, 
+                onderhandelingen, diplomatie
+   
+   Architectuur in 3 fasen:
+   1. Communicatie-modus detecteren (ACTIE vs RAPPORTAGE)
+   2. Actie-verbs vs rapportage-verbs scheiden
+   3. Categorie toewijzen per modus
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var VERSION = "v2.3";
+  var VERSION = "v3.0";
   var CATS = ["militair", "crime", "politiek", "protest", "civiel"];
   var PRIORITY = { militair: 5, crime: 4, politiek: 3, protest: 2, civiel: 1 };
 
-  /* ===== MILITAIR ===== */
+  /* ============================================================
+     FASE 1 — COMMUNICATIE-MODUS
+     ============================================================ */
+
+  /* Titel-prefix die altijd RAPPORTAGE aangeeft */
+  var REPORT_PREFIXES = [
+    /^report\s*:/i, /^report\s*-/i, /^report:\s*/i,
+    /^live\s*:/i, /^live\s*[-–]/i, /^live\s+updates?/i,
+    /^en\s*direct/i,
+    /^analysis\s*:/i, /^opinion\s*:/i, /^commentary\s*:/i,
+    /^breaking\s*:/i,
+    /^update\s*:/i, /^updates?\s*:/i,
+    /^\d+\s+days?\s+before/i,
+    /^watch\s*:/i, /^video\s*:/i,
+    /^interview\s*:/i,
+    /^exclusive\s*:/i
+  ];
+
+  /* Rapportage-werkwoorden (5 talen) — hoge waarde */
+  var REPORT_VERBS = {
+    // Engels
+    "says":3, "said":3, "told":3, "reported":3, "reports":3, "reportedly":3,
+    "claims":3, "claimed":3, "denies":3, "denied":3, "denial":3,
+    "warns":3, "warned":3, "warning":3, "threatens":3, "threatened":3,
+    "threatening":3, "threat":3, "announces":3, "announced":3,
+    "declares":3, "declared":3, "reveals":3, "revealed":3,
+    "states":3, "stated":3, "confirms":3, "confirmed":3,
+    "accuses":3, "accused":3, "urges":3, "urged":3,
+    "according-to":3, "statement":3, "statements":3,
+    "announcement":3, "declaration":3, "declarations":3,
+    "plot":3, "plots":3, "plotting":3, "plotted":3,
+    "plans-to":3, "planning":3, "planned":3,
+    "considers":3, "considering":3,
+    "highlights":3, "highlighted":3,
+    "negotiations":3, "negotiates":3, "negotiating":3,
+    "talks":3, "summit":3, "diplomacy":3, "diplomatic":3,
+    "mediates":3, "mediation":3, "mediators":3,
+    "condemns":3, "condemned":3, "praises":3, "praised":3,
+    "meet":3, "meets":3, "met":3, "meeting":3, "meetings":3,
+    "visit":3, "visits":3, "visited":3,
+    "hosts":3, "hosted":3, "arrives":3, "arrived":3, "departed":3,
+    "live-updates":3,
+
+    // Nederlands
+    "zegt":3, "zei":3, "vertelt":3, "vertelde":3,
+    "meldt":3, "meldde":3, "bericht":3, "berichtte":3,
+    "verklaart":3, "verklaarde":3, "beweert":3, "beweerde":3,
+    "ontkent":3, "ontkende":3, "bevestigt":3, "bevestigde":3,
+    "waarschuwt":3, "waarschuwde":3, "dreigt":3, "dreigde":3,
+    "beschuldigt":3, "beschuldigde":3, "eist":3, "eiste":3,
+    "volgens":3, "verklaring":3, "verklaringen":3,
+    "aankondiging":3, "aankondigt":3, "aankondigde":3,
+    "plan":2, "plannen":3, "plant":3, "plande":3,
+    "overweegt":3, "overwoog":3,
+    "onderhandelingen":3, "overleg":3, "topoverleg":3,
+    "diplomatiek":3, "diplomaat":3, "diplomaten":3,
+    "ontmoet":3, "ontmoette":3, "ontmoeting":3,
+    "bezoekt":3, "bezocht":3, "bezoek":3,
+    "reist-naar":3, "arriveert":3,
+    "live":2, "liveblog":3,
+
+    // Frans
+    "selon":3, "déclare":3, "annonce":3, "rapporte":3,
+    "affirme":3, "nie":3, "avertit":3, "menace":3,
+    "négociations":3, "pourparlers":3, "diplomatie":3,
+    "sommet":3, "visite":3, "déclaration":3,
+    "direct":2, "en-direct":3,
+
+    // Duits
+    "sagt":3, "sagte":3, "berichtet":3, "laut":3, "meldet":3,
+    "warnt":3, "warnte":3, "droht":3, "drohte":3,
+    "verhandlungen":3, "diplomatie":3, "gipfel":3,
+    "besuch":3, "besucht":3, "erklärt":3, "erklärung":3,
+    "plan":2, "plant":3, "plante":3,
+
+    // Arabisch
+    "قال":3, "صرح":3, "أعلن":3, "حذر":3, "هدد":3,
+    "مفاوضات":3, "دبلوماسية":3, "بيان":3
+  };
+
+  /* Actie-werkwoorden (5 talen) — UITGEVOERDE fysieke acties */
+  var ACTION_VERBS = {
+    // Engels
+    "struck":3, "strikes":2, "attacked":3, "attacks":2, "invaded":3,
+    "killed":3, "kills":2, "bombed":3, "bombs":2, "shelled":3,
+    "fired":3, "fires":2, "launched":3, "launches":2, "hit":2, "hits":2,
+    "captured":3, "captures":2, "seized":3, "seizes":2,
+    "shot-down":3, "downed":3, "intercepted":3, "advanced":3, "advances":2,
+    "withdrew":3, "withdrawn":3, "abandoned":2, "abandoning":2,
+    "repelled":3, "invaded":3, "crashed":3, "exploded":3,
+    "detonated":3, "assassinated":3, "executed":2, "marched":2,
+
+    // Nederlands
+    "trof":3, "troffen":3, "raakte":2, "raakten":2,
+    "viel-aan":3, "vielen-aan":3, "viel-binnen":3, "vielen-binnen":3,
+    "doodde":3, "doodden":3, "vuurde-af":3, "vuurden-af":3,
+    "lanceerde":3, "lanceerden":3, "bombardeerde":3, "bombardeerden":3,
+    "beschoot":3, "beschoten":3, "veroverde":3, "veroverden":3,
+    "enterde":3, "enterd":3, "stortte-neer":3, "stortten-neer":3,
+    "ontplofte":3, "ontploften":3, "sloeg-toe":3,
+    "pleegde":2, "pleegden":2,
+
+    // Frans
+    "frappé":3, "attaqué":3, "envahi":3, "tué":3, "tués":3,
+    "bombardé":3, "lancé":3, "lancé-des":3, "saisi":3,
+    "abattu":3, "reculé":3,
+
+    // Duits
+    "getötet":3, "angegriffen":3, "invadiert":3, "bombardiert":3,
+    "abgefeuert":3, "erobert":3, "abgeschossen":3, "eingedrungen":3,
+    "explodiert":3,
+
+    // Arabisch
+    "قتل":3, "هاجم":3, "قصف":3, "أطلق":3, "اجتاح":3, "أسقط":3
+  };
+
+  /* ============================================================
+     WOORDENLIJSTEN
+     ============================================================ */
+
   var W_MILITAIR = {
-    "raketaanval":3, "raketinslag":3, "kruisraket-afgevuurd":3,
+    /* Alleen ECHTE uitgevoerde acties op gewicht 3 */
+    "raketaanval":3, "raketinslag":3, "raketten-afgevuurd":3,
     "ballistische-raket":3, "hypersonische-raket":3,
     "missile-strike":3, "missile-attack":3,
-    "bombardement":3, "bombardementen":3, "bombing":3, "bombardment":3, "gebombardeerd":3,
+    "bombardement":3, "bombardementen":3, "bombing":3, "bombardment":3,
     "luchtaanval":3, "luchtaanvallen":3, "airstrike":3, "air-strike":3,
-    "beschieting":3, "beschietingen":3, "shelling":3, "beschoten":3,
-    "mortier":3, "mortar":3, "mortieraanval":3,
-    "artillerie":3, "artillery":3, "artillerievuur":3,
-    "granaat":3, "granaten":3, "grenade":3,
-    "invasie":3, "invasion":3, "invaded":3, "binnengevallen":3,
+    "beschieting":3, "beschietingen":3, "shelling":3,
+    "mortieraanval":3, "artillerievuur":3, "granaatinslag":3,
+    "invasie":3, "invasion":3,
     "offensief":3, "offensive":3, "tegenoffensief":3, "counteroffensive":3,
-    "bestorming":3, "bestormd":3,
-    "gevecht":3, "gevechten":3, "fighting":3, "combat":3, "vuurgevecht":3,
+    "vuurgevecht":3, "grondgevecht":3,
     "drone-aanval":3, "droneaanval":3, "drone-strike":3,
-    "oorlogshandeling":3, "oorlogsdaad":3,
-    "staakt-het-vuren-geschonden":3,
-    "escaleert":3, "escaleerde":3, "escalatie":2, "escalation":2,
-    "luchtafweer-afgevuurd":3, "luchtafweer":3, "air-defense":3,
-    "onderschept":3, "intercepted":3, "neergehaald":3, "downed":3,
-    "aanval":2, "aanvallen":2, "attack":2, "attacks":2, "assault":2,
+    "escalatie":2, "escalation":2,
+    "luchtafweer":2, "air-defense":2,
+    "neergehaald":3, "downed":3, "shot-down":3,
+    "escaleert":2, "escaleerde":2,
+
+    /* Context (gewicht 2) */
     "militair":2, "militaire":2, "military":2,
     "leger":2, "army":2, "krijgsmacht":2, "strijdkrachten":2,
     "troepen":2, "troops":2, "forces":2,
@@ -51,19 +170,20 @@
     "armed-group":2, "gewapende-groep":2, "gewapende-groepering":2,
     "militants":2, "militant":2, "insurgents":2, "insurgent":2,
     "rebellen":2, "rebellenbeweging":2, "opstandelingen":2,
-    "nato":2, "navo":2, "vn-vredesmacht":2, "un-peacekeepers":2,
+    "nato":2, "navo":2,
     "frontlinie":2, "frontline":2, "front":2,
     "oorlog":2, "war":2,
     "wapen":2, "wapens":2, "weapon":2, "weapons":2,
     "patriot":2, "s-300":2, "s-400":2, "iron-dome":2,
     "paramilitaire":2, "huurlingen":2, "huursoldaten":2,
     "bevelhebber":2, "generaal":2, "kolonel":2, "commandant":2,
-    "konvooi":2, "militaire-konvooi":2,
     "tank":2, "tanks":2, "pantservoertuig":2, "pantserwagen":2,
     "gevechtsvliegtuig":2, "fighter-jet":2, "straaljager":2,
     "marine":2, "warship":2, "fregat":2, "torpedo":2,
     "militair-doelwit":2, "militaire-installatie":2,
     "wapenstilstand":2, "staakt-het-vuren":2, "ceasefire":2,
+
+    /* Zwak */
     "gesneuveld":1, "gesneuvelde":1, "gesneuvelden":1,
     "oorlogsgebied":1, "conflictgebied":1, "crisisgebied":1,
     "slagveld":1, "battlefield":1,
@@ -71,7 +191,6 @@
     "conflict":1, "strijd":1
   };
 
-  /* ===== CRIME ===== */
   var W_CRIME = {
     "moord":3, "vermoord":3, "moorden":3, "moordenaar":3, "moordenaars":3,
     "neergeschoten":3, "neergestoken":3, "neergeslagen":3,
@@ -123,44 +242,8 @@
     "teisteren":1, "teistert":1, "teisterde":1
   };
 
-  /* ===== POLITIEK — uitgebreid ===== */
   var W_POLITIEK = {
-    // Diplomatieke werkwoorden
-    "says":3, "said":3, "claims":3, "accuses":3, "warns":3, "warned":3,
-    "rejects":3, "rejected":3, "awaits":3, "refuses":3, "refused":3,
-    "demands":3, "demanded":3, "urges":3, "urged":3,
-    "declares":3, "declared":3, "states":3, "thanked":3, "thanks":3,
-    "praised":3, "condemned":3, "highlights":3, "highlighted":3,
-    "denies":3, "denied":3, "denial":3,
-    "meet":3, "meets":3, "met":3, "meeting":3, "meetings":3,
-    "summit":3, "visit":3, "visits":3, "visited":3,
-    "hosts":3, "hosted":3, "arrives":3, "arrived":3, "departed":3,
-    "talks":3, "negotiations":3, "negotiates":3, "mediates":3, "mediation":3,
-    "foreign-minister":3, "foreign-ministers":3, "prime-minister":3,
-    "defence-minister":3, "defense-minister":3, "foreign-ministry":3,
-    "diplomat":3, "diplomats":3, "ambassador":3, "ambassadors":3,
-    "diplomacy":3, "diplomatic":3,
-
-    // Dreiging / planning (geen actie)
-    "threat":3, "threatens":3, "threatening":3, "threatened":3,
-    "warns":3, "warned":3, "warning":3,
-    "plot":3, "plots":3, "plotting":3, "plotted":3,
-    "plans-to":3, "planning":3, "prepares":3, "preparing":3,
-    "considers":3, "considering":3,
-    "report":3, "reports":3, "reportedly":3, "reporting":3,
-
-    // Nederlands
-    "zegt":3, "zei":3, "verklaart":3, "verklaarde":3, "beweert":3, "beweerde":3,
-    "beschuldigt":3, "beschuldigde":3, "waarschuwt":3, "waarschuwde":3,
-    "eist":3, "eiste":3, "weigert":3, "weigerde":3, "dreigt":3, "dreigde":3,
-    "volgens":3, "reageert":3, "reageerde":3, "ontkent":3, "ontkende":3,
-    "ontmoet":3, "ontmoette":3, "bezoekt":3, "bezocht":3, "reist-naar":3,
-
-    // Duits
-    "gewarnt":3, "warnt":3, "warnte":3, "sagt":3, "sagte":3,
-    "laut":3, "bericht":3, "berichtet":3, "meldet":3,
-
-    // Politieke gebeurtenissen
+    /* Politieke gebeurtenissen */
     "verkiezing":3, "verkiezingen":3, "election":3, "elections":3,
     "referendum":3, "volksraadpleging":3,
     "staatsgreep":3, "coup":3, "militaire-coup":3,
@@ -168,15 +251,17 @@
     "motie-van-wantrouwen":3,
     "regeringscrisis":3, "kabinetscrisis":3, "kabinet-valt":3,
     "regeerakkoord":3, "coalitieakkoord":3,
+    "verkiezingsprogramma":3, "partijprogramma":3,
     "sanction":3, "sanctions":3, "sanctie":3, "sancties":3,
 
-    // Actoren
+    /* Actoren */
     "parlement":2, "parliament":2, "volksvertegenwoordiging":2,
     "tweede-kamer":2, "eerste-kamer":2, "senaat":2,
     "coalitie":2, "coalition":2, "oppositie":2, "opposition":2,
     "kabinet":2, "cabinet":2, "regering":2, "government":2,
     "president":2, "presidentschap":2, "premier":2, "prime-minister":2,
     "minister":2, "ministers":2, "staatssecretaris":2,
+    "diplomaat":2, "diplomaten":2, "ambassadeur":2, "ambassadeurs":2,
     "verdrag":2, "treaty":2, "akkoord":2, "overeenkomst":2,
     "staatsbezoek":2, "topoverleg":2, "vredesoverleg":2,
     "politieke-partij":2, "fractie":2, "fractievoorzitter":2,
@@ -184,8 +269,10 @@
     "parlementsverkiezing":2, "presidentsverkiezing":2,
     "gemeenteraad":2, "provinciale-staten":2, "waterschap":2,
     "formatie":2, "informateur":2, "formateur":2,
-    "mediators":2, "mediator":2, "vredesplan":2, "peace-plan":2,
+    "foreign-minister":2, "prime-minister":2, "foreign-ministry":2,
+    "vredesplan":2, "peace-plan":2,
 
+    /* Zwak */
     "politiek":1, "political":1, "politicus":1, "politica":1,
     "partij":1, "party":1, "campagne":1, "campaign":1,
     "debat":1, "debate":1, "stemming":1, "vote":1,
@@ -193,7 +280,6 @@
     "beleid":1, "policy":1, "overheid":1, "authority":1
   };
 
-  /* ===== PROTEST ===== */
   var W_PROTEST = {
     "demonstratie":3, "demonstranten":3, "demonstreren":3, "demonstrant":3,
     "protest":3, "protesten":3, "protesteerders":3,
@@ -217,7 +303,6 @@
     "politie-inzet":1, "waterkanon":1, "traangas":1
   };
 
-  /* ===== CIVIEL ===== */
   var W_CIVIEL = {
     "aardbeving":3, "earthquake":3, "naschok":3, "naschokken":3,
     "overstroming":3, "overstromingen":3, "flood":3, "flooding":3,
@@ -262,7 +347,6 @@
     "hulpverlening":1, "reddingsactie":1, "redding":1
   };
 
-  /* ===== SPORT-BLACKLIST — alleen specifiek ===== */
   var SPORT_WORDS = [
     "football", "soccer", "voetbal", "voetballer", "voetbalclub",
     "eredivisie", "champions-league", "europa-league", "conference-league",
@@ -301,25 +385,6 @@
     "zelfmoordaanslag", "zelfmoordenaar",
     "bomaanslag", "autobom", "autobomaanslag",
     "suicide-attack", "suicide-bomber", "terrorism", "terrorist-attack"
-  ];
-
-  var DIPLOMATIC_WORDS = [
-    "says", "said", "claims", "accuses", "warns", "warned", "rejects",
-    "rejected", "awaits", "refuses", "refused", "demands", "urges", "urged",
-    "declares", "states", "thanked", "thanks", "praised", "condemned",
-    "highlights", "denies", "denied", "denial",
-    "meet", "meets", "met", "meeting", "summit", "visit", "visits",
-    "hosts", "hosted", "arrives", "talks", "negotiations",
-    "foreign-minister", "prime-minister", "defence-minister", "defense-minister",
-    "diplomat", "diplomats", "ambassador", "diplomacy", "diplomatic",
-    "threat", "threatens", "threatening", "threatened",
-    "plot", "plots", "plotting", "plotted",
-    "plans-to", "planning", "prepares", "preparing",
-    "report", "reports", "reportedly",
-    "zegt", "zei", "verklaart", "beweert", "beschuldigt",
-    "waarschuwt", "eist", "weigert", "dreigt", "volgens",
-    "ontkent", "ontkende", "ontmoet", "bezoekt",
-    "gewarnt", "warnt", "sagt", "laut", "bericht", "meldet"
   ];
 
   var CONFLICT_ZONES = [
@@ -368,6 +433,9 @@
     "middle-east-eye-tg", "kyiv-independent"
   ];
 
+  /* ============================================================
+     COMPILATIE
+     ============================================================ */
   function compilePattern(word) {
     var w = String(word).toLowerCase();
     var esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -387,6 +455,8 @@
   var P_POLITIEK = compileMap(W_POLITIEK);
   var P_PROTEST  = compileMap(W_PROTEST);
   var P_CIVIEL   = compileMap(W_CIVIEL);
+  var P_REPORT_VERBS = compileMap(REPORT_VERBS);
+  var P_ACTION_VERBS = compileMap(ACTION_VERBS);
 
   var P_SUBSTRING = [];
   for (var sw in SUBSTRING_WORDS) {
@@ -399,11 +469,13 @@
   }
 
   var P_TERROR = TERRORISM_WORDS.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
-  var P_DIPLOMATIC = DIPLOMATIC_WORDS.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
   var P_CONFLICT = CONFLICT_ZONES.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
   var P_INSTABLE = INSTABLE_ZONES.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
   var P_SPORT = SPORT_WORDS.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
 
+  /* ============================================================
+     MATCH HELPERS
+     ============================================================ */
   function countMatches(text, patterns) {
     var score = 0, hits = [];
     for (var i = 0; i < patterns.length; i++) {
@@ -433,55 +505,71 @@
   }
 
   /* ============================================================
-     FIX 1: hasMilitaryAction — ALLEEN actor + violence verb
+     FASE 1 — COMMUNICATIE-MODUS DETECTEREN
      ============================================================ */
-  function hasMilitaryAction(text) {
-    // Direct: gewicht-3 militaire term die een echte actie is
-    // (sluit uit: dreigingen, waarschuwingen, rapporten)
-    var actionPatterns = [
-      /\braketaanval\b/i, /\braketinslag\b/i, /\bmissile.strike\b/i,
-      /\bbombardement\b/i, /\bbombing\b/i, /\bgebombardeerd\b/i,
-      /\bluchtaanval\b/i, /\bairstrike\b/i, /\bair.strike\b/i,
-      /\bbeschieting\b/i, /\bshelling\b/i, /\bbeschoten\b/i,
-      /\bmortieraanval\b/i, /\bartillerievuur\b/i, /\bgranaatinslag\b/i,
-      /\binvasie\b/i, /\binvasion\b/i, /\binvaded\b/i, /\bbinnengevallen\b/i,
-      /\boffensief\b/i, /\boffensive\b/i, /\btegenoffensief\b/i,
-      /\bbestorming\b/i, /\bvuurgevecht\b/i, /\bgevechten\b/i,
-      /\bdrone.strike\b/i, /\bdrone.aanval\b/i,
-      /\bescaleert\b/i, /\bescaleerde\b/i
-    ];
-    for (var p = 0; p < actionPatterns.length; p++) {
-      if (actionPatterns[p].test(text)) return true;
+  function detectReportMode(title, text) {
+    var reportScore = 0;
+    var indicators = [];
+
+    /* Titel-prefix check */
+    for (var i = 0; i < REPORT_PREFIXES.length; i++) {
+      if (REPORT_PREFIXES[i].test(title)) {
+        reportScore += 5;
+        indicators.push({ type: "prefix", word: title.slice(0, 20) });
+        break;
+      }
     }
 
-    var hasActor = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|iraqi|yemeni|lebanese|saudi|turkish|egyptian|libyan|sudanese|somali|nigerian|afghan|pakistani|indian|chinese|taiwanese|venezuelan|kurdish|idf|hamas|hezbollah|houthi|taliban|isis|al.qaeda|al.shabaab|boko.haram|wagner|armed.group|gewapende.groep|militants|militant|insurgents|insurgent|fighters|fighter|troops|troop|forces|force|soldiers|soldier|army|navy|air.force|airforce|marines|military|paramilitary|rebels|rebel)\b/i.test(text);
+    /* Rapportage-werkwoorden */
+    var rv = countMatches(text, P_REPORT_VERBS);
+    reportScore += rv.score;
+    rv.hits.forEach(function(h){ indicators.push({ type: "verb", word: h.word, weight: h.weight }); });
 
-    var hasViolenceVerb = /\b(strike|strikes|struck|attack|attacks|attacked|kill|kills|killed|injure|injures|injured|bomb|bombs|bombed|shell|shells|shelled|hit|hits|launch|launches|launched|fire|fires|fired|shoot|shoots|shot|down|downed|shoot.down|intercept|intercepts|intercepted|advance|advances|advanced|withdraw|withdraws|withdrew|withdrawn|abandon|abandons|abandoned|abandoning|retreat|retreats|retreated|repel|repels|repelled|capture|captures|captured|seize|seizes|seized|clash|clashes|clashed|invaded|invades|seized|crashed|exploded)\b/i.test(text);
+    /* Actie-werkwoorden (tegenwicht) */
+    var av = countMatches(text, P_ACTION_VERBS);
+    var actionScore = av.score;
 
-    // BEIDE nodig — geen locatie-shortcut meer
-    return hasActor && hasViolenceVerb;
-  }
+    /* Bepaal modus: als reportScore > actionScore × 1.5 → RAPPORTAGE */
+    var isReport = reportScore > 0 && reportScore > actionScore * 1.5;
+    var isAction = actionScore > reportScore;
 
-  function isDiplomaticStatement(text) {
-    for (var i = 0; i < P_DIPLOMATIC.length; i++) {
-      if (P_DIPLOMATIC[i].pattern.test(text)) return P_DIPLOMATIC[i].word;
-    }
-    return null;
-  }
-
-  function isSportArticle(text) {
-    for (var i = 0; i < P_SPORT.length; i++) {
-      if (P_SPORT[i].pattern.test(text)) return P_SPORT[i].word;
-    }
-    return null;
-  }
-
-  function hasCivielIncident(text) {
-    return /\b(crash|killed|dead|deaths|died|injured|wounded|accident|fire|emergency|explosion|blast|helikoptercrash|helicopter.crash)\b/i.test(text);
+    return {
+      isReport: isReport,
+      isAction: isAction,
+      reportScore: reportScore,
+      actionScore: actionScore,
+      indicators: indicators.slice(0, 5)
+    };
   }
 
   /* ============================================================
-     FIX 6: Subtype-detectie — steekpartij/schietpartij vóór moord
+     FASE 2 — ECHTE UITGEVOERDE ACTIE?
+     ============================================================ */
+  function hasRealMilitaryAction(title, text) {
+    /* 1. Direct: gewicht-3 militaire actie-woord in TITEL */
+    var titleLower = title.toLowerCase();
+    for (var i = 0; i < P_MILITAIR.length; i++) {
+      if (P_MILITAIR[i].weight >= 3 && P_MILITAIR[i].pattern.test(titleLower)) return true;
+    }
+
+    /* 2. Actie-verb in de TITEL (uitgevoerde actie) */
+    var titleAction = countMatches(titleLower, P_ACTION_VERBS);
+    if (titleAction.score >= 3) return true;
+
+    /* 3. Actor + Action-verb in de TITEL */
+    var titleHasActor = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|iraqi|yemeni|lebanese|idf|hamas|hezbollah|houthi|taliban|isis|al.qaeda|armed.group|militants|insurgents|fighters|troops|forces|soldiers|army|navy|military|rebels)\b/i.test(titleLower);
+    if (titleHasActor && titleAction.score >= 3) return true;
+
+    /* 4. Fallback: ook beschrijving meenemen (minder streng) */
+    var fullAction = countMatches(text, P_ACTION_VERBS);
+    var fullActor = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|idf|hamas|hezbollah|houthi|taliban|isis|al.qaeda|armed.group|militants|insurgents|fighters|troops|forces|soldiers|army|military|rebels)\b/i.test(text);
+
+    if (fullActor && fullAction.score >= 5) return true;
+    return false;
+  }
+
+  /* ============================================================
+     SUBTYPE-DETECTIE
      ============================================================ */
   function detectMilitairSubtype(text, isTerror) {
     if (isTerror) return "Terrorisme";
@@ -505,7 +593,6 @@
     if (isTerror) return "Terrorisme";
     if (/maffia|mocromaffia/.test(text)) return "Maffia";
     if (/\bontsnapping|ontsnapt|ontsnapte|escape|escaped/.test(text)) return "Ontsnapping";
-    /* FIX: schietpartij en steekpartij VÓÓR moord */
     if (/\bschietpartij|schietincident|schoten|neergeschoten|shooting/.test(text)) return "Schietpartij";
     if (/\bsteekpartij|steekincident|neergestoken/.test(text)) return "Steekpartij";
     if (/\bmoord|vermoord|doodslag|doodde|doodden/.test(text)) return "Moord";
@@ -523,14 +610,15 @@
   }
 
   function detectPolitiekSubtype(text) {
-    if (/\bthreat|threatens|threatening|threatened|dreigt|waarschuwt|warns|warned/.test(text)) return "Dreiging";
-    if (/\bplot|plotting|plots|plot-to|plans-to/.test(text)) return "Samenzwering";
+    if (/\bplot|plotting|plots|plotted/.test(text)) return "Samenzwering";
+    if (/\bthreat|threatens|threatening|threatened|dreigt|waarschuwt/.test(text)) return "Dreiging";
+    if (/\bsanctions?\s+(against|on)|sanctie|sancties/.test(text)) return "Sanctie";
+    if (/\bnegotiations|negotiating|talks|summit|mediators|overleg|onderhandelingen/.test(text)) return "Diplomatie";
+    if (/\bstatement|declaration|verklaring|aankondiging/.test(text)) return "Verklaring";
     if (/\bverkiezing|election/.test(text)) return "Verkiezing";
     if (/\breferendum/.test(text)) return "Referendum";
     if (/\bstaatsgreep|coup/.test(text)) return "Staatsgreep";
-    if (/\bsanctie|sanctions|sanction/.test(text)) return "Sanctie";
-    if (/\bforeign-minister|prime-minister|diplomat|ambassador|fm\b/.test(text)) return "Diplomatie";
-    if (/\bdiplomacy|diplomatic|verdrag|vredesoverleg|treaty|negotiations|mediators|summit/.test(text)) return "Diplomatie";
+    if (/\bforeign-minister|prime-minister|diplomat|ambassador/.test(text)) return "Diplomatie";
     if (/\bregeringscrisis|kabinetscrisis/.test(text)) return "Regeringscrisis";
     if (/\bwetsvoorstel|motie/.test(text)) return "Wetgeving";
     return "Politiek";
@@ -567,10 +655,16 @@
     return "Overig";
   }
 
+  /* ============================================================
+     HOOFDFUNCTIE v3.0
+     ============================================================ */
   function classify(title, desc, source, url) {
-    var text = String((title || "") + " " + (desc || "")).toLowerCase();
+    var titleStr = String(title || "");
+    var titleLower = titleStr.toLowerCase();
+    var text = (titleLower + " " + String(desc || "")).toLowerCase();
     var sourceLower = String(source || "").toLowerCase();
 
+    /* ===== STAP 1: ruwe scores ===== */
     var mRes  = countMatches(text, P_MILITAIR);
     var cRes  = countMatches(text, P_CRIME);
     var pRes  = countMatches(text, P_POLITIEK);
@@ -588,81 +682,74 @@
 
     applySubstring(text, scores, hits);
 
-    var hasMilAction = hasMilitaryAction(text);
-    var diploWord = isDiplomaticStatement(text);
-    var sportWord = isSportArticle(text);
-    var civielIncident = hasCivielIncident(text);
-    var isReport = /^report:|^\d+ days before|reportedly/i.test(text);
+    /* ===== STAP 2: communicatie-modus ===== */
+    var mode = detectReportMode(titleLower, text);
 
-    var conflictLocation = findMatch(text, P_CONFLICT);
-    var instableLocation = findMatch(text, P_INSTABLE);
-
-    var isOsint = false;
-    for (var i = 0; i < OSINT_SOURCES.length; i++) {
-      if (sourceLower.indexOf(OSINT_SOURCES[i]) !== -1) { isOsint = true; break; }
+    /* ===== STAP 3: sport-block ===== */
+    var sportWord = null;
+    for (var si = 0; si < P_SPORT.length; si++) {
+      if (P_SPORT[si].pattern.test(text)) { sportWord = P_SPORT[si].word; break; }
     }
-
-    var terrorWord = findMatch(text, P_TERROR);
-    var isTerror = !!terrorWord;
-
-    /* Sport-block */
-    if (sportWord && !hasMilAction && !isTerror && !civielIncident) {
+    var hasMil = hasRealMilitaryAction(titleLower, text);
+    if (sportWord && !hasMil && !mode.isAction) {
       return {
-        category: "civiel", subtype: "Sport", confidence: 90, uncertain: false,
+        category: "civiel", subtype: "Sport",
+        confidence: 90, uncertain: false,
         scores: scores, signals: hits,
-        meta: { sportWord: sportWord, blocked: true }
+        meta: { mode: mode, sportWord: sportWord }
       };
     }
 
-    /* Militair vereist actie */
-    if (!hasMilAction && !isTerror) scores.militair = 0;
+    /* ===== STAP 4: report-mode override ===== */
+    if (mode.isReport && !hasMil) {
+      /* Forceer Politiek tenzij er duidelijk misdrijf of protest is */
+      scores.politiek += mode.reportScore;
+      scores.militair = 0;
 
-    /* Locatie + OSINT bonus */
-    var locationBonus = 0;
-    if (scores.militair > 0) {
-      if (conflictLocation) { locationBonus = 2; scores.militair += 2; }
-      else if (instableLocation) { locationBonus = 1; scores.militair += 1; }
-      if (isOsint) scores.militair += 2;
+      var crimeStrong = scores.crime >= 8;
+      var protestStrong = scores.protest >= 8;
+      if (!crimeStrong && !protestStrong) {
+        /* Politiek heeft altijd voorrang in report-mode */
+        scores.politiek = Math.max(scores.politiek, scores.crime + 3, scores.protest + 3);
+      }
     }
 
-    /* Terrorisme */
-    if (isTerror) {
-      if (conflictLocation) scores.militair += 5;
+    /* ===== STAP 5: militair vereist ECHTE actie ===== */
+    if (!hasMil) scores.militair = 0;
+    else {
+      /* Locatie + OSINT bonus alleen als militair > 0 */
+      var conflictLocation = findMatch(text, P_CONFLICT);
+      var instableLocation = findMatch(text, P_INSTABLE);
+      if (conflictLocation) scores.militair += 2;
+      else if (instableLocation) scores.militair += 1;
+
+      for (var i = 0; i < OSINT_SOURCES.length; i++) {
+        if (sourceLower.indexOf(OSINT_SOURCES[i]) !== -1) { scores.militair += 2; break; }
+      }
+    }
+
+    /* ===== STAP 6: terrorisme ===== */
+    var terrorWord = findMatch(text, P_TERROR);
+    if (terrorWord) {
+      var conflictLoc = findMatch(text, P_CONFLICT);
+      if (conflictLoc) scores.militair += 5;
       else scores.crime += 5;
     }
 
-    /* Diplomatiek override */
-    if (diploWord && !hasMilAction && !isTerror) {
-      scores.politiek += 5;
-      scores.militair = 0;
-    }
-
-    /* "sanctions against" bonus */
-    if (/\bsanctions?\s+(against|on)\b/i.test(text) && !hasMilAction && !isTerror) {
-      scores.politiek += 3;
-      scores.militair = 0;
-    }
-
-    /* "Report:" prefix → Politiek */
-    if (isReport && !hasMilAction && !isTerror) {
-      scores.politiek += 4;
-      scores.militair = 0;
-    }
-
-    /* Civiel-blokkade */
+    /* ===== STAP 7: civiel-blokkade ===== */
     var hasStrongCiviel = false;
     for (var ci = 0; ci < ciRes.hits.length; ci++) {
       if (ciRes.hits[ci].weight === 3) { hasStrongCiviel = true; break; }
     }
-    if (hasStrongCiviel && !hasMilAction && !isTerror) {
-      var hasStrongMilitary = false;
+    if (hasStrongCiviel && !hasMil) {
+      var hasStrongMil = false;
       for (var mi = 0; mi < mRes.hits.length; mi++) {
-        if (mRes.hits[mi].weight >= 3) { hasStrongMilitary = true; break; }
+        if (mRes.hits[mi].weight >= 3) { hasStrongMil = true; break; }
       }
-      if (!hasStrongMilitary) scores.militair = 0;
+      if (!hasStrongMil) scores.militair = 0;
     }
 
-    /* Winnaar */
+    /* ===== STAP 8: winnaar ===== */
     var rank = CATS.map(function(c){ return { cat: c, score: scores[c] }; });
     rank.sort(function(a, b){
       if (b.score !== a.score) return b.score - a.score;
@@ -679,6 +766,7 @@
       secondScore = 0;
     }
 
+    /* ===== STAP 9: confidence ===== */
     var confidence = 0;
     if (maxScore === 0) confidence = 0;
     else if (secondScore === 0) confidence = 100;
@@ -691,9 +779,10 @@
     }
     var uncertain = (confidence > 0 && confidence < 65);
 
+    /* ===== STAP 10: subtype ===== */
     var subtype = "";
-    if (winner.cat === "militair") subtype = detectMilitairSubtype(text, isTerror);
-    else if (winner.cat === "crime") subtype = detectCrimeSubtype(text, isTerror);
+    if (winner.cat === "militair") subtype = detectMilitairSubtype(text, !!terrorWord);
+    else if (winner.cat === "crime") subtype = detectCrimeSubtype(text, !!terrorWord);
     else if (winner.cat === "politiek") subtype = detectPolitiekSubtype(text);
     else if (winner.cat === "protest") subtype = detectProtestSubtype(text);
     else subtype = detectCivielSubtype(text);
@@ -703,29 +792,32 @@
       confidence: confidence, uncertain: uncertain,
       scores: scores, signals: hits,
       meta: {
-        conflictLocation: conflictLocation,
-        instableLocation: instableLocation,
-        locationBonus: locationBonus,
-        isOsint: isOsint, terrorWord: terrorWord, isTerror: isTerror,
-        diplomaticWord: diploWord, sportWord: sportWord,
-        hasMilitaryAction: hasMilAction, civielIncident: civielIncident,
-        isReport: isReport
+        mode: mode,
+        hasMilitaryAction: hasMil,
+        isReport: mode.isReport,
+        isAction: mode.isAction,
+        reportScore: mode.reportScore,
+        actionScore: mode.actionScore,
+        terrorWord: terrorWord,
+        sportWord: sportWord
       }
     };
   }
 
   window.WDClassifier = {
-    version: VERSION, classify: classify, categories: CATS,
+    version: VERSION,
+    classify: classify,
+    categories: CATS,
     _words: {
       militair: W_MILITAIR, crime: W_CRIME, politiek: W_POLITIEK,
-      protest: W_PROTEST, civiel: W_CIVIEL, sport: SPORT_WORDS
+      protest: W_PROTEST, civiel: W_CIVIEL, sport: SPORT_WORDS,
+      report_verbs: REPORT_VERBS, action_verbs: ACTION_VERBS
     },
     _substrings: SUBSTRING_WORDS,
     _locations: { conflict: CONFLICT_ZONES, instable: INSTABLE_ZONES },
-    _terrorism: TERRORISM_WORDS,
-    _diplomatic: DIPLOMATIC_WORDS
+    _terrorism: TERRORISM_WORDS
   };
 
-  try { if (window.wdLog) wdLog.info("[WAR DESK] classifier.js " + VERSION + " geladen"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WAR DESK] classifier.js " + VERSION + " geladen — ACTIE vs RAPPORTAGE"); } catch(e){}
 
 })();
