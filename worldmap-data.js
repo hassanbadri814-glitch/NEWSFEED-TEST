@@ -212,11 +212,11 @@
     max_events_per_source_per_day: 3,
 
     heat: {
-      cold: 0,
-      warm: 5,
-      hot: 15,
-      scorching: 40
-    },
+  cold: 0,
+  warm: 1,      /* was 5 — verlaagd voor zichtbaarheid */
+  hot: 3,       /* was 15 */
+  scorching: 8  /* was 40 */
+},
 
     actor_ring_min: 3,
     actor_ring_hot: 15,
