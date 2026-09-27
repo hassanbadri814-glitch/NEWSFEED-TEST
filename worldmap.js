@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.3
+   WAR DESK — worldmap.js v2.4
    ------------------------------------------------------------
-   - v2.3: land-click panel + confidence + periode-filter
-   - v2.2: alleen countsForHeat + REG-skip + compacte legenda
-   - v2.1: lagere heat-drempels + debug log
-   - v2.0: conflict-kaart + legenda-toggle
+   - v2.4: Batch A — periode-filter positie + schalende drempels
+        + "Niet-fysiek" label
+   - v2.3: land-panel + confidence + periode-filter
+   - v2.2: alleen countsForHeat events + REG-skip + compacte legenda
    ============================================================ */
 
 (function(){
@@ -17,7 +17,7 @@
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
   ];
   var CACHE_KEY = "wardesk_countries_geojson";
-  var CACHE_VERSION = "v5";
+  var CACHE_VERSION = "v6";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var WM = {
@@ -94,7 +94,17 @@
   }
 
   /* ============================================================
-     HITTE BEREKENEN — met periode-filter
+     v2.4: DREMPELS SCHALEN MET PERIODE
+     ============================================================ */
+  function getPeriodScale(periodDays){
+    if (periodDays <= 1) return 0.3;
+    if (periodDays <= 7) return 1.0;
+    if (periodDays <= 30) return 3.0;
+    return 10.0;
+  }
+
+  /* ============================================================
+     HITTE BEREKENEN
      ============================================================ */
   function calculateHeat(events){
     var now = Date.now();
@@ -107,13 +117,12 @@
 
     var targetByCountry = {};
     var actorByCountry = {};
-    var countryMeta = {}; /* voor confidence berekening */
+    var countryMeta = {};
 
     var skippedNonPhysical = 0;
     var skippedReg = 0;
     var skippedOld = 0;
 
-    /* Filter events op periode */
     var filtered = events.filter(function(ev){
       if (!ev) return false;
       if (ev.category !== "militair" && ev.category !== "crime") return false;
@@ -133,7 +142,6 @@
       var dayKey = new Date(ts).toISOString().slice(0, 10);
       var sourceKey = (ev.source || "?") + "|" + dayKey;
 
-      /* Target heat */
       var targetKey = ev.countryISO3 || ev.country;
       if (targetKey && targetKey.indexOf(SKIP_PREFIX) !== 0){
         if (!targetByCountry[targetKey]){
@@ -148,7 +156,6 @@
           targetByCountry[targetKey].total += weight;
           targetByCountry[targetKey].count++;
 
-          /* Meta voor confidence */
           if (ev.source) countryMeta[targetKey].sources[ev.source] = true;
           try {
             if (window.WDEventDetector && window.WDEventDetector.getSourceCountry){
@@ -162,7 +169,6 @@
         skippedReg++;
       }
 
-      /* Actor heat */
       var actors = ev.actorCountries || [];
       actors.forEach(function(actorCountry){
         if (!actorCountry) return;
@@ -190,7 +196,6 @@
       });
     });
 
-    /* Heat maps opbouwen */
     var targetHeatMap = {};
     Object.keys(targetByCountry).forEach(function(c){
       targetHeatMap[c] = Math.round(targetByCountry[c].total * 10) / 10;
@@ -201,19 +206,12 @@
       actorHeatMap[c] = Math.round(actorByCountry[c].total * 10) / 10;
     });
 
-    /* Confidence per land */
     var confMap = {};
     Object.keys(countryMeta).forEach(function(iso3){
       var m = countryMeta[iso3];
       var sourceCount = Object.keys(m.sources).length;
       var originCount = Object.keys(m.origins).length;
 
-      /* Score formules:
-         - Bronnen: 1=25%, 2=45%, 3=65%, 5=85%, 8+=95%
-         - Origines: 1=30%, 2=60%, 3+=90%
-         - Gewogen: 60% bronnen + 40% origines
-         - Extra bonus: 2+ bronnen EN 2+ origines → +5%
-      */
       var sourceScore = Math.min(1, sourceCount / 8);
       var originScore = Math.min(1, originCount / 3);
       var score = (sourceScore * 0.6) + (originScore * 0.4);
@@ -232,7 +230,6 @@
     WM.countryConfidence = confMap;
     WM.lastHeatCalc = now;
 
-    /* Debug logs */
     try {
       var sortedTargets = Object.keys(targetHeatMap).map(function(k){
         return { key: k, val: targetHeatMap[k] };
@@ -254,13 +251,16 @@
   }
 
   /* ============================================================
-     CONFLICT-LEVEL → KLEUR
+     v2.4: CONFLICT-LEVEL met periode-schaling
      ============================================================ */
   function getConflictLevel(heat){
     var th = (window.WORLDMAP_THRESHOLDS || {}).heat || {};
-    var warm = th.warm || 0.5;
-    var hot = th.hot || 1.5;
-    var scorching = th.scorching || 3;
+    var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
+    var scale = getPeriodScale(periodDays);
+
+    var warm = (th.warm || 0.5) * scale;
+    var hot = (th.hot || 1.5) * scale;
+    var scorching = (th.scorching || 3) * scale;
 
     if (heat >= scorching) return "scorching";
     if (heat >= hot) return "hot";
@@ -303,8 +303,11 @@
     var fillColor = getFillColor(level);
     var fillOpacity = getFillOpacity(level);
 
-    var actorThreshold = (window.WORLDMAP_THRESHOLDS || {}).actor_ring_min || 3;
-    var actorHotThreshold = (window.WORLDMAP_THRESHOLDS || {}).actor_ring_hot || 15;
+    var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
+    var scale = getPeriodScale(periodDays);
+
+    var actorThreshold = ((window.WORLDMAP_THRESHOLDS || {}).actor_ring_min || 3) * scale;
+    var actorHotThreshold = ((window.WORLDMAP_THRESHOLDS || {}).actor_ring_hot || 15) * scale;
     var borderColor = cc.border || "rgba(255,255,255,0.12)";
     var borderWeight = 0.5;
     var dashArray = null;
@@ -333,7 +336,7 @@
   }
 
   /* ============================================================
-     TOOLTIP + LAND-CLICK (v2.3)
+     TOOLTIP + CLICK
      ============================================================ */
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
@@ -380,7 +383,6 @@
         if (WM.layer) WM.layer.resetStyle(e.target);
       },
       click: function(e){
-        /* v2.3: land-click → panel openen */
         if (L.DomEvent) L.DomEvent.stopPropagation(e);
         openCountryPanel(iso3, name);
       }
@@ -388,7 +390,7 @@
   }
 
   /* ============================================================
-     LAND-PANEL (v2.3)
+     LAND-PANEL
      ============================================================ */
   function ensurePanel(){
     if (WM.panel) return WM.panel;
@@ -406,8 +408,6 @@
     WM.panel = panel;
 
     panel.querySelector("#wmPanelClose").addEventListener("click", closeCountryPanel);
-
-    /* Klik op de achtergrond sluit ook */
     panel.addEventListener("click", function(e){
       if (e.target === panel) closeCountryPanel();
     });
@@ -419,11 +419,9 @@
     if (!iso3) return;
     var panel = ensurePanel();
 
-    /* Titel */
     var titleEl = panel.querySelector("#wmPanelTitle");
     titleEl.textContent = countryName || iso3;
 
-    /* Stats opbouwen */
     var conf = WM.countryConfidence[iso3];
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
@@ -452,7 +450,6 @@
         (conf ? '<div class="wm-panel-conf-detail">' + conf.sources + ' bronnen · ' + conf.origins + ' landen van herkomst</div>' : '');
     }
 
-    /* Events voor dit land ophalen */
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
     var myEvents = (WM._allEvents || []).filter(function(e){
@@ -471,7 +468,8 @@
     } else {
       evEl.innerHTML = myEvents.map(function(ev){
         var physical = ev.countsForHeat !== false;
-        var actionTag = physical ? "Fysiek" : "Politiek";
+        /* v2.4: "Politiek" → "Niet-fysiek" */
+        var actionTag = physical ? "Fysiek" : "Niet-fysiek";
         var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
         var subtype = ev.subtype || "—";
         return '<div class="wm-panel-event">' +
@@ -487,7 +485,6 @@
       }).join("");
     }
 
-    /* Open animatie */
     requestAnimationFrame(function(){
       panel.classList.add("show");
     });
@@ -516,7 +513,7 @@
   }
 
   /* ============================================================
-     PERIODE-FILTER (v2.3)
+     v2.4: PERIODE-FILTER — onder Wereldkaart-knop
      ============================================================ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
@@ -544,8 +541,7 @@
         } catch(e){}
         div.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
-        LOG("Periode gewijzigd naar " + days + " dagen");
-        /* Forceer herberekening + rerender */
+        LOG("Periode gewijzigd naar " + days + " dagen (scale=" + getPeriodScale(days) + ")");
         WM.lastHeatCalc = 0;
         if (WM._allEvents && WM._allEvents.length){
           refresh(WM._allEvents, true);
@@ -629,12 +625,9 @@
     var s = document.createElement("style");
     s.id = "wmStyles";
     s.textContent =
-      /* Tooltip */
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
-
-      /* Legenda */
       ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:110px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;}" +
       "html.light .wm-legend{background:rgba(255,255,255,.95);color:#131721;border-color:rgba(0,0,0,.12);}" +
       ".wm-legend-title{font-weight:800;font-size:.5rem;text-transform:uppercase;letter-spacing:.04em;color:#e0a857;margin-bottom:.2rem;padding-bottom:.2rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
@@ -650,16 +643,13 @@
       ".wm-legend-toggle svg{width:14px;height:14px;}" +
       ".map-wrap:has(#wmLegend[style*='display: none']) .wm-legend-toggle{display:grid;}" +
       "@supports not selector(:has(*)){.wm-legend-toggle{display:grid!important;bottom:.6rem;right:.6rem;}.wm-legend{right:2.7rem;}}" +
-
-      /* Periode-filter */
-      ".wm-period-filter{position:absolute;top:.7rem;left:50%;transform:translateX(-50%);z-index:500;display:flex;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:2px;box-shadow:0 4px 14px rgba(0,0,0,.45);}" +
+      /* v2.4: periode-filter onder Wereldkaart-knop */
+      ".wm-period-filter{position:absolute;top:3.4rem;left:.7rem;z-index:500;display:flex;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:2px;box-shadow:0 4px 14px rgba(0,0,0,.45);}" +
       "html.light .wm-period-filter{background:rgba(255,255,255,.95);border-color:rgba(0,0,0,.12);}" +
       ".wm-period-filter button{background:transparent;border:none;color:#e6ebf5;font-size:.65rem;font-weight:700;padding:.35rem .55rem;border-radius:7px;cursor:pointer;font-family:inherit;transition:all .15s;letter-spacing:.02em;}" +
       "html.light .wm-period-filter button{color:#131721;}" +
       ".wm-period-filter button:hover{color:#e0a857;}" +
       ".wm-period-filter button.active{background:rgba(224,168,87,.25);color:#e0a857;}" +
-
-      /* Land-panel */
       ".wm-country-panel{position:fixed;left:0;right:0;bottom:0;background:var(--card,#111b2d);border-top:1px solid rgba(224,168,87,.35);border-top-left-radius:18px;border-top-right-radius:18px;max-height:75vh;overflow-y:auto;z-index:3500;transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.9,.3,1);padding-bottom:calc(.5rem + env(safe-area-inset-bottom,0));box-shadow:0 -10px 40px rgba(0,0,0,.6);}" +
       ".wm-country-panel.show{transform:translateY(0);}" +
       ".wm-panel-head{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1rem .7rem;border-bottom:1px solid rgba(255,255,255,.08);position:sticky;top:0;background:var(--card,#111b2d);z-index:1;}" +
@@ -684,20 +674,18 @@
       ".wm-panel-event-dot{opacity:.4;}" +
       ".wm-panel-event-sub{color:var(--ink-3,#6b7a93);opacity:.8;}" +
       ".wm-ev-physical{background:rgba(230,57,80,.15);color:#ff8090;padding:.1rem .4rem;border-radius:5px;font-weight:700;font-size:.58rem;text-transform:uppercase;letter-spacing:.03em;}" +
-      ".wm-ev-political{background:rgba(59,130,246,.15);color:#60a5fa;padding:.1rem .4rem;border-radius:5px;font-weight:700;font-size:.58rem;text-transform:uppercase;letter-spacing:.03em;}" +
+      ".wm-ev-political{background:rgba(107,122,147,.15);color:#a3adc0;padding:.1rem .4rem;border-radius:5px;font-weight:700;font-size:.58rem;text-transform:uppercase;letter-spacing:.03em;}" +
       ".wm-panel-empty{padding:1.5rem 1rem;text-align:center;color:var(--ink-3,#6b7a93);font-size:.78rem;}" +
-
-      /* Mobiel */
       "@media (max-width:640px){" +
         ".wm-legend{max-width:100px!important;font-size:.5rem!important;padding:.35rem .45rem!important;}" +
         ".wm-legend-title{font-size:.5rem!important;margin-bottom:.2rem!important;padding-bottom:.2rem!important;}" +
         ".wm-legend-row{font-size:.5rem!important;padding:.02rem 0!important;}" +
         ".wm-legend-hint{font-size:.45rem!important;}" +
-        ".wm-period-filter button{font-size:.6rem;padding:.3rem .45rem;}" +
+        ".wm-period-filter button{font-size:.58rem;padding:.28rem .42rem;}" +
+        ".wm-period-filter{top:3rem;padding:1px;}" +
         ".wm-country-panel{max-height:80vh;}" +
         ".wm-panel-title{font-size:1rem;}" +
       "}" +
-      /* Licht thema panel */
       "html.light .wm-country-panel,html.light .wm-country-panel .wm-panel-head{background:var(--card,#fff);}" +
       "html.light .wm-panel-stat{background:rgba(0,0,0,.03);border-color:rgba(0,0,0,.06);}" +
       "html.light .wm-panel-close{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.08);}" +
@@ -740,7 +728,7 @@
     restorePeriodFilter();
 
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.3 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.4 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -748,7 +736,6 @@
     if (!WM.isEnabled) return;
     if (!Array.isArray(events)) return;
 
-    /* Bewaar events voor land-panel */
     WM._allEvents = events.slice();
 
     var now = Date.now();
@@ -840,6 +827,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.3 geladen (land-panel + confidence + periode)");
+  LOG("worldmap.js v2.4 geladen (batch A — periode + niet-fysiek)");
 
 })();
