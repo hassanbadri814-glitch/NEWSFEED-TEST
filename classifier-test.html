@@ -3,35 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WAR DESK · Classifier Test v3.1</title>
+<title>WAR DESK · Classifier Test v5.1</title>
 <style>
   :root {
-    --bg:#070c16; --bg-2:#0d1522; --bg-3:#131e30;
-    --card:#111b2d; --card-hover:#18253c;
+    --bg:#070c16; --bg-3:#131e30; --card:#111b2d; --card-hover:#18253c;
     --line:#1a2540; --line-2:#26344f;
     --ink:#e6ebf5; --ink-2:#8a94a8; --ink-3:#6b7a93;
     --amber:#e0a857; --amber-2:#f0c78a; --amber-3:#8a5c26;
-    --militair:#e63950; --crime:#a855f7; --cyber:#06b6d4;
-    --politiek:#3b82f6; --protest:#f59e0b; --civiel:#6b7a93;
-    --sport:#10b981;
+    --militair:#e63950; --crime:#a855f7; --politiek:#3b82f6;
+    --protest:#f59e0b; --civiel:#6b7a93; --sport:#10b981; --overig:#6b7280;
     --good:#10b981; --warn:#f59e0b; --bad:#ef4444;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--ink); padding: 1rem; line-height: 1.5; font-size: 15px; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--ink); padding: 1rem; line-height: 1.5; font-size: 15px; }
   h1 { font-size: 1.3rem; background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: .25rem; }
   .subtitle { color: var(--ink-3); font-size: .85rem; margin-bottom: 1.5rem; }
   h2 { font-size: .95rem; color: var(--amber); text-transform: uppercase; letter-spacing: .08em; margin: 1.75rem 0 .75rem; padding-bottom: .4rem; border-bottom: 1px solid var(--line); }
   .row { display: flex; gap: .5rem; margin-bottom: .65rem; flex-wrap: wrap; }
-  .row label { font-size: .78rem; color: var(--ink-3); min-width: 90px; align-self: center; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
-  input, textarea { flex: 1; min-width: 200px; padding: .65rem .85rem; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--ink); border-radius: 9px; font-size: .9rem; font-family: inherit; outline: none; resize: vertical; }
-  input:focus, textarea:focus { border-color: var(--amber); box-shadow: 0 0 0 3px rgba(224,168,87,.25); }
+  .row label { font-size: .78rem; color: var(--ink-3); min-width: 90px; align-self: center; font-weight: 600; text-transform: uppercase; }
+  input, textarea { flex: 1; min-width: 200px; padding: .65rem .85rem; background: var(--bg-3); border: 1px solid var(--line-2); color: var(--ink); border-radius: 9px; font-size: .9rem; font-family: inherit; outline: none; }
+  input:focus, textarea:focus { border-color: var(--amber); }
   textarea { min-height: 60px; }
-  button { padding: .7rem 1.2rem; background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3)); color: #070c16; border: none; border-radius: 9px; font-weight: 700; font-size: .88rem; cursor: pointer; font-family: inherit; transition: filter .15s, transform .1s; }
-  button:hover { filter: brightness(1.08); }
-  button:active { transform: scale(.97); }
+  button { padding: .7rem 1.2rem; background: linear-gradient(135deg, var(--amber-2), var(--amber), var(--amber-3)); color: #070c16; border: none; border-radius: 9px; font-weight: 700; font-size: .88rem; cursor: pointer; font-family: inherit; }
   button.secondary { background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2); }
-  button.secondary:hover { border-color: var(--amber); color: var(--amber); }
-
   .result { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1.1rem 1.25rem; margin-top: 1rem; }
   .result.cat-militair { border-left: 4px solid var(--militair); }
   .result.cat-crime { border-left: 4px solid var(--crime); }
@@ -39,58 +33,50 @@
   .result.cat-protest { border-left: 4px solid var(--protest); }
   .result.cat-civiel { border-left: 4px solid var(--civiel); }
   .result.cat-sport { border-left: 4px solid var(--sport); }
+  .result.cat-overig { border-left: 4px solid var(--overig); }
   .result-header { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .75rem; padding-bottom: .75rem; border-bottom: 1px solid var(--line); }
-  .badge { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .85rem; border-radius: 999px; font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+  .badge { display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .85rem; border-radius: 999px; font-size: .82rem; font-weight: 700; text-transform: uppercase; }
   .badge.militair { background: rgba(230,57,80,.15); color: #ff6070; border: 1px solid rgba(230,57,80,.4); }
   .badge.crime { background: rgba(168,85,247,.15); color: #c084fc; border: 1px solid rgba(168,85,247,.4); }
   .badge.politiek { background: rgba(59,130,246,.15); color: #60a5fa; border: 1px solid rgba(59,130,246,.4); }
   .badge.protest { background: rgba(245,158,11,.15); color: #fbbf24; border: 1px solid rgba(245,158,11,.4); }
   .badge.civiel { background: rgba(107,122,147,.15); color: #8a94a8; border: 1px solid rgba(107,122,147,.4); }
   .badge.sport { background: rgba(16,185,129,.15); color: #34d399; border: 1px solid rgba(16,185,129,.4); }
+  .badge.overig { background: rgba(107,114,128,.15); color: #9ca3af; border: 1px solid rgba(107,114,128,.4); }
   .badge.subtype { background: var(--bg-3); color: var(--ink-2); border: 1px solid var(--line-2); }
-  .conf { margin-left: auto; display: inline-flex; align-items: center; gap: .5rem; font-size: .8rem; color: var(--ink-3); }
+  .badge.lang { background: var(--bg-3); color: #93c5fd; border: 1px solid rgba(59,130,246,.4); }
+  .conf { margin-left: auto; font-size: .8rem; color: var(--ink-3); display: flex; align-items: center; gap: .5rem; }
   .conf-bar { width: 100px; height: 6px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
-  .conf-fill { height: 100%; background: var(--good); transition: width .3s; }
+  .conf-fill { height: 100%; background: var(--good); }
   .conf-fill.med { background: var(--warn); }
   .conf-fill.low { background: var(--bad); }
-
   .scores-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: .4rem; margin-top: .75rem; }
   .score-box { background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 8px; padding: .55rem .35rem; text-align: center; }
-  .score-box .cat { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; font-weight: 700; margin-bottom: .2rem; }
-  .score-box .val { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
-  .score-box.militair .cat, .score-box.militair .val { color: var(--militair); }
-  .score-box.crime .cat, .score-box.crime .val { color: var(--crime); }
-  .score-box.politiek .cat, .score-box.politiek .val { color: var(--politiek); }
-  .score-box.protest .cat, .score-box.protest .val { color: var(--protest); }
-  .score-box.civiel .cat, .score-box.civiel .val { color: var(--civiel); }
-
-  .signals { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line); font-size: .82rem; color: var(--ink-2); }
+  .score-box .cat { font-size: .6rem; text-transform: uppercase; font-weight: 700; margin-bottom: .2rem; color: var(--ink-3); }
+  .score-box .val { font-size: 1.2rem; font-weight: 800; }
+  .score-box.militair .val { color: var(--militair); }
+  .score-box.crime .val { color: var(--crime); }
+  .score-box.politiek .val { color: var(--politiek); }
+  .score-box.protest .val { color: var(--protest); }
+  .score-box.civiel .val { color: var(--civiel); }
+  .signals { margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--line); font-size: .82rem; }
   .signal-line { margin-bottom: .35rem; }
   .signal-cat { font-weight: 700; color: var(--ink); }
   .signal-word { display: inline-block; background: var(--bg-3); border: 1px solid var(--line-2); padding: .1rem .45rem; margin: .1rem .15rem; border-radius: 5px; font-size: .72rem; }
-  .signal-word.w3 { border-color: rgba(230,57,80,.4); color: #ff8090; }
-  .signal-word.w2 { border-color: rgba(245,158,11,.4); color: #fbbf24; }
-  .signal-word.w1 { border-color: var(--line-2); color: var(--ink-3); }
-  .signal-word.sub { border-color: rgba(168,85,247,.5); color: #c084fc; font-style: italic; }
-
   .meta-line { margin-top: .5rem; padding-top: .5rem; border-top: 1px solid var(--line); font-size: .75rem; color: var(--ink-3); }
   .meta-tag { display: inline-block; background: var(--bg-3); border: 1px solid var(--line-2); padding: .15rem .5rem; margin-right: .3rem; margin-bottom: .2rem; border-radius: 5px; }
   .meta-tag.ok { color: var(--good); border-color: rgba(16,185,129,.4); }
   .meta-tag.warn { color: var(--warn); border-color: rgba(245,158,11,.4); }
-  .meta-tag.bad { color: var(--bad); border-color: rgba(239,68,68,.4); }
   .meta-tag.info { color: #60a5fa; border-color: rgba(59,130,246,.4); }
   .meta-tag.sport { color: var(--sport); border-color: rgba(16,185,129,.4); }
-
   .presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: .5rem; margin-top: .75rem; }
-  .preset { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: .65rem .8rem; cursor: pointer; transition: all .15s; font-size: .82rem; line-height: 1.35; }
-  .preset:hover { background: var(--card-hover); border-color: var(--amber); transform: translateY(-2px); box-shadow: 0 6px 20px -10px rgba(224,168,87,.4); }
-  .preset-title { font-weight: 700; color: var(--ink); margin-bottom: .15rem; }
+  .preset { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: .65rem .8rem; cursor: pointer; font-size: .82rem; }
+  .preset:hover { background: var(--card-hover); border-color: var(--amber); }
+  .preset-title { font-weight: 700; margin-bottom: .15rem; }
   .preset-desc { color: var(--ink-3); font-size: .75rem; }
-
   .batch-table { width: 100%; border-collapse: collapse; margin-top: .75rem; font-size: .78rem; }
-  .batch-table th { text-align: left; padding: .5rem .45rem; background: var(--bg-3); color: var(--ink-3); font-size: .65rem; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--line-2); }
-  .batch-table td { padding: .5rem .45rem; border-bottom: 1px solid var(--line); vertical-align: top; }
-  .batch-table tr:hover { background: var(--card-hover); }
+  .batch-table th { text-align: left; padding: .5rem .45rem; background: var(--bg-3); color: var(--ink-3); font-size: .65rem; text-transform: uppercase; border-bottom: 1px solid var(--line-2); }
+  .batch-table td { padding: .5rem .45rem; border-bottom: 1px solid var(--line); }
   .batch-table .cat-cell { font-weight: 700; white-space: nowrap; }
   .batch-table .cat-militair { color: var(--militair); }
   .batch-table .cat-crime { color: var(--crime); }
@@ -98,103 +84,141 @@
   .batch-table .cat-protest { color: var(--protest); }
   .batch-table .cat-civiel { color: var(--civiel); }
   .batch-table .cat-sport { color: var(--sport); }
-
+  .batch-table .cat-overig { color: var(--overig); }
   .legend { background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 9px; padding: .75rem 1rem; font-size: .78rem; color: var(--ink-2); margin-top: 1rem; }
-  .legend strong { color: var(--ink); }
-  .legend code { background: var(--bg); padding: .1rem .35rem; border-radius: 4px; font-size: .75rem; color: var(--amber); }
+  .legend code { background: var(--bg); padding: .1rem .35rem; border-radius: 4px; color: var(--amber); font-size: .75rem; }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .5rem; margin-top: .75rem; }
+  .stat-box { background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: .6rem .75rem; text-align: center; }
+  .stat-box .v { font-size: 1.4rem; font-weight: 800; }
+  .stat-box .k { font-size: .68rem; color: var(--ink-3); text-transform: uppercase; }
+  .stat-box.good .v { color: var(--good); }
+  .stat-box.warn .v { color: var(--warn); }
+  .stat-box.bad .v { color: var(--bad); }
 </style>
 </head>
 <body>
 
-<h1>WAR DESK · Classifier Test v3.1</h1>
-<div class="subtitle">Waterdicht systeem · Sport-block · Report-mode · Dedup</div>
+<h1>WAR DESK · Classifier Test v5.1</h1>
+<div class="subtitle">Alle 20+ patronen · Statement-gate · Per-categorie drempel</div>
 
 <div class="legend">
-  <strong>v3.1 fixes:</strong><br>
-  <code>1. Sport volledig verborgen</code> (bron + 100 termen + clubs)<br>
-  <code>2. Report-mode alleen titel</code><br>
-  <code>3. Generieke werkwoorden verwijderd</code><br>
-  <code>4. Militaire patronen regex</code><br>
-  <code>5. Event-dedup clustering</code>
+  <strong>v5.1 toevoegingen:</strong><br>
+  <code>Prefix-lock override</code> ·
+  <code>Person-volgt-militie</code> ·
+  <code>Sport 2-landen regel</code> ·
+  <code>Burgers-subject</code> ·
+  <code>Deal/plan/negotiations</code> ·
+  <code>VS/British/Chinese actors</code> ·
+  <code>Retrospectief</code> ·
+  <code>War-on-X</code> ·
+  <code>Future-threat</code> ·
+  <code>Political-attack</code> ·
+  <code>Media-report</code> ·
+  <code>Historisch</code> ·
+  <code>Metaforisch geweld</code> ·
+  <code>Statement-gate</code> ·
+  <code>Overig per categorie</code> ·
+  <code>Titel 1.5×</code>
 </div>
 
 <h2>Handmatig testen</h2>
-<div class="row"><label>Titel</label><input type="text" id="inTitle" placeholder="bv. Raketaanval op Kiev"></div>
-<div class="row"><label>Beschrijving</label><textarea id="inDesc" placeholder="Beschrijving..."></textarea></div>
-<div class="row"><label>Bron</label><input type="text" id="inSource" placeholder="bv. Reuters"></div>
+<div class="row"><label>Titel</label><input type="text" id="inTitle"></div>
+<div class="row"><label>Beschrijving</label><textarea id="inDesc"></textarea></div>
+<div class="row"><label>Bron</label><input type="text" id="inSource"></div>
 <div class="row">
   <button id="btnClassify">Classify</button>
   <button class="secondary" id="btnClear">Wis</button>
 </div>
 <div id="result"></div>
 
-<h2>Voorbeelden — klik om te testen</h2>
+<h2>Voorbeelden</h2>
 <div class="presets" id="presets"></div>
 
 <h2>Batch-test</h2>
 <div class="row"><button class="secondary" id="btnBatch">Alle voorbeelden classificeren</button></div>
 <div id="batchResult"></div>
 
-<script src="classifier.js"></script>
+<script src="classifier.js?v=5.1"></script>
 <script>
 (function(){
   "use strict";
 
   var PRESETS = [
-    /* ===== MILITAIR (moet militair blijven) ===== */
-    { label:"Raketaanval Kiev", title:"Raketaanval op Kiev: minstens 5 doden en 20 gewonden", desc:"Rusland heeft vannacht raketten afgevuurd op de Oekraïense hoofdstad Kiev. Bij de aanval zijn minstens 5 mensen gedood.", source:"Reuters", expected:"militair" },
-    { label:"Gaza aanval", title:"Seven Palestinians killed in Gaza Strip during Israeli attacks", desc:"The Health Ministry in Gaza says seven Palestinians were killed and several wounded in Israeli strikes across the Gaza Strip.", source:"Al Jazeera", expected:"militair" },
-    { label:"Israeli strike Gaza", title:"Israeli strike injures several displaced people in Gaza", desc:"An Israeli airstrike hit a displacement camp in Gaza, injuring several people.", source:"Al Jazeera", expected:"militair" },
-    { label:"Russia escalates strikes", title:"Russia scales up strikes on Ukraine as largest steelmaker halts operations", desc:"Russia has intensified its missile strikes on Ukrainian infrastructure this week, targeting power plants and industrial facilities.", source:"Reuters", expected:"militair" },
-    { label:"13 doden Gaza", title:"13 doden bij Israëlische luchtaanval op school in Gaza", desc:"Bij een Israëlische luchtaanval op een school in Gaza zijn dertien mensen gedood. Het IDF zegt een Hamas-doelwit te hebben geraakt.", source:"NOS", expected:"militair" },
+    /* MILITAIR — echte acties */
+    { label:"Raketaanval Kiev", title:"Raketaanval op Kiev: minstens 5 doden en 20 gewonden", desc:"Rusland heeft raketten afgevuurd op Kiev.", source:"Reuters", expected:"militair" },
+    { label:"7 Palestijnen Gaza", title:"Seven Palestinians killed in Gaza Strip during Israeli attacks", desc:"The Health Ministry says seven Palestinians were killed in Israeli strikes.", source:"Al Jazeera", expected:"militair" },
+    { label:"13 doden Gaza school", title:"13 doden bij Israëlische luchtaanval op school in Gaza", desc:"Bij een Israëlische luchtaanval zijn dertien mensen gedood.", source:"NOS", expected:"militair" },
+    { label:"Taliban Pakistan", title:"Elf doden bij explosie in Pakistan, Taliban-militie eist aanslag op", desc:"Bij een explosie in Pakistan zijn elf mensen omgekomen.", source:"NOS", expected:"militair" },
+    { label:"Houthis missiles", title:"Houthis fired 3 missiles at US warship in Red Sea", desc:"Houthi forces fired three missiles at a US warship.", source:"Al Jazeera", expected:"militair" },
+    { label:"IDF strikes Lebanon", title:"Israeli forces carry out 'violent explosions' near southern Lebanon", desc:"Israeli forces carried out explosions near Khiam.", source:"Al Jazeera", expected:"militair" },
+    { label:"Rafah offensive", title:"Israeli offensive in Rafah kills dozens, UN warns", desc:"Israeli forces launched an offensive in Rafah.", source:"Reuters", expected:"militair" },
+    { label:"Rusland strikes Oekraïne", title:"Russia scales up strikes on Ukraine as steelmaker halts", desc:"Russia has intensified its missile strikes on Ukrainian infrastructure.", source:"Reuters", expected:"militair" },
+    { label:"Report + IDF strike", title:"Report: IDF says it struck 20 Hezbollah targets in southern Lebanon overnight", desc:"The IDF said it struck 20 Hezbollah targets.", source:"Times of Israel", expected:"militair" },
 
-    /* ===== POLITIEK (was fout militair) ===== */
-    { label:"Houthis threatening", title:"Houthis threatening civil aviation by using modified Iranian defense weapons, Yemeni army says", desc:"The Houthis are threatening civil aviation in the region, according to the Yemeni army.", source:"Al Jazeera", expected:"politiek" },
-    { label:"Turkish FM urges", title:"Turkish FM highlights growing Israeli isolation, urges diplomacy on regional conflicts", desc:"The Turkish foreign minister highlighted the growing isolation of Israel and urged diplomacy.", source:"Anadolu AR", expected:"politiek" },
-    { label:"Ägypten gewarnt", title:"Medienbericht: Auch Ägypten soll Israel vor Hamas-Gefahr gewarnt haben - WELT", desc:"Einem Medienbericht zufolge soll Ägypten Israel vor der Hamas-Gefahr gewarnt haben.", source:"Die Welt", expected:"politiek" },
-    { label:"ICRC denies", title:"International Committee of Red Cross denies recovering bodies from combat fronts in Yemen", desc:"The ICRC denied reports that it recovered bodies from combat fronts in Yemen.", source:"Reuters", expected:"politiek" },
-    { label:"Report: Ex-guard plot", title:"Report: Ex-guard for Hamas chief got UK citizenship before arrest for plot to attack Jews in Europe", desc:"According to a report, a former guard for a Hamas chief got UK citizenship before being arrested for an alleged plot to attack Jews in Europe.", source:"Times of Israel", expected:"politiek" },
-    { label:"10 days before Oct 7", title:"10 days before Oct. 7, PM ordered Israel 'act to contain, minimize the escalation' in Gaza", desc:"A report says that 10 days before October 7, the Prime Minister ordered Israel to act to contain the situation in Gaza.", source:"Haaretz", expected:"politiek" },
-    { label:"EN DIRECT négociations", title:"EN DIRECT, guerre en Ukraine : l'Europe fait tout pour contrecarrer les négociations sur l'Ukraine", desc:"Suivez en direct les dernières évolutions concernant les négociations sur l'Ukraine.", source:"Le Monde", expected:"politiek" },
-    { label:"Yemen statement", title:"Yemen releases latest statement on no. of Saudi", desc:"Yemen has released a new statement regarding Saudi Arabia.", source:"SABA Yemen", expected:"politiek" },
-    { label:"US thanks Turkey", title:"US thanks Turkey, Oman, UAE for supporting sanctions against Iran", desc:"The US thanked Turkey, Oman and the UAE for supporting sanctions against Iran.", source:"Reuters", expected:"politiek" },
+    /* POLITIEK — statements/retrospectief */
+    { label:"Hamas leader statement", title:"Hamas leader: Gaza roadmap we agreed to includes establishment of Palestinian state", desc:"A Hamas leader said the roadmap includes a Palestinian state.", source:"Al Jazeera", expected:"politiek" },
+    { label:"Iran awaits response", title:"Iran awaits formal US response on Hormuz ceasefire plan, Araghchi says", desc:"Iran's foreign minister says Iran awaits a response.", source:"Reuters", expected:"politiek" },
+    { label:"Report ex-guard plot", title:"Report: Ex-guard for Hamas chief got UK citizenship before arrest for plot to attack Jews", desc:"According to a report, a former guard got UK citizenship.", source:"Times of Israel", expected:"politiek" },
+    { label:"10 days before Oct 7", title:"10 days before Oct. 7, PM ordered Israel 'act to contain, minimize the escalation' in Gaza", desc:"A report says the PM ordered Israel to act.", source:"Haaretz", expected:"politiek" },
+    { label:"Verkiezingen Duitsland", title:"Verkiezingen in Duitsland: CDU wint, coalitieonderhandelingen beginnen", desc:"CDU heeft gewonnen.", source:"NOS", expected:"politiek" },
+    { label:"Sancties Iran", title:"EU legt nieuwe sancties op aan Iran vanwege droneleveringen", desc:"De EU heeft sancties aangekondigd.", source:"Reuters", expected:"politiek" },
+    { label:"Oman calls", title:"Oman calls for self-restraint, dialog in Mideast conflict", desc:"Oman called for restraint and dialogue.", source:"Reuters", expected:"politiek" },
+    { label:"US strikes Ecuador", title:"US strikes on Ecuadorian fishing boats raise humanitarian concerns but Trump admin not wavering", desc:"The US strikes raise concerns.", source:"Reuters", expected:"politiek" },
+    { label:"Trump Venezuela", title:"Trump says he spoke with Venezuela's Rodriguez about elections", desc:"Trump said he spoke with Rodriguez.", source:"Reuters", expected:"politiek" },
+    { label:"EU 700M", title:"EU trekt noodhulppakket van ruim 700 miljoen euro uit voor crises wereldwijd", desc:"De EU heeft noodhulp aangekondigd.", source:"NOS", expected:"politiek" },
+    { label:"Trade war", title:"EU and US head toward trade war as tariffs escalate", desc:"Trade war between EU and US.", source:"Reuters", expected:"politiek" },
+    { label:"War on drugs", title:"Philippines' war on drugs continues under new president", desc:"The war on drugs continues.", source:"AP", expected:"politiek" },
 
-    /* ===== SPORT (moet volledig verborgen zijn) ===== */
-    { label:"Man City chairman", title:"Man City chairman strikes defiant tone after club reportedly found guilty of breaking rules", desc:"Manchester City chairman responded defiantly after the football club was reportedly found guilty of breaking Premier League rules.", source:"BBC Sport", expected:"sport" },
-    { label:"Ajax-PSV", title:"Ajax verliest met 3-1 van PSV in eredivisie", desc:"Ajax heeft in de eredivisie met 3-1 verloren van PSV.", source:"NOS Sport", expected:"sport" },
-    { label:"Servische Oranje", title:"Servische zorgen voor clash met Oranje: 'We vrezen allemaal voor dat probleem'", desc:"Servië en Nederland treffen elkaar in de volgende ronde van het EK voetbal.", source:"AD.nl", expected:"sport" },
-    { label:"France volley", title:"L'équipe de France s'incline logiquement en finale de l'Euro de volley face la Pologne", desc:"L'équipe de France a perdu la finale de l'Euro de volley contre la Pologne.", source:"L'Équipe", expected:"sport" },
-    { label:"Mbappé blessure", title:"Real Madrid krijgt duidelijkheid over blessure Mbappé na uitvallen bij Frankrijk", desc:"Kylian Mbappé raakte geblesseerd tijdens de wedstrijd van het Franse elftal.", source:"Marca", expected:"sport" },
-    { label:"Vollering Ten Dam", title:"Vollering is ploeggenoten en bondscoach Ten Dam eeuwig dankbaar na WK-goud", desc:"Wielrenster Demi Vollering is haar ploeggenoten en bondscoach dankbaar na het winnen van WK-goud.", source:"NOS Sport", expected:"sport" },
-    { label:"BNXT Supercup", title:"Landstede Hammers moet BNXT Supercup in overtime aan Giants Antwerp laten", desc:"Landstede Hammers verloor de BNXT Supercup basketbalwedstrijd in overtime.", source:"Basketball.nl", expected:"sport" },
-    { label:"FIDE Kolobkov", title:"Ex-Russian sports minister Kolobkov elected FIDE vice-president", desc:"Former Russian sports minister Kolobkov was elected vice-president of FIDE.", source:"Reuters", expected:"sport" },
-    { label:"WK wielrennen helikoptercrash", title:"Vier doden bij helikoptercrash in Canada, in de buurt van WK wielrennen", desc:"Bij een helikoptercrash in Canada zijn vier doden gevallen, in de buurt van het WK wielrennen.", source:"NOS", expected:"civiel" },
+    /* SPORT — verborgen */
+    { label:"Man City", title:"Man City chairman strikes defiant tone after club found guilty", desc:"Manchester City chairman responded.", source:"BBC Sport", expected:"sport" },
+    { label:"Ajax-PSV", title:"Ajax verliest met 3-1 van PSV in eredivisie", desc:"Ajax verloor van PSV.", source:"NOS Sport", expected:"sport" },
+    { label:"Ireland-Israel game", title:"Republic of Ireland to wear black armbands for Israel game", desc:"Ireland to wear armbands for Israel game.", source:"BBC", expected:"sport" },
+    { label:"Premier League", title:"Premier League: Liverpool en Arsenal spelen gelijk", desc:"Liverpool en Arsenal speelden gelijk.", source:"BBC Sport", expected:"sport" },
+    { label:"Wimbledon", title:"Wimbledon finale: Alcaraz verslaat Djokovic", desc:"Alcaraz won van Djokovic.", source:"Eurosport", expected:"sport" },
+    { label:"NBA finals", title:"NBA finals: Boston Celtics verslaan Dallas Mavericks", desc:"Boston Celtics wonnen.", source:"ESPN", expected:"sport" },
 
-    /* ===== CRIME ===== */
-    { label:"Aanslag Brussel", title:"Aanslag in Brussel: verdachte opgepakt, twee doden", desc:"Bij een aanslag in het centrum van Brussel zijn twee mensen omgekomen.", source:"VRT NWS", expected:"crime" },
-    { label:"Mocromaffia", title:"Mocromaffia teisteren het land", desc:"De Mocromaffia teistert Nederland al jaren met drugshandel, liquidaties en afrekeningen.", source:"De Telegraaf", expected:"crime" },
-    { label:"Drugskartel Mexico", title:"Kartelgeweld in Mexico: 15 doden bij schietpartij", desc:"Bij een schietpartij tussen rivaliserende drugskartels in Noord-Mexico zijn 15 mensen omgekomen.", source:"Reuters", expected:"crime" },
-    { label:"Fraude zorginstelling", title:"Grootschalige fraude bij zorginstelling: 12 miljoen verduisterd", desc:"Bij een zorginstelling in Utrecht is 12 miljoen euro verduisterd door grootschalige fraude.", source:"FD", expected:"crime" },
-    { label:"Cyberaanval ziekenhuis", title:"Grote cyberaanval op ziekenhuizen: patiëntgegevens gestolen", desc:"Bij een grote cyberaanval op meerdere ziekenhuizen zijn patiëntgegevens gestolen.", source:"Tweakers", expected:"crime" },
-    { label:"Steekpartij Eindhoven", title:"Twee mensen neergestoken in Eindhoven, vijf mensen opgepakt", desc:"In Eindhoven zijn twee mensen neergestoken. De politie heeft vijf verdachten opgepakt.", source:"Nieuwsblad", expected:"crime" },
-    { label:"Taghi-handlanger ontsnapt", title:"Nederlandse 'Taghi-handlanger' korte tijd op vrije voeten na ontsnapping uit Braziliaanse gevangenis", desc:"Een Nederlandse handlanger van Taghi is korte tijd op vrije voeten geweest na een ontsnapping uit een Braziliaanse gevangenis.", source:"AD.nl", expected:"crime" },
+    /* SPORT-grensgevallen — moeten NIET sport zijn */
+    { label:"Player negotiations", title:"Key player in peace negotiations resigns", desc:"A key player resigned.", source:"Reuters", expected:"politiek" },
+    { label:"Team mediators", title:"Team of UN mediators arrives in Cairo for talks", desc:"A team of UN mediators arrived.", source:"Reuters", expected:"politiek" },
+    { label:"Coach bus crash", title:"Tour bus coach overturns on Italian highway, 12 injured", desc:"A coach overturned.", source:"ANSA", expected:"civiel" },
 
-    /* ===== PROTEST ===== */
-    { label:"Klimaatdemonstratie", title:"Duizenden bij klimaatdemonstratie in Amsterdam", desc:"Duizenden mensen zijn naar Amsterdam gekomen voor de grote klimaatdemonstratie.", source:"Nu.nl", expected:"protest" },
-    { label:"Rellen bezuinigingen", title:"Rellen uitgebroken bij protest tegen bezuinigingen", desc:"Bij een protest tegen bezuinigingen zijn rellen uitgebroken. De politie heeft traangas ingezet.", source:"AD.nl", expected:"protest" },
-    { label:"Student protesters", title:"Student protesters disrupt NVIDIA AI climate panel", desc:"A group of student protesters disrupted an NVIDIA AI climate panel event.", source:"Reuters", expected:"protest" },
+    /* CRIME */
+    { label:"Aanslag Brussel", title:"Aanslag in Brussel: verdachte opgepakt, twee doden", desc:"Bij een aanslag in Brussel zijn twee mensen omgekomen.", source:"VRT NWS", expected:"crime" },
+    { label:"Mocromaffia", title:"Mocromaffia teisteren het land", desc:"De Mocromaffia teistert Nederland.", source:"De Telegraaf", expected:"crime" },
+    { label:"Kartel Mexico", title:"Kartelgeweld in Mexico: 15 doden bij schietpartij", desc:"Bij een schietpartij zijn 15 mensen omgekomen.", source:"Reuters", expected:"crime" },
+    { label:"Fraude zorginstelling", title:"Grootschalige fraude bij zorginstelling: 12 miljoen verduisterd", desc:"12 miljoen euro verduisterd.", source:"FD", expected:"crime" },
+    { label:"Man shot Chicago", title:"Man shot dead in Chicago's South Side, police investigating", desc:"A man was shot dead.", source:"CBS News", expected:"crime" },
+    { label:"Stabbed London", title:"Two stabbed in London park, attacker arrested", desc:"Two stabbed in London park.", source:"BBC", expected:"crime" },
+    { label:"Taghi ontsnapping", title:"Nederlandse 'Taghi-handlanger' op vrije voeten na ontsnapping", desc:"Handlanger ontsnapte.", source:"AD.nl", expected:"crime" },
+    { label:"Cyclist murder", title:"Cyclist killed in collision with moped as murder investigation launched", desc:"A cyclist was killed and a murder investigation is underway.", source:"NOS", expected:"crime" },
+    { label:"Attack on democracy", title:"Attack on democracy: election officials face threats", desc:"Election officials face threats.", source:"AP", expected:"politiek" },
 
-    /* ===== CIVIEL ===== */
-    { label:"Barbecue De Wilp", title:"Meerdere gewonden door steekvlam bij buurtbarbecue De Wilp", desc:"Tijdens een buurtbarbecue in De Wilp zijn zaterdagavond meerdere mensen gewond geraakt door een steekvlam.", source:"AD.nl", expected:"civiel" },
-    { label:"Gaslek Athene", title:"Four American tourists among 6 killed in suspected gas leak blast in Athens", desc:"Six people died in a suspected gas leak explosion in a hotel in central Athens.", source:"France24 EN", expected:"civiel" },
-    { label:"Bus Khenifra", title:"28 gewonden bij botsing tussen bus en vrachtwagen bij Khenifra", desc:"Bij een botsing tussen een bus en een vrachtwagen op de N8 bij Khenifra zijn 28 mensen gewond geraakt.", source:"MAROKKO.nl", expected:"civiel" },
-    { label:"Woningbrand Amsterdam", title:"Grote woningbrand in Amsterdam, bewoners geëvacueerd", desc:"In Amsterdam is een grote woningbrand uitgebroken. De brandweer heeft meerdere bewoners geëvacueerd.", source:"AT5", expected:"civiel" },
-    { label:"Overstroming Spanje", title:"Dodental overstromingen Spanje loopt op naar 95", desc:"Het dodental als gevolg van de overstromingen in Valencia is opgelopen tot 95.", source:"El País", expected:"civiel" },
-    { label:"Merwedebrug", title:"Merwedebrug sneller open dan verwacht na werkzaamheden", desc:"De Merwedebrug gaat sneller open dan verwacht na werkzaamheden.", source:"RTV Utrecht", expected:"civiel" }
+    /* CIVIEL */
+    { label:"Barbecue De Wilp", title:"Meerdere gewonden door steekvlam bij buurtbarbecue De Wilp", desc:"Gewonden bij barbecue.", source:"AD.nl", expected:"civiel" },
+    { label:"Bus Khenifra", title:"28 gewonden bij botsing tussen bus en vrachtwagen bij Khenifra", desc:"28 gewonden bij botsing.", source:"MAROKKO.nl", expected:"civiel" },
+    { label:"Woningbrand", title:"Grote woningbrand in Amsterdam, bewoners geëvacueerd", desc:"Grote woningbrand.", source:"AT5", expected:"civiel" },
+    { label:"Overstroming Spanje", title:"Dodental overstromingen Spanje loopt op naar 95", desc:"Dodental naar 95.", source:"El País", expected:"civiel" },
+    { label:"Hurricane Polo", title:"Category 4 Hurricane Polo threatens Mexico's coast, landfall expected Monday", desc:"Hurricane Polo threatens Mexico.", source:"Reuters", expected:"civiel" },
+    { label:"Storm US Northeast", title:"Powerful storm brings flooding, power outages to northeastern United States", desc:"Storm brings flooding to US Northeast.", source:"AP", expected:"civiel" },
+    { label:"Gas leak Athens", title:"Four American tourists among 6 killed in suspected gas leak blast in Athens", desc:"Six died in a suspected gas leak explosion.", source:"France24", expected:"civiel" },
+    { label:"Auto recall", title:"Europe's largest automaker recalls 4 million cars over safety concerns", desc:"Automaker recalls cars.", source:"Reuters", expected:"civiel" },
+
+    /* ARABISCH */
+    { label:"AR Gaza", title:"مقتل 15 فلسطينيا في غارة إسرائيلية على غزة", desc:"قتل 15 فلسطينيا.", source:"Al Jazeera AR", expected:"militair" },
+    { label:"AR Libanon", title:"قصف إسرائيلي على جنوب لبنان يوقع إصابات", desc:"قصف إسرائيلي.", source:"Anadolu AR", expected:"militair" },
+    { label:"AR verkiezingen", title:"انتخابات برلمانية في إيران وسط دعوات للمقاطعة", desc:"انتخابات برلمانية.", source:"Al Arabiya", expected:"politiek" },
+    { label:"AR protest", title:"احتجاجات واسعة في تل أبيب تطالب بإسقاط نتنياهو", desc:"احتجاجات واسعة.", source:"Al Jazeera AR", expected:"protest" },
+
+    /* OVERIG — moet overig zijn */
+    { label:"Bjorn Blom prijs", title:"Bjorn Blom wint landelijke prijs met documentaire 'Twentse Mannen Huilen Niet'", desc:"Documentaire wint prijs.", source:"NOS", expected:"overig" },
+    { label:"Dolly Parton Day", title:"New Orleans celebrates Dolly Parton Day, in photos", desc:"Celebrations in New Orleans.", source:"AP", expected:"overig" },
+    { label:"Weersverwachting", title:"Weersverwachting voor het weekend: zonnig met af en toe een bui", desc:"Zonnig.", source:"KNMI", expected:"overig" },
+    { label:"Pope mass Paris", title:"Paus Leo XIV draagt in hartje Parijs mis op voor duizenden", desc:"Paus draagt mis op.", source:"NOS", expected:"overig" },
+    { label:"Negev residents", title:"Negev residents report 'insane gunfire' for several hours, feel reminded of Oct. 7", desc:"Residents report gunfire.", source:"Times of Israel", expected:"overig" }
   ];
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
-  function catLabel(cat){ return { militair:"Militair", crime:"Crime", politiek:"Politiek", protest:"Protest", civiel:"Civiel", sport:"Sport" }[cat] || cat; }
+  function catLabel(cat){ return { militair:"Militair", crime:"Crime", politiek:"Politiek", protest:"Protest", civiel:"Civiel", sport:"Sport", overig:"Overig" }[cat] || cat; }
 
   function renderSignals(signals){
     var out = [];
@@ -202,23 +226,21 @@
       var hits = signals[cat];
       if (!hits || !hits.length) return;
       var words = hits.map(function(h){
-        var cls = h.substring ? "sub" : ("w" + h.weight);
-        return '<span class="signal-word ' + cls + '">' + esc(h.word) + ' <sub>' + h.weight + '</sub></span>';
+        return '<span class="signal-word">' + esc(h.word) + ' <sub>' + h.weight + '</sub></span>';
       }).join("");
       out.push('<div class="signal-line"><span class="signal-cat">' + catLabel(cat) + ':</span> ' + words + '</div>');
     });
-    return out.join("") || '<div class="signal-line"><em>Geen signaalwoorden herkend</em></div>';
+    return out.join("") || '<div class="signal-line"><em>Geen signaalwoorden</em></div>';
   }
 
   function renderMeta(meta){
     var tags = [];
-    if (meta.sportBySource) tags.push('<span class="meta-tag sport">Sport-bron: "' + esc(meta.sportBySource) + '" → verborgen</span>');
-    if (meta.sportByWords) tags.push('<span class="meta-tag sport">Sport-woord: "' + esc(meta.sportByWords) + '" → verborgen</span>');
-    if (meta.sportByClub) tags.push('<span class="meta-tag sport">Sport-club: "' + esc(meta.sportByClub) + '" → verborgen</span>');
-    if (meta.hasMilitaryAction) tags.push('<span class="meta-tag ok">✓ Militaire actie</span>');
-    if (meta.mode && meta.mode.isReport) tags.push('<span class="meta-tag info">Report-mode (score ' + meta.mode.reportScore + ')</span>');
-    if (meta.mode && meta.mode.isAction) tags.push('<span class="meta-tag warn">Action-mode (score ' + meta.mode.actionScore + ')</span>');
+    if (meta.sportBlocked) tags.push('<span class="meta-tag sport">🚫 Sport (' + esc(meta.sportBy) + ')</span>');
+    if (meta.triplet && meta.triplet.isLocked) tags.push('<span class="meta-tag ok">🔒 Triplet-lock</span>');
+    if (meta.triplet && meta.triplet.personAfterMilitia) tags.push('<span class="meta-tag warn">Person-volgt-militie</span>');
+    if (meta.mode && meta.mode.isStatement) tags.push('<span class="meta-tag warn">Statement (' + esc(meta.mode.reason || '') + ')</span>');
     if (meta.terrorWord) tags.push('<span class="meta-tag warn">Terror: ' + esc(meta.terrorWord) + '</span>');
+    if (meta.reason) tags.push('<span class="meta-tag warn">Reden: ' + esc(meta.reason) + '</span>');
     if (!tags.length) tags.push('<span class="meta-tag">Geen speciale regels</span>');
     return tags.join("");
   }
@@ -230,11 +252,11 @@
     html += '<div class="result-header">';
     html += '<span class="badge ' + result.category + '">' + catLabel(result.category) + '</span>';
     if (result.subtype) html += '<span class="badge subtype">' + esc(result.subtype) + '</span>';
-    if (result.uncertain) html += '<span class="badge subtype" style="color:#f59e0b">?</span>';
-    html += '<span class="conf"><span>Confidence: ' + result.confidence + '%</span><span class="conf-bar"><span class="conf-fill ' + confClass + '" style="width:' + result.confidence + '%"></span></span></span>';
+    if (result.lang) html += '<span class="badge lang">' + result.lang.toUpperCase() + '</span>';
+    if (result.isFiltered) html += '<span class="badge subtype" style="color:#f59e0b">🚫 GEFILTERD</span>';
+    html += '<span class="conf"><span>' + result.confidence + '%</span><span class="conf-bar"><span class="conf-fill ' + confClass + '" style="width:' + result.confidence + '%"></span></span></span>';
     html += '</div>';
-
-    if (result.category !== "sport" && result.scores && Object.keys(result.scores).length){
+    if (result.scores && Object.keys(result.scores).length){
       html += '<div class="scores-grid">';
       ["militair","crime","politiek","protest","civiel"].forEach(function(c){
         html += '<div class="score-box ' + c + '"><div class="cat">' + catLabel(c) + '</div><div class="val">' + (result.scores[c] || 0) + '</div></div>';
@@ -249,10 +271,11 @@
 
   function classifyNow(){
     if (!window.WDClassifier) { alert("classifier.js niet geladen!"); return; }
-    var title = document.getElementById("inTitle").value;
-    var desc = document.getElementById("inDesc").value;
-    var source = document.getElementById("inSource").value;
-    renderResult(window.WDClassifier.classify(title, desc, source));
+    renderResult(window.WDClassifier.classify(
+      document.getElementById("inTitle").value,
+      document.getElementById("inDesc").value,
+      document.getElementById("inSource").value
+    ));
   }
 
   function fillForm(p){
@@ -287,10 +310,14 @@
     if (!window.WDClassifier) { wrap.innerHTML = "classifier.js niet geladen"; return; }
     var html = '<table class="batch-table"><thead><tr><th>#</th><th>Label</th><th>Resultaat</th><th>Subtype</th><th>Conf</th><th>Verwacht</th></tr></thead><tbody>';
     var correct = 0;
+    var byCat = {};
     PRESETS.forEach(function(p, i){
       var r = window.WDClassifier.classify(p.title, p.desc, p.source);
       var ok = (r.category === p.expected);
       if (ok) correct++;
+      if (!byCat[p.expected]) byCat[p.expected] = {ok:0, tot:0};
+      byCat[p.expected].tot++;
+      if (ok) byCat[p.expected].ok++;
       var rowStyle = ok ? "" : ' style="background:rgba(239,68,68,.08)"';
       html += '<tr' + rowStyle + '>';
       html += '<td>' + (i+1) + '</td>';
@@ -302,10 +329,16 @@
       html += '</tr>';
     });
     html += '</tbody></table>';
-    html += '<div style="margin-top:.75rem;font-size:.85rem;color:var(--ink-2)"><strong>Score: ' + correct + ' / ' + PRESETS.length + '</strong> correct';
-    if (correct === PRESETS.length) html += ' — <span style="color:var(--good)">Perfect 🎉</span>';
-    else if (correct >= PRESETS.length * 0.85) html += ' — <span style="color:var(--warn)">Goed, kleine verbeteringen mogelijk</span>';
-    else html += ' — <span style="color:var(--bad)">Woordenlijsten moeten worden bijgewerkt</span>';
+    var total = PRESETS.length;
+    var pct = Math.round(correct / total * 100);
+    var cls = correct === total ? "good" : (pct >= 85 ? "warn" : "bad");
+    html += '<div class="stat-row">';
+    html += '<div class="stat-box ' + cls + '"><div class="v">' + correct + '/' + total + '</div><div class="k">Correct (' + pct + '%)</div></div>';
+    ["militair","crime","politiek","protest","civiel","sport","overig"].forEach(function(c){
+      if (!byCat[c] || byCat[c].tot === 0) return;
+      var cCls = byCat[c].ok === byCat[c].tot ? "good" : (byCat[c].ok >= byCat[c].tot * 0.8 ? "warn" : "bad");
+      html += '<div class="stat-box ' + cCls + '"><div class="v">' + byCat[c].ok + '/' + byCat[c].tot + '</div><div class="k">' + catLabel(c) + '</div></div>';
+    });
     html += '</div>';
     wrap.innerHTML = html;
   }
@@ -315,9 +348,6 @@
     document.getElementById("btnClear").addEventListener("click", clearForm);
     document.getElementById("btnBatch").addEventListener("click", runBatch);
     renderPresets();
-    if (!window.WDClassifier) {
-      document.getElementById("result").innerHTML = '<div class="result" style="border-left:4px solid #ef4444"><strong style="color:#ef4444">Fout:</strong> classifier.js niet gevonden.</div>';
-    }
   });
 
 })();
