@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.11
-   - v3.11: prefix-match in findTargetByPosition (ukraine → ukrainian)
+   WAR DESK — ai-map.js v3.12
+   - v3.12: skip "X-backed"/"X-led" + Pakistaanse regio's
+   - v3.11: prefix-match in findTargetByPosition
    - v3.10: actor/target onderscheid via positie
    - v3.9: context-filter + titel-only
-   - v3.8: CityStatus integratie
    ============================================================ */
 
 (function(){
@@ -15,6 +15,9 @@
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
   var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen|program|programma|nuclear|nucleair)\b/i;
+
+  /* v3.12: suffix-patronen die betekenen dat het land context is, geen doelwit */
+  var CONTEXT_SUFFIX = /^[-\s]?(backed|led|supported|funded|linked|based|allied|sponsored|aligned|occupied|held|controlled|recognized|recognised|declared|designated|proposed|announced|reported|alleged|accused|suspected)\b/i;
 
   var POSITION_ACTION_PATTERNS = [
     /\b(struck|strikes|striking)\b/i,
@@ -153,6 +156,15 @@
     "pakistan":{lat:33.68,lng:73.05,country:"Pakistan",region:"Azië"},
     "islamabad":{lat:33.68,lng:73.05,country:"Pakistan",region:"Azië"},
     "karachi":{lat:24.86,lng:67.01,country:"Pakistan",region:"Azië"},
+    /* v3.12: Pakistaanse regio's */
+    "balochistan":{lat:28.97,lng:66.47,country:"Pakistan",region:"Azië"},
+    "baluchistan":{lat:28.97,lng:66.47,country:"Pakistan",region:"Azië"},
+    "sindh":{lat:25.89,lng:68.34,country:"Pakistan",region:"Azië"},
+    "punjab":{lat:31.17,lng:72.71,country:"Pakistan",region:"Azië"},
+    "gilgit":{lat:35.42,lng:74.98,country:"Pakistan",region:"Azië"},
+    "waziristan":{lat:32.72,lng:69.83,country:"Pakistan",region:"Azië"},
+    "khyber":{lat:34.10,lng:71.15,country:"Pakistan",region:"Azië"},
+
     "india":{lat:28.61,lng:77.21,country:"India",region:"Azië"},
     "new delhi":{lat:28.61,lng:77.21,country:"India",region:"Azië"},
     "kashmir":{lat:34.08,lng:74.80,country:"India",region:"Azië"},
@@ -281,7 +293,7 @@
   }
 
   /* ============================================================
-     v3.11: PREFIX-MATCH in findTargetByPosition
+     v3.12: findTargetByPosition met suffix-skip
      ============================================================ */
   function findTargetByPosition(title, actorCountries){
     if (!title) return null;
@@ -305,6 +317,12 @@
       var idx = m.index;
       var loc = LOCATIONS[key];
       if (actorCountries && loc.country && actorCountries.indexOf(loc.country) !== -1) continue;
+
+      /* v3.12: skip "X-backed", "X-led" (context, niet doelwit) */
+      var afterIdx = idx + m[0].length;
+      var nextChunk = afterVerb.slice(afterIdx, afterIdx + 20);
+      if (CONTEXT_SUFFIX.test(nextChunk)) continue;
+
       if (bestPos === -1 || idx < bestPos){
         best = loc;
         bestPos = idx;
@@ -331,6 +349,7 @@
         if (loc.country && skip.indexOf(loc.country) !== -1) continue;
         var after = lower.slice(idx + pattern.length).trim();
         if (CONTEXT_AFTER.test(after)) continue;
+        if (CONTEXT_SUFFIX.test(after)) continue;
         if (key.length > foundLen) { found = loc; foundLen = key.length; }
       }
     }
@@ -541,7 +560,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.11] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.12] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -619,7 +638,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.11 geladen (prefix-match fix)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.12 geladen (suffix-skip + regio's)");
   }
 
   function getCountries(){
