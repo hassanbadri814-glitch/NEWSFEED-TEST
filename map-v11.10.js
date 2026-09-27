@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v14.3 — Conflictkaart
-   - v14.3: "Alles"-filter toegevoegd
-   - v14.2: rerender bij translation:added (Arabische events)
+   WAR DESK v14.4 — Conflictkaart + Wereldkaart-integratie
+   - v14.4: WorldMap init + refresh + toggle
+   - v14.3: "Alles"-filter
+   - v14.2: rerender bij translation:added
    - v14.1: dedup-badge voor cluster-events
    ============================================================ */
 
@@ -13,7 +14,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.3 geladen — Alles-filter + vertaal-aware");
+  LOG("v14.4 geladen — wereldkaart-integratie");
 
   var CATEGORIES = {
     all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
@@ -63,7 +64,8 @@
     currentDetailEvent: null, _lastNewsCount: 0, _busBound: false,
     _lastRenderTime: 0,
     _lastZoomHash: "",
-    _counters: { militair:0, crime:0, politiek:0, protest:0, civiel:0 }
+    _counters: { militair:0, crime:0, politiek:0, protest:0, civiel:0 },
+    _worldMapEnabled: true /* v14.4 */
   };
 
   var TILES = {
@@ -181,7 +183,12 @@
       ".live-filter[data-cat='all']{border-color:rgba(224,168,87,.4)}" +
       ".live-filter[data-cat='all'].active{background:rgba(224,168,87,.15);color:#e0a857;border-color:#e0a857}" +
       ".pop-sources-list{margin-top:.4rem;font-size:.72rem;color:var(--ink-3);line-height:1.5}" +
-      ".pop-sources-list strong{color:var(--ink);font-weight:700}";
+      ".pop-sources-list strong{color:var(--ink);font-weight:700}" +
+      /* v14.4: wereldkaart toggle */
+      ".wm-toggle{position:absolute;top:.7rem;left:.7rem;z-index:500;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(226,168,87,.4);color:#e0a857;font-size:.72rem;font-weight:700;padding:.5rem .75rem;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;box-shadow:0 4px 14px rgba(0,0,0,.45);font-family:inherit;transition:all .18s}" +
+      ".wm-toggle:hover{background:rgba(226,168,87,.2);box-shadow:0 0 14px rgba(224,168,87,.4)}" +
+      ".wm-toggle.off{opacity:.55;color:#8a94a8;border-color:rgba(255,255,255,.15)}" +
+      ".wm-toggle svg{width:14px;height:14px}";
     document.head.appendChild(s);
   }
 
@@ -208,6 +215,39 @@
     btn.textContent = "✕";
     btn.addEventListener("click", function(e){ e.stopPropagation(); exitFullscreen(); });
     wrap.appendChild(btn);
+  }
+
+  /* ============================================================
+     v14.4: WERELDKAART TOGGLE KNOP
+     ============================================================ */
+  function ensureWorldMapToggle(){
+    var wrap = document.querySelector(".map-wrap");
+    if(!wrap || wrap.querySelector(".wm-toggle")) return;
+    var btn = document.createElement("button");
+    btn.className = "wm-toggle" + (MAP._worldMapEnabled ? "" : " off");
+    btn.setAttribute("aria-label", "Wereldkaart aan/uit");
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg><span>Wereldkaart</span>';
+    btn.addEventListener("click", function(){
+      MAP._worldMapEnabled = !MAP._worldMapEnabled;
+      btn.classList.toggle("off", !MAP._worldMapEnabled);
+      try {
+        if(window.WorldMap && window.WorldMap.setEnabled) window.WorldMap.setEnabled(MAP._worldMapEnabled);
+      } catch(e){}
+      try {
+        if(window.WDStorage) WDStorage.set("worldmap_enabled", MAP._worldMapEnabled ? "1" : "0");
+      } catch(e){}
+      LOG("Wereldkaart toggle: " + (MAP._worldMapEnabled ? "aan" : "uit"));
+    });
+    wrap.appendChild(btn);
+  }
+
+  function restoreWorldMapToggle(){
+    try {
+      var saved = window.WDStorage ? WDStorage.get("worldmap_enabled") : null;
+      if (saved !== null && saved !== undefined && saved !== ""){
+        MAP._worldMapEnabled = saved === "1";
+      }
+    } catch(e){}
   }
 
   function ensureDetailModal(){
@@ -443,6 +483,15 @@
     renderLiveList();
     updateCounters();
 
+    /* v14.4: refresh wereldkaart-hitte met de nieuwe events */
+    try {
+      if (window.WorldMap && window.WorldMap.refresh && MAP._worldMapEnabled){
+        window.WorldMap.refresh(events);
+      }
+    } catch(e){
+      LOG("WorldMap.refresh faalde: " + (e.message || "?"));
+    }
+
     var zoomHash = MAP.events.map(function(e){ return e.id; }).join("|").slice(0, 200);
     if (zoomHash !== MAP._lastZoomHash) {
       MAP._lastZoomHash = zoomHash;
@@ -513,7 +562,6 @@
       return;
     }
 
-    /* Cap op 200 voor performance bij "Alles"-filter */
     var shown = filtered.slice(0, 200);
     var overflow = filtered.length - shown.length;
 
@@ -594,6 +642,26 @@
     MAP.instance.addLayer(MAP.cluster);
     observeThemeChanges();
     LOG("Map klaar");
+
+    /* v14.4: init wereldkaart */
+    try {
+      if (window.WorldMap && window.WorldMap.init){
+        var initResult = window.WorldMap.init(MAP.instance);
+        if (initResult && typeof initResult.then === "function"){
+          initResult.then(function(){
+            if (MAP._worldMapEnabled === false && window.WorldMap.setEnabled){
+              window.WorldMap.setEnabled(false);
+            }
+          }).catch(function(e){
+            LOG("WorldMap.init promise faalde: " + (e.message || "?"));
+          });
+        }
+      } else {
+        LOG("WorldMap niet beschikbaar — wereldkaart overgeslagen");
+      }
+    } catch(e){
+      LOG("WorldMap.init faalde: " + (e.message || "?"));
+    }
   }
 
   function bindControls(){
@@ -681,6 +749,7 @@
   function activateMapView(){
     initMap();
     ensureFullscreenClose();
+    ensureWorldMapToggle(); /* v14.4 */
     if(MAP.instance) setTimeout(function(){ if(MAP.instance) MAP.instance.invalidateSize(); }, 350);
     if(window.State && State.items && State.items.length) refreshFromNews();
   }
@@ -701,6 +770,7 @@
     bindControls();
     hookViewSwitch();
     restoreFilter();
+    restoreWorldMapToggle(); /* v14.4 */
     renderLiveFilters();
     bindEventBus();
 
@@ -739,5 +809,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.3 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.4 geladen");
 })();
