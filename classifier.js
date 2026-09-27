@@ -1,27 +1,16 @@
 /* ============================================================
    WAR DESK — classifier.js v2.1
    Waterdicht 5-categorie systeem
-   
-   KERNPRINCIPES:
-   1. Militair vereist een CONCRETE actie (niet alleen actor/locatie)
-   2. Diplomatiek (spreker+werkwoord) → Politiek, tenzij militaire actie
-   3. Sport wordt uitgesloten (Civiel/Sport)
-   4. Locaties zijn bonus, nooit basis
    ============================================================ */
 
 (function(){
   "use strict";
 
   var VERSION = "v2.1";
-
   var CATS = ["militair", "crime", "politiek", "protest", "civiel"];
   var PRIORITY = { militair: 5, crime: 4, politiek: 3, protest: 2, civiel: 1 };
 
-  /* ============================================================
-     MILITAIR — alleen concrete acties krijgen gewicht 3
-     ============================================================ */
   var W_MILITAIR = {
-    // ===== Gewicht 3 — HARDE MILITAIRE ACTIES =====
     "raketaanval":3, "raketinslag":3, "raketten-afgevuurd":3, "kruisraket-afgevuurd":3,
     "ballistische-raket":3, "hypersonische-raket":3,
     "missile-strike":3, "missile-attack":3,
@@ -44,8 +33,6 @@
     "luchtafweer-afgevuurd":3, "luchtafweer":3, "air-defense":3,
     "onderschept":3, "intercepted":3, "neergehaald":3, "downed":3, "shot-down":3,
     "aanval":2, "aanvallen":2, "attack":2, "attacks":2, "assault":2,
-
-    // ===== Gewicht 2 — militaire context =====
     "militair":2, "militaire":2, "military":2,
     "leger":2, "army":2, "krijgsmacht":2, "strijdkrachten":2,
     "troepen":2, "troops":2, "forces":2,
@@ -68,8 +55,6 @@
     "marine":2, "warship":2, "fregat":2, "torpedo":2,
     "militair-doelwit":2, "militaire-installatie":2,
     "wapenstilstand":2, "staakt-het-vuren":2, "ceasefire":2,
-
-    // ===== Gewicht 1 — zwak =====
     "gesneuveld":1, "gesneuvelde":1, "gesneuvelden":1,
     "oorlogsgebied":1, "conflictgebied":1, "crisisgebied":1,
     "slagveld":1, "battlefield":1,
@@ -77,11 +62,7 @@
     "conflict":1, "conflicts":1, "strijd":1
   };
 
-  /* ============================================================
-     CRIME — geweld + fraude/cyber
-     ============================================================ */
   var W_CRIME = {
-    // Gewelddadig
     "moord":3, "vermoord":3, "moorden":3, "moordenaar":3, "moordenaars":3,
     "neergeschoten":3, "neergestoken":3, "neergeslagen":3,
     "doodslag":3, "doodde":3, "doodden":3,
@@ -96,8 +77,6 @@
     "verkrachting":3, "aanranding":3, "zedenmisdrijf":3,
     "kindermisbruik":3, "kinderporno":3, "seksuele-uitbuiting":3,
     "steekpartij":3, "steekincident":3,
-
-    // Fraude/cyber
     "fraude":3, "fraudeur":3, "fraudeurs":3, "oplichting":3, "opgelicht":3,
     "phishing":3, "hacking":3, "hackers":3, "cyberaanval":3, "cyberattack":3,
     "ransomware":3, "malware":3, "datalek":3, "datalekken":3,
@@ -110,8 +89,6 @@
     "milieucriminaliteit":3, "illegale-afvaldump":3,
     "namaak":3, "productpiraterij":3,
     "marktmanipulatie":3,
-
-    // Context
     "maffia":2, "mocromaffia":2, "maffioso":2, "maffiosi":2,
     "kartel":2, "drugskartel":2, "drugssyndicaat":2,
     "bende":2, "bendes":2, "gang":2, "straatbende":2, "motorbende":2,
@@ -128,8 +105,6 @@
     "helers":2, "heling":2,
     "illegale-handel":2, "smokkel":2, "smokkelaar":2,
     "vuurwapen":2, "vuurwapens":2, "illegale-vuurwapens":2,
-
-    // Zwak
     "gepakt":1, "opgepakt":1,
     "aanklacht":1, "charged":1, "tenlastelegging":1,
     "boete":1, "boetes":1, "geldboete":1,
@@ -139,19 +114,13 @@
     "teisteren":1, "teistert":1, "teisterde":1
   };
 
-  /* ============================================================
-     POLITIEK — verkiezingen, diplomatie, sancties
-     ============================================================ */
   var W_POLITIEK = {
-    // Diplomatieke werkwoorden (gewicht 3)
     "says":3, "said":3, "claims":3, "accuses":3, "warns":3,
     "rejects":3, "awaits":3, "refuses":3, "demands":3, "urges":3,
     "declares":3, "states":3, "called-for":3, "called-on":3,
     "zegt":3, "zei":3, "verklaart":3, "beweert":3, "beschuldigt":3,
     "waarschuwt":3, "eist":3, "weigert":3, "dreigt":3, "dringt-aan":3,
     "volgens":3, "reageert":3, "reageerde":3,
-
-    // Politieke gebeurtenissen
     "verkiezing":3, "verkiezingen":3, "election":3, "elections":3,
     "referendum":3, "volksraadpleging":3,
     "staatsgreep":3, "coup":3, "militaire-coup":3,
@@ -161,8 +130,6 @@
     "regeerakkoord":3, "coalitieakkoord":3,
     "verkiezingsprogramma":3, "partijprogramma":3,
     "sanction":3, "sanctions":3, "sanctie":3, "sancties":3,
-
-    // Politieke actoren / instituties
     "parlement":2, "parliament":2, "volksvertegenwoordiging":2,
     "tweede-kamer":2, "eerste-kamer":2, "senaat":2,
     "coalitie":2, "coalition":2, "oppositie":2, "opposition":2,
@@ -179,8 +146,6 @@
     "formatie":2, "informateur":2, "formateur":2,
     "underhandelingen":2, "onderhandelingen":2, "negotiations":2,
     "mediators":2, "mediator":2, "vredesplan":2, "peace-plan":2,
-
-    // Zwak
     "politiek":1, "political":1, "politicus":1, "politica":1,
     "partij":1, "party":1, "campagne":1, "campaign":1,
     "debat":1, "debate":1, "stemming":1, "vote":1,
@@ -188,11 +153,7 @@
     "beleid":1, "policy":1, "overheid":1, "authority":1
   };
 
-  /* ============================================================
-     PROTEST — demonstraties, stakingen, rellen
-     ============================================================ */
   var W_PROTEST = {
-    // Gewicht 3
     "demonstratie":3, "demonstranten":3, "demonstreren":3, "demonstrant":3,
     "protest":3, "protesten":3, "protesteerders":3,
     "rellen":3, "rellende":3, "relschoppers":3,
@@ -203,27 +164,19 @@
     "blokkade":3, "wegblokkade":3, "spoorblokkade":3,
     "sit-in":3, "sit-inactie":3,
     "kraak":3, "kraken":3, "gekraakt":3, "kraakpand":3,
-
-    // Gewicht 2
     "activist":2, "activisten":2, "activisme":2,
     "betoging":2, "betogers":2,
     "protestmars":2, "stille-tocht":2,
     "burgerlijke-ongehoorzaamheid":2,
     "sociale-beweging":2,
     "vakbond":2, "vakbonden":2, "fnv":2, "cnv":2,
-
-    // Gewicht 1
     "leuzen":1, "spandoek":1, "spandoeken":1,
     "pamflet":1, "flyer":1, "pamfletten":1,
     "menigte":1, "duizenden":1,
     "politie-inzet":1, "waterkanon":1, "traangas":1
   };
 
-  /* ============================================================
-     CIVIEL — ongelukken, rampen, natuur
-     ============================================================ */
   var W_CIVIEL = {
-    // Rampen
     "aardbeving":3, "earthquake":3, "naschok":3, "naschokken":3,
     "overstroming":3, "overstromingen":3, "flood":3, "flooding":3,
     "tsunami":3, "vloedgolf":3,
@@ -249,8 +202,6 @@
     "vuurwerkongeval":3, "vuurwerkramp":3,
     "ontruiming":3, "evacuatie":3, "geëvacueerd":3,
     "vermiste":3, "vermist":3, "missing":3,
-
-    // Context
     "ongeluk":2, "accident":2, "ongeval":2,
     "brandweer":2, "fire-department":2,
     "ambulance":2, "traumahelikopter":2, "hulpdiensten":2,
@@ -260,8 +211,6 @@
     "natuurramp":2, "natural-disaster":2,
     "infrastructuur":2, "brug":2, "tunnel":2, "viaduct":2,
     "stroomuitval":2, "blackout":2, "stroomstoring":2,
-
-    // Zwak
     "gedood":1, "doden":1, "killed":1, "dead":1, "deaths":1,
     "gewond":1, "gewonden":1, "wounded":1, "injured":1,
     "slachtoffer":1, "slachtoffers":1, "victims":1,
@@ -270,9 +219,6 @@
     "hulpverlening":1, "reddingsactie":1, "redding":1
   };
 
-  /* ============================================================
-     SPORT-BLACKLIST — forceert Civiel/Sport
-     ============================================================ */
   var SPORT_WORDS = [
     "football", "soccer", "voetbal", "voetballer", "voetbalclub",
     "club", "clubs", "match", "wedstrijd", "wedstrijden",
@@ -289,9 +235,6 @@
     "knvb", "uefa", "fifa", "nba-finals"
   ];
 
-  /* ============================================================
-     SUBSTRING-WOORDEN — matcht overal
-     ============================================================ */
   var SUBSTRING_WORDS = {
     "maffia":       { cat: "crime", weight: 3 },
     "mocromaffia":  { cat: "crime", weight: 3 },
@@ -313,9 +256,6 @@
     "sanctie":      { cat: "politiek", weight: 3 }
   };
 
-  /* ============================================================
-     TERRORISME + DIPLOMATIE + LOCATIES
-     ============================================================ */
   var TERRORISM_WORDS = [
     "aanslag", "aanslagen", "terrorist", "terroristen", "terrorisme",
     "zelfmoordaanslag", "zelfmoordenaar",
@@ -374,9 +314,6 @@
     "middle-east-eye-tg", "kyiv-independent"
   ];
 
-  /* ============================================================
-     REGEX COMPILATIE
-     ============================================================ */
   function compilePattern(word) {
     var w = String(word).toLowerCase();
     var esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -415,9 +352,6 @@
   var P_INSTABLE = INSTABLE_ZONES.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
   var P_SPORT = SPORT_WORDS.map(function(w){ return { word: w, pattern: compilePattern(w) }; });
 
-  /* ============================================================
-     MATCH HELPERS
-     ============================================================ */
   function countMatches(text, patterns) {
     var score = 0, hits = [];
     for (var i = 0; i < patterns.length; i++) {
@@ -446,23 +380,15 @@
     }
   }
 
-  /* ============================================================
-     DETECTIE-FUNCTIES
-     ============================================================ */
-
-  /* Heeft het artikel een ECHTE militaire actie? (gewicht 3 + actor-combinatie) */
   function hasMilitaryAction(text) {
-    /* 1. Direct: gewicht-3 militair woord aanwezig */
     for (var i = 0; i < P_MILITAIR.length; i++) {
       if (P_MILITAIR[i].weight >= 3 && P_MILITAIR[i].pattern.test(text)) return true;
     }
-    /* 2. Combinatie: militaire actor + geweld-werkwoord */
     var hasActor = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|idf|hamas|hezbollah|houthi|taliban|isis|armed[- ]group|gewapende[- ]groep)\b/i.test(text);
     var hasViolence = /\b(strike|strikes|struck|attack|attacks|kill|kills|killed|injure|injures|injured|bomb|bombs|bombed|shell|shells|shelled|hit|hits)\b/i.test(text);
     return hasActor && hasViolence;
   }
 
-  /* Is het een diplomatieke uitspraak? (spreker + werkwoord) */
   function isDiplomaticStatement(text) {
     for (var i = 0; i < P_DIPLOMATIC.length; i++) {
       if (P_DIPLOMATIC[i].pattern.test(text)) return P_DIPLOMATIC[i].word;
@@ -470,7 +396,6 @@
     return null;
   }
 
-  /* Is het een sportartikel? */
   function isSportArticle(text) {
     for (var i = 0; i < P_SPORT.length; i++) {
       if (P_SPORT[i].pattern.test(text)) return P_SPORT[i].word;
@@ -478,9 +403,6 @@
     return null;
   }
 
-  /* ============================================================
-     SUBTYPE-DETECTIE
-     ============================================================ */
   function detectMilitairSubtype(text, isTerror) {
     if (isTerror) return "Terrorisme";
     if (/\braketaanval|raketinslag|missile|kruisraket|ballistische/.test(text)) return "Raketaanval";
@@ -556,18 +478,13 @@
     if (/\bvermiste|vermist|missing/.test(text)) return "Vermissing";
     if (/\bontruiming|evacuatie|evacuation/.test(text)) return "Evacuatie";
     if (/\bbarbecue/.test(text)) return "Barbecue";
-    if (/\b(Sport|sport)/.test(text)) return "Sport";
     return "Ongeluk";
   }
 
-  /* ============================================================
-     HOOFDFUNCTIE
-     ============================================================ */
   function classify(title, desc, source, url) {
     var text = String((title || "") + " " + (desc || "")).toLowerCase();
     var sourceLower = String(source || "").toLowerCase();
 
-    // ===== FASE 1: SCORES BEREKENEN =====
     var mRes  = countMatches(text, P_MILITAIR);
     var cRes  = countMatches(text, P_CRIME);
     var pRes  = countMatches(text, P_POLITIEK);
@@ -589,10 +506,8 @@
       civiel: ciRes.hits
     };
 
-    // Substring-check
     applySubstring(text, scores, hits);
 
-    // ===== FASE 2: DETECTIES =====
     var hasMilAction = hasMilitaryAction(text);
     var diploWord = isDiplomaticStatement(text);
     var sportWord = isSportArticle(text);
@@ -608,7 +523,6 @@
     var terrorWord = findMatch(text, P_TERROR);
     var isTerror = !!terrorWord;
 
-    // ===== FASE 3: HARD BLOCK — SPORT =====
     if (sportWord && !hasMilAction && !isTerror) {
       return {
         category: "civiel",
@@ -621,12 +535,10 @@
       };
     }
 
-    // ===== FASE 4: MILITAIR VEREIST ACTIE =====
     if (!hasMilAction && !isTerror) {
       scores.militair = 0;
     }
 
-    // ===== FASE 5: LOCATIE + OSINT BONUS (alleen als Militair al > 0) =====
     var locationBonus = 0;
     if (scores.militair > 0) {
       if (conflictLocation) { locationBonus = 2; scores.militair += 2; }
@@ -634,19 +546,16 @@
       if (isOsint) scores.militair += 2;
     }
 
-    // ===== FASE 6: TERRORISME-REGEL =====
     if (isTerror) {
       if (conflictLocation) scores.militair += 5;
       else scores.crime += 5;
     }
 
-    // ===== FASE 7: DIPLOMATIEK-OVERRIDE =====
     if (diploWord && !hasMilAction && !isTerror) {
       scores.politiek += 5;
       scores.militair = 0;
     }
 
-    // ===== FASE 8: CIVIEL-BLOKKADE =====
     var hasStrongCiviel = false;
     for (var ci = 0; ci < ciRes.hits.length; ci++) {
       if (ciRes.hits[ci].weight === 3) { hasStrongCiviel = true; break; }
@@ -659,7 +568,6 @@
       if (!hasStrongMilitary) scores.militair = 0;
     }
 
-    // ===== FASE 9: WINNAAR =====
     var rank = CATS.map(function(c){ return { cat: c, score: scores[c] }; });
     rank.sort(function(a, b){
       if (b.score !== a.score) return b.score - a.score;
@@ -676,7 +584,6 @@
       secondScore = 0;
     }
 
-    // ===== FASE 10: CONFIDENCE =====
     var confidence = 0;
     if (maxScore === 0) confidence = 0;
     else if (secondScore === 0) confidence = 100;
@@ -689,7 +596,6 @@
     }
     var uncertain = (confidence > 0 && confidence < 65);
 
-    // ===== FASE 11: SUBTYPE =====
     var subtype = "";
     if (winner.cat === "militair") subtype = detectMilitairSubtype(text, isTerror);
     else if (winner.cat === "crime") subtype = detectCrimeSubtype(text, isTerror);
