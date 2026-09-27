@@ -1,10 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.5
-   - v3.5: actor-detectie (wie valt aan?) voor conflict-kaart
-   - v3.4: ISO3 per event + __wm_locations voor wereldkaart
+   WAR DESK — ai-map.js v3.6
+   - v3.6: event-detector integratie + source-country skip
+   - v3.5: actor-detectie
+   - v3.4: ISO3 per event + __wm_locations
    - v3.3: zwak-civiel filter
-   - v3.2: vertaal-integratie
-   - v3.1: classifier + dedup + sport-block
    ============================================================ */
 
 (function(){
@@ -192,7 +191,6 @@
     "colombia":{lat:4.71,lng:-74.07,country:"Colombia",region:"Latijns-Amerika"}
   };
 
-  /* v3.4: beschikbaar maken voor wereldkaart */
   try { window.__wm_locations = LOCATIONS; } catch(e){}
 
   var REGION_LOCATIONS = {
@@ -242,27 +240,44 @@
     return candidates[0];
   };
 
-  function extractLocation(text){
+  /* extractLocation — v3.6: skipCountries parameter */
+  function extractLocation(text, skipCountries){
     if (!text) return null;
+    var skip = [];
+    if (skipCountries){
+      if (Array.isArray(skipCountries)) skip = skipCountries;
+      else skip = [skipCountries];
+    }
     var lower = " " + String(text).toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
     var found = null, foundLen = 0;
     for (var key in LOCATIONS) {
       var pattern = " " + key + " ";
       if (lower.indexOf(pattern) !== -1) {
-        if (key.length > foundLen) { found = LOCATIONS[key]; foundLen = key.length; }
+        var loc = LOCATIONS[key];
+        if (loc.country && skip.indexOf(loc.country) !== -1) continue;
+        if (key.length > foundLen) { found = loc; foundLen = key.length; }
       }
     }
     return found;
   }
 
-  function extractRegionFallback(article){
+  function extractRegionFallback(article, skipCountries){
     if (!article) return null;
+    var skip = [];
+    if (skipCountries){
+      if (Array.isArray(skipCountries)) skip = skipCountries;
+      else skip = [skipCountries];
+    }
     var cat = (article.cat || "").toLowerCase();
     var tags = Array.isArray(article.tags) ? article.tags.map(function(t){ return String(t).toLowerCase(); }) : [];
     var all = [cat].concat(tags);
     for (var i = 0; i < all.length; i++) {
       var r = CAT_TO_REGION[all[i]];
-      if (r && REGION_LOCATIONS[r]) return REGION_LOCATIONS[r];
+      if (r && REGION_LOCATIONS[r]){
+        var reg = REGION_LOCATIONS[r];
+        if (reg.country && skip.indexOf(reg.country) !== -1) continue;
+        return reg;
+      }
     }
     return null;
   }
@@ -318,7 +333,6 @@
     return null;
   }
 
-  /* v3.4: ISO3 lookup */
   function getISO3For(countryName){
     try {
       if (window.WorldMapData && window.WorldMapData.getISO3) {
@@ -328,7 +342,6 @@
     return null;
   }
 
-  /* v3.5: detecteer actor-landen in titel (wie valt aan?) */
   function detectActorCountries(title, desc){
     var text = (title || "") + " " + (desc || "");
     try {
@@ -337,6 +350,26 @@
       }
     } catch(e){}
     return [];
+  }
+
+  /* v3.6: detecteer fysieke militaire actie */
+  function detectPhysicalEvent(title, desc){
+    try {
+      if (window.WDEventDetector && window.WDEventDetector.analyze) {
+        return window.WDEventDetector.analyze(title, desc);
+      }
+    } catch(e){}
+    return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reason: "no-detector" };
+  }
+
+  /* v3.6: bron-land ophalen */
+  function getSourceCountry(sourceName){
+    try {
+      if (window.WDEventDetector && window.WDEventDetector.getSourceCountry) {
+        return window.WDEventDetector.getSourceCountry(sourceName);
+      }
+    } catch(e){}
+    return null;
   }
 
   var lastHash = "";
@@ -356,6 +389,7 @@
     var skippedSport = 0;
     var skippedWeakCiviel = 0;
     var skippedNoLocation = 0;
+    var skippedNonPhysical = 0;
 
     for (var i = 0; i < items.length; i++) {
       var article = items[i];
@@ -374,14 +408,25 @@
         }
       }
 
-      var loc = extractLocation((article.title || "") + " " + (article.description || article.desc || ""));
-      if (!loc) loc = extractRegionFallback(article);
+      /* v3.6: bron-land skip */
+      var sourceCountry = getSourceCountry(article.source);
+
+      /* v3.6: check fysieke actie */
+      var detection = detectPhysicalEvent(article.title, article.description || article.desc);
+
+      /* v3.6: locatie uitzoeken (met skip van source-land) */
+      var loc = extractLocation(
+        (article.title || "") + " " + (article.description || article.desc || ""),
+        sourceCountry
+      );
+      if (!loc) loc = extractRegionFallback(article, sourceCountry);
       if (!loc) { skippedNoLocation++; continue; }
 
-      /* v3.4: ISO3 toevoegen voor wereldkaart-hitte */
-      var iso3 = getISO3For(loc.country);
+      /* v3.6: als geen fysieke actie → niet meetellen voor heat, maar wel tonen */
+      var countsForHeat = detection.isPhysicalEvent;
+      if (!countsForHeat) skippedNonPhysical++;
 
-      /* v3.5: actor-landen detecteren */
+      var iso3 = getISO3For(loc.country);
       var actorCountries = detectActorCountries(article.title, article.description || article.desc);
 
       var translatedTitle = getTranslatedTitleFor(article);
@@ -417,7 +462,11 @@
         date: new Date(ts).toISOString(),
         url: article.link || article.url || "",
         source: article.source || "",
-        isMilitary: cls.category === "militair"
+        isMilitary: cls.category === "militair",
+        /* v3.6: nieuw */
+        countsForHeat: countsForHeat,
+        actionTypes: detection.actionTypes || [],
+        actionReason: detection.reason
       });
     }
 
@@ -458,11 +507,12 @@
       grouped.forEach(function(e){
         if(counts[e.category] !== undefined) counts[e.category]++;
       });
-      wdLog.info("[Map-AI v3.5] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.6] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
         " | skip sport:" + skippedSport + " zwak-civiel:" + skippedWeakCiviel +
+        " niet-fysiek:" + skippedNonPhysical +
         " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
         " | " + Math.round(elapsed) + "ms");
     }
@@ -478,6 +528,7 @@
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
       if (e.category !== "militair") continue;
+      if (e.countsForHeat === false) continue;
       var t = new Date(e.date).getTime();
       if (t < dayAgo) continue;
       var k = e.country || "Onbekend";
@@ -558,7 +609,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.5 geladen (actor-detectie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.6 geladen (event-detector integratie)");
   }
 
   function getCountries(){
