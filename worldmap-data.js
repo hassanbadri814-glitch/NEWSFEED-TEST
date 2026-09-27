@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v2.1
+   WAR DESK — worldmap-data.js v2.4
    ------------------------------------------------------------
-   - v2.1: COUNTRY_TO_ISO3 mapping (fix voor land-kleuren)
+   - v2.4: period_days voor periode-filter
+   - v2.1: COUNTRY_TO_ISO3 mapping + ISO3 helper
    - v2.0: ACTOR_MAP + CONFLICT_COLORS (conflict-kaart)
    - v1.0: allianties + feed tiers
    ============================================================ */
@@ -9,7 +10,7 @@
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v2.2";
+  window.WORLDMAP_VERSION = "v2.4";
 
   /* ============================================================
      ALLIANTIES — alleen voor actor-positie bepaling (niet rendering)
@@ -60,7 +61,7 @@
   };
 
   /* ============================================================
-     CONFLICT COLORS — voor de conflict-kaart
+     CONFLICT COLORS
      ============================================================ */
   window.CONFLICT_COLORS = {
     cold:       "#2f2f38",
@@ -212,14 +213,17 @@
     max_events_per_source_per_day: 3,
 
     heat: {
-  cold: 0,
-  warm: 1,      /* was 5 — verlaagd voor zichtbaarheid */
-  hot: 3,       /* was 15 */
-  scorching: 8  /* was 40 */
-},
+      cold: 0,
+      warm: 0.5,
+      hot: 1.5,
+      scorching: 3
+    },
 
     actor_ring_min: 3,
     actor_ring_hot: 15,
+
+    /* v2.4: periode-filter (1=24u, 7=week, 30=maand, 365=alles) */
+    period_days: 7,
 
     conflict_ring_min: 5,
     snapshot_interval_ms: 24 * 60 * 60 * 1000,
@@ -227,7 +231,7 @@
   };
 
   /* ============================================================
-     LANDNAAM → ISO3 (v2.1 — voor matching met GeoJSON features)
+     LANDNAAM → ISO3
      ============================================================ */
   var COUNTRY_TO_ISO3 = {
     /* Conflictgebieden */
@@ -355,7 +359,7 @@
       if (level === "warm") return c.warm;
       return c.cold;
     },
-    /* v2.1: landnaam → ISO3 */
+    /* Landnaam → ISO3 */
     getISO3: function(countryName){
       if (!countryName) return null;
       var key = String(countryName).toLowerCase().trim();
@@ -391,6 +395,6 @@
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.1 geladen — conflict-kaart + ISO3 mapping"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.4 geladen — periode-filter"); } catch(e){}
 
 })();
