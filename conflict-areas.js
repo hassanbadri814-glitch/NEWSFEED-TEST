@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v3.0
+   WAR DESK — conflict-areas.js v3.1
    ------------------------------------------------------------
-   - v3.0: DeepStateMap primair + ISW fallback + turf.js v7
-   - v2.1: verfijnde visuele stijl
+   - v3.1: Eigen point-in-polygon + centroid (geen turf.js meer)
+   - v3.0: DeepStateMap primair + ISW fallback
    ============================================================ */
 
 (function(){
@@ -28,12 +28,12 @@
   var CACHE_KEY = "wardesk_ukraine_oblasts";
   var CACHE_KEY_DS = "wardesk_deepstate_geo";
   var CACHE_KEY_ISW = "wardesk_isw_geo";
-  var CACHE_VERSION = "v7";
-  var CACHE_VERSION_DS = "v3";
-  var CACHE_VERSION_ISW = "v1";
+  var CACHE_VERSION = "v8";
+  var CACHE_VERSION_DS = "v4";
+  var CACHE_VERSION_ISW = "v2";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-  var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000; /* 12 uur */
-  var ISW_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; /* 7 dagen */
+  var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+  var ISW_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
@@ -60,6 +60,128 @@
   };
 
   var db = null;
+
+  /* ============================================================
+     GEO HELPERS — eigen implementatie, geen turf.js nodig
+     ============================================================ */
+
+  /* Ray-casting: is [lng,lat] binnen de ring? */
+  function pointInRing(x, y, ring){
+    var inside = false;
+    var len = ring.length;
+    for(var i = 0, j = len - 1; i < len; j = i++){
+      var xi = ring[i][0], yi = ring[i][1];
+      var xj = ring[j][0], yj = ring[j][1];
+      var intersect = ((yi > y) !== (yj > y)) &&
+                      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      if(intersect) inside = !inside;
+    }
+    return inside;
+  }
+
+  /* Test punt tegen Polygon (met holes) of MultiPolygon */
+  function pointInGeometry(x, y, geometry){
+    if(!geometry) return false;
+    var type = geometry.type;
+
+    if(type === "Polygon"){
+      var rings = geometry.coordinates;
+      if(!rings || !rings.length) return false;
+      if(!pointInRing(x, y, rings[0])) return false;
+      for(var h = 1; h < rings.length; h++){
+        if(pointInRing(x, y, rings[h])) return false;
+      }
+      return true;
+    }
+
+    if(type === "MultiPolygon"){
+      var polys = geometry.coordinates;
+      if(!polys || !polys.length) return false;
+      for(var p = 0; p < polys.length; p++){
+        var rings2 = polys[p];
+        if(!rings2 || !rings2.length) continue;
+        if(!pointInRing(x, y, rings2[0])) continue;
+        var inHole = false;
+        for(var h2 = 1; h2 < rings2.length; h2++){
+          if(pointInRing(x, y, rings2[h2])){ inHole = true; break; }
+        }
+        if(!inHole) return true;
+      }
+      return false;
+    }
+
+    return false;
+  }
+
+  /* Test of een Feature (Polygon of MultiPolygon) een punt bevat */
+  function featureContainsPoint(feature, x, y){
+    if(!feature || !feature.geometry) return false;
+    return pointInGeometry(x, y, feature.geometry);
+  }
+
+  /* Bepaal centroïde van een Feature — gebruikt shoelace formula */
+  function getCentroid(feature){
+    if(!feature || !feature.geometry) return null;
+    var geom = feature.geometry;
+    var outerRing = null;
+
+    if(geom.type === "Polygon"){
+      outerRing = geom.coordinates[0];
+    } else if(geom.type === "MultiPolygon"){
+      /* Kies het grootste polygoon (meeste punten) */
+      var largest = null, largestSize = 0;
+      for(var i = 0; i < geom.coordinates.length; i++){
+        var ring = geom.coordinates[i][0];
+        if(ring && ring.length > largestSize){
+          largestSize = ring.length;
+          largest = ring;
+        }
+      }
+      outerRing = largest;
+    }
+
+    if(!outerRing || outerRing.length < 3) return null;
+
+    /* Shoelace formula voor centroïde */
+    var area = 0, cx = 0, cy = 0;
+    for(var j = 0; j < outerRing.length - 1; j++){
+      var x0 = outerRing[j][0], y0 = outerRing[j][1];
+      var x1 = outerRing[j+1][0], y1 = outerRing[j+1][1];
+      var cross = x0 * y1 - x1 * y0;
+      area += cross;
+      cx += (x0 + x1) * cross;
+      cy += (y0 + y1) * cross;
+    }
+    area = area / 2;
+
+    if(Math.abs(area) < 1e-12){
+      /* Fallback: bounding box center */
+      return getBBoxCenter(outerRing);
+    }
+
+    cx = cx / (6 * area);
+    cy = cy / (6 * area);
+
+    /* Verifieer dat centroïde ook daadwerkelijk in polygoon ligt
+       (kan bij concave vormen buiten het polygoon vallen) */
+    if(!pointInRing(cx, cy, outerRing)){
+      return getBBoxCenter(outerRing);
+    }
+
+    return [cx, cy];
+  }
+
+  function getBBoxCenter(ring){
+    var minX = ring[0][0], maxX = ring[0][0];
+    var minY = ring[0][1], maxY = ring[0][1];
+    for(var i = 1; i < ring.length; i++){
+      if(ring[i][0] < minX) minX = ring[i][0];
+      if(ring[i][0] > maxX) maxX = ring[i][0];
+      if(ring[i][1] < minY) minY = ring[i][1];
+      if(ring[i][1] > maxY) maxY = ring[i][1];
+    }
+    return [(minX + maxX) / 2, (minY + maxY) / 2];
+  }
 
   /* ============================================================
      IndexedDB
@@ -226,7 +348,6 @@
 
   function extractDeepStateGeometry(json){
     if(!json) return null;
-    /* Formaat: FeatureCollection met één feature */
     if(json.type === "FeatureCollection" && json.features){
       var best = null, bestArea = 0;
       json.features.forEach(function(f){
@@ -240,14 +361,13 @@
       });
       return best;
     }
-    /* Formaat: direct een Feature */
     if(json.type === "Feature" && json.geometry) return json;
     return null;
   }
 
   function fetchDeepState(){
     var url = getDeepStateUrl();
-    LOG("DeepState URL: " + url.replace("https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/", "..."));
+    LOG("DeepState URL: ..." + url.slice(-30));
     return fetchRaw(url, 20000)
       .then(function(json){
         var feat = extractDeepStateGeometry(json);
@@ -323,60 +443,66 @@
   function calculateControllers(){
     if(!CA.geojson || !CA.geojson.features) return;
 
-    var hasTurf = !!(window.turf && window.turf.centroid && window.turf.booleanPointInPolygon);
     var hasDS = !!CA.deepStateGeo;
     var hasISW = !!CA.iswGeo && CA.iswGeo.features && CA.iswGeo.features.length > 0;
 
-    LOG("Controller berekening — turf: " + hasTurf + ", DeepState: " + hasDS + ", ISW: " + hasISW);
-
-    if(!hasTurf){
-      LOG("WAARSCHUWING: turf.js niet geladen — alle oblasten als onbekend");
-    }
+    LOG("Controller berekening — DeepState: " + hasDS + ", ISW: " + hasISW);
 
     var stats = { total: 0, russia: 0, ukraine: 0, unknown: 0 };
+    var dsCount = 0, iswCount = 0;
 
     CA.geojson.features.forEach(function(feature){
       if(!feature || !feature.properties) return;
       stats.total++;
       var props = feature.properties;
-      var controller = null;
 
-      if(hasTurf){
+      var centroid = getCentroid(feature);
+      if(!centroid){
+        props.controller = "Onbekend";
+        stats.unknown++;
+        return;
+      }
+
+      var cx = centroid[0], cy = centroid[1];
+      var inOccupied = false;
+      var source = null;
+
+      /* DeepState eerst */
+      if(hasDS){
         try {
-          var centroid = window.turf.centroid(feature);
-          var inOccupied = false;
-
-          if(hasDS){
-            inOccupied = window.turf.booleanPointInPolygon(centroid, CA.deepStateGeo);
+          if(featureContainsPoint(CA.deepStateGeo, cx, cy)){
+            inOccupied = true;
+            source = "DeepState";
+            dsCount++;
           }
-          if(!inOccupied && hasISW){
-            for(var i = 0; i < CA.iswGeo.features.length; i++){
-              if(window.turf.booleanPointInPolygon(centroid, CA.iswGeo.features[i])){
-                inOccupied = true;
-                break;
-              }
-            }
-          }
+        } catch(e){}
+      }
 
-          controller = inOccupied ? "Rusland" : "Oekraïne";
-        } catch(e){
-          LOG("turf fout voor " + props.name + ": " + e.message);
-          controller = null;
+      /* ISW als DeepState geen hit gaf */
+      if(!inOccupied && hasISW){
+        for(var i = 0; i < CA.iswGeo.features.length; i++){
+          if(featureContainsPoint(CA.iswGeo.features[i], cx, cy)){
+            inOccupied = true;
+            source = "ISW";
+            iswCount++;
+            break;
+          }
         }
       }
 
-      if(controller === "Rusland") stats.russia++;
-      else if(controller === "Oekraïne") stats.ukraine++;
-      else stats.unknown++;
-
+      var controller = inOccupied ? "Rusland" : "Oekraïne";
       props.controller = controller;
-      props.control_confidence = controller ? 0.7 : 0;
+      props.control_source = source;
+      props.control_confidence = 0.7;
       props.last_update = new Date().toISOString();
+
+      if(controller === "Rusland") stats.russia++;
+      else stats.ukraine++;
     });
 
     CA.stats = stats;
     LOG("Controllers: " + stats.total + " oblasten | Rusland: " + stats.russia +
-        " | Oekraïne: " + stats.ukraine + " | Onbekend: " + stats.unknown);
+        " (DS: " + dsCount + ", ISW: " + iswCount + ") | Oekraïne: " + stats.ukraine);
   }
 
   /* ============================================================
@@ -439,7 +565,6 @@
         CA.areas.push({
           id: l.feature.properties.id,
           name: l.feature.properties.name,
-          iso: l.feature.properties.iso,
           controller: l.feature.properties.controller,
           layer: l, feature: l.feature
         });
@@ -462,7 +587,6 @@
       .then(function(){ return loadOblasts(); })
       .then(function(oblastsJson){
         CA.geojson = oblastsJson;
-        /* Laad DeepState en ISW parallel */
         return Promise.all([loadDeepState(), loadISW()]).then(function(res){
           CA.deepStateGeo = res[0];
           CA.iswGeo = res[1];
@@ -515,7 +639,7 @@
 
   window.ConflictAreas = {
     init: init, refresh: refresh, destroy: destroy, clearCache: clearCache,
-    getStats: getStats, state: CA, _version: "v3.0"
+    getStats: getStats, state: CA, _version: "v3.1"
   };
 
   /* ============================================================
@@ -545,5 +669,5 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  LOG("conflict-areas.js v3.0 geladen");
+  LOG("conflict-areas.js v3.1 geladen (eigen geo-implementatie)");
 })();
