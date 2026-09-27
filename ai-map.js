@@ -7,7 +7,7 @@
 (function(){
   "use strict";
 
-  var MAX_EVENTS = 400;
+  var MAX_EVENTS = 800;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var LOCATIONS = {
