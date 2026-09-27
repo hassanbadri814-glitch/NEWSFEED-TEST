@@ -3,7 +3,7 @@
    - v3.3: classifier.js toegevoegd aan precache
    ============================================================ */
 
-const CACHE_VERSION = 'v15.2';
+const CACHE_VERSION = 'v15.3';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
