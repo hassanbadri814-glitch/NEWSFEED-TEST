@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.2
+   WAR DESK — ai-map.js v3.3
+   - v3.3: zwak-civiel filter (alleen echte rampen/ongelukken op kaart)
    - v3.2: vertaal-integratie via NewsAPI.getTranslatedTitle
    - v3.1: classifier v3.1 + dedup + sport-block
    ============================================================ */
@@ -9,6 +10,9 @@
 
   var MAX_EVENTS = 800;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
+  /* Zwakke civiel-events moeten minstens één van deze woorden in de titel hebben */
+  var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
   var LOCATIONS = {
     "oekraïne":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
@@ -292,7 +296,6 @@
     return { category: "civiel", subtype: "Overig", confidence: 50, uncertain: true, scores: {}, meta: {} };
   }
 
-  /* v3.2: vertaal-helper */
   function getTranslatedTitleFor(article){
     try {
       if (window.NewsAPI && window.NewsAPI.getTranslatedTitle) {
@@ -326,6 +329,7 @@
     var events = [];
     var skippedOld = 0;
     var skippedSport = 0;
+    var skippedWeakCiviel = 0;
     var skippedNoLocation = 0;
 
     for (var i = 0; i < items.length; i++) {
@@ -337,11 +341,19 @@
       var cls = classifyItem(article);
       if (cls.category === "sport") { skippedSport++; continue; }
 
+      /* v3.3: zwakke civiel-events wegfilteren */
+      if (cls.category === "civiel") {
+        var titleStr = String(article.title || "");
+        if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
+          skippedWeakCiviel++;
+          continue;
+        }
+      }
+
       var loc = extractLocation((article.title || "") + " " + (article.description || article.desc || ""));
       if (!loc) loc = extractRegionFallback(article);
       if (!loc) { skippedNoLocation++; continue; }
 
-      /* v3.2: vertaling ophalen als beschikbaar */
       var translatedTitle = getTranslatedTitleFor(article);
       var translatedDesc = getTranslatedDescFor(article);
 
@@ -377,7 +389,6 @@
       });
     }
 
-    /* Dedup */
     var beforeDedup = events.length;
     var grouped = events;
     if (window.WDEventDedup && window.WDEventDedup.group) {
@@ -394,7 +405,6 @@
 
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
-    /* v3.2: trigger async vertalingen voor AR/FR items */
     try {
       if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
         var arItems = [];
@@ -416,11 +426,12 @@
       grouped.forEach(function(e){
         if(counts[e.category] !== undefined) counts[e.category]++;
       });
-      wdLog.info("[Map-AI v3.2] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.3] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
-        " | skip sport:" + skippedSport + " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
+        " | skip sport:" + skippedSport + " zwak-civiel:" + skippedWeakCiviel +
+        " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
         " | " + Math.round(elapsed) + "ms");
     }
 
@@ -494,7 +505,6 @@
       idle(function(){ run(); }, { timeout: 3000 });
     });
 
-    /* v3.2: rerun bij nieuwe vertaling */
     bus.on("translation:added", function(){
       try {
         var mapTab = document.querySelector('.tab[data-view="map"]');
@@ -504,7 +514,6 @@
       } catch(e){}
     });
 
-    /* v3.2: rerun bij toggle-wijziging */
     bus.on("translation:toggle", function(){
       try {
         var mapTab = document.querySelector('.tab[data-view="map"]');
@@ -517,7 +526,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.2 geladen (vertaal-integratie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.3 geladen (zwak-civiel filter)");
   }
 
   function getCountries(){
