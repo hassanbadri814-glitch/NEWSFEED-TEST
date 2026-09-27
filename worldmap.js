@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.9
+   WAR DESK — worldmap.js v3.0
    ------------------------------------------------------------
-   - v2.9: city-dots nu ook van events (aanvallen), niet alleen claims
-   - v2.8: lagere drempel + betere logging
+   - v3.0: Fix A — subtielere city-dots
+   - v2.9: city-dots van events
+   - v2.8: lagere drempel
    - v2.7: CityStatus integratie
    ============================================================ */
 
@@ -419,13 +420,13 @@
   function closeCountryPanel(){ if (WM.panel) WM.panel.classList.remove("show"); }
 
   /* ============================================================
-     v2.9: HOOFD FUNCTIE — combineert controller + events
+     v3.0: SUBTIELE CITY-DOTS
      ============================================================ */
   function renderCityDots(map){
     if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
     else { WM.cityLayer = L.layerGroup().addTo(map); }
 
-    /* Stap 1: bouw map van stad → events */
+    /* Bouw map van stad → events */
     var cityEvents = {};
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
@@ -437,14 +438,13 @@
       var ts = new Date(ev.date).getTime();
       if (ts < periodAgo) return;
 
-      /* Zoek stad in titel */
       var text = " " + (ev.title || "").toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ") + " ";
       var bestCity = null;
       var bestLen = 0;
       if (window.__wm_locations){
         for (var key in window.__wm_locations){
           if (!Object.prototype.hasOwnProperty.call(window.__wm_locations, key)) continue;
-          if (key.length < 4) continue; /* skip korte namen */
+          if (key.length < 4) continue;
           if (key.length <= bestLen) continue;
           var pattern = " " + key + " ";
           if (text.indexOf(pattern) !== -1){
@@ -462,7 +462,6 @@
       cityEvents[bestCity].count++;
     });
 
-    /* Stap 2: voeg controllers uit CityStatus toe */
     var controllers = {};
     if (window.CityStatus){
       try {
@@ -474,7 +473,6 @@
       } catch(e){}
     }
 
-    /* Stap 3: unie van beide */
     var allCities = {};
     Object.keys(cityEvents).forEach(function(c){ allCities[c] = true; });
     Object.keys(controllers).forEach(function(c){ allCities[c] = true; });
@@ -489,11 +487,11 @@
       var ctrl = controllers[cityKey];
       var eventCount = cityEv ? cityEv.count : 0;
 
-      /* Bepaal kleur + grootte */
-      var color, size, isClaim = false, label = "";
+      /* Bepaal kleur + grootte — v3.0 SUBTIELER */
+      var color, size, isClaim = false, baseOpacity = 0.65;
 
       if (ctrl && ctrl.controller){
-        /* Controller-vastgesteld: grotere stip, kleur op controller */
+        /* Controller-stip: gekleurde maar gedempte stip */
         var effISO3 = null;
         try {
           if (window.WorldMapData && window.WorldMapData.getISO3){
@@ -510,40 +508,43 @@
         color = window.WorldMapData
           ? window.WorldMapData.getColor(alliance)
           : "#6b7280";
-        size = Math.round(10 + (ctrl.confidence || 0.5) * 6);
+        size = Math.round(7 + (ctrl.confidence || 0.5) * 4); /* was 10-16 → nu 7-11 */
         isClaim = (ctrl.confidence || 0) < 0.7;
-        label = "Controller: " + ctrl.controller;
+        baseOpacity = 0.75;
       } else if (eventCount > 0){
-        /* Event-only: rode stip op basis van event-count */
-        if (eventCount >= 8) { color = "#d41919"; size = 14; }
-        else if (eventCount >= 5) { color = "#e63946"; size = 12; }
-        else if (eventCount >= 3) { color = "#c44536"; size = 11; }
-        else { color = "#8a5040"; size = 9; }
-        label = eventCount + " " + (eventCount === 1 ? "aanval" : "aanvallen");
+        /* Event-only stip: gedempt rood, kleiner */
+        if (eventCount >= 8) { color = "#d41919"; size = 10; }
+        else if (eventCount >= 5) { color = "#c0392b"; size = 9; }
+        else if (eventCount >= 3) { color = "#a84040"; size = 8; }
+        else { color = "#7a4040"; size = 6; }
+        baseOpacity = 0.6;
       } else {
         return;
       }
 
+      var borderStyle = isClaim
+        ? 'border:1.5px dashed rgba(255,255,255,0.7);box-sizing:border-box;'
+        : 'border:1px solid rgba(255,255,255,0.35);box-sizing:border-box;';
+
       var html = '<div style="' +
         'width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
-        'background:' + color + ';' +
-        'box-shadow:0 0 10px ' + color + ',0 0 0 1.5px rgba(0,0,0,0.6);' +
-        (isClaim
-          ? 'border:2px dashed rgba(255,255,255,0.9);box-sizing:border-box;'
-          : 'border:1.5px solid rgba(255,255,255,0.5);box-sizing:border-box;') +
+        'background:' + color + ';opacity:' + baseOpacity + ';' +
+        'box-shadow:0 0 6px ' + color + ';' +
+        borderStyle +
       '"></div>';
 
-      /* Event-count badge bovenop (alleen als veel events) */
+      /* Event-count badge — subtieler */
       var badgeHtml = "";
       if (eventCount >= 3){
         badgeHtml = '<div style="' +
-          'position:absolute;top:-6px;right:-6px;' +
-          'background:#070c16;color:#fff;' +
-          'font-size:9px;font-weight:800;' +
-          'padding:1px 4px;border-radius:8px;' +
-          'border:1px solid ' + color + ';' +
+          'position:absolute;top:-5px;right:-5px;' +
+          'background:rgba(7,12,22,0.85);color:#fff;' +
+          'font-size:7.5px;font-weight:800;' +
+          'padding:0px 3px;border-radius:6px;' +
+          'border:1px solid rgba(255,255,255,0.2);' +
           'font-family:Inter,sans-serif;' +
-          'line-height:1.1;' +
+          'line-height:1.2;' +
+          'min-width:12px;text-align:center;' +
         '">' + eventCount + '</div>';
       }
 
@@ -553,13 +554,12 @@
       var icon = L.divIcon({
         className: "wm-city-dot",
         html: container,
-        iconSize: [size + 12, size + 12],
-        iconAnchor: [(size + 12) / 2, (size + 12) / 2]
+        iconSize: [size + 10, size + 10],
+        iconAnchor: [(size + 10) / 2, (size + 10) / 2]
       });
 
       var marker = L.marker([loc.lat, loc.lng], { icon: icon });
 
-      /* Tooltip */
       var tooltipParts = ['<b>' + escapeHtml(capitalizeCity(cityKey)) + '</b>' +
         (loc.country ? ' · ' + escapeHtml(loc.country) : '')];
       if (ctrl && ctrl.controller){
@@ -570,9 +570,8 @@
       if (eventCount > 0){
         tooltipParts.push('💥 ' + eventCount + ' fysieke ' + (eventCount === 1 ? "aanval" : "aanvallen") + ' (' + periodDays + 'd)');
       }
-      marker.bindTooltip(tooltipParts.join("<br>"), { direction: "top", className: "wm-tooltip", offset: [0, -6] });
+      marker.bindTooltip(tooltipParts.join("<br>"), { direction: "top", className: "wm-tooltip", offset: [0, -4] });
 
-      /* Click → toon panel met events */
       if (cityEv){
         marker.on("click", function(e){
           if (L.DomEvent) L.DomEvent.stopPropagation(e);
@@ -587,15 +586,11 @@
     LOG("City-dots: " + rendered + " steden (events:" + Object.keys(cityEvents).length + " + controllers:" + Object.keys(controllers).length + ")");
   }
 
-  /* ============================================================
-     CITY PANEL — apart, voor stad-click
-     ============================================================ */
   function openCityPanel(cityKey, events, ctrl){
     var panel = ensurePanel();
     panel.querySelector("#wmPanelTitle").textContent = capitalizeCity(cityKey) + (ctrl ? " · " + ctrl.controller : "");
     var statsEl = panel.querySelector("#wmPanelStats");
 
-    var targetHeat = 0;
     var sources = {};
     events.forEach(function(e){
       if (e.source) sources[e.source] = true;
@@ -800,7 +795,7 @@
     restoreLegendVisibility();
     restorePeriodFilter();
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.9 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v3.0 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -850,6 +845,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.9 geladen (city-dots van events)");
+  LOG("worldmap.js v3.0 geladen (subtiele dots)");
 
 })();
