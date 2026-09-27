@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.6
+   WAR DESK — worldmap.js v2.7
    ------------------------------------------------------------
+   - v2.7: CityStatus integratie (renderCityDots met controller)
    - v2.6: grammatica fix (1 bron / 1 land)
    - v2.5: confidence in opacity + tooltip update
    - v2.4: Batch A — periode-filter positie + schalende drempels
@@ -347,10 +348,26 @@
   }
 
   /* ============================================================
-     HELPERS — grammatica (v2.6)
+     HELPERS
      ============================================================ */
   function pluralize(count, singular, plural){
     return count + " " + (count === 1 ? singular : plural);
+  }
+
+  function escapeHtml(s){
+    return String(s || "").replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function timeAgoShort(d){
+    var t = new Date(d).getTime();
+    if (isNaN(t)) return "";
+    var diff = (Date.now() - t) / 1000;
+    if (diff < 60) return "nu";
+    if (diff < 3600) return Math.floor(diff / 60) + "m";
+    if (diff < 86400) return Math.floor(diff / 3600) + "u";
+    return Math.floor(diff / 86400) + "d";
   }
 
   /* ============================================================
@@ -478,7 +495,6 @@
     } else {
       var confPct = conf ? conf.confidence : 0;
       var confClass = confPct >= 70 ? "conf-high" : (confPct >= 40 ? "conf-med" : "conf-low");
-      /* v2.6: grammatica fix */
       var confDetail = "";
       if (conf){
         confDetail = '<div class="wm-panel-conf-detail">' +
@@ -546,20 +562,87 @@
     }
   }
 
-  function escapeHtml(s){
-    return String(s || "").replace(/[&<>"']/g, function(c){
-      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
-    });
-  }
+  /* ============================================================
+     v2.7: CITY-DOTS met CityStatus integratie
+     ============================================================ */
+  function renderCityDots(map){
+    if (!window.CityStatus) return;
+    if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
+    else { WM.cityLayer = L.layerGroup().addTo(map); }
 
-  function timeAgoShort(d){
-    var t = new Date(d).getTime();
-    if (isNaN(t)) return "";
-    var diff = (Date.now() - t) / 1000;
-    if (diff < 60) return "nu";
-    if (diff < 3600) return Math.floor(diff / 60) + "m";
-    if (diff < 86400) return Math.floor(diff / 3600) + "u";
-    return Math.floor(diff / 86400) + "d";
+    var cities = window.CityStatus.getAllCities();
+    var rendered = 0;
+
+    cities.forEach(function(c){
+      if (!c || !c.city) return;
+      /* Filter te onzekere claims */
+      if ((c.confidence || 0) < 0.4) return;
+
+      var loc = null;
+      if (window.__wm_locations && window.__wm_locations[c.city]){
+        loc = window.__wm_locations[c.city];
+      }
+      if (!loc) return;
+
+      /* Effectieve controller: controller als bevestigd, anders claimedBy */
+      var effController = c.controller || c.claimedBy;
+      var effISO3 = null;
+      try {
+        if (window.WorldMapData && window.WorldMapData.getISO3){
+          effISO3 = window.WorldMapData.getISO3(effController);
+        }
+      } catch(e){}
+      var alliance = window.WorldMapData
+        ? window.WorldMapData.getAlliance(effISO3 || effController)
+        : "neutral";
+      var color = window.WorldMapData
+        ? window.WorldMapData.getColor(alliance)
+        : "#6b7280";
+      var isClaim = c.confidence < 0.7;
+
+      var html = '<div style="' +
+        'width:12px;height:12px;border-radius:50%;' +
+        'background:' + color + ';' +
+        'box-shadow:0 0 10px ' + color + ',0 0 0 1.5px rgba(0,0,0,0.6);' +
+        (isClaim
+          ? 'border:2px dashed rgba(255,255,255,0.9);box-sizing:border-box;'
+          : 'border:1.5px solid rgba(255,255,255,0.5);box-sizing:border-box;') +
+      '"></div>';
+
+      var icon = L.divIcon({
+        className: "wm-city-dot",
+        html: html,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+      });
+
+      var marker = L.marker([loc.lat, loc.lng], { icon: icon });
+
+      var statusLabel = isClaim ? "Claim" : "Bevestigd";
+      var controllerLabel = effController || "?";
+      var confPct = Math.round((c.confidence || 0) * 100);
+      var sinceDate = c.since ? new Date(c.since).toISOString().slice(0, 10) : "";
+      var tooltipHtml =
+        '<b>' + escapeHtml(c.city) + '</b>' +
+        (loc.country ? ' · ' + escapeHtml(loc.country) : '') + '<br>' +
+        '🎛️ Controller: <b>' + escapeHtml(controllerLabel) + '</b><br>' +
+        '📊 ' + statusLabel + ' · ' + confPct + '% confidence' +
+        (sinceDate ? '<br>📅 Sinds ' + sinceDate : '') +
+        (c.sources && c.sources.length ? '<br>📰 ' + pluralize(c.sources.length, "bron", "bronnen") : '');
+
+      marker.bindTooltip(tooltipHtml, {
+        direction: "top",
+        className: "wm-tooltip",
+        offset: [0, -6]
+      });
+
+      WM.cityLayer.addLayer(marker);
+      rendered++;
+    });
+
+    if (rendered > 0){
+      LOG("City-dots gerenderd: " + rendered + " steden");
+    }
   }
 
   /* ============================================================
@@ -777,7 +860,7 @@
     restorePeriodFilter();
 
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.6 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.7 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -806,43 +889,6 @@
     refreshTooltips();
 
     if (WM.map) renderCityDots(WM.map);
-  }
-
-  function renderCityDots(map){
-    if (!window.CityStatus) return;
-    if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
-    else { WM.cityLayer = L.layerGroup().addTo(map); }
-
-    var cities = window.CityStatus.getAllCities();
-    cities.forEach(function(c){
-      if (!c || !c.city) return;
-      var loc = null;
-      if (window.__wm_locations && window.__wm_locations[c.city]){
-        loc = window.__wm_locations[c.city];
-      }
-      if (!loc) return;
-
-      var controller = c.controller;
-      var alliance = window.WorldMapData
-        ? window.WorldMapData.getAlliance(controller)
-        : "neutral";
-      var color = window.WorldMapData
-        ? window.WorldMapData.getColor(alliance)
-        : "#6b7280";
-      var isClaim = c.confidence < 0.7 && c.claimedBy;
-
-      var icon = L.divIcon({
-        className: "wm-city-dot",
-        html: '<div style="width:10px;height:10px;border-radius:50%;background:' + color +
-              ';box-shadow:0 0 8px ' + color + ';' +
-              (isClaim ? 'border:2px dashed rgba(255,255,255,0.7);' : '') + '"></div>',
-        iconSize: [10, 10],
-        iconAnchor: [5, 5]
-      });
-
-      var marker = L.marker([loc.lat, loc.lng], { icon: icon });
-      WM.cityLayer.addLayer(marker);
-    });
   }
 
   function setEnabled(enabled){
@@ -878,6 +924,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.6 geladen (grammatica fix)");
+  LOG("worldmap.js v2.7 geladen (CityStatus integratie)");
 
 })();
