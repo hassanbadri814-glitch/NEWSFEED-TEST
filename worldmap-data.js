@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v2.0
+   WAR DESK — worldmap-data.js v2.1
    ------------------------------------------------------------
+   - v2.1: COUNTRY_TO_ISO3 mapping (fix voor land-kleuren)
    - v2.0: ACTOR_MAP + CONFLICT_COLORS (conflict-kaart)
    - v1.0: allianties + feed tiers
    ============================================================ */
@@ -8,7 +9,7 @@
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v2.0";
+  window.WORLDMAP_VERSION = "v2.1";
 
   /* ============================================================
      ALLIANTIES — alleen voor actor-positie bepaling (niet rendering)
@@ -48,8 +49,7 @@
   };
 
   /* ============================================================
-     ALLIANCE COLORS — niet meer gebruikt voor rendering
-     (bewaard voor toekomstige features)
+     ALLIANCE COLORS — niet gebruikt voor rendering
      ============================================================ */
   window.ALLIANCE_COLORS = {
     west:     "#3b82f6",
@@ -60,33 +60,21 @@
   };
 
   /* ============================================================
-     CONFLICT COLORS — voor de nieuwe conflict-kaart
-     ------------------------------------------------------------
-     - Basis = grijs (rustig)
-     - Hitte = rood (hoe meer events, hoe dieper)
-     - Rand = aanvaller positie
+     CONFLICT COLORS — voor de conflict-kaart
      ============================================================ */
   window.CONFLICT_COLORS = {
-    /* Vulling — doelwit-landen (waar gevochten wordt) */
-    cold:       "#2f2f38",   /* rustig, geen events */
-    warm:       "#7a4040",   /* lichte activiteit */
-    hot:        "#a52a2a",   /* middel activiteit */
-    scorching:  "#d41919",   /* extreme activiteit */
-
-    /* Rand — aanvaller-landen (die aanvallen uitvoeren) */
-    actorRing:  "#ff6666",   /* aanvallers */
-    actorHot:   "#ff2222",   /* aanvallers met veel events */
-
-    /* Rand — grenzen */
+    cold:       "#2f2f38",
+    warm:       "#7a4040",
+    hot:        "#a52a2a",
+    scorching:  "#d41919",
+    actorRing:  "#ff6666",
+    actorHot:   "#ff2222",
     border:     "rgba(255,255,255,0.12)",
     borderHot:  "#ff0000"
   };
 
   /* ============================================================
      ACTOR_MAP — bekende actoren → land
-     ------------------------------------------------------------
-     Voor het bepalen van "wie valt aan?".
-     Sleutel = naam in titel, waarde = land zoals in LOCATIONS.
      ============================================================ */
   window.ACTOR_MAP = {
     /* Midden-Oosten */
@@ -134,9 +122,7 @@
     "al-shabaab": "Somalië",
     "al shabaab": "Somalië",
     "boko haram": "Nigeria",
-    "iswap": "Mozambique",
     "m23": "Congo",
-    "wagner africa": "Mali",
 
     /* Azië */
     "taliban": "Afghanistan",
@@ -147,12 +133,7 @@
     "junta": "Myanmar",
     "north korean army": "Noord-Korea",
     "chinese military": "China",
-    "pla": "China",
-
-    /* Overig */
-    "nato": null, /* te breed */
-    "navo": null,
-    "un forces": null
+    "pla": "China"
   };
 
   /* ============================================================
@@ -237,13 +218,114 @@
       scorching: 40
     },
 
-    /* Nieuwe drempels voor actor-ring */
-    actor_ring_min: 3,   /* minimaal 3 events om aanvaller-rand te krijgen */
-    actor_ring_hot: 15,  /* 15+ events = dikkere rand */
+    actor_ring_min: 3,
+    actor_ring_hot: 15,
 
     conflict_ring_min: 5,
     snapshot_interval_ms: 24 * 60 * 60 * 1000,
-    heat_recalc_interval_ms: 5 * 60 * 1000  /* 5 min ipv 30 min */
+    heat_recalc_interval_ms: 5 * 60 * 1000
+  };
+
+  /* ============================================================
+     LANDNAAM → ISO3 (v2.1 — voor matching met GeoJSON features)
+     ============================================================ */
+  var COUNTRY_TO_ISO3 = {
+    /* Conflictgebieden */
+    "oekraïne": "UKR", "ukraine": "UKR",
+    "rusland": "RUS", "russia": "RUS",
+    "israël": "ISR", "israel": "ISR",
+    "gaza": "PSE",
+    "westelijke jordaanoever": "PSE", "west bank": "PSE",
+    "libanon": "LBN", "lebanon": "LBN",
+    "syrië": "SYR", "syria": "SYR",
+    "iran": "IRN",
+    "irak": "IRQ", "iraq": "IRQ",
+    "jemen": "YEM", "yemen": "YEM",
+    "saudi-arabië": "SAU", "saudi": "SAU",
+    "qatar": "QAT",
+    "koeweit": "KWT", "kuwait": "KWT",
+    "vae": "ARE", "uae": "ARE", "emiraten": "ARE",
+
+    /* Afrika */
+    "sudan": "SDN",
+    "mali": "MLI",
+    "burkina faso": "BFA",
+    "niger": "NER",
+    "nigeria": "NGA",
+    "somalië": "SOM", "somalia": "SOM",
+    "ethiopië": "ETH", "ethiopia": "ETH",
+    "congo": "COD", "drc": "COD",
+    "mozambique": "MOZ",
+    "libië": "LBY", "libya": "LBY",
+    "egypte": "EGY", "egypt": "EGY",
+    "marokko": "MAR", "morocco": "MAR",
+    "algerije": "DZA", "tunesië": "TUN",
+    "kenia": "KEN", "kenya": "KEN",
+
+    /* Azië */
+    "afghanistan": "AFG",
+    "pakistan": "PAK",
+    "india": "IND",
+    "china": "CHN",
+    "taiwan": "TWN",
+    "noord-korea": "PRK", "north korea": "PRK",
+    "zuid-korea": "KOR", "south korea": "KOR",
+    "myanmar": "MMR",
+    "japan": "JPN",
+    "indonesië": "IDN",
+
+    /* Europa */
+    "nederland": "NLD", "netherlands": "NLD",
+    "belgië": "BEL", "belgium": "BEL",
+    "duitsland": "DEU", "germany": "DEU",
+    "frankrijk": "FRA", "france": "FRA",
+    "verenigd koninkrijk": "GBR", "vk": "GBR", "uk": "GBR",
+    "polen": "POL", "poland": "POL",
+    "spanje": "ESP", "spain": "ESP",
+    "italië": "ITA", "italy": "ITA",
+    "zwitserland": "CHE",
+    "oostenrijk": "AUT",
+    "zweden": "SWE",
+    "noorwegen": "NOR",
+    "denemarken": "DNK",
+    "finland": "FIN",
+    "ierland": "IRL",
+    "portugal": "PRT",
+    "griekenland": "GRC",
+    "turkije": "TUR", "turkey": "TUR",
+    "roemenië": "ROU",
+    "hongarije": "HUN",
+    "tsjechië": "CZE",
+    "servië": "SRB",
+    "kroatië": "HRV",
+    "bulgarije": "BGR",
+    "moldavië": "MDA",
+    "georgië": "GEO",
+    "armenië": "ARM",
+    "azerbeidzjan": "AZE",
+    "wit-rusland": "BLR", "belarus": "BLR",
+
+    /* Amerika */
+    "vs": "USA", "verenigde staten": "USA", "usa": "USA",
+    "canada": "CAN",
+    "mexico": "MEX",
+    "brazilië": "BRA", "brazil": "BRA",
+    "venezuela": "VEN",
+    "colombia": "COL",
+    "argentië": "ARG",
+    "chili": "CHL",
+    "peru": "PER",
+    "cuba": "CUB",
+
+    /* Regio-fallbacks */
+    "oost-europa": "REG-EE",
+    "midden-oosten": "REG-ME",
+    "west-europa": "REG-WE",
+    "afrika": "REG-AF",
+    "sahel": "REG-SH",
+    "azië": "REG-AS",
+    "noord-amerika": "REG-NA",
+    "latijns-amerika": "REG-LA"
   };
 
   /* ============================================================
@@ -273,7 +355,12 @@
       if (level === "warm") return c.warm;
       return c.cold;
     },
-    /* Detecteer actor-landen in een titel */
+    /* v2.1: landnaam → ISO3 */
+    getISO3: function(countryName){
+      if (!countryName) return null;
+      var key = String(countryName).toLowerCase().trim();
+      return COUNTRY_TO_ISO3[key] || null;
+    },
     detectActorsInTitle: function(title){
       if (!title) return [];
       var lower = String(title).toLowerCase();
@@ -282,7 +369,6 @@
       for (var key in window.ACTOR_MAP) {
         if (!Object.prototype.hasOwnProperty.call(window.ACTOR_MAP, key)) continue;
         if (key.indexOf(" ") === -1) {
-          /* Los woord — gebruik word-boundaries via spatie-check */
           var regex = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\b", "i");
           if (regex.test(lower)) {
             var country = window.ACTOR_MAP[key];
@@ -292,7 +378,6 @@
             }
           }
         } else {
-          /* Multi-word — directe substring check */
           if (lower.indexOf(key) !== -1) {
             var country2 = window.ACTOR_MAP[key];
             if (country2 && !seen[country2]){
@@ -306,6 +391,6 @@
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.0 geladen — conflict-kaart modus"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.1 geladen — conflict-kaart + ISO3 mapping"); } catch(e){}
 
 })();
