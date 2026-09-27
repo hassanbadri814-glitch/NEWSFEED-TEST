@@ -1,7 +1,7 @@
 /* ============================================================
    WAR DESK — worldmap.js v2.2
    ------------------------------------------------------------
-   - v2.2: alleen countsForHeat events + REG-skip
+   - v2.2: alleen countsForHeat events + REG-skip + compactere legenda
    - v2.1: lagere heat-drempels + debug log
    - v2.0: conflict-kaart + legenda-toggle
    ============================================================ */
@@ -86,9 +86,6 @@
     return p.NAME_NL || p.name_nl || p.NAME || p.name || p.ADMIN || p.admin || "?";
   }
 
-  /* ============================================================
-     HEAT BEREKENEN
-     ============================================================ */
   function calculateHeat(events){
     var now = Date.now();
     var thresholds = window.WORLDMAP_THRESHOLDS || {};
@@ -105,8 +102,6 @@
     events.forEach(function(ev){
       if (!ev) return;
       if (ev.category !== "militair" && ev.category !== "crime") return;
-
-      /* v2.2: alleen fysieke events meetellen */
       if (ev.countsForHeat === false) { skippedNonPhysical++; return; }
 
       var ts = new Date(ev.date).getTime();
@@ -122,7 +117,6 @@
       var dayKey = new Date(ts).toISOString().slice(0, 10);
       var sourceKey = (ev.source || "?") + "|" + dayKey;
 
-      /* Target */
       var targetKey = ev.countryISO3 || ev.country;
       if (targetKey && targetKey.indexOf(SKIP_PREFIX) !== 0){
         if (!targetByCountry[targetKey]){
@@ -140,7 +134,6 @@
         skippedReg++;
       }
 
-      /* Actor */
       var actors = ev.actorCountries || [];
       actors.forEach(function(actorCountry){
         if (!actorCountry) return;
@@ -372,11 +365,11 @@
     legend.innerHTML =
       '<div class="wm-legend-title">Conflictkaart</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#2f2f38"></span>Rustig</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#7a4040"></span>Lichte activiteit</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief conflict</div>' +
+      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#7a4040"></span>Licht</div>' +
+      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
-      '<div class="wm-legend-hint">Alleen fysieke militaire acties</div>';
+      '<div class="wm-legend-hint">Alleen fysieke acties</div>';
 
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
@@ -423,22 +416,22 @@
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
-      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.5rem .6rem;font-size:.6rem;color:#e6ebf5;max-width:135px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.35;}" +
+      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:110px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;}" +
       "html.light .wm-legend{background:rgba(255,255,255,.95);color:#131721;border-color:rgba(0,0,0,.12);}" +
-      ".wm-legend-title{font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.05em;color:#e0a857;margin-bottom:.3rem;padding-bottom:.25rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
-      ".wm-legend-row{display:flex;align-items:center;gap:.3rem;padding:.05rem 0;font-size:.58rem;}" +
-      ".wm-legend-swatch{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor;}" +
-      ".wm-legend-row-ring{padding-top:.15rem;margin-top:.15rem;border-top:1px solid rgba(255,255,255,.08);}" +
+      ".wm-legend-title{font-weight:800;font-size:.5rem;text-transform:uppercase;letter-spacing:.04em;color:#e0a857;margin-bottom:.2rem;padding-bottom:.2rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
+      ".wm-legend-row{display:flex;align-items:center;gap:.25rem;padding:.03rem 0;font-size:.52rem;}" +
+      ".wm-legend-swatch{width:9px;height:9px;border-radius:50%;flex-shrink:0;box-shadow:0 0 6px currentColor;}" +
+      ".wm-legend-row-ring{padding-top:.12rem;margin-top:.12rem;border-top:1px solid rgba(255,255,255,.08);}" +
       ".wm-legend-swatch-ring{background:transparent!important;border:2px solid #ff6666;box-sizing:border-box;border-radius:50%;}" +
-      ".wm-legend-hint{margin-top:.3rem;padding-top:.3rem;border-top:1px solid rgba(255,255,255,.08);font-size:.55rem;opacity:.75;line-height:1.25;}" +
+      ".wm-legend-hint{margin-top:.2rem;padding-top:.2rem;border-top:1px solid rgba(255,255,255,.08);font-size:.48rem;opacity:.7;line-height:1.2;}" +
       ".wm-city-dot{background:transparent!important;border:none!important;}" +
-      ".wm-legend-toggle{position:absolute;bottom:.6rem;right:.6rem;z-index:401;width:30px;height:30px;border-radius:8px;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.4);color:#e0a857;display:none;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);transition:all .18s;padding:0;}" +
+      ".wm-legend-toggle{position:absolute;bottom:.6rem;right:.6rem;z-index:401;width:28px;height:28px;border-radius:8px;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.4);color:#e0a857;display:none;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);transition:all .18s;padding:0;}" +
       ".wm-legend-toggle:hover{background:rgba(226,168,87,.2);}" +
       ".wm-legend-toggle.off{opacity:.5;color:#8a94a8;border-color:rgba(255,255,255,.15);}" +
-      ".wm-legend-toggle svg{width:15px;height:15px;}" +
+      ".wm-legend-toggle svg{width:14px;height:14px;}" +
       ".map-wrap:has(#wmLegend[style*='display: none']) .wm-legend-toggle{display:grid;}" +
-      "@supports not selector(:has(*)){.wm-legend-toggle{display:grid!important;bottom:.6rem;right:.6rem;}.wm-legend{right:2.9rem;}}" +
-      "@media (max-width:640px){.wm-legend{font-size:.55rem;padding:.4rem .5rem;max-width:125px;}.wm-legend-row{font-size:.55rem;}.wm-legend-title{font-size:.55rem;}.wm-legend-hint{font-size:.5rem;}}";
+      "@supports not selector(:has(*)){.wm-legend-toggle{display:grid!important;bottom:.6rem;right:.6rem;}.wm-legend{right:2.7rem;}}" +
+      "@media (max-width:640px){.wm-legend{max-width:100px!important;font-size:.5rem!important;padding:.35rem .45rem!important;}.wm-legend-title{font-size:.5rem!important;margin-bottom:.2rem!important;padding-bottom:.2rem!important;}.wm-legend-row{font-size:.5rem!important;padding:.02rem 0!important;}.wm-legend-hint{font-size:.45rem!important;margin-top:.2rem!important;padding-top:.2rem!important;}}";
     document.head.appendChild(s);
   }
 
