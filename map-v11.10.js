@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v14.2 — Conflictkaart
+   WAR DESK v14.3 — Conflictkaart
+   - v14.3: "Alles"-filter toegevoegd
    - v14.2: rerender bij translation:added (Arabische events)
    - v14.1: dedup-badge voor cluster-events
    ============================================================ */
@@ -12,15 +13,18 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.2 geladen — vertaal-aware");
+  LOG("v14.3 geladen — Alles-filter + vertaal-aware");
 
   var CATEGORIES = {
+    all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
     militair: { label: "Militair", color: "#e63950", icon: "ph-crosshair" },
     crime:    { label: "Crime",    color: "#a855f7", icon: "ph-handcuffs" },
     politiek: { label: "Politiek", color: "#3b82f6", icon: "ph-bank" },
     protest:  { label: "Protest",  color: "#f59e0b", icon: "ph-megaphone" },
     civiel:   { label: "Civiel",   color: "#6b7a93", icon: "ph-warning" }
   };
+
+  var FILTER_ORDER = ["all", "militair", "crime", "politiek", "protest", "civiel"];
 
   function resolveColor(event){
     if(!event) return CATEGORIES.civiel.color;
@@ -174,6 +178,8 @@
       ".live-event-mil{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;background:rgba(255,60,60,0.15);color:#ff5050;font-size:9.5px;font-weight:700;letter-spacing:0.5px}" +
       ".live-event-multi{display:inline-flex;align-items:center;gap:.2rem;padding:.05rem .4rem;border-radius:5px;background:rgba(96,165,250,.15);color:#93c5fd;border:1px solid rgba(96,165,250,.35);font-size:.58rem;font-weight:800;letter-spacing:.02em;margin-left:.25rem}" +
       ".live-event-original{font-size:.72rem;opacity:.55;margin-top:.2rem;line-height:1.35;font-style:italic}" +
+      ".live-filter[data-cat='all']{border-color:rgba(224,168,87,.4)}" +
+      ".live-filter[data-cat='all'].active{background:rgba(224,168,87,.15);color:#e0a857;border-color:#e0a857}" +
       ".pop-sources-list{margin-top:.4rem;font-size:.72rem;color:var(--ink-3);line-height:1.5}" +
       ".pop-sources-list strong{color:var(--ink);font-weight:700}";
     document.head.appendChild(s);
@@ -340,7 +346,7 @@
   }
 
   function updateCounters(){
-    var counters = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
+    var counters = { all: MAP.events.length, militair:0, crime:0, politiek:0, protest:0, civiel:0 };
     for(var i = 0; i < MAP.events.length; i++){
       var c = MAP.events[i].category || "civiel";
       if(counters[c] !== undefined) counters[c]++;
@@ -355,9 +361,8 @@
   function renderLiveFilters(){
     var wrap = $("liveFilters");
     if(!wrap) return;
-    var order = ["militair","crime","politiek","protest","civiel"];
     var html = "";
-    order.forEach(function(cat){
+    FILTER_ORDER.forEach(function(cat){
       var cfg = CATEGORIES[cat];
       var active = (MAP.currentFilter === cat) ? " active" : "";
       html += '<button class="live-filter' + active + '" data-cat="' + cat + '">' +
@@ -373,7 +378,7 @@
         var cat = btn.dataset.cat;
         if(cat === MAP.currentFilter) return;
         MAP.currentFilter = cat;
-        if(window.WDStorage) WDStorage.set("map_filter_v2", cat);
+        if(window.WDStorage) WDStorage.set("map_filter_v3", cat);
         wrap.querySelectorAll(".live-filter").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
         renderMarkers();
@@ -387,7 +392,7 @@
 
   function restoreFilter(){
     try {
-      var saved = window.WDStorage ? WDStorage.get("map_filter_v2") : null;
+      var saved = window.WDStorage ? WDStorage.get("map_filter_v3") : null;
       if(saved && CATEGORIES[saved]) MAP.currentFilter = saved;
     }catch(e){}
   }
@@ -508,7 +513,11 @@
       return;
     }
 
-    list.innerHTML = filtered.map(function(e){
+    /* Cap op 200 voor performance bij "Alles"-filter */
+    var shown = filtered.slice(0, 200);
+    var overflow = filtered.length - shown.length;
+
+    list.innerHTML = shown.map(function(e){
       var cat = e.category || "civiel";
       var catCfg = CATEGORIES[cat] || CATEGORIES.civiel;
       var color = resolveColor(e);
@@ -532,7 +541,9 @@
           '</div>' +
         '</div>' +
       '</div>';
-    }).join("");
+    }).join("") + (overflow > 0
+      ? '<div class="live-empty" style="opacity:.6">… en nog ' + overflow + ' meer events (filter om te verfijnen)</div>'
+      : '');
 
     Array.prototype.forEach.call(list.querySelectorAll(".live-event"), function(el){
       el.addEventListener("click", function(){
@@ -612,7 +623,7 @@
       if (MAP.militaryEvents && MAP.militaryEvents.length) {
         MAP.militaryEvents.length = 0;
       }
-      MAP.militaryEvents = Array.isArray(events) ? events.slice(0, 1000) : [];
+      MAP.militaryEvents = Array.isArray(events) ? events.slice(0, 1500) : [];
       LOG("Events ontvangen: " + MAP.militaryEvents.length);
       if (isMapActive()) refreshFromNews();
     });
@@ -628,10 +639,8 @@
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
 
-    /* v14.2: rerender zodra een vertaling binnenkomt */
     WarDesk.events.on("translation:added", function(){
       if (!isMapActive()) return;
-      /* Wacht kort zodat ai-map.js klaar is met rebuild */
       setTimeout(function(){
         if (MAP.militaryEvents && MAP.militaryEvents.length) {
           MAP.events = MAP.militaryEvents.slice();
@@ -643,7 +652,6 @@
       }, 400);
     });
 
-    /* v14.2: rerender bij toggle-wijziging */
     WarDesk.events.on("translation:toggle", function(){
       if (!isMapActive()) return;
       setTimeout(function(){
@@ -731,5 +739,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.2 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.3 geladen");
 })();
