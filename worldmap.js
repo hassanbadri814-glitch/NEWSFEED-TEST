@@ -193,19 +193,19 @@
   }
 
   function getFillColor(level){
-    var c = window.CONFLICT_COLORS || {};
-    if (level === "scorching") return c.scorching || "#d41919";
-    if (level === "hot") return c.hot || "#a52a2a";
-    if (level === "warm") return c.warm || "#7a4040";
-    return c.cold || "#2f2f38";
-  }
+  var c = window.CONFLICT_COLORS || {};
+  if (level === "scorching") return c.scorching || "#d41919";
+  if (level === "hot") return c.hot || "#a52a2a";
+  if (level === "warm") return c.warm || "#7a4040";
+  return c.cold || "#2f2f38";
+}
 
-  function getFillOpacity(level){
-    if (level === "scorching") return 0.85;
-    if (level === "hot") return 0.72;
-    if (level === "warm") return 0.55;
-    return 0.20;
-  }
+function getFillOpacity(level){
+  if (level === "scorching") return 0.88;
+  if (level === "hot") return 0.78;
+  if (level === "warm") return 0.65;
+  return 0.35;   /* was 0.20 — zichtbaarder */
+}
 
   /* ============================================================
      STIJL PER LAND
