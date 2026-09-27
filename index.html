@@ -115,102 +115,45 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
-<link rel="stylesheet" href="styles.css?v=14.9">
+<link rel="stylesheet" href="styles.css?v=15.0">
 
 <style>
-/* ===== Kritieke layout-fix ===== */
-main > section.view[hidden] {
-  display: none !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
-}
-
-.bottom-tabs {
-  position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
-  display: flex !important;
-}
+main > section.view[hidden] { display: none !important; visibility: hidden !important; pointer-events: none !important; }
+.bottom-tabs { position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; display: flex !important; }
 .sheet-overlay { position: fixed !important; inset: 0 !important; }
 .sheet { position: fixed !important; left: 0 !important; right: 0 !important; }
-
-/* VOD modal — verborgen tenzij .show */
 .vod-detail-modal {
-  position: fixed !important;
-  inset: 0 !important;
-  display: flex !important;
-  align-items: flex-end !important;
-  justify-content: center !important;
-  padding: 0 !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
+  position: fixed !important; inset: 0 !important;
+  display: flex !important; align-items: flex-end !important; justify-content: center !important;
+  padding: 0 !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important;
   transition: opacity .2s ease, visibility .2s ease !important;
 }
-.vod-detail-modal.show {
-  opacity: 1 !important;
-  visibility: visible !important;
-  pointer-events: auto !important;
-}
+.vod-detail-modal.show { opacity: 1 !important; visibility: visible !important; pointer-events: auto !important; }
 .vod-detail-box { width: 100% !important; max-width: 100% !important; max-height: 85vh !important; }
 .vod-detail-body { padding: 16px !important; display: flex !important; flex-direction: column !important; gap: 12px !important; }
 .vod-detail-poster img { max-width: 120px !important; border-radius: 8px !important; display: block !important; }
 
-/* PWA banners */
-.wd-banner-offline{position:fixed;top:0;left:0;right:0;z-index:10000003;
-  background:#3a3a3a;color:#fff;padding:8px 12px;font-size:13px;
-  text-align:center;font-weight:500;
-  transform:translateY(-100%);transition:transform .3s;
-  border-bottom:1px solid #555}
+.wd-banner-offline{position:fixed;top:0;left:0;right:0;z-index:10000003;background:#3a3a3a;color:#fff;padding:8px 12px;font-size:13px;text-align:center;font-weight:500;transform:translateY(-100%);transition:transform .3s;border-bottom:1px solid #555}
 .wd-banner-offline.show{transform:translateY(0)}
-.wd-banner-offline .dot{display:inline-block;width:8px;height:8px;
-  border-radius:50%;background:#ff9800;margin-right:6px;
-  animation:wdPulse 1.5s infinite}
+.wd-banner-offline .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ff9800;margin-right:6px;animation:wdPulse 1.5s infinite}
 @keyframes wdPulse{0%,100%{opacity:1}50%{opacity:.3}}
-
-.wd-banner-update{position:fixed;top:0;left:0;right:0;z-index:10000003;
-  background:linear-gradient(90deg,#e0a857,#f0c074);color:#070c16;
-  padding:10px 12px;font-size:13px;font-weight:600;
-  display:flex;align-items:center;gap:10px;
-  transform:translateY(-100%);transition:transform .3s;
-  box-shadow:0 2px 8px rgba(0,0,0,0.3)}
+.wd-banner-update{position:fixed;top:0;left:0;right:0;z-index:10000003;background:linear-gradient(90deg,#e0a857,#f0c074);color:#070c16;padding:10px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:10px;transform:translateY(-100%);transition:transform .3s;box-shadow:0 2px 8px rgba(0,0,0,0.3)}
 .wd-banner-update.show{transform:translateY(0)}
 .wd-banner-update .msg{flex:1;min-width:0}
-.wd-banner-update button{background:#070c16;color:#e0a857;
-  border:0;border-radius:6px;padding:6px 12px;font-size:12px;
-  font-weight:600;cursor:pointer}
-.wd-banner-update button.dismiss{background:transparent;
-  color:#070c16;padding:6px 8px;opacity:.7}
-
-.wd-banner-install{position:fixed;
-  left:8px;right:8px;
-  bottom:calc(70px + env(safe-area-inset-bottom,0px));
-  z-index:10000002;
-  background:linear-gradient(135deg,#e0a857,#f0c074);
-  color:#070c16;border-radius:14px;padding:14px;
-  display:flex;align-items:center;gap:12px;
-  box-shadow:0 8px 32px rgba(224,168,87,0.35),
-             0 4px 12px rgba(0,0,0,0.4);
-  transform:translateY(150%);
-  transition:transform .4s cubic-bezier(0.4,0,0.2,1);
-  max-width:500px;margin:0 auto}
+.wd-banner-update button{background:#070c16;color:#e0a857;border:0;border-radius:6px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer}
+.wd-banner-update button.dismiss{background:transparent;color:#070c16;padding:6px 8px;opacity:.7}
+.wd-banner-install{position:fixed;left:8px;right:8px;bottom:calc(70px + env(safe-area-inset-bottom,0px));z-index:10000002;background:linear-gradient(135deg,#e0a857,#f0c074);color:#070c16;border-radius:14px;padding:14px;display:flex;align-items:center;gap:12px;box-shadow:0 8px 32px rgba(224,168,87,0.35),0 4px 12px rgba(0,0,0,0.4);transform:translateY(150%);transition:transform .4s cubic-bezier(0.4,0,0.2,1);max-width:500px;margin:0 auto}
 .wd-banner-install.show{transform:translateY(0)}
 .wd-banner-install .icon{font-size:26px;flex-shrink:0;line-height:1}
 .wd-banner-install .text{flex:1;min-width:0}
 .wd-banner-install .title{font-size:14px;font-weight:700;margin-bottom:2px}
 .wd-banner-install .sub{font-size:11px;opacity:.75;line-height:1.3}
 .wd-banner-install .actions{display:flex;gap:6px;flex-shrink:0}
-.wd-banner-install button{background:#070c16;color:#e0a857;
-  border:0;border-radius:8px;padding:8px 14px;font-size:12px;
-  font-weight:700;cursor:pointer}
-.wd-banner-install button.dismiss{background:rgba(7,12,22,0.15);
-  color:#070c16;padding:8px 10px}
-
+.wd-banner-install button{background:#070c16;color:#e0a857;border:0;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:700;cursor:pointer}
+.wd-banner-install button.dismiss{background:rgba(7,12,22,0.15);color:#070c16;padding:8px 10px}
 body.wd-has-top-banner .breaking{top:40px!important;transition:top .3s}
+@media (min-width:900px){ .wd-banner-install{display:none!important} }
 
-@media (min-width:900px){
-  .wd-banner-install{display:none!important}
-}
-
-/* Compacte header op niet-Nieuws (desktop) */
 body:has(#viewMap:not([hidden])) .header-stats,
 body:has(#viewIptv:not([hidden])) .header-stats,
 body:has(#viewVod:not([hidden])) .header-stats,
@@ -218,145 +161,34 @@ body:has(#viewAi:not([hidden])) .header-stats,
 body:has(#viewMap:not([hidden])) #btnTheme,
 body:has(#viewIptv:not([hidden])) #btnTheme,
 body:has(#viewVod:not([hidden])) #btnTheme,
-body:has(#viewAi:not([hidden])) #btnTheme {
-  display: none !important;
-}
+body:has(#viewAi:not([hidden])) #btnTheme { display: none !important; }
 body:has(#viewMap:not([hidden])) .header-inner,
 body:has(#viewIptv:not([hidden])) .header-inner,
 body:has(#viewVod:not([hidden])) .header-inner,
-body:has(#viewAi:not([hidden])) .header-inner {
-  padding: .55rem 1rem !important;
-}
+body:has(#viewAi:not([hidden])) .header-inner { padding: .55rem 1rem !important; }
 body:has(#viewMap:not([hidden])) .brand-mark,
 body:has(#viewIptv:not([hidden])) .brand-mark,
 body:has(#viewVod:not([hidden])) .brand-mark,
-body:has(#viewAi:not([hidden])) .brand-mark {
-  width: 34px !important; height: 34px !important;
-  border-radius: 10px !important;
-}
+body:has(#viewAi:not([hidden])) .brand-mark { width: 34px !important; height: 34px !important; border-radius: 10px !important; }
 body:has(#viewMap:not([hidden])) .brand-mark svg,
 body:has(#viewIptv:not([hidden])) .brand-mark svg,
 body:has(#viewVod:not([hidden])) .brand-mark svg,
-body:has(#viewAi:not([hidden])) .brand-mark svg {
-  width: 18px !important; height: 18px !important;
-}
+body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height: 18px !important; }
 
 #wdHotspotStrip, .wd-hotspot-strip { display: none !important; }
 
-/* AI input compact */
-.ai-input-wrap {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: flex-end !important;
-  gap: 8px !important;
-  padding: .55rem .75rem !important;
-  padding-bottom: calc(.55rem + env(safe-area-inset-bottom, 0px)) !important;
-  grid-template-columns: none !important;
-  grid-template-rows: none !important;
-}
-.ai-input-wrap textarea {
-  flex: 1 1 auto !important;
-  min-height: 34px !important;
-  max-height: 80px !important;
-  padding: .45rem .85rem !important;
-  font-size: .88rem !important;
-  border-radius: 18px !important;
-  line-height: 1.35 !important;
-  grid-column: unset !important;
-  grid-row: unset !important;
-}
-.ai-input-wrap .ai-send-btn {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  border-radius: 50% !important;
-  font-size: .9rem !important;
-  grid-column: unset !important;
-  grid-row: unset !important;
-  flex-shrink: 0 !important;
-}
-.ai-input-wrap .ai-voice-btn {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  border-radius: 50% !important;
-  font-size: .9rem !important;
-  grid-column: unset !important;
-  grid-row: unset !important;
-  flex-shrink: 0 !important;
-}
-.ai-input-wrap .ai-clear-btn {
-  width: 34px !important;
-  height: 34px !important;
-  min-width: 34px !important;
-  border-radius: 50% !important;
-  background: var(--bg-3) !important;
-  border: 1px solid var(--line-2) !important;
-  color: var(--ink-2) !important;
-  font-size: .95rem !important;
-  cursor: pointer !important;
-  flex-shrink: 0 !important;
-  padding: 0 !important;
-  display: grid !important;
-  place-items: center !important;
-  transition: all .15s !important;
-}
-.ai-input-wrap .ai-clear-btn:hover {
-  border-color: #e63946 !important;
-  color: #f87171 !important;
-}
+.ai-input-wrap { display: flex !important; flex-direction: row !important; align-items: flex-end !important; gap: 8px !important; padding: .55rem .75rem !important; padding-bottom: calc(.55rem + env(safe-area-inset-bottom, 0px)) !important; grid-template-columns: none !important; grid-template-rows: none !important; }
+.ai-input-wrap textarea { flex: 1 1 auto !important; min-height: 34px !important; max-height: 80px !important; padding: .45rem .85rem !important; font-size: .88rem !important; border-radius: 18px !important; line-height: 1.35 !important; grid-column: unset !important; grid-row: unset !important; }
+.ai-input-wrap .ai-send-btn { width: 34px !important; height: 34px !important; min-width: 34px !important; border-radius: 50% !important; font-size: .9rem !important; grid-column: unset !important; grid-row: unset !important; flex-shrink: 0 !important; }
+.ai-input-wrap .ai-voice-btn { width: 34px !important; height: 34px !important; min-width: 34px !important; border-radius: 50% !important; font-size: .9rem !important; grid-column: unset !important; grid-row: unset !important; flex-shrink: 0 !important; }
+.ai-input-wrap .ai-clear-btn { width: 34px !important; height: 34px !important; min-width: 34px !important; border-radius: 50% !important; background: var(--bg-3) !important; border: 1px solid var(--line-2) !important; color: var(--ink-2) !important; font-size: .95rem !important; cursor: pointer !important; flex-shrink: 0 !important; padding: 0 !important; display: grid !important; place-items: center !important; transition: all .15s !important; }
+.ai-input-wrap .ai-clear-btn:hover { border-color: #e63946 !important; color: #f87171 !important; }
 .ai-input-wrap .ai-day-bar { display: none !important; }
 
-/* VOD sticky titel */
-#viewVod .section-head {
-  position: sticky !important;
-  top: var(--header-h, 52px) !important;
-  z-index: 20 !important;
-  background: var(--bg) !important;
-  padding: .35rem 0 .4rem !important;
-  margin-bottom: 0 !important;
-  border-bottom: none !important;
-}
+#viewVod .section-head { position: sticky !important; top: var(--header-h, 52px) !important; z-index: 20 !important; background: var(--bg) !important; padding: .35rem 0 .4rem !important; margin-bottom: 0 !important; border-bottom: none !important; }
 #viewVod .section-head::after { display: none !important; }
-#viewVod .vod-search-wrap {
-  position: sticky !important;
-  top: calc(var(--header-h, 52px) + 34px) !important;
-  z-index: 19 !important;
-  background: var(--bg) !important;
-  padding: .35rem 0 .55rem !important;
-  margin-bottom: .35rem !important;
-}
-#viewVod .vod-sidebar {
-  top: calc(var(--header-h, 52px) + 80px) !important;
-  max-height: calc(100vh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important;
-  max-height: calc(100dvh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important;
-}
-
-/* HYBRIDE tab-iconen: Fill (actief) + Regular (inactief) */
-.tab-icon {
-  display: inline-flex !important;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  position: relative;
-}
-.tab-icon i {
-  font-size: 22px;
-  line-height: 1;
-  color: currentColor;
-  display: block;
-  transition: opacity .18s ease, transform .18s ease;
-}
-.tab-icon .icon-regular { display: block; opacity: .72; }
-.tab-icon .icon-fill { display: none; opacity: 1; }
-.tab.active .tab-icon .icon-regular { display: none; opacity: 0; }
-.tab.active .tab-icon .icon-fill {
-  display: block;
-  opacity: 1;
-  filter: drop-shadow(0 0 10px var(--accent-glow-strong, rgba(224,168,87,.55)));
-}
-.tab.active .tab-icon { transform: translateY(-1px) scale(1.08); }
+#viewVod .vod-search-wrap { position: sticky !important; top: calc(var(--header-h, 52px) + 34px) !important; z-index: 19 !important; background: var(--bg) !important; padding: .35rem 0 .55rem !important; margin-bottom: .35rem !important; }
+#viewVod .vod-sidebar { top: calc(var(--header-h, 52px) + 80px) !important; max-height: calc(100vh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important; max-height: calc(100dvh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important; }
 </style>
 </head>
 <body>
@@ -431,10 +263,31 @@ body:has(#viewAi:not([hidden])) .brand-mark svg {
           <div class="live-count" id="liveCount">0</div>
         </div>
         <div class="live-filters" id="liveFilters">
-          <button class="live-filter active" data-cat="all">Alles</button>
-          <button class="live-filter" data-cat="military">⚔ Militair</button>
-          <button class="live-filter" data-cat="political">Politiek</button>
-          <button class="live-filter" data-cat="other">Overig</button>
+          <button class="live-filter active" data-cat="militair">
+            <i class="ph ph-bold ph-crosshair lf-icon"></i>
+            <span class="lf-label">Militair</span>
+            <span class="lf-count">0</span>
+          </button>
+          <button class="live-filter" data-cat="crime">
+            <i class="ph ph-bold ph-handcuffs lf-icon"></i>
+            <span class="lf-label">Crime</span>
+            <span class="lf-count">0</span>
+          </button>
+          <button class="live-filter" data-cat="politiek">
+            <i class="ph ph-bold ph-bank lf-icon"></i>
+            <span class="lf-label">Politiek</span>
+            <span class="lf-count">0</span>
+          </button>
+          <button class="live-filter" data-cat="protest">
+            <i class="ph ph-bold ph-megaphone lf-icon"></i>
+            <span class="lf-label">Protest</span>
+            <span class="lf-count">0</span>
+          </button>
+          <button class="live-filter" data-cat="civiel">
+            <i class="ph ph-bold ph-warning lf-icon"></i>
+            <span class="lf-label">Civiel</span>
+            <span class="lf-count">0</span>
+          </button>
         </div>
         <div class="live-list" id="liveList"><div class="live-empty">Events worden geladen...</div></div>
       </div>
@@ -943,12 +796,14 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="config.js?v=14.34" defer></script>
 <script src="utils.js?v=14.30" defer></script>
 
+<script src="classifier.js?v=2.0" defer></script>
+
 <script src="ai-shared.js?v=1.0" defer></script>
 <script src="ai-trending.js?v=1.8" defer></script>
 <script src="ai-ranking.js?v=1.0" defer></script>
 <script src="ai-dedup.js?v=2.3" defer></script>
 <script src="ai-summary.js?v=1.2" defer></script>
-<script src="ai-map.js?v=2.0" defer></script>
+<script src="ai-map.js?v=3.0" defer></script>
 
 <script src="store.js?v=14.5" defer></script>
 <script src="news-v27.js?v=27.10" defer></script>
@@ -957,7 +812,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="refresh-v12.js?v=14.4" defer></script>
 
 <script src="iptv-v8.js?v=14.30" defer></script>
-<script src="map-v11.10.js?v=13.6" defer></script>
+<script src="map-v11.10.js?v=14.0" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=1.18" defer></script>
 
@@ -965,7 +820,7 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <script src="enhancements.js?v=1.3" defer></script>
 
-<script src="world-status.js?v=1.0" defer></script>
+<script src="world-status.js?v=2.0" defer></script>
 
 <script>
 (function(){
