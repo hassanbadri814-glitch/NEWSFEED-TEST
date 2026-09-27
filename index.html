@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.35</title>
+<title>WAR DESK v14.36</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -217,7 +217,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.35</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.36</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -515,7 +515,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.35</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.36</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -675,7 +675,13 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
       if(transRow && window.State) transRow.classList.toggle("active", !!window.State.translateEnabled);
     }
     syncToggles();
-    setInterval(syncToggles, 5000);
+
+    /* v14.36: direct reageren op toggle-wijzigingen (was: 5s polling) */
+    window.addEventListener("wardesk:translate-changed", syncToggles);
+    window.addEventListener("wardesk:notifications-changed", syncToggles);
+
+    /* Backup-polling (vangnet, niet hoofdmechanisme) */
+    setInterval(syncToggles, 15000);
   });
 })();
 </script>
@@ -807,13 +813,13 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="ai-map.js?v=3.3" defer></script>
 
 <script src="store.js?v=14.5" defer></script>
-<script src="news-v27.js?v=27.17" defer></script>
+<script src="news-v27.js?v=27.18" defer></script>
 <script src="app-v12.js?v=14.5" defer></script>
 <script src="persist-v4.js?v=14.30" defer></script>
 <script src="refresh-v12.js?v=14.4" defer></script>
 
 <script src="iptv-v8.js?v=14.30" defer></script>
-<script src="map-v11.10.js?v=14.2" defer></script>
+<script src="map-v11.10.js?v=14.3" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=1.18" defer></script>
 
