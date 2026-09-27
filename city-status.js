@@ -1,12 +1,10 @@
 /* ============================================================
-   WAR DESK — city-status.js v1.0
+   WAR DESK — city-status.js v2.0
    ------------------------------------------------------------
-   Per-stad bijhouden:
-   - Wie controleert het (controller)
-   - Wie claimt het (claimedBy)
-   - Confidence (0-1)
-   - Historische status
-   - Persist via IndexedDB
+   - v2.0: 2-laags systeem (control + attack)
+         + confidence berekening
+         + contested detectie
+         + historie tracking
    ============================================================ */
 
 (function(){
@@ -15,12 +13,16 @@
   var LOG = function(){ try{ wdLog.info.apply(null, ["[CITY]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
   var DB_NAME = "wardesk_worldmap";
-  var DB_VERSION = 1;
+  var DB_VERSION = 2; /* v2.0: nieuw schema */
   var STORE_NAME = "city_status";
   var SNAPSHOT_STORE = "snapshots";
 
   var db = null;
+  var CITY_STATUS = {};
 
+  /* ============================================================
+     INDEXEDDB
+     ============================================================ */
   function openDB(){
     return new Promise(function(resolve){
       try {
@@ -28,6 +30,10 @@
         var req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = function(e){
           var d = e.target.result;
+          /* Verwijder oude store (schema change) */
+          if (d.objectStoreNames.contains(STORE_NAME)){
+            d.deleteObjectStore(STORE_NAME);
+          }
           if (!d.objectStoreNames.contains(STORE_NAME)){
             d.createObjectStore(STORE_NAME, { keyPath: "city" });
           }
@@ -78,160 +84,227 @@
   }
 
   /* ============================================================
-     STATE — in-memory cache, geladen uit IndexedDB
+     STAD RECORD — lege template
      ============================================================ */
-  var CITY_STATUS = {};
-
-  /* ============================================================
-     CITY UPDATE — hoofd functie
-     ------------------------------------------------------------
-     @param cityKey      - bv "kharkiv"
-     @param claimedBy    - ISO3 van claimer (bv "RUS") of null
-     @param controller   - ISO3 van huidige controller (bv "UKR")
-     @param sourceName   - naam van de bron
-     @param evidence     - optionele tekst/fragment
-     ============================================================ */
-  async function recordClaim(cityKey, claimedBy, controller, sourceName, evidence){
-    if (!cityKey) return null;
-
-    var existing = CITY_STATUS[cityKey] || {
+  function makeCityRecord(cityKey, countryName){
+    return {
       city: cityKey,
-      controller: controller || null,
-      claimedBy: null,
-      confidence: 0,
-      since: new Date().toISOString(),
-      lastUpdate: new Date().toISOString(),
-      sources: [],
-      claims: [],
-      history: []
+      country: countryName || null,
+
+      /* Control claims — wie zegt dat ze stad controleren */
+      controlClaims: {},
+
+      /* Attack claims — wie valt stad aan */
+      attackClaims: {},
+
+      /* Afgeleide velden (herberekend bij elke update) */
+      controller: null,
+      controllerConfidence: 0,
+      controllerSources: 0,
+      contested: false,
+
+      dominantAttacker: null,
+      attackIntensity: 0,
+      attackCount: 0,
+
+      since: null,
+      history: [],
+      lastUpdate: null
     };
-
-    /* Voeg claim toe aan geschiedenis */
-    var claim = {
-      claimedBy: claimedBy,
-      source: sourceName,
-      weight: window.WorldMapData ? window.WorldMapData.getTier(sourceName) : 0.5,
-      at: new Date().toISOString()
-    };
-    existing.claims.push(claim);
-
-    /* Unieke bronnen bijhouden */
-    if (sourceName && existing.sources.indexOf(sourceName) === -1){
-      existing.sources.push(sourceName);
-    }
-
-    /* Herbereken consensus op basis van alle claims laatste 7 dagen */
-    var now = Date.now();
-    var weekAgo = now - 7 * 24 * 60 * 60 * 1000;
-    var recentClaims = existing.claims.filter(function(c){
-      return new Date(c.at).getTime() > weekAgo;
-    });
-
-    var votes = {};
-    recentClaims.forEach(function(c){
-      if (!c.claimedBy) return;
-      var key = c.claimedBy;
-      votes[key] = (votes[key] || 0) + c.weight;
-    });
-
-    var totalWeight = 0;
-    Object.keys(votes).forEach(function(k){ totalWeight += votes[k]; });
-
-    if (totalWeight === 0){
-      existing.confidence = 0;
-      existing.claimedBy = null;
-    } else {
-      /* Winnaar = hoogste gewicht */
-      var best = null, bestWeight = 0;
-      Object.keys(votes).forEach(function(k){
-        if (votes[k] > bestWeight){ best = k; bestWeight = votes[k]; }
-      });
-
-      var consensus = bestWeight / totalWeight;
-      var sources = existing.sources.length;
-      var origins = countOrigins(existing.sources);
-
-      /* Bepaal confidence op basis van thresholds */
-      var th = window.WORLDMAP_THRESHOLDS || {};
-      var minConsensus = th.consensus_min || 0.70;
-      var minSources = th.confirm_min_sources || 3;
-      var minOrigins = th.confirm_min_origins || 2;
-
-      if (consensus >= minConsensus && sources >= minSources && origins >= minOrigins){
-        existing.confidence = Math.min(1, consensus);
-        existing.claimedBy = best;
-      } else if (sources >= (th.claim_min_sources || 2)){
-        /* Claim maar nog niet bevestigd */
-        existing.confidence = consensus * 0.5;
-        existing.claimedBy = best;
-      } else {
-        existing.confidence = consensus * 0.3;
-        existing.claimedBy = best;
-      }
-    }
-
-    /* Update controller als confidence hoog genoeg is */
-    if (existing.confidence >= 0.7 && existing.claimedBy){
-      if (existing.controller !== existing.claimedBy){
-        /* Controller verandert */
-        existing.history.push({
-          from: existing.controller,
-          to: existing.claimedBy,
-          at: new Date().toISOString(),
-          confidence: existing.confidence
-        });
-        existing.controller = existing.claimedBy;
-        existing.since = new Date().toISOString();
-      }
-    }
-
-    existing.lastUpdate = new Date().toISOString();
-    CITY_STATUS[cityKey] = existing;
-
-    /* Persist */
-    await put(STORE_NAME, existing);
-
-    LOG("City update: " + cityKey + " → controller=" + (existing.controller || "?") +
-        " claim=" + (existing.claimedBy || "?") +
-        " conf=" + existing.confidence.toFixed(2));
-
-    return existing;
   }
 
-  /* Aantal unieke landen dat claimt — ruwe benadering op basis van bron-naam */
-  function countOrigins(sources){
-    /* Bekende mapping van bron → land */
-    var originMap = {
-      "Al Jazeera": "QA", "Al Jazeera AR": "QA", "Al Jazeera AR TG": "QA",
-      "Al Arabiya TG": "SA", "Arab News": "SA", "Saudi Gazette": "SA",
-      "The National": "AE", "Gulf News": "AE", "WAM": "AE",
-      "The Peninsula": "QA",
-      "Anadolu AR": "TR", "TRT World": "TR",
-      "SANA": "SY", "SABA Yemen": "YE",
-      "RT Arabic": "RU", "RT News": "RU", "TASS": "RU",
-      "Times of Israel": "IL", "Jerusalem Post": "IL", "Ynet": "IL",
-      "Kyiv Independent": "UA", "Ukrinform": "UA",
-      "Mehr News Iran": "IR", "IRNA": "IR", "Press TV": "IR",
-      "BBC World": "GB", "BBC UK": "GB", "BBC Arabic": "GB",
-      "Reuters": "GB", "Reuters TG": "GB", "AP News": "US",
-      "France24 EN": "FR", "France24 AR": "FR",
-      "NOS": "NL", "De Telegraaf": "NL", "AD.nl": "NL",
-      "Spiegel": "DE", "Bild": "DE", "Zeit": "DE", "FAZ": "DE",
-      "Le Monde": "FR", "Spiegel": "DE",
-      "MAP": "MA", "Hespress": "MA", "Le360": "MA",
-      "Xinhua": "CN",
-      "CNN": "US", "NYT US": "US", "Washington Post": "US"
-    };
-    var origins = {};
-    sources.forEach(function(s){
-      var o = originMap[s];
-      if (o) origins[o] = true;
-    });
-    return Object.keys(origins).length;
+  function ensureRecord(cityKey, countryName){
+    if (!CITY_STATUS[cityKey]){
+      CITY_STATUS[cityKey] = makeCityRecord(cityKey, countryName);
+    } else if (countryName && !CITY_STATUS[cityKey].country){
+      CITY_STATUS[cityKey].country = countryName;
+    }
+    return CITY_STATUS[cityKey];
   }
 
   /* ============================================================
-     GET — ophalen van stad-status
+     CONFIDENCE BEREKENING
+     ============================================================ */
+  function calculateConfidence(sourcesMap, originsMap){
+    var sourceCount = Object.keys(sourcesMap || {}).length;
+    var originCount = Object.keys(originsMap || {}).length;
+
+    var base;
+    if (sourceCount >= 3) base = 0.85;
+    else if (sourceCount >= 2) base = 0.60;
+    else if (sourceCount >= 1) base = 0.33;
+    else base = 0;
+
+    if (originCount >= 2) base = Math.min(1, base + 0.10);
+    if (sourceCount >= 5) base = Math.min(1, base + 0.05);
+
+    return Math.round(base * 100) / 100;
+  }
+
+  /* ============================================================
+     v2.0: RECORD CONTROL CLAIM
+     ------------------------------------------------------------
+     Wordt aangeroepen bij "captured/liberated/seized" events.
+     ============================================================ */
+  async function recordControlClaim(cityKey, actorName, actorISO3, sourceName, originCountry){
+    if (!cityKey || !actorName) return null;
+    var record = ensureRecord(cityKey);
+    var actor = actorISO3 || actorName;
+
+    if (!record.controlClaims[actor]){
+      record.controlClaims[actor] = {
+        actor: actorName,
+        actorISO3: actorISO3 || null,
+        sources: {},
+        origins: {},
+        count: 0,
+        lastClaim: 0,
+        confidence: 0
+      };
+    }
+
+    var claim = record.controlClaims[actor];
+    var now = Date.now();
+
+    if (sourceName && !claim.sources[sourceName]){
+      claim.sources[sourceName] = now;
+    }
+    if (originCountry && !claim.origins[originCountry]){
+      claim.origins[originCountry] = now;
+    }
+    claim.count++;
+    claim.lastClaim = now;
+    claim.confidence = calculateConfidence(claim.sources, claim.origins);
+
+    /* Herbereken afgeleide velden */
+    recomputeCityState(record);
+
+    record.lastUpdate = now;
+
+    await put(STORE_NAME, record);
+
+    LOG("Control: " + cityKey + " → " + actorName + " (conf " + claim.confidence + ", bronnen " + Object.keys(claim.sources).length + ")");
+    return record;
+  }
+
+  /* ============================================================
+     v2.0: RECORD ATTACK CLAIM
+     ------------------------------------------------------------
+     Wordt aangeroepen bij "attacked/shelled/bombed" events.
+     ============================================================ */
+  async function recordAttackClaim(cityKey, actorName, actorISO3, sourceName, originCountry){
+    if (!cityKey || !actorName) return null;
+    var record = ensureRecord(cityKey);
+    var actor = actorISO3 || actorName;
+
+    if (!record.attackClaims[actor]){
+      record.attackClaims[actor] = {
+        actor: actorName,
+        actorISO3: actorISO3 || null,
+        sources: {},
+        origins: {},
+        count: 0,
+        lastAttack: 0,
+        intensity: 0
+      };
+    }
+
+    var claim = record.attackClaims[actor];
+    var now = Date.now();
+
+    if (sourceName && !claim.sources[sourceName]){
+      claim.sources[sourceName] = now;
+    }
+    if (originCountry && !claim.origins[originCountry]){
+      claim.origins[originCountry] = now;
+    }
+    claim.count++;
+    claim.lastAttack = now;
+
+    /* Intensity: count/10, decay over 7 dagen */
+    var baseIntensity = Math.min(1, claim.count / 10);
+    var ageDays = 0; /* net binnengekomen */
+    var decay = Math.max(0.3, 1 - ageDays / 30);
+    claim.intensity = Math.round(baseIntensity * decay * 100) / 100;
+
+    /* Herbereken afgeleide velden */
+    recomputeCityState(record);
+
+    record.lastUpdate = now;
+
+    await put(STORE_NAME, record);
+
+    LOG("Attack: " + cityKey + " ← " + actorName + " (count " + claim.count + ", intensity " + claim.intensity + ")");
+    return record;
+  }
+
+  /* ============================================================
+     HERBEREKEN AFGELEIDE VELDEN
+     ============================================================ */
+  function recomputeCityState(record){
+    /* ==== Controller (hoogste control claim) ==== */
+    var bestActor = null;
+    var bestScore = 0;
+    var contestedActors = 0;
+
+    for (var actor in record.controlClaims){
+      if (!Object.prototype.hasOwnProperty.call(record.controlClaims, actor)) continue;
+      var claim = record.controlClaims[actor];
+      var score = claim.confidence;
+
+      if (score >= 0.4) contestedActors++;
+      if (score > bestScore){
+        bestScore = score;
+        bestActor = actor;
+      }
+    }
+
+    var prevController = record.controller;
+    record.controller = bestActor;
+    record.controllerConfidence = bestScore;
+    record.controllerSources = bestActor ? Object.keys(record.controlClaims[bestActor].sources).length : 0;
+
+    /* Contested: 2+ actoren met >= 40% confidence */
+    record.contested = contestedActors >= 2;
+
+    /* Controller-wissel → historie */
+    if (prevController && bestActor && prevController !== bestActor){
+      record.history.push({
+        at: Date.now(),
+        from: prevController,
+        to: bestActor,
+        confidence: bestScore,
+        type: "controller-change"
+      });
+      record.since = Date.now();
+    } else if (!prevController && bestActor){
+      record.since = Date.now();
+    }
+
+    /* ==== Attack intensity (hoogste attacker) ==== */
+    var dominantAttacker = null;
+    var highestIntensity = 0;
+    var totalCount = 0;
+
+    for (var atk in record.attackClaims){
+      if (!Object.prototype.hasOwnProperty.call(record.attackClaims, atk)) continue;
+      var aClaim = record.attackClaims[atk];
+      totalCount += aClaim.count;
+      if (aClaim.intensity > highestIntensity){
+        highestIntensity = aClaim.intensity;
+        dominantAttacker = atk;
+      }
+    }
+
+    record.dominantAttacker = dominantAttacker;
+    record.attackIntensity = highestIntensity;
+    record.attackCount = totalCount;
+
+    return record;
+  }
+
+  /* ============================================================
+     GETTERS
      ============================================================ */
   function getCity(cityKey){
     return CITY_STATUS[cityKey] || null;
@@ -242,23 +315,10 @@
   }
 
   /* ============================================================
-     RETRACT — bron trekt terug
-     ============================================================ */
-  async function retractClaim(cityKey, sourceName){
-    var existing = CITY_STATUS[cityKey];
-    if (!existing) return null;
-    existing.claims = existing.claims.filter(function(c){ return c.source !== sourceName; });
-    CITY_STATUS[cityKey] = existing;
-    await put(STORE_NAME, existing);
-    LOG("Retracted: " + cityKey + " (bron " + sourceName + ")");
-    return existing;
-  }
-
-  /* ============================================================
-     SNAPSHOT — dagelijkse momentopname voor tijdlijn
+     SNAPSHOTS — dagelijkse momentopname
      ============================================================ */
   async function saveSnapshot(){
-    var dateKey = new Date().toISOString().slice(0, 10); /* YYYY-MM-DD */
+    var dateKey = new Date().toISOString().slice(0, 10);
     var snapshot = {
       date: dateKey,
       timestamp: Date.now(),
@@ -277,7 +337,7 @@
   }
 
   /* ============================================================
-     INIT — laad alles uit IndexedDB
+     INIT
      ============================================================ */
   async function init(){
     await openDB();
@@ -286,10 +346,30 @@
       if (c && c.city) CITY_STATUS[c.city] = c;
     });
     LOG("Init — " + Object.keys(CITY_STATUS).length + " steden uit cache");
+
+    /* Migratie-check: als oude structuur (zonder controlClaims) → reset */
+    var needsMigration = false;
+    for (var city in CITY_STATUS){
+      if (!Object.prototype.hasOwnProperty.call(CITY_STATUS, city)) continue;
+      if (!CITY_STATUS[city].controlClaims){
+        needsMigration = true;
+        break;
+      }
+    }
+    if (needsMigration){
+      LOG("Oude structuur gedetecteerd — alle city-data gewist voor v2.0");
+      CITY_STATUS = {};
+      if (db){
+        try {
+          var tx = db.transaction(STORE_NAME, "readwrite");
+          tx.objectStore(STORE_NAME).clear();
+        } catch(e){}
+      }
+    }
   }
 
   /* ============================================================
-     RESET — alles wissen (voor debug/test)
+     RESET (voor debug)
      ============================================================ */
   async function reset(){
     CITY_STATUS = {};
@@ -308,14 +388,15 @@
   window.CityStatus = {
     init: init,
     reset: reset,
-    recordClaim: recordClaim,
-    retractClaim: retractClaim,
+    recordControlClaim: recordControlClaim,
+    recordAttackClaim: recordAttackClaim,
     getCity: getCity,
     getAllCities: getAllCities,
     saveSnapshot: saveSnapshot,
     getSnapshot: getSnapshot,
     getAllSnapshots: getAllSnapshots,
-    _getState: function(){ return CITY_STATUS; }
+    _getState: function(){ return CITY_STATUS; },
+    _version: "v2.0"
   };
 
   /* Auto-init */
@@ -325,6 +406,6 @@
     setTimeout(init, 500);
   }
 
-  wdLog.info("[WORLDMAP] city-status v1.0 geladen");
+  LOG("city-status v2.0 geladen (2-laags: control + attack)");
 
 })();
