@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v27.17 — Nieuws Logica + EventBus
+   WAR DESK v27.18 — Nieuws Logica + EventBus
+   - v27.18: __setTranslate directe visuele update + CustomEvent
    - v27.17: NewsAPI.getTranslatedTitle + ensureTranslations voor events
    - v27.16: Voetbal/Oranje correct in Sport-categorie
    - v27.15: Beschrijving (desc) ook vertalen voor AR/FR
@@ -10,7 +11,7 @@
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.17";
+  window.__newsVersion = "v27.18";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -634,7 +635,6 @@
       ]);
       if(translatedTitle || translatedDesc){
         updateCardTitle(it, translatedTitle, translatedDesc);
-        /* Nieuw: emit event voor kaart-integratie */
         try {
           if(window.WarDesk && WarDesk.events){
             WarDesk.events.emit("translation:added", {
@@ -691,15 +691,31 @@
     return result;
   };
 
+  /* ============================================================
+     v27.18 — TOGGLE FIX: directe visuele update + CustomEvent
+     ============================================================ */
   window.__setTranslate = (enabled) => {
     state.translateEnabled = !!enabled;
     if(window.WDStorage) WDStorage.set("translate", enabled ? "1" : "0");
+
+    /* Directe visuele update op beide elementen */
     const btn = $("toggleTranslate");
     if(btn) btn.classList.toggle("toggle-on", enabled);
-    renderNews();
-    if(window.showToast) window.showToast(enabled ? "Vertaling aan (AR+FR)" : "Vertaling uit");
 
-    /* Nieuw: notificeer kaart-module */
+    const row = $("toggleTranslateRow");
+    if(row) row.classList.toggle("active", enabled);
+
+    /* Notificeer index.html syncToggles direct (geen 5s wachttijd) */
+    try {
+      window.dispatchEvent(new CustomEvent("wardesk:translate-changed", {
+        detail: { enabled: !!enabled }
+      }));
+    } catch(e){}
+
+    renderNews();
+    if(window.showToast) window.showToast(enabled ? "Vertaling aan" : "Vertaling uit");
+
+    /* Notificeer kaart-module */
     try {
       if(window.WarDesk && WarDesk.events){
         WarDesk.events.emit("translation:toggle", { enabled: !!enabled });
@@ -764,6 +780,14 @@
       state.notificationsEnabled = true;
       if(window.WDStorage) WDStorage.set("notifications", "1");
       if(window.showToast) window.showToast("Breaking notificaties aan");
+
+      /* Directe visuele update */
+      const row = $("toggleNotificationsRow");
+      if(row) row.classList.toggle("active", true);
+      try {
+        window.dispatchEvent(new CustomEvent("wardesk:notifications-changed", { detail: { enabled: true } }));
+      } catch(e){}
+
       await sendNotification("WAR DESK", {
         body: "Notificaties zijn ingeschakeld.",
         tag: "wardesk-test",
@@ -774,6 +798,12 @@
       state.notificationsEnabled = false;
       if(window.WDStorage) WDStorage.set("notifications", "0");
       if(window.showToast) window.showToast("Notificaties uit");
+
+      const row = $("toggleNotificationsRow");
+      if(row) row.classList.toggle("active", false);
+      try {
+        window.dispatchEvent(new CustomEvent("wardesk:notifications-changed", { detail: { enabled: false } }));
+      } catch(e){}
     }
   };
 
@@ -1349,11 +1379,6 @@
     setView: (v) => { state.viewMode = v; renderNews(); },
     render: renderNews,
 
-    /* ========================================================
-       NIEUW v27.17 — voor ai-map.js integratie
-       ======================================================== */
-
-    /** Synchrone lookup — geeft vertaalde titel of null */
     getTranslatedTitle: function(item){
       if (!state.translateEnabled) return null;
       if (!item || !item.lang) return null;
@@ -1362,7 +1387,6 @@
       return state.translations[key] || null;
     },
 
-    /** Synchrone lookup — vertaalde beschrijving of null */
     getTranslatedDesc: function(item){
       if (!state.translateEnabled) return null;
       if (!item || !item.lang) return null;
@@ -1371,12 +1395,10 @@
       return state.translations[key] || null;
     },
 
-    /** Is de vertaal-toggle aan? */
     isTranslateEnabled: function(){
       return !!state.translateEnabled;
     },
 
-    /** Trigger async vertalingen voor AR/FR items (max 30) */
     ensureTranslations: function(items){
       if (!state.translateEnabled) return;
       if (!Array.isArray(items) || !items.length) return;
