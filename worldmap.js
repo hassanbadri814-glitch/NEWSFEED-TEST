@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.5
+   WAR DESK — worldmap.js v2.6
    ------------------------------------------------------------
-   - v2.5: Batch B — confidence weegt in opacity + tooltip update
+   - v2.6: grammatica fix (1 bron / 1 land)
+   - v2.5: confidence in opacity + tooltip update
    - v2.4: Batch A — periode-filter positie + schalende drempels
    - v2.3: land-panel + confidence + periode-filter
    - v2.2: alleen countsForHeat events + REG-skip + compacte legenda
@@ -276,9 +277,6 @@
     return c.cold || "#2f2f38";
   }
 
-  /* ============================================================
-     v2.5: FILL OPACITY met confidence factor
-     ============================================================ */
   function getFillOpacity(level, confidence){
     var baseOpacity;
     if (level === "scorching") baseOpacity = 0.88;
@@ -286,11 +284,6 @@
     else if (level === "warm") baseOpacity = 0.65;
     else return 0.30;
 
-    /* v2.5: confidence-factor
-       - 0%   conf → 0.55 × base (onzeker = lichter)
-       - 50%  conf → 0.775 × base
-       - 100% conf → 1.0 × base (zeker = vol)
-    */
     if (typeof confidence === "number" && confidence >= 0){
       var confNorm = Math.max(0, Math.min(100, confidence));
       var factor = 0.55 + (confNorm / 100) * 0.45;
@@ -354,7 +347,14 @@
   }
 
   /* ============================================================
-     v2.5: TOOLTIP GENERATOR (herbruikbaar)
+     HELPERS — grammatica (v2.6)
+     ============================================================ */
+  function pluralize(count, singular, plural){
+    return count + " " + (count === 1 ? singular : plural);
+  }
+
+  /* ============================================================
+     TOOLTIP GENERATOR
      ============================================================ */
   function buildTooltipHtml(iso3, name){
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
@@ -372,7 +372,8 @@
       }
       if (conf){
         lines.push("📊 " + conf.confidence + "% confidence (" +
-          conf.sources + " bronnen, " + conf.origins + " landen)");
+          pluralize(conf.sources, "bron", "bronnen") + ", " +
+          pluralize(conf.origins, "land", "landen") + ")");
       }
     } else {
       lines.push("Rustig — geen fysieke militaire events");
@@ -415,9 +416,6 @@
     });
   }
 
-  /* ============================================================
-     v2.5: TOOLTIPS VERNIEUWEN na heat update
-     ============================================================ */
   function refreshTooltips(){
     if (!WM.layer) return;
     WM.layer.eachLayer(function(layer){
@@ -480,6 +478,13 @@
     } else {
       var confPct = conf ? conf.confidence : 0;
       var confClass = confPct >= 70 ? "conf-high" : (confPct >= 40 ? "conf-med" : "conf-low");
+      /* v2.6: grammatica fix */
+      var confDetail = "";
+      if (conf){
+        confDetail = '<div class="wm-panel-conf-detail">' +
+          pluralize(conf.sources, "bron", "bronnen") + ' · ' +
+          pluralize(conf.origins, "land", "landen") + ' van herkomst</div>';
+      }
       statsEl.innerHTML =
         '<div class="wm-panel-stat">' +
           '<div class="wm-panel-stat-val">' + targetHeat.toFixed(1) + '</div>' +
@@ -493,7 +498,7 @@
           '<div class="wm-panel-stat-val">' + confPct + '%</div>' +
           '<div class="wm-panel-stat-lbl">Confidence</div>' +
         '</div>' +
-        (conf ? '<div class="wm-panel-conf-detail">' + conf.sources + ' bronnen · ' + conf.origins + ' landen van herkomst</div>' : '');
+        confDetail;
     }
 
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
@@ -772,7 +777,7 @@
     restorePeriodFilter();
 
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.5 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.6 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -798,7 +803,6 @@
       });
     }
 
-    /* v2.5: tooltips vernieuwen met nieuwe heat-data */
     refreshTooltips();
 
     if (WM.map) renderCityDots(WM.map);
@@ -874,6 +878,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.5 geladen (batch B — confidence + tooltip fix)");
+  LOG("worldmap.js v2.6 geladen (grammatica fix)");
 
 })();
