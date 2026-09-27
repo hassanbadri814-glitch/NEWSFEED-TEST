@@ -1,48 +1,34 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v1.0
+   WAR DESK — worldmap-data.js v2.0
    ------------------------------------------------------------
-   - Allianties per land (ISO3)
-   - Feed tiers (mapping per bron)
-   - Thresholds voor claim/bevestiging
-   - Pure data — geen logica
+   - v2.0: ACTOR_MAP + CONFLICT_COLORS (conflict-kaart)
+   - v1.0: allianties + feed tiers
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v1.0";
+  window.WORLDMAP_VERSION = "v2.0";
 
   /* ============================================================
-     ALLIANTIES
-     ------------------------------------------------------------
-     west     = blauw (NAVO + bondgenoten)
-     east     = rood (Rusland/China/Iran as)
-     neutral  = grijs
-     friendly = cyaan (bondgenoten West buiten NAVO)
+     ALLIANTIES — alleen voor actor-positie bepaling (niet rendering)
      ============================================================ */
   window.ALLIANCES = {
-    /* ===== WEST — NAVO lidstaten ===== */
     "USA":"west", "GBR":"west", "FRA":"west", "DEU":"west", "ITA":"west",
     "ESP":"west", "PRT":"west", "NLD":"west", "BEL":"west", "LUX":"west",
     "DNK":"west", "NOR":"west", "ISL":"west", "POL":"west", "CZE":"west",
     "SVK":"west", "HUN":"west", "ROU":"west", "BGR":"west", "GRC":"west",
     "TUR":"west", "EST":"west", "LVA":"west", "LTU":"west", "SVN":"west",
     "HRV":"west", "ALB":"west", "MNE":"west", "MKD":"west", "CAN":"west",
-
-    /* ===== WEST — bondgenoten buiten NAVO ===== */
     "AUS":"west", "FIN":"west", "SWE":"west", "IRL":"west", "AUT":"west",
     "CHE":"west", "MLT":"west", "CYP":"west", "BIH":"west", "XKX":"west",
     "UKR":"west", "MDA":"west", "GEO":"west", "ARM":"west",
     "KOR":"west", "JPN":"west", "TWN":"west", "ISR":"west",
     "NZL":"west", "SGP":"west", "PHL":"west", "THA":"west",
-
-    /* ===== EAST — Rusland/China/Iran as ===== */
     "RUS":"east", "BLR":"east", "CHN":"east", "PRK":"east", "IRN":"east",
     "SYR":"east", "VEN":"east", "CUB":"east", "NIC":"east",
     "MMR":"east", "ERI":"east", "ZWE":"east", "MLI":"east",
     "BFA":"east", "NER":"east", "CAF":"east", "SSD":"east",
-
-    /* ===== NEUTRAL ===== */
     "IND":"neutral", "BRA":"neutral", "ZAF":"neutral", "SAU":"neutral",
     "EGY":"neutral", "ARE":"neutral", "QAT":"neutral", "KWT":"neutral",
     "BHR":"neutral", "OMN":"neutral", "JOR":"neutral", "LBN":"neutral",
@@ -58,32 +44,127 @@
     "AZE":"neutral", "MNG":"neutral", "NPL":"neutral", "LKA":"neutral",
     "KHM":"neutral", "LAO":"neutral", "BRN":"neutral", "PNG":"neutral",
     "FJI":"neutral", "BTN":"neutral", "MDV":"neutral", "TLS":"neutral",
-
-    /* ===== Fallback — alles wat niet in de lijst staat = "neutral" ===== */
     "_default":"neutral"
   };
 
   /* ============================================================
-     KLEUREN — basis per alliantie
+     ALLIANCE COLORS — niet meer gebruikt voor rendering
+     (bewaard voor toekomstige features)
      ============================================================ */
   window.ALLIANCE_COLORS = {
-    west:     "#3b82f6",  /* blauw */
-    east:     "#e63946",  /* rood */
-    neutral:  "#6b7280",  /* grijs */
-    friendly: "#06b6d4",  /* cyaan — gereserveerd */
-    disputed: "#a855f7"   /* paars — alleen bij echte consensus-verschillen */
+    west:     "#3b82f6",
+    east:     "#e63946",
+    neutral:  "#6b7280",
+    friendly: "#06b6d4",
+    disputed: "#a855f7"
+  };
+
+  /* ============================================================
+     CONFLICT COLORS — voor de nieuwe conflict-kaart
+     ------------------------------------------------------------
+     - Basis = grijs (rustig)
+     - Hitte = rood (hoe meer events, hoe dieper)
+     - Rand = aanvaller positie
+     ============================================================ */
+  window.CONFLICT_COLORS = {
+    /* Vulling — doelwit-landen (waar gevochten wordt) */
+    cold:       "#2f2f38",   /* rustig, geen events */
+    warm:       "#7a4040",   /* lichte activiteit */
+    hot:        "#a52a2a",   /* middel activiteit */
+    scorching:  "#d41919",   /* extreme activiteit */
+
+    /* Rand — aanvaller-landen (die aanvallen uitvoeren) */
+    actorRing:  "#ff6666",   /* aanvallers */
+    actorHot:   "#ff2222",   /* aanvallers met veel events */
+
+    /* Rand — grenzen */
+    border:     "rgba(255,255,255,0.12)",
+    borderHot:  "#ff0000"
+  };
+
+  /* ============================================================
+     ACTOR_MAP — bekende actoren → land
+     ------------------------------------------------------------
+     Voor het bepalen van "wie valt aan?".
+     Sleutel = naam in titel, waarde = land zoals in LOCATIONS.
+     ============================================================ */
+  window.ACTOR_MAP = {
+    /* Midden-Oosten */
+    "houthi": "Jemen",
+    "houthis": "Jemen",
+    "houthi rebels": "Jemen",
+    "hezbollah": "Libanon",
+    "hamas": "Gaza",
+    "palestinian islamic jihad": "Gaza",
+    "pij": "Gaza",
+    "idf": "Israël",
+    "israeli army": "Israël",
+    "israeli forces": "Israël",
+    "israeli military": "Israël",
+    "iranian army": "Iran",
+    "irgc": "Iran",
+    "iranian forces": "Iran",
+    "syrian army": "Syrië",
+    "assad forces": "Syrië",
+    "iraqi army": "Irak",
+    "islamic state": "Syrië",
+    "isis": "Syrië",
+    "isil": "Syrië",
+    "daesh": "Syrië",
+    "al-qaeda": "Syrië",
+    "al qaeda": "Syrië",
+
+    /* Oekraïne/Rusland */
+    "russian army": "Rusland",
+    "russian forces": "Rusland",
+    "russian military": "Rusland",
+    "kremlin": "Rusland",
+    "wagner": "Rusland",
+    "wagner group": "Rusland",
+    "ukrainian army": "Oekraïne",
+    "ukrainian forces": "Oekraïne",
+    "ukrainian military": "Oekraïne",
+    "afu": "Oekraïne",
+    "zsu": "Oekraïne",
+
+    /* Afrika */
+    "rsf": "Sudan",
+    "rapid support forces": "Sudan",
+    "sudanese army": "Sudan",
+    "al-shabaab": "Somalië",
+    "al shabaab": "Somalië",
+    "boko haram": "Nigeria",
+    "iswap": "Mozambique",
+    "m23": "Congo",
+    "wagner africa": "Mali",
+
+    /* Azië */
+    "taliban": "Afghanistan",
+    "afghan army": "Afghanistan",
+    "pakistani army": "Pakistan",
+    "indian army": "India",
+    "myanmar military": "Myanmar",
+    "junta": "Myanmar",
+    "north korean army": "Noord-Korea",
+    "chinese military": "China",
+    "pla": "China",
+
+    /* Overig */
+    "nato": null, /* te breed */
+    "navo": null,
+    "un forces": null
   };
 
   /* ============================================================
      FEED TIERS — 100% neutrale persbureaus
      ============================================================ */
   window.FEED_TIERS = {
-    /* ===== TIER 1A — 100% ===== */
+    /* TIER 1A — 100% */
     "NOS": 1.0, "BBC World": 1.0, "BBC UK": 1.0, "BBC Arabic": 1.0,
     "France24 EN": 1.0, "France24 AR": 1.0,
     "Reuters": 1.0, "AP News": 1.0, "Reuters TG": 1.0,
 
-    /* ===== TIER 1B — 85% (nationale/officiële persbureaus) ===== */
+    /* TIER 1B — 85% */
     "Al Jazeera": 0.85, "Al Jazeera AR": 0.85, "Al Jazeera AR TG": 0.85,
     "Al Arabiya TG": 0.85, "Al-Ahram": 0.85, "Arab News": 0.85,
     "Saudi Gazette": 0.85, "The National": 0.85, "Gulf News": 0.85,
@@ -96,7 +177,7 @@
     "Mehr News Iran": 0.85,
     "MAP": 0.85,
 
-    /* ===== TIER 2 — 70% ===== */
+    /* TIER 2 — 70% */
     "De Telegraaf": 0.7, "AD.nl": 0.7, "De Volkskrant": 0.7,
     "Het Parool": 0.7, "Trouw": 0.7, "RTL Nieuws": 0.7, "Nu.nl": 0.7,
     "HLN": 0.7, "Nieuwsblad": 0.7, "De Standaard": 0.7,
@@ -116,7 +197,7 @@
     "NUsport": 0.7, "RTL Sport": 0.7,
     "Egypt Independent": 0.7,
 
-    /* ===== TIER 3 — 50% ===== */
+    /* TIER 3 — 50% */
     "Omroep Brabant": 0.5, "Omroep Flevoland": 0.5, "NH Nieuws": 0.5,
     "RTV Utrecht": 0.5, "Omroep Gelderland": 0.5, "L1": 0.5,
     "RTV Oost": 0.5, "Omroep West": 0.5,
@@ -127,62 +208,42 @@
     "Enab Baladi": 0.5, "Sudan Tribune": 0.5, "Radio Dabanga": 0.5,
     "Middle East Monitor": 0.5, "Mondoweiss": 0.5,
 
-    /* ===== TIER 4 — 30% (OSINT, alleen context) ===== */
+    /* TIER 4 — 30% (OSINT) */
     "Clash Report TG": 0.3, "Liveuamap TG": 0.3, "GeoConfirmed TG": 0.3,
     "OSINTdefender TG": 0.3, "Faytuks TG": 0.3, "NOELreports TG": 0.3,
     "Middle East Eye TG": 0.3,
 
-    /* ===== Fallback ===== */
     "_default": 0.5
   };
 
   /* ============================================================
-     THRESHOLDS — claim / bevestiging / retractie
+     THRESHOLDS
      ============================================================ */
   window.WORLDMAP_THRESHOLDS = {
-    /* Consensus drempel — 70% gewogen */
     consensus_min: 0.70,
-
-    /* Minimaal aantal onafhankelijke bronnen voor bevestiging */
     confirm_min_sources: 3,
-
-    /* Minimaal aantal landen van herkomst (voorkomt één-land-dominantie) */
     confirm_min_origins: 2,
-
-    /* Bij hoeveel bronnen mag een claim worden weergegeven? */
     claim_min_sources: 2,
-
-    /* Hoeveel uur voordat we van "claim" naar "confirmed" mogen? */
     claim_grace_hours: 24,
-
-    /* Hoeveel uur na expliciete tegenspraak terug naar grijs? */
     retract_grace_hours: 6,
-
-    /* Hoeveel dagen zonder tegenspraak → definitief */
     definitive_days: 7,
-
-    /* Decay halfwaardetijd in dagen */
     decay_half_life_days: 3,
-
-    /* Maximum events meetellen per bron per land per dag */
     max_events_per_source_per_day: 3,
 
-    /* Heat thresholds (aantal gewogen events in 7 dagen) */
     heat: {
-      cold: 0,      /* 30% opacity */
-      warm: 5,      /* 50% */
-      hot: 15,      /* 70% */
-      scorching: 40 /* 100% + pulserende rand */
+      cold: 0,
+      warm: 5,
+      hot: 15,
+      scorching: 40
     },
 
-    /* Conflictrand — hoeveel militaire events in 7 dagen? */
+    /* Nieuwe drempels voor actor-ring */
+    actor_ring_min: 3,   /* minimaal 3 events om aanvaller-rand te krijgen */
+    actor_ring_hot: 15,  /* 15+ events = dikkere rand */
+
     conflict_ring_min: 5,
-
-    /* Snapshot interval (ms) */
     snapshot_interval_ms: 24 * 60 * 60 * 1000,
-
-    /* Heat herberekening max frequentie */
-    heat_recalc_interval_ms: 30 * 60 * 1000
+    heat_recalc_interval_ms: 5 * 60 * 1000  /* 5 min ipv 30 min */
   };
 
   /* ============================================================
@@ -204,9 +265,47 @@
     },
     getThresholds: function(){
       return window.WORLDMAP_THRESHOLDS;
+    },
+    getConflictColor: function(level){
+      var c = window.CONFLICT_COLORS;
+      if (level === "scorching") return c.scorching;
+      if (level === "hot") return c.hot;
+      if (level === "warm") return c.warm;
+      return c.cold;
+    },
+    /* Detecteer actor-landen in een titel */
+    detectActorsInTitle: function(title){
+      if (!title) return [];
+      var lower = String(title).toLowerCase();
+      var found = [];
+      var seen = {};
+      for (var key in window.ACTOR_MAP) {
+        if (!Object.prototype.hasOwnProperty.call(window.ACTOR_MAP, key)) continue;
+        if (key.indexOf(" ") === -1) {
+          /* Los woord — gebruik word-boundaries via spatie-check */
+          var regex = new RegExp("\\b" + key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\b", "i");
+          if (regex.test(lower)) {
+            var country = window.ACTOR_MAP[key];
+            if (country && !seen[country]){
+              seen[country] = true;
+              found.push(country);
+            }
+          }
+        } else {
+          /* Multi-word — directe substring check */
+          if (lower.indexOf(key) !== -1) {
+            var country2 = window.ACTOR_MAP[key];
+            if (country2 && !seen[country2]){
+              seen[country2] = true;
+              found.push(country2);
+            }
+          }
+        }
+      }
+      return found;
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v1.0 geladen — " + Object.keys(window.ALLIANCES).length + " landen, " + Object.keys(window.FEED_TIERS).length + " feeds"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v2.0 geladen — conflict-kaart modus"); } catch(e){}
 
 })();
