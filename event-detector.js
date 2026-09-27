@@ -1,16 +1,15 @@
 /* ============================================================
-   WAR DESK — event-detector.js v1.0
+   WAR DESK — event-detector.js v1.1
    Detecteert of een artikel een FYSIEKE militaire actie beschrijft.
    
-   Doel: alleen fysieke acties (raketaanval, beschieting, etc.)
-   tellen mee voor de wereldkaart-hitte. Een minister die
-   "praat over Gaza" is geen militair event.
+   v1.1: future-threats uitsluiten + extra actie-woorden
+   v1.0: initiële versie
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v1.0";
+  window.WDEventDetectorVersion = "v1.1";
 
   /* ============================================================
      ACTIE-WERKWOORDEN — fysieke militaire acties
@@ -46,6 +45,17 @@
     { re: /\b(airstrike|missile strike|drone strike|artillery fire|rocket attack)\b/i, type: "specific-strike" },
     { re: /\b(combat|clashes|fighting|firefight)\b/i, type: "combat" },
 
+    /* ==== Extra aanvallen (v1.1) ==== */
+    { re: /\b(targeted|targets|targeting)\b/i, type: "strike" },
+    { re: /\b(intercepted|intercepting)\b/i, type: "shootdown" },
+    { re: /\b(downed|shooting down)\b/i, type: "shootdown" },
+    { re: /\b(rocket|missile|drone) (attack|strike|launch|barrage)\b/i, type: "specific-strike" },
+    { re: /\b(rocket|missile|drone) attacks?\b/i, type: "specific-strike" },
+    { re: /\b(barrage|salvo) of\b/i, type: "launch" },
+    { re: /\b(raids?|raided)\b/i, type: "raid" },
+    { re: /\b(repelled|repelling)\b/i, type: "defense" },
+    { re: /\b(counterattack|counter-attack)\b/i, type: "attack" },
+
     /* ==== FR ==== */
     { re: /\b(frappé|frappe|frappes)\b/i, type: "strike" },
     { re: /\b(attaqué|attaque|attaques)\b/i, type: "attack" },
@@ -75,7 +85,6 @@
 
   /* ============================================================
      REPORT-WERKWOORDEN — communicatie, geen fysieke actie
-     (alleen gebruikt om vast te stellen of het puur report is)
      ============================================================ */
   var REPORT_PATTERNS = [
     /\b(says?|said|stated|declares?|declared|announces?|announced)\b/i,
@@ -95,6 +104,17 @@
   ];
 
   /* ============================================================
+     v1.1: TOEKOMST-DREIGINGEN — geen fysieke actie, alleen plannen
+     ============================================================ */
+  var FUTURE_PATTERNS = [
+    /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
+    /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
+    /\b(prêt à|va attaquer|menace de)\b/i,
+    /\b(bereit für|wird angreifen|droht mit)\b/i,
+    /مستعد ل|يهدد بـ|سيهاجم/
+  ];
+
+  /* ============================================================
      PREFIXES — rapport-modus
      ============================================================ */
   var PREFIX_PATTERNS = [
@@ -108,10 +128,8 @@
 
   /* ============================================================
      BRON-LAND — thuisbasis van de bron
-     Deze worden NOOIT als event-locatie gebruikt.
      ============================================================ */
   var SOURCE_COUNTRY = {
-    /* Nederlandse bronnen */
     "NOS": "Nederland", "NOS Sport": "Nederland", "NOS Voetbal": "Nederland",
     "De Telegraaf": "Nederland", "AD.nl": "Nederland",
     "De Volkskrant": "Nederland", "Het Parool": "Nederland",
@@ -126,35 +144,28 @@
     "Soccernews": "Nederland", "Glory Kickboxing": "Nederland",
     "MMA DNA": "Nederland",
 
-    /* Belgische bronnen */
     "HLN": "België", "Nieuwsblad": "België", "De Standaard": "België",
     "VRT NWS": "België", "De Morgen": "België", "De Tijd": "België",
 
-    /* Duitse bronnen */
     "Spiegel": "Duitsland", "Bild": "Duitsland", "Zeit": "Duitsland",
     "FAZ": "Duitsland", "Süddeutsche": "Duitsland",
     "Tagesschau": "Duitsland", "Die Welt": "Duitsland",
 
-    /* Franse bronnen */
     "Le Monde": "Frankrijk", "FranceInfo": "Frankrijk",
     "Libération": "Frankrijk", "France24 EN": "Frankrijk",
     "France24 AR": "Frankrijk",
 
-    /* Italiaanse bronnen */
     "Corriere della Sera": "Italië", "Repubblica": "Italië",
     "La Stampa": "Italië", "ANSA": "Italië",
 
-    /* VK bronnen */
     "BBC UK": "VK", "BBC World": "VK", "BBC Arabic": "VK",
     "Guardian UK": "VK", "Guardian": "VK",
     "Telegraph": "VK", "Sky News": "VK", "Independent": "VK", "FT": "VK",
 
-    /* VS bronnen */
     "NYT US": "VS", "NYT World": "VS", "CNN": "VS",
     "Washington Post": "VS", "NPR": "VS",
     "AP News": "VS", "Reuters": "VK", "Reuters TG": "VK",
 
-    /* Arabisch */
     "Al Jazeera": "Qatar", "Al Jazeera AR": "Qatar",
     "Al Jazeera AR TG": "Qatar",
     "Al Arabiya TG": "Saudi-Arabië", "Arab News": "Saudi-Arabië",
@@ -167,13 +178,11 @@
     "Al Quds Al Arabi": "VK",
     "Anadolu AR": "Turkije", "TRT World": "Turkije",
 
-    /* Marokko */
     "Hespress": "Marokko", "Le360": "Marokko",
     "MAP": "Marokko", "Yabiladi": "Marokko",
     "Lakome2": "Marokko", "TelQuel": "Marokko",
     "Bladna.nl": "Marokko", "Marokko.nl": "Marokko",
 
-    /* Conflictlanden */
     "Times of Israel": "Israël", "Jerusalem Post": "Israël",
     "Ynet": "Israël",
     "Kyiv Independent": "Oekraïne", "Ukrinform": "Oekraïne",
@@ -184,7 +193,6 @@
     "Sudan Tribune": "Sudan", "Radio Dabanga": "Sudan",
     "L'Orient-Le Jour": "Libanon", "Naharnet": "Libanon",
 
-    /* OSINT */
     "Liveuamap TG": "Oekraïne",
     "GeoConfirmed TG": "Oekraïne",
     "OSINTdefender TG": "VS",
@@ -221,6 +229,16 @@
     return found;
   }
 
+  function findFuturePatterns(text) {
+    var found = [];
+    FUTURE_PATTERNS.forEach(function(p) {
+      if (p.test(text)) {
+        found.push(p.source);
+      }
+    });
+    return found;
+  }
+
   function hasPrefix(title) {
     for (var i = 0; i < PREFIX_PATTERNS.length; i++) {
       if (PREFIX_PATTERNS[i].test(title)) return true;
@@ -229,7 +247,7 @@
   }
 
   /* ============================================================
-     ANALYSE
+     ANALYSE (v1.1)
      ============================================================ */
   function analyze(title, desc) {
     title = String(title || "");
@@ -239,6 +257,7 @@
     var prefixMatch = hasPrefix(title);
     var actionMatches = findActionVerbs(text);
     var reportMatches = findReportVerbs(text);
+    var futureMatches = findFuturePatterns(text);
 
     /* Case 1: prefix + geen actie → report */
     if (prefixMatch && actionMatches.length === 0) {
@@ -248,6 +267,7 @@
         actionCount: 0,
         reportMatch: reportMatches.length > 0,
         prefixMatch: prefixMatch,
+        futureMatch: false,
         reason: "prefix-no-action"
       };
     }
@@ -260,11 +280,25 @@
         actionCount: 0,
         reportMatch: reportMatches.length > 0,
         prefixMatch: prefixMatch,
+        futureMatch: futureMatches.length > 0,
         reason: reportMatches.length > 0 ? "report-only" : "no-action-verb"
       };
     }
 
-    /* Case 3: actie-verbs → fysiek event (ongeacht report-verbs) */
+    /* Case 3 (v1.1): toekomst/dreiging → geen fysiek event */
+    if (futureMatches.length > 0 && actionMatches.length <= 1) {
+      return {
+        isPhysicalEvent: false,
+        actionTypes: [],
+        actionCount: 0,
+        reportMatch: reportMatches.length > 0,
+        prefixMatch: prefixMatch,
+        futureMatch: true,
+        reason: "future-threat"
+      };
+    }
+
+    /* Case 4: actie-verbs → fysiek event */
     var types = [];
     actionMatches.forEach(function(m) {
       if (types.indexOf(m.type) === -1) types.push(m.type);
@@ -276,6 +310,7 @@
       actionCount: actionMatches.length,
       reportMatch: reportMatches.length > 0,
       prefixMatch: prefixMatch,
+      futureMatch: futureMatches.length > 0,
       reason: "action-found"
     };
   }
@@ -291,18 +326,21 @@
     analyze: analyze,
     findActionVerbs: findActionVerbs,
     findReportVerbs: findReportVerbs,
+    findFuturePatterns: findFuturePatterns,
     hasPrefix: hasPrefix,
     getSourceCountry: getSourceCountry,
     _actionPatterns: ACTION_PATTERNS,
     _reportPatterns: REPORT_PATTERNS,
+    _futurePatterns: FUTURE_PATTERNS,
     _sourceCountry: SOURCE_COUNTRY
   };
 
   try {
     if (window.wdLog) {
-      wdLog.info("[EventDetector] v1.0 geladen — " +
+      wdLog.info("[EventDetector] v1.1 geladen — " +
         ACTION_PATTERNS.length + " actie-patronen, " +
-        REPORT_PATTERNS.length + " report-patronen");
+        REPORT_PATTERNS.length + " report-patronen, " +
+        FUTURE_PATTERNS.length + " toekomst-patronen");
     }
   } catch(e){}
 
