@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.4
+   WAR DESK — ai-map.js v3.5
+   - v3.5: actor-detectie (wie valt aan?) voor conflict-kaart
    - v3.4: ISO3 per event + __wm_locations voor wereldkaart
    - v3.3: zwak-civiel filter
    - v3.2: vertaal-integratie
@@ -327,6 +328,17 @@
     return null;
   }
 
+  /* v3.5: detecteer actor-landen in titel (wie valt aan?) */
+  function detectActorCountries(title, desc){
+    var text = (title || "") + " " + (desc || "");
+    try {
+      if (window.WorldMapData && window.WorldMapData.detectActorsInTitle) {
+        return window.WorldMapData.detectActorsInTitle(text);
+      }
+    } catch(e){}
+    return [];
+  }
+
   var lastHash = "";
 
   function buildEvents(){
@@ -369,6 +381,9 @@
       /* v3.4: ISO3 toevoegen voor wereldkaart-hitte */
       var iso3 = getISO3For(loc.country);
 
+      /* v3.5: actor-landen detecteren */
+      var actorCountries = detectActorCountries(article.title, article.description || article.desc);
+
       var translatedTitle = getTranslatedTitleFor(article);
       var translatedDesc = getTranslatedDescFor(article);
 
@@ -397,6 +412,7 @@
         meta: cls.meta || {},
         country: loc.country,
         countryISO3: iso3,
+        actorCountries: actorCountries,
         region: loc.region,
         date: new Date(ts).toISOString(),
         url: article.link || article.url || "",
@@ -442,7 +458,7 @@
       grouped.forEach(function(e){
         if(counts[e.category] !== undefined) counts[e.category]++;
       });
-      wdLog.info("[Map-AI v3.4] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.5] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -542,7 +558,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.4 geladen (ISO3 + wereldkaart-ready)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.5 geladen (actor-detectie)");
   }
 
   function getCountries(){
