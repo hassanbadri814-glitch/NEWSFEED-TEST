@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.6
-   - v3.6: event-detector integratie + source-country skip
+   WAR DESK — ai-map.js v3.7
+   - v3.7: bron-country skip ALLEEN bij niet-fysieke events
+   - v3.6: event-detector integratie
    - v3.5: actor-detectie
-   - v3.4: ISO3 per event + __wm_locations
+   - v3.4: ISO3 per event
    - v3.3: zwak-civiel filter
    ============================================================ */
 
@@ -240,7 +241,6 @@
     return candidates[0];
   };
 
-  /* extractLocation — v3.6: skipCountries parameter */
   function extractLocation(text, skipCountries){
     if (!text) return null;
     var skip = [];
@@ -352,7 +352,6 @@
     return [];
   }
 
-  /* v3.6: detecteer fysieke militaire actie */
   function detectPhysicalEvent(title, desc){
     try {
       if (window.WDEventDetector && window.WDEventDetector.analyze) {
@@ -362,7 +361,6 @@
     return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reason: "no-detector" };
   }
 
-  /* v3.6: bron-land ophalen */
   function getSourceCountry(sourceName){
     try {
       if (window.WDEventDetector && window.WDEventDetector.getSourceCountry) {
@@ -408,23 +406,24 @@
         }
       }
 
-      /* v3.6: bron-land skip */
-      var sourceCountry = getSourceCountry(article.source);
-
-      /* v3.6: check fysieke actie */
+      /* v3.7: EERST detecteren of het fysiek is */
       var detection = detectPhysicalEvent(article.title, article.description || article.desc);
 
-      /* v3.6: locatie uitzoeken (met skip van source-land) */
+      /* v3.7: bron-country skip ALLEEN bij niet-fysieke events */
+      var sourceCountry = getSourceCountry(article.source);
+      var skipForLoc = detection.isPhysicalEvent ? null : sourceCountry;
+
       var loc = extractLocation(
         (article.title || "") + " " + (article.description || article.desc || ""),
-        sourceCountry
+        skipForLoc
       );
-      if (!loc) loc = extractRegionFallback(article, sourceCountry);
+      if (!loc) loc = extractRegionFallback(article, skipForLoc);
       if (!loc) { skippedNoLocation++; continue; }
 
-      /* v3.6: als geen fysieke actie → niet meetellen voor heat, maar wel tonen */
       var countsForHeat = detection.isPhysicalEvent;
-      if (!countsForHeat) skippedNonPhysical++;
+      if (!countsForHeat && (cls.category === "militair" || cls.category === "crime")) {
+        skippedNonPhysical++;
+      }
 
       var iso3 = getISO3For(loc.country);
       var actorCountries = detectActorCountries(article.title, article.description || article.desc);
@@ -463,7 +462,6 @@
         url: article.link || article.url || "",
         source: article.source || "",
         isMilitary: cls.category === "militair",
-        /* v3.6: nieuw */
         countsForHeat: countsForHeat,
         actionTypes: detection.actionTypes || [],
         actionReason: detection.reason
@@ -507,7 +505,7 @@
       grouped.forEach(function(e){
         if(counts[e.category] !== undefined) counts[e.category]++;
       });
-      wdLog.info("[Map-AI v3.6] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.7] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -609,7 +607,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.6 geladen (event-detector integratie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.7 geladen (bron-skip alleen bij niet-fysiek)");
   }
 
   function getCountries(){
