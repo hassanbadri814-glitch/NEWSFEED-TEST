@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK Service Worker v3.4
+   WAR DESK Service Worker v3.4.1
+   - v3.4.1: conflict-areas.js toegevoegd aan precache
    - v3.4: event-dedup.js toegevoegd aan precache
    ============================================================ */
 
-const CACHE_VERSION = 'v3.39';
+const CACHE_VERSION = 'v3.40';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -15,7 +16,8 @@ const PRECACHE_ASSETS = [
   './manifest.json',
   './world-status.js',
   './classifier.js',
-  './event-dedup.js'
+  './event-dedup.js',
+  './conflict-areas.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
