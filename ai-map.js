@@ -1,9 +1,11 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.0
-   Event-generator voor de kaart met 5 categorieën
-   - Gebruikt WDClassifier voor classificatie
-   - Events: militair / crime / politiek / protest / civiel
-   - Subtype-detectie via classifier
+   WAR DESK — ai-map.js v3.1
+   Event-generator met classifier v3.1 + dedup integratie
+   
+   - Sport wordt volledig weggefilterd
+   - Report-mode alleen titel
+   - Deduplicatie via WDEventDedup
+   - 5 categorieën
    ============================================================ */
 
 (function(){
@@ -12,24 +14,20 @@
   var MAX_EVENTS = 400;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
-  /* ============================================================
-     LOCATIES — specifieke steden
-     ============================================================ */
   var LOCATIONS = {
-    /* OEKRAÏNE */
     "oekraïne":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
     "ukraine":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
     "kyiv":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
     "kiev":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
     "kharkiv":{lat:49.99,lng:36.23,country:"Oekraïne",region:"Oost-Europa"},
     "odesa":{lat:46.48,lng:30.73,country:"Oekraïne",region:"Oost-Europa"},
-    "odessa":{lat:46.48,lng:30.73,country:"Oekraïne",region:"Oost-Europa"},
     "donetsk":{lat:48.02,lng:37.80,country:"Oekraïne",region:"Oost-Europa"},
     "donbas":{lat:48.50,lng:38.00,country:"Oekraïne",region:"Oost-Europa"},
     "luhansk":{lat:48.57,lng:39.31,country:"Oekraïne",region:"Oost-Europa"},
     "cherson":{lat:46.64,lng:32.61,country:"Oekraïne",region:"Oost-Europa"},
     "kherson":{lat:46.64,lng:32.61,country:"Oekraïne",region:"Oost-Europa"},
     "zaporizhzhia":{lat:47.84,lng:35.14,country:"Oekraïne",region:"Oost-Europa"},
+    "zaporozhye":{lat:47.84,lng:35.14,country:"Oekraïne",region:"Oost-Europa"},
     "marioepol":{lat:47.10,lng:37.55,country:"Oekraïne",region:"Oost-Europa"},
     "mariupol":{lat:47.10,lng:37.55,country:"Oekraïne",region:"Oost-Europa"},
     "bachmoet":{lat:48.60,lng:38.00,country:"Oekraïne",region:"Oost-Europa"},
@@ -43,7 +41,6 @@
     "dnipro":{lat:48.46,lng:35.05,country:"Oekraïne",region:"Oost-Europa"},
     "lviv":{lat:49.84,lng:24.03,country:"Oekraïne",region:"Oost-Europa"},
 
-    /* RUSLAND */
     "rusland":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
     "russia":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
     "moskou":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
@@ -59,7 +56,6 @@
     "crimea":{lat:45.35,lng:34.00,country:"Krim",region:"Oost-Europa"},
     "sevastopol":{lat:44.62,lng:33.53,country:"Krim",region:"Oost-Europa"},
 
-    /* ISRAËL/PALESTINA */
     "israël":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "israel":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "tel aviv":{lat:32.08,lng:34.78,country:"Israël",region:"Midden-Oosten"},
@@ -75,7 +71,6 @@
     "ramallah":{lat:31.90,lng:35.20,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
     "jenin":{lat:32.46,lng:35.30,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
 
-    /* LIBANON/SYRIË */
     "libanon":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "lebanon":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "beiroet":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
@@ -85,7 +80,6 @@
     "damascus":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "aleppo":{lat:36.20,lng:37.13,country:"Syrië",region:"Midden-Oosten"},
 
-    /* IRAN/IRAK */
     "iran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
     "teheran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
     "tehran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
@@ -95,7 +89,6 @@
     "bagdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "baghdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
 
-    /* JEMEN/SAUDI */
     "jemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "yemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "sanaa":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
@@ -109,7 +102,6 @@
     "dubai":{lat:25.20,lng:55.27,country:"VAE",region:"Midden-Oosten"},
     "abu dhabi":{lat:24.45,lng:54.38,country:"VAE",region:"Midden-Oosten"},
 
-    /* AFRIKA */
     "sudan":{lat:15.55,lng:32.53,country:"Sudan",region:"Afrika"},
     "khartoum":{lat:15.55,lng:32.53,country:"Sudan",region:"Afrika"},
     "darfur":{lat:13.00,lng:25.00,country:"Sudan",region:"Afrika"},
@@ -129,7 +121,6 @@
     "goma":{lat:-1.68,lng:29.23,country:"Congo",region:"Afrika"},
     "mozambique":{lat:-25.97,lng:32.57,country:"Mozambique",region:"Afrika"},
 
-    /* AZIË */
     "afghanistan":{lat:34.53,lng:69.17,country:"Afghanistan",region:"Azië"},
     "kabul":{lat:34.53,lng:69.17,country:"Afghanistan",region:"Azië"},
     "pakistan":{lat:33.68,lng:73.05,country:"Pakistan",region:"Azië"},
@@ -144,7 +135,6 @@
     "north korea":{lat:39.03,lng:125.75,country:"Noord-Korea",region:"Azië"},
     "myanmar":{lat:19.75,lng:96.10,country:"Myanmar",region:"Azië"},
 
-    /* EUROPA + WEST */
     "nederland":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
     "netherlands":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
     "amsterdam":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
@@ -184,13 +174,11 @@
     "portugal":{lat:38.72,lng:-9.14,country:"Portugal",region:"West-Europa"},
     "griekenland":{lat:37.98,lng:23.73,country:"Griekenland",region:"West-Europa"},
     "athene":{lat:37.98,lng:23.73,country:"Griekenland",region:"West-Europa"},
-    "athens":{lat:37.98,lng:23.73,country:"Griekenland",region:"West-Europa"},
     "marokko":{lat:34.02,lng:-6.84,country:"Marokko",region:"Afrika"},
     "morocco":{lat:34.02,lng:-6.84,country:"Marokko",region:"Afrika"},
     "rabat":{lat:34.02,lng:-6.84,country:"Marokko",region:"Afrika"},
     "casablanca":{lat:33.57,lng:-7.59,country:"Marokko",region:"Afrika"},
     "marrakech":{lat:31.63,lng:-7.99,country:"Marokko",region:"Afrika"},
-    "khenifra":{lat:32.94,lng:-5.66,country:"Marokko",region:"Afrika"},
     "vs":{lat:38.90,lng:-77.04,country:"VS",region:"Noord-Amerika"},
     "verenigde staten":{lat:38.90,lng:-77.04,country:"VS",region:"Noord-Amerika"},
     "usa":{lat:38.90,lng:-77.04,country:"VS",region:"Noord-Amerika"},
@@ -203,9 +191,6 @@
     "colombia":{lat:4.71,lng:-74.07,country:"Colombia",region:"Latijns-Amerika"}
   };
 
-  /* ============================================================
-     REGIO-FALLBACK (via categorie-hint)
-     ============================================================ */
   var REGION_LOCATIONS = {
     "Oost-Europa":   { lat: 49.0, lng: 32.0,  country: "Oost-Europa", region: "Oost-Europa" },
     "Midden-Oosten": { lat: 31.5, lng: 35.0,  country: "Midden-Oosten", region: "Midden-Oosten" },
@@ -230,10 +215,7 @@
     "us": "Noord-Amerika", "vs": "Noord-Amerika", "world": "Azië"
   };
 
-  /* ============================================================
-     HELPERS
-     ============================================================ */
-  function getBus() {
+  function getBus(){
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
 
@@ -256,11 +238,10 @@
     return candidates[0];
   };
 
-  function extractLocation(text) {
+  function extractLocation(text){
     if (!text) return null;
     var lower = " " + String(text).toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
-    var found = null;
-    var foundLen = 0;
+    var found = null, foundLen = 0;
     for (var key in LOCATIONS) {
       var pattern = " " + key + " ";
       if (lower.indexOf(pattern) !== -1) {
@@ -270,19 +251,19 @@
     return found;
   }
 
-  function extractRegionFallback(article) {
+  function extractRegionFallback(article){
     if (!article) return null;
     var cat = (article.cat || "").toLowerCase();
     var tags = Array.isArray(article.tags) ? article.tags.map(function(t){ return String(t).toLowerCase(); }) : [];
-    var allCats = [cat].concat(tags);
-    for (var i = 0; i < allCats.length; i++) {
-      var regionName = CAT_TO_REGION[allCats[i]];
-      if (regionName && REGION_LOCATIONS[regionName]) return REGION_LOCATIONS[regionName];
+    var all = [cat].concat(tags);
+    for (var i = 0; i < all.length; i++) {
+      var r = CAT_TO_REGION[all[i]];
+      if (r && REGION_LOCATIONS[r]) return REGION_LOCATIONS[r];
     }
     return null;
   }
 
-  function hashArticles(articles) {
+  function hashArticles(articles){
     var h = articles.length;
     for (var i = 0; i < Math.min(articles.length, 20); i++) {
       var id = String(articles[i].id || articles[i].link || articles[i].url || "");
@@ -298,30 +279,24 @@
      CLASSIFIER-INTEGRATIE
      ============================================================ */
   function classifyItem(article){
-    /* Gebruik WDClassifier als die beschikbaar is */
     if (window.WDClassifier && window.WDClassifier.classify) {
       try {
-        var result = window.WDClassifier.classify(
+        var r = window.WDClassifier.classify(
           article.title || "",
           article.description || article.desc || article.summary || "",
           article.source || ""
         );
         return {
-          category: result.category,
-          subtype: result.subtype,
-          confidence: result.confidence,
-          uncertain: result.uncertain,
-          scores: result.scores,
-          meta: result.meta
+          category: r.category,
+          subtype: r.subtype,
+          confidence: r.confidence,
+          uncertain: r.uncertain,
+          scores: r.scores,
+          meta: r.meta
         };
       } catch(e){}
     }
-    /* Fallback: oude militair-tag */
-    var tags = Array.isArray(article.tags) ? article.tags : [];
-    if (tags.indexOf("war") >= 0) return { category: "militair", subtype: "Conflict", confidence: 50, uncertain: true, scores:{}, meta:{} };
-    if (tags.indexOf("sport") >= 0) return { category: "civiel", subtype: "Sport", confidence: 50, uncertain: true, scores:{}, meta:{} };
-    if (tags.indexOf("nl") >= 0) return { category: "civiel", subtype: "Overig", confidence: 50, uncertain: true, scores:{}, meta:{} };
-    return { category: "civiel", subtype: "Overig", confidence: 50, uncertain: true, scores:{}, meta:{} };
+    return { category: "civiel", subtype: "Overig", confidence: 50, uncertain: true, scores: {}, meta: {} };
   }
 
   /* ============================================================
@@ -329,7 +304,7 @@
      ============================================================ */
   var lastHash = "";
 
-  function buildEvents() {
+  function buildEvents(){
     if (!window.State || !Array.isArray(window.State.items)) return [];
     var items = window.State.items;
     if (!items.length) return [];
@@ -341,24 +316,27 @@
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
     var events = [];
     var skippedOld = 0;
+    var skippedSport = 0;
     var skippedNoLocation = 0;
 
     for (var i = 0; i < items.length; i++) {
       var article = items[i];
 
-      /* 1. Leeftijd check */
+      /* Leeftijd */
       var ts = getTimestamp(article) || Date.now();
       if (Date.now() - ts > MAX_AGE_MS) { skippedOld++; continue; }
 
-      /* 2. Classificeer */
+      /* Classificeer */
       var cls = classifyItem(article);
 
-      /* 3. Bepaal locatie */
+      /* SPORT: skip volledig */
+      if (cls.category === "sport") { skippedSport++; continue; }
+
+      /* Locatie */
       var loc = extractLocation((article.title || "") + " " + (article.description || article.desc || ""));
       if (!loc) loc = extractRegionFallback(article);
       if (!loc) { skippedNoLocation++; continue; }
 
-      /* 4. Bouw event */
       var subtype = cls.subtype || "Overig";
       var eventId = "ev-" + i + "-" + cls.category + "-" + subtype;
 
@@ -385,71 +363,80 @@
       });
     }
 
-    events.sort(function(a, b){
+    /* ===== DEDUPLICATIE ===== */
+    var beforeDedup = events.length;
+    var grouped = events;
+    if (window.WDEventDedup && window.WDEventDedup.group) {
+      try {
+        grouped = window.WDEventDedup.group(events);
+      } catch(e){
+        if (window.wdLog) wdLog.warn("[Map-AI] Dedup faalde:", e.message);
+      }
+    }
+
+    grouped.sort(function(a, b){
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
 
-    if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
+    if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
     var elapsed = ((window.performance && performance.now) ? performance.now() : Date.now()) - startTime;
 
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
-      events.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3] " + events.length + " events | " +
+      grouped.forEach(function(e){
+        if(counts[e.category] !== undefined) counts[e.category]++;
+      });
+      wdLog.info("[Map-AI v3.1] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
-        " | skip oud:" + skippedOld + " skip geen-loc:" + skippedNoLocation +
+        " | skip sport:" + skippedSport + " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
         " | " + Math.round(elapsed) + "ms");
     }
 
-    return events;
+    return grouped;
   }
 
-  function calculateHotspots(events) {
+  function calculateHotspots(events){
     if (!events || !events.length) return [];
     var now = Date.now();
     var dayAgo = now - 24 * 60 * 60 * 1000;
     var byCountry = {};
     for (var i = 0; i < events.length; i++) {
       var e = events[i];
-      if (e.category !== "militair") continue; /* hotspots alleen militair */
+      if (e.category !== "militair") continue;
       var t = new Date(e.date).getTime();
       if (t < dayAgo) continue;
-      var cKey = e.country || "Onbekend";
-      if (!byCountry[cKey]) byCountry[cKey] = { country: cKey, region: e.region || "", count: 0, latSum: 0, lngSum: 0 };
-      byCountry[cKey].count++;
-      byCountry[cKey].latSum += e.lat;
-      byCountry[cKey].lngSum += e.lng;
+      var k = e.country || "Onbekend";
+      if (!byCountry[k]) byCountry[k] = { country: k, region: e.region || "", count: 0, latSum: 0, lngSum: 0 };
+      byCountry[k].count++;
+      byCountry[k].latSum += e.lat;
+      byCountry[k].lngSum += e.lng;
     }
-    var landHotspots = [];
+    var out = [];
     for (var c in byCountry) {
       var item = byCountry[c];
       if (item.count >= 1) {
-        landHotspots.push({
-          label: item.country,
-          type: "country",
-          count: item.count,
-          lat: item.latSum / item.count,
-          lng: item.lngSum / item.count,
+        out.push({
+          label: item.country, type: "country", count: item.count,
+          lat: item.latSum / item.count, lng: item.lngSum / item.count,
           region: item.region
         });
       }
     }
-    landHotspots.sort(function(a, b){ return b.count - a.count; });
-    var seen = {};
-    var result = [];
-    for (var k = 0; k < landHotspots.length; k++) {
-      if (seen[landHotspots[k].label]) continue;
-      seen[landHotspots[k].label] = true;
-      result.push(landHotspots[k]);
+    out.sort(function(a, b){ return b.count - a.count; });
+    var seen = {}, result = [];
+    for (var k = 0; k < out.length; k++) {
+      if (seen[out[k].label]) continue;
+      seen[out[k].label] = true;
+      result.push(out[k]);
       if (result.length >= 5) break;
     }
     return result;
   }
 
-  function run() {
+  function run(){
     var events = buildEvents();
     if (events === null) return;
     if (!Array.isArray(events)) events = [];
@@ -462,7 +449,7 @@
     bus.emit("map:hotspots", calculateHotspots(events));
   }
 
-  function init() {
+  function init(){
     var bus = getBus();
     if (!bus) {
       if (window.wdLog) wdLog.warn("[Map-AI] EventBus niet gevonden");
@@ -475,10 +462,10 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.0 geladen (5 categorieën)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.1 geladen (dedup + sport-block)");
   }
 
-  function getCountries() {
+  function getCountries(){
     var out = {};
     for (var key in LOCATIONS) {
       var loc = LOCATIONS[key];
