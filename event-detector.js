@@ -1,15 +1,14 @@
-
 /* ============================================================
-   WAR DESK — event-detector.js v1.4
-   - v1.4: future-threats uitgebreid (voices readiness, potential, prepares for)
+   WAR DESK — event-detector.js v1.5
+   - v1.5: extractCityEvent (control + attack types)
+   - v1.4: future-threats uitgebreid
    - v1.3: extractCityClaim
-   - v1.2: meervoudsvormen
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v1.4";
+  window.WDEventDetectorVersion = "v1.5";
 
   var ACTION_PATTERNS = [
     { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
@@ -93,16 +92,12 @@
     /قال|صرح|أعلن|وفقا|حسب/
   ];
 
-  /* ============================================================
-     v1.4: FUTURE_PATTERNS uitgebreid
-     ============================================================ */
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
     /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
     /\b(prêt à|va attaquer|menace de)\b/i,
     /\b(bereit für|wird angreifen|droht mit)\b/i,
     /مستعد ل|يهدد بـ|سيهاجم/,
-    /* v1.4: extra future-verklaringen */
     /\b(voices?\s+readiness|voiced?\s+readiness)\b/i,
     /\b(ready\s+for\s+potential|ready\s+for\s+any|ready\s+for\s+renewed)\b/i,
     /\b(potential\s+(renewed\s+)?(attack|strike|offensive|war|conflict))\b/i,
@@ -189,6 +184,34 @@
     "Japan Times": "Japan"
   };
 
+  /* ============================================================
+     v1.5: CITY-EVENT PATRONEN
+     ============================================================ */
+  var CITY_CONTROL_PATTERNS = [
+    /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns|took|taken|takes)\b/i,
+    /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming|recaptured|recaptures)\b/i,
+    /\b(lib(erated|erates|erating))\b/i,
+    /\b(took|taken|takes)\s+control\s+of\b/i,
+    /\b(veroverde|veroverd|veroverden|veroveren|innam|innamen|innemen|ingenomen)\b/i,
+    /\b(heroverd|heroverde|heroverden|heroveren|bevrijd|bevrijdde|bevrijdden|bevrijden)\b/i,
+    /\b(nam|namen)\s+.*\s+in\b/i,
+    /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
+    /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
+    /سيطر|استولى|حرر|دخل/
+  ];
+
+  var CITY_ATTACK_PATTERNS = [
+    /\b(attacked|attacks|attacking|hit|hits|hitting|struck|strikes|striking)\b/i,
+    /\b(shelled|shelling|shells|bombed|bombing|bombardment)\b/i,
+    /\b(targeted|targets|targeting)\b/i,
+    /\b(raakte|raakten|getroffen|treft|beschoten|beschieting)\b/i,
+    /\b(bombardeerde|bombardeerden|gebombardeerd)\b/i,
+    /\b(aangevallen|aanvalt|aanvielen|beschoot)\b/i,
+    /\b(frappé|attaqué|attaques|bombardé)\b/i,
+    /\b(angegriffen|getroffen|bombardiert)\b/i,
+    /قصف|غارة|غارات|هجوم|اعتداء|ضربة/
+  ];
+
   function findActionVerbs(text) {
     var found = [];
     ACTION_PATTERNS.forEach(function(p) {
@@ -220,22 +243,16 @@
     return false;
   }
 
-  function hasClaimAction(text) {
-    var CLAIM_PATTERNS = [
-      /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns)\b/i,
-      /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming)\b/i,
-      /\b(lib(erated|erates|erating))\b/i,
-      /\b(took|taken|takes)\s+control\s+of\b/i,
-      /\b(entered|enters|entering)\s+[A-Z][a-z]+/,
-      /\b(veroverde|veroverd|veroverden|veroveren|innam|innamen|innemen|ingenomen)\b/i,
-      /\b(heroverd|heroverde|heroverden|heroveren|bevrijd|bevrijdde|bevrijdden|bevrijden)\b/i,
-      /\b(nam|namen)\s+.*\s+in\b/i,
-      /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
-      /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
-      /سيطر|استولى|حرر|دخل/
-    ];
-    for (var i = 0; i < CLAIM_PATTERNS.length; i++) {
-      if (CLAIM_PATTERNS[i].test(text)) return true;
+  function hasControlAction(text) {
+    for (var i = 0; i < CITY_CONTROL_PATTERNS.length; i++) {
+      if (CITY_CONTROL_PATTERNS[i].test(text)) return true;
+    }
+    return false;
+  }
+
+  function hasAttackAction(text) {
+    for (var i = 0; i < CITY_ATTACK_PATTERNS.length; i++) {
+      if (CITY_ATTACK_PATTERNS[i].test(text)) return true;
     }
     return false;
   }
@@ -258,7 +275,6 @@
       return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: reportMatches.length > 0 ? "report-only" : "no-action-verb" };
     }
 
-    /* v1.4: als future-pattern matcht → geen fysiek event (strenger) */
     if (futureMatches.length > 0 && actionMatches.length <= 2) {
       return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: true, reason: "future-threat" };
     }
@@ -271,32 +287,62 @@
     return { isPhysicalEvent: true, actionTypes: types, actionCount: actionMatches.length, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: "action-found" };
   }
 
-  function extractCityClaim(title, desc, actorCountries){
+  /* ============================================================
+     v1.5: EXTRACT CITY EVENT (control of attack)
+     ============================================================ */
+  function findCityInText(text){
+    if (!window.__wm_locations) return null;
+    var lower = " " + String(text || "").toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
+    var bestCity = null;
+    var bestLen = 0;
+    for (var key in window.__wm_locations){
+      if (!Object.prototype.hasOwnProperty.call(window.__wm_locations, key)) continue;
+      if (key.length <= bestLen) continue;
+      if (key.length < 4) continue;
+      if (lower.indexOf(" " + key + " ") !== -1){
+        bestCity = key;
+        bestLen = key.length;
+      }
+    }
+    return bestCity;
+  }
+
+  function extractCityEvent(title, desc, actorCountries){
     title = String(title || "");
     desc = String(desc || "");
     var text = title + " " + desc;
-    if (!hasClaimAction(text)) return null;
 
-    var cityMatch = null;
-    var longest = 0;
-    if (window.__wm_locations){
-      var lower = " " + text.toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
-      for (var key in window.__wm_locations){
-        if (!Object.prototype.hasOwnProperty.call(window.__wm_locations, key)) continue;
-        if (key.length <= longest) continue;
-        if (lower.indexOf(" " + key + " ") !== -1){ cityMatch = key; longest = key.length; }
-      }
-    }
-    if (!cityMatch) return null;
+    var cityKey = findCityInText(text);
+    if (!cityKey) return null;
     if (!actorCountries || !actorCountries.length) return null;
 
-    var claimedBy = actorCountries[0];
-    var claimedByISO3 = null;
+    var actorName = actorCountries[0];
+    var actorISO3 = null;
     try {
-      if (window.WorldMapData && window.WorldMapData.getISO3) claimedByISO3 = window.WorldMapData.getISO3(claimedBy);
+      if (window.WorldMapData && window.WorldMapData.getISO3){
+        actorISO3 = window.WorldMapData.getISO3(actorName);
+      }
     } catch(e){}
 
-    return { city: cityMatch, claimedBy: claimedBy, claimedByISO3: claimedByISO3 };
+    var type = null;
+    if (hasControlAction(text)) type = "control";
+    else if (hasAttackAction(text)) type = "attack";
+
+    if (!type) return null;
+
+    return {
+      city: cityKey,
+      type: type,
+      actor: actorName,
+      actorISO3: actorISO3
+    };
+  }
+
+  /* Backwards-compat: oude extractCityClaim → nu de control-variant */
+  function extractCityClaim(title, desc, actorCountries){
+    var ev = extractCityEvent(title, desc, actorCountries);
+    if (ev && ev.type === "control") return ev;
+    return null;
   }
 
   function getSourceCountry(sourceName) {
@@ -309,21 +355,25 @@
     findReportVerbs: findReportVerbs,
     findFuturePatterns: findFuturePatterns,
     hasPrefix: hasPrefix,
-    hasClaimAction: hasClaimAction,
+    hasControlAction: hasControlAction,
+    hasAttackAction: hasAttackAction,
+    extractCityEvent: extractCityEvent,
     extractCityClaim: extractCityClaim,
     getSourceCountry: getSourceCountry,
     _actionPatterns: ACTION_PATTERNS,
     _reportPatterns: REPORT_PATTERNS,
     _futurePatterns: FUTURE_PATTERNS,
+    _controlPatterns: CITY_CONTROL_PATTERNS,
+    _attackPatterns: CITY_ATTACK_PATTERNS,
     _sourceCountry: SOURCE_COUNTRY
   };
 
   try {
     if (window.wdLog) {
-      wdLog.info("[EventDetector] v1.4 geladen — " +
+      wdLog.info("[EventDetector] v1.5 geladen — " +
         ACTION_PATTERNS.length + " acties, " +
-        REPORT_PATTERNS.length + " reports, " +
-        FUTURE_PATTERNS.length + " toekomst");
+        CITY_CONTROL_PATTERNS.length + " control, " +
+        CITY_ATTACK_PATTERNS.length + " attack");
     }
   } catch(e){}
 
