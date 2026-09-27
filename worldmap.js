@@ -1,10 +1,9 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.1
+   WAR DESK — worldmap.js v2.2
    ------------------------------------------------------------
-   - v2.1: lagere heat-drempels + betere opacity + kleinere legenda
-        + debug log top-5 doelwitten
+   - v2.2: alleen countsForHeat events + REG-skip
+   - v2.1: lagere heat-drempels + debug log
    - v2.0: conflict-kaart + legenda-toggle
-   - v1.1: CDN mode
    ============================================================ */
 
 (function(){
@@ -17,7 +16,7 @@
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
   ];
   var CACHE_KEY = "wardesk_countries_geojson";
-  var CACHE_VERSION = "v3";
+  var CACHE_VERSION = "v4";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var WM = {
@@ -32,9 +31,6 @@
     map: null
   };
 
-  /* ============================================================
-     GEOJSON LADEN
-     ============================================================ */
   async function loadGeoJSON(){
     try {
       var cached = localStorage.getItem(CACHE_KEY);
@@ -91,7 +87,7 @@
   }
 
   /* ============================================================
-     HEAT BEREKENEN — per land MET actor/target onderscheid
+     HEAT BEREKENEN
      ============================================================ */
   function calculateHeat(events){
     var now = Date.now();
@@ -99,13 +95,19 @@
     var decayHalfLife = (thresholds.decay_half_life_days || 3) * 24 * 60 * 60 * 1000;
     var weekAgo = now - 7 * 24 * 60 * 60 * 1000;
     var maxPerSource = thresholds.max_events_per_source_per_day || 3;
+    var SKIP_PREFIX = "REG-";
 
     var targetByCountry = {};
     var actorByCountry = {};
+    var skippedNonPhysical = 0;
+    var skippedReg = 0;
 
     events.forEach(function(ev){
       if (!ev) return;
       if (ev.category !== "militair" && ev.category !== "crime") return;
+
+      /* v2.2: alleen fysieke events meetellen */
+      if (ev.countsForHeat === false) { skippedNonPhysical++; return; }
 
       var ts = new Date(ev.date).getTime();
       if (ts < weekAgo) return;
@@ -120,9 +122,9 @@
       var dayKey = new Date(ts).toISOString().slice(0, 10);
       var sourceKey = (ev.source || "?") + "|" + dayKey;
 
-      /* Target — land waar het gebeurt (via countryISO3 of country) */
+      /* Target */
       var targetKey = ev.countryISO3 || ev.country;
-      if (targetKey){
+      if (targetKey && targetKey.indexOf(SKIP_PREFIX) !== 0){
         if (!targetByCountry[targetKey]){
           targetByCountry[targetKey] = { total: 0, bySource: {}, count: 0 };
         }
@@ -134,13 +136,14 @@
           targetByCountry[targetKey].total += weight;
           targetByCountry[targetKey].count++;
         }
+      } else if (targetKey && targetKey.indexOf(SKIP_PREFIX) === 0){
+        skippedReg++;
       }
 
-      /* Actor — wie valt aan (via actorCountries) */
+      /* Actor */
       var actors = ev.actorCountries || [];
       actors.forEach(function(actorCountry){
         if (!actorCountry) return;
-        /* Skip als actor === target (binnenlandse conflicten) */
         var actorIso = null;
         try {
           if (window.WorldMapData && window.WorldMapData.getISO3){
@@ -148,6 +151,7 @@
           }
         } catch(e){}
         var actorKey = actorIso || actorCountry;
+        if (actorKey.indexOf(SKIP_PREFIX) === 0) return;
         if (actorKey === targetKey) return;
 
         if (!actorByCountry[actorKey]){
@@ -178,7 +182,6 @@
     WM.actorHeatByCountry = actorHeatMap;
     WM.lastHeatCalc = now;
 
-    /* v2.1: debug log — top 5 doelwitten + top 3 aanvallers */
     try {
       var sortedTargets = Object.keys(targetHeatMap).map(function(k){
         return { key: k, val: targetHeatMap[k] };
@@ -194,18 +197,16 @@
     } catch(e){}
 
     LOG("Heat herberekend: " + Object.keys(targetHeatMap).length + " doelwit-landen, " +
-        Object.keys(actorHeatMap).length + " aanvaller-landen");
+        Object.keys(actorHeatMap).length + " aanvaller-landen | " +
+        "skip niet-fysiek:" + skippedNonPhysical + " REG:" + skippedReg);
     return { targets: targetHeatMap, actors: actorHeatMap };
   }
 
-  /* ============================================================
-     HITTE → CONFLICT-LEVEL
-     ============================================================ */
   function getConflictLevel(heat){
     var th = (window.WORLDMAP_THRESHOLDS || {}).heat || {};
-    var warm = th.warm || 1;
-    var hot = th.hot || 3;
-    var scorching = th.scorching || 8;
+    var warm = th.warm || 0.5;
+    var hot = th.hot || 1.5;
+    var scorching = th.scorching || 3;
 
     if (heat >= scorching) return "scorching";
     if (heat >= hot) return "hot";
@@ -225,12 +226,9 @@
     if (level === "scorching") return 0.88;
     if (level === "hot") return 0.78;
     if (level === "warm") return 0.65;
-    return 0.35;
+    return 0.30;
   }
 
-  /* ============================================================
-     STIJL PER LAND
-     ============================================================ */
   function styleCountry(feature){
     var iso3 = getISO3(feature);
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
@@ -238,8 +236,7 @@
     var totalHeat = targetHeat + actorHeat;
     var cc = window.CONFLICT_COLORS || {};
 
-    /* Geen activiteit → grijs */
-    if (totalHeat < 0.5 && actorHeat < 0.5){
+    if (totalHeat < 0.1){
       return {
         fillColor: cc.cold || "#2f2f38",
         fillOpacity: 0.30,
@@ -252,7 +249,6 @@
     var fillColor = getFillColor(level);
     var fillOpacity = getFillOpacity(level);
 
-    /* Rand = aanvaller-niveau */
     var actorThreshold = (window.WORLDMAP_THRESHOLDS || {}).actor_ring_min || 3;
     var actorHotThreshold = (window.WORLDMAP_THRESHOLDS || {}).actor_ring_hot || 15;
     var borderColor = cc.border || "rgba(255,255,255,0.12)";
@@ -282,9 +278,6 @@
     };
   }
 
-  /* ============================================================
-     HOVER TOOLTIP
-     ============================================================ */
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
     var name = getCountryName(feature);
@@ -301,7 +294,7 @@
         lines.push("⚔️ Aanvaller: " + actorHeat.toFixed(1) + " events");
       }
     } else {
-      lines.push("Rustig — geen militaire events");
+      lines.push("Rustig — geen fysieke militaire events");
     }
 
     layer.bindTooltip(lines.join("<br>"), {
@@ -327,9 +320,6 @@
     });
   }
 
-  /* ============================================================
-     CITY-STIPPEN
-     ============================================================ */
   function renderCityDots(map){
     if (!window.CityStatus) return;
     if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
@@ -374,9 +364,6 @@
     });
   }
 
-  /* ============================================================
-     LEGENDA — met toggle-knop
-     ============================================================ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -389,7 +376,7 @@
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief conflict</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
-      '<div class="wm-legend-hint">Kleur = militaire events (7d)<br>Rand = aanvaller</div>';
+      '<div class="wm-legend-hint">Alleen fysieke militaire acties</div>';
 
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
@@ -428,19 +415,14 @@
     } catch(e){}
   }
 
-  /* ============================================================
-     STYLES
-     ============================================================ */
   function injectStyles(){
     if (document.getElementById("wmStyles")) return;
     var s = document.createElement("style");
     s.id = "wmStyles";
     s.textContent =
-      /* Tooltip */
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
-      /* Legenda — compact */
       ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.5rem .6rem;font-size:.6rem;color:#e6ebf5;max-width:135px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.35;}" +
       "html.light .wm-legend{background:rgba(255,255,255,.95);color:#131721;border-color:rgba(0,0,0,.12);}" +
       ".wm-legend-title{font-weight:800;font-size:.58rem;text-transform:uppercase;letter-spacing:.05em;color:#e0a857;margin-bottom:.3rem;padding-bottom:.25rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
@@ -450,7 +432,6 @@
       ".wm-legend-swatch-ring{background:transparent!important;border:2px solid #ff6666;box-sizing:border-box;border-radius:50%;}" +
       ".wm-legend-hint{margin-top:.3rem;padding-top:.3rem;border-top:1px solid rgba(255,255,255,.08);font-size:.55rem;opacity:.75;line-height:1.25;}" +
       ".wm-city-dot{background:transparent!important;border:none!important;}" +
-      /* Legenda-toggle knop */
       ".wm-legend-toggle{position:absolute;bottom:.6rem;right:.6rem;z-index:401;width:30px;height:30px;border-radius:8px;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.4);color:#e0a857;display:none;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);transition:all .18s;padding:0;}" +
       ".wm-legend-toggle:hover{background:rgba(226,168,87,.2);}" +
       ".wm-legend-toggle.off{opacity:.5;color:#8a94a8;border-color:rgba(255,255,255,.15);}" +
@@ -461,9 +442,6 @@
     document.head.appendChild(s);
   }
 
-  /* ============================================================
-     INIT
-     ============================================================ */
   async function init(map){
     if (!map || WM.isLoaded) return;
     WM.map = map;
@@ -484,7 +462,6 @@
 
     WM.layer.addTo(map);
 
-    /* Zorg dat markers erboven blijven */
     if (window.MAP && window.MAP.cluster && window.MAP.cluster.bringToFront){
       window.MAP.cluster.bringToFront();
     }
@@ -494,7 +471,7 @@
     restoreLegendVisibility();
 
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.1 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.2 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events){
@@ -550,6 +527,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.1 geladen (conflict-modus, lagere drempels)");
+  LOG("worldmap.js v2.2 geladen (alleen fysieke events)");
 
 })();
