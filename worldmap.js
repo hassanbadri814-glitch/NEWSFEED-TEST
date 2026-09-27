@@ -1,10 +1,9 @@
 /* ============================================================
-   WAR DESK — worldmap.js v2.8
+   WAR DESK — worldmap.js v2.9
    ------------------------------------------------------------
-   - v2.8: lagere city-drempel (0.15) + betere display + logging
+   - v2.9: city-dots nu ook van events (aanvallen), niet alleen claims
+   - v2.8: lagere drempel + betere logging
    - v2.7: CityStatus integratie
-   - v2.6: grammatica fix
-   - v2.5: confidence in opacity
    ============================================================ */
 
 (function(){
@@ -35,9 +34,6 @@
     map: null
   };
 
-  /* ============================================================
-     GEOJSON LADEN
-     ============================================================ */
   async function loadGeoJSON(){
     try {
       var cached = localStorage.getItem(CACHE_KEY);
@@ -54,23 +50,18 @@
 
     for (var i = 0; i < GEOJSON_URLS.length; i++){
       try {
-        LOG("GeoJSON laden van CDN " + (i+1) + "...");
         var ctrl = new AbortController();
         var timer = setTimeout(function(){ ctrl.abort(); }, 20000);
         var res = await fetch(GEOJSON_URLS[i], { signal: ctrl.signal });
         clearTimeout(timer);
         if (!res.ok) throw new Error("HTTP " + res.status);
         var json = await res.json();
-        if (!json.features || json.features.length < 50){
-          throw new Error("Te weinig features");
-        }
+        if (!json.features || json.features.length < 50) throw new Error("Te weinig features");
         try {
           localStorage.setItem(CACHE_KEY, JSON.stringify(json));
           localStorage.setItem(CACHE_KEY + "_t", String(Date.now()));
           localStorage.setItem(CACHE_KEY + "_ver", CACHE_VERSION);
-        } catch(e){
-          LOG("GeoJSON te groot voor cache");
-        }
+        } catch(e){}
         LOG("GeoJSON geladen: " + json.features.length + " features");
         return json;
       } catch(e){
@@ -100,9 +91,6 @@
     return 10.0;
   }
 
-  /* ============================================================
-     HITTE BEREKENEN
-     ============================================================ */
   function calculateHeat(events){
     var now = Date.now();
     var thresholds = window.WORLDMAP_THRESHOLDS || {};
@@ -115,9 +103,7 @@
     var targetByCountry = {};
     var actorByCountry = {};
     var countryMeta = {};
-    var skippedNonPhysical = 0;
-    var skippedReg = 0;
-    var skippedOld = 0;
+    var skippedNonPhysical = 0, skippedReg = 0, skippedOld = 0;
 
     var filtered = events.filter(function(ev){
       if (!ev) return false;
@@ -134,7 +120,6 @@
       var decayFactor = Math.pow(0.5, age / decayHalfLife);
       var tierWeight = window.WorldMapData ? window.WorldMapData.getTier(ev.source) : 0.5;
       var weight = decayFactor * tierWeight;
-
       var dayKey = new Date(ts).toISOString().slice(0, 10);
       var sourceKey = (ev.source || "?") + "|" + dayKey;
 
@@ -144,9 +129,7 @@
           targetByCountry[targetKey] = { total: 0, bySource: {}, count: 0 };
           countryMeta[targetKey] = { sources: {}, origins: {}, count: 0 };
         }
-        if (!targetByCountry[targetKey].bySource[sourceKey]){
-          targetByCountry[targetKey].bySource[sourceKey] = 0;
-        }
+        if (!targetByCountry[targetKey].bySource[sourceKey]) targetByCountry[targetKey].bySource[sourceKey] = 0;
         if (targetByCountry[targetKey].bySource[sourceKey] < maxPerSource){
           targetByCountry[targetKey].bySource[sourceKey]++;
           targetByCountry[targetKey].total += weight;
@@ -176,12 +159,8 @@
         var actorKey = actorIso || actorCountry;
         if (actorKey.indexOf(SKIP_PREFIX) === 0) return;
         if (actorKey === targetKey) return;
-        if (!actorByCountry[actorKey]){
-          actorByCountry[actorKey] = { total: 0, bySource: {}, count: 0 };
-        }
-        if (!actorByCountry[actorKey].bySource[sourceKey]){
-          actorByCountry[actorKey].bySource[sourceKey] = 0;
-        }
+        if (!actorByCountry[actorKey]) actorByCountry[actorKey] = { total: 0, bySource: {}, count: 0 };
+        if (!actorByCountry[actorKey].bySource[sourceKey]) actorByCountry[actorKey].bySource[sourceKey] = 0;
         if (actorByCountry[actorKey].bySource[sourceKey] < maxPerSource){
           actorByCountry[actorKey].bySource[sourceKey]++;
           actorByCountry[actorKey].total += weight;
@@ -203,31 +182,15 @@
       var m = countryMeta[iso3];
       var sourceCount = Object.keys(m.sources).length;
       var originCount = Object.keys(m.origins).length;
-      var sourceScore = Math.min(1, sourceCount / 8);
-      var originScore = Math.min(1, originCount / 3);
-      var score = (sourceScore * 0.6) + (originScore * 0.4);
+      var score = (Math.min(1, sourceCount / 8) * 0.6) + (Math.min(1, originCount / 3) * 0.4);
       if (sourceCount >= 2 && originCount >= 2) score = Math.min(1, score + 0.05);
-      confMap[iso3] = {
-        confidence: Math.round(score * 100),
-        sources: sourceCount, origins: originCount, count: m.count
-      };
+      confMap[iso3] = { confidence: Math.round(score * 100), sources: sourceCount, origins: originCount, count: m.count };
     });
 
     WM.targetHeatByCountry = targetHeatMap;
     WM.actorHeatByCountry = actorHeatMap;
     WM.countryConfidence = confMap;
     WM.lastHeatCalc = now;
-
-    try {
-      var sortedTargets = Object.keys(targetHeatMap).map(function(k){
-        return { key: k, val: targetHeatMap[k] };
-      }).sort(function(a, b){ return b.val - a.val; }).slice(0, 5);
-      LOG("Heat top-5 doelwitten (" + periodDays + "d): " + sortedTargets.map(function(x){ return x.key + ":" + x.val; }).join(" "));
-      var sortedActors = Object.keys(actorHeatMap).map(function(k){
-        return { key: k, val: actorHeatMap[k] };
-      }).sort(function(a, b){ return b.val - a.val; }).slice(0, 3);
-      LOG("Heat top-3 aanvallers: " + sortedActors.map(function(x){ return x.key + ":" + x.val; }).join(" "));
-    } catch(e){}
 
     LOG("Heat herberekend (" + periodDays + "d): " + Object.keys(targetHeatMap).length + " doelwitten, " +
         Object.keys(actorHeatMap).length + " aanvallers | skip niet-fysiek:" + skippedNonPhysical +
@@ -263,8 +226,7 @@
     else if (level === "warm") baseOpacity = 0.65;
     else return 0.30;
     if (typeof confidence === "number" && confidence >= 0){
-      var confNorm = Math.max(0, Math.min(100, confidence));
-      var factor = 0.55 + (confNorm / 100) * 0.45;
+      var factor = 0.55 + (Math.max(0, Math.min(100, confidence)) / 100) * 0.45;
       return baseOpacity * factor;
     }
     return baseOpacity;
@@ -326,7 +288,9 @@
 
   function capitalizeCity(s){
     if (!s) return "";
-    return s.charAt(0).toUpperCase() + s.slice(1);
+    return s.split(" ").map(function(w){
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(" ");
   }
 
   function buildTooltipHtml(iso3, name){
@@ -412,12 +376,9 @@
     } else {
       var confPct = conf ? conf.confidence : 0;
       var confClass = confPct >= 70 ? "conf-high" : (confPct >= 40 ? "conf-med" : "conf-low");
-      var confDetail = "";
-      if (conf){
-        confDetail = '<div class="wm-panel-conf-detail">' +
-          pluralize(conf.sources, "bron", "bronnen") + ' · ' +
-          pluralize(conf.origins, "land", "landen") + ' van herkomst</div>';
-      }
+      var confDetail = conf ? '<div class="wm-panel-conf-detail">' +
+        pluralize(conf.sources, "bron", "bronnen") + ' · ' +
+        pluralize(conf.origins, "land", "landen") + ' van herkomst</div>' : "";
       statsEl.innerHTML =
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + targetHeat.toFixed(1) + '</div><div class="wm-panel-stat-lbl">Doelwit</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + actorHeat.toFixed(1) + '</div><div class="wm-panel-stat-lbl">Aanvaller</div></div>' +
@@ -458,105 +419,212 @@
   function closeCountryPanel(){ if (WM.panel) WM.panel.classList.remove("show"); }
 
   /* ============================================================
-     v2.8: CITY-DOTS met lagere drempel + betere logging
+     v2.9: HOOFD FUNCTIE — combineert controller + events
      ============================================================ */
   function renderCityDots(map){
-    if (!window.CityStatus){
-      LOG("CityStatus niet beschikbaar");
-      return;
-    }
     if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
     else { WM.cityLayer = L.layerGroup().addTo(map); }
 
-    var cities = window.CityStatus.getAllCities();
-    var total = cities.length;
-    var rendered = 0;
-    var skippedLowConf = 0;
-    var skippedNoLoc = 0;
+    /* Stap 1: bouw map van stad → events */
+    var cityEvents = {};
+    var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
+    var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
 
-    cities.forEach(function(c){
-      if (!c || !c.city) return;
+    (WM._allEvents || []).forEach(function(ev){
+      if (!ev) return;
+      if (ev.category !== "militair") return;
+      if (ev.countsForHeat === false) return;
+      var ts = new Date(ev.date).getTime();
+      if (ts < periodAgo) return;
 
-      /* v2.8: drempel 0.4 → 0.15 */
-      if ((c.confidence || 0) < 0.15) { skippedLowConf++; return; }
-
-      var loc = null;
-      if (window.__wm_locations && window.__wm_locations[c.city]){
-        loc = window.__wm_locations[c.city];
-      }
-      if (!loc) { skippedNoLoc++; return; }
-
-      /* Bepaal effectieve controller — probeer beide velden */
-      var effController = c.controller || c.claimedBy;
-      var effISO3 = null;
-      try {
-        if (window.WorldMapData && window.WorldMapData.getISO3){
-          /* Als effController al ISO3-code is, skip lookup */
-          if (effController && effController.length === 3 && effController === effController.toUpperCase()){
-            effISO3 = effController;
-          } else {
-            effISO3 = window.WorldMapData.getISO3(effController);
+      /* Zoek stad in titel */
+      var text = " " + (ev.title || "").toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ") + " ";
+      var bestCity = null;
+      var bestLen = 0;
+      if (window.__wm_locations){
+        for (var key in window.__wm_locations){
+          if (!Object.prototype.hasOwnProperty.call(window.__wm_locations, key)) continue;
+          if (key.length < 4) continue; /* skip korte namen */
+          if (key.length <= bestLen) continue;
+          var pattern = " " + key + " ";
+          if (text.indexOf(pattern) !== -1){
+            bestCity = key;
+            bestLen = key.length;
           }
         }
+      }
+      if (!bestCity) return;
+
+      if (!cityEvents[bestCity]){
+        cityEvents[bestCity] = { city: bestCity, events: [], count: 0 };
+      }
+      cityEvents[bestCity].events.push(ev);
+      cityEvents[bestCity].count++;
+    });
+
+    /* Stap 2: voeg controllers uit CityStatus toe */
+    var controllers = {};
+    if (window.CityStatus){
+      try {
+        window.CityStatus.getAllCities().forEach(function(c){
+          if (!c || !c.city) return;
+          if ((c.confidence || 0) < 0.15) return;
+          controllers[c.city] = c;
+        });
       } catch(e){}
+    }
 
-      /* Voor weergave: gebruik de ISO3 of de naam */
-      var displayController = effController || "?";
+    /* Stap 3: unie van beide */
+    var allCities = {};
+    Object.keys(cityEvents).forEach(function(c){ allCities[c] = true; });
+    Object.keys(controllers).forEach(function(c){ allCities[c] = true; });
 
-      var alliance = window.WorldMapData
-        ? window.WorldMapData.getAlliance(effISO3 || effController)
-        : "neutral";
-      var color = window.WorldMapData
-        ? window.WorldMapData.getColor(alliance)
-        : "#6b7280";
+    var rendered = 0;
 
-      var conf = c.confidence || 0;
-      var isClaim = conf < 0.7;
+    Object.keys(allCities).forEach(function(cityKey){
+      var loc = window.__wm_locations ? window.__wm_locations[cityKey] : null;
+      if (!loc) return;
 
-      /* Grootte schaalt met confidence: 8px (zwak) → 14px (sterk) */
-      var size = Math.round(8 + conf * 6);
+      var cityEv = cityEvents[cityKey];
+      var ctrl = controllers[cityKey];
+      var eventCount = cityEv ? cityEv.count : 0;
 
-      /* Opacity schaalt ook */
-      var opacity = Math.round((0.5 + conf * 0.5) * 100) / 100;
+      /* Bepaal kleur + grootte */
+      var color, size, isClaim = false, label = "";
+
+      if (ctrl && ctrl.controller){
+        /* Controller-vastgesteld: grotere stip, kleur op controller */
+        var effISO3 = null;
+        try {
+          if (window.WorldMapData && window.WorldMapData.getISO3){
+            if (ctrl.controller.length === 3 && ctrl.controller === ctrl.controller.toUpperCase()){
+              effISO3 = ctrl.controller;
+            } else {
+              effISO3 = window.WorldMapData.getISO3(ctrl.controller);
+            }
+          }
+        } catch(e){}
+        var alliance = window.WorldMapData
+          ? window.WorldMapData.getAlliance(effISO3 || ctrl.controller)
+          : "neutral";
+        color = window.WorldMapData
+          ? window.WorldMapData.getColor(alliance)
+          : "#6b7280";
+        size = Math.round(10 + (ctrl.confidence || 0.5) * 6);
+        isClaim = (ctrl.confidence || 0) < 0.7;
+        label = "Controller: " + ctrl.controller;
+      } else if (eventCount > 0){
+        /* Event-only: rode stip op basis van event-count */
+        if (eventCount >= 8) { color = "#d41919"; size = 14; }
+        else if (eventCount >= 5) { color = "#e63946"; size = 12; }
+        else if (eventCount >= 3) { color = "#c44536"; size = 11; }
+        else { color = "#8a5040"; size = 9; }
+        label = eventCount + " " + (eventCount === 1 ? "aanval" : "aanvallen");
+      } else {
+        return;
+      }
 
       var html = '<div style="' +
         'width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
-        'background:' + color + ';opacity:' + opacity + ';' +
+        'background:' + color + ';' +
         'box-shadow:0 0 10px ' + color + ',0 0 0 1.5px rgba(0,0,0,0.6);' +
         (isClaim
           ? 'border:2px dashed rgba(255,255,255,0.9);box-sizing:border-box;'
           : 'border:1.5px solid rgba(255,255,255,0.5);box-sizing:border-box;') +
       '"></div>';
 
+      /* Event-count badge bovenop (alleen als veel events) */
+      var badgeHtml = "";
+      if (eventCount >= 3){
+        badgeHtml = '<div style="' +
+          'position:absolute;top:-6px;right:-6px;' +
+          'background:#070c16;color:#fff;' +
+          'font-size:9px;font-weight:800;' +
+          'padding:1px 4px;border-radius:8px;' +
+          'border:1px solid ' + color + ';' +
+          'font-family:Inter,sans-serif;' +
+          'line-height:1.1;' +
+        '">' + eventCount + '</div>';
+      }
+
+      var container = '<div style="position:relative;width:' + size + 'px;height:' + size + 'px;">' +
+        html + badgeHtml + '</div>';
+
       var icon = L.divIcon({
         className: "wm-city-dot",
-        html: html,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2]
+        html: container,
+        iconSize: [size + 12, size + 12],
+        iconAnchor: [(size + 12) / 2, (size + 12) / 2]
       });
 
       var marker = L.marker([loc.lat, loc.lng], { icon: icon });
 
-      var statusLabel = isClaim ? "Claim" : "Bevestigd";
-      var confPct = Math.round(conf * 100);
-      var sinceDate = c.since ? new Date(c.since).toISOString().slice(0, 10) : "";
-      var cityDisplay = capitalizeCity(c.city);
+      /* Tooltip */
+      var tooltipParts = ['<b>' + escapeHtml(capitalizeCity(cityKey)) + '</b>' +
+        (loc.country ? ' · ' + escapeHtml(loc.country) : '')];
+      if (ctrl && ctrl.controller){
+        var statusLabel = isClaim ? "Claim" : "Bevestigd";
+        var ctrlConfPct = Math.round((ctrl.confidence || 0) * 100);
+        tooltipParts.push('🎛️ Controller: <b>' + escapeHtml(ctrl.controller) + '</b> · ' + statusLabel + ' · ' + ctrlConfPct + '%');
+      }
+      if (eventCount > 0){
+        tooltipParts.push('💥 ' + eventCount + ' fysieke ' + (eventCount === 1 ? "aanval" : "aanvallen") + ' (' + periodDays + 'd)');
+      }
+      marker.bindTooltip(tooltipParts.join("<br>"), { direction: "top", className: "wm-tooltip", offset: [0, -6] });
 
-      var tooltipHtml =
-        '<b>' + escapeHtml(cityDisplay) + '</b>' +
-        (loc.country ? ' · ' + escapeHtml(loc.country) : '') + '<br>' +
-        '🎛️ Controller: <b>' + escapeHtml(displayController) + '</b><br>' +
-        '📊 ' + statusLabel + ' · ' + confPct + '% confidence' +
-        (sinceDate ? '<br>📅 Sinds ' + sinceDate : '') +
-        (c.sources && c.sources.length ? '<br>📰 ' + pluralize(c.sources.length, "bron", "bronnen") : '');
-
-      marker.bindTooltip(tooltipHtml, { direction: "top", className: "wm-tooltip", offset: [0, -6] });
+      /* Click → toon panel met events */
+      if (cityEv){
+        marker.on("click", function(e){
+          if (L.DomEvent) L.DomEvent.stopPropagation(e);
+          openCityPanel(cityKey, cityEv.events, ctrl);
+        });
+      }
 
       WM.cityLayer.addLayer(marker);
       rendered++;
     });
 
-    LOG("City-dots: " + rendered + " gerenderd van " + total + " totaal (skip laag-conf:" + skippedLowConf + " geen-loc:" + skippedNoLoc + ")");
+    LOG("City-dots: " + rendered + " steden (events:" + Object.keys(cityEvents).length + " + controllers:" + Object.keys(controllers).length + ")");
+  }
+
+  /* ============================================================
+     CITY PANEL — apart, voor stad-click
+     ============================================================ */
+  function openCityPanel(cityKey, events, ctrl){
+    var panel = ensurePanel();
+    panel.querySelector("#wmPanelTitle").textContent = capitalizeCity(cityKey) + (ctrl ? " · " + ctrl.controller : "");
+    var statsEl = panel.querySelector("#wmPanelStats");
+
+    var targetHeat = 0;
+    var sources = {};
+    events.forEach(function(e){
+      if (e.source) sources[e.source] = true;
+    });
+    var sourceCount = Object.keys(sources).length;
+
+    statsEl.innerHTML =
+      '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + events.length + '</div><div class="wm-panel-stat-lbl">Events</div></div>' +
+      '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + sourceCount + '</div><div class="wm-panel-stat-lbl">Bronnen</div></div>' +
+      (ctrl ? '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + Math.round((ctrl.confidence || 0) * 100) + '%</div><div class="wm-panel-stat-lbl">Controller</div></div>' : '<div class="wm-panel-stat"><div class="wm-panel-stat-val">—</div><div class="wm-panel-stat-lbl">Controller</div></div>');
+
+    var evEl = panel.querySelector("#wmPanelEvents");
+    var sorted = events.sort(function(a, b){
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }).slice(0, 15);
+    evEl.innerHTML = sorted.map(function(ev){
+      return '<div class="wm-panel-event">' +
+        '<div class="wm-panel-event-title">' + escapeHtml(ev.title) + '</div>' +
+        '<div class="wm-panel-event-meta">' +
+          '<span class="wm-panel-event-src">' + escapeHtml(ev.source || "?") + '</span>' +
+          '<span class="wm-panel-event-dot">·</span>' +
+          '<span>' + timeAgoShort(ev.date) + '</span>' +
+          '<span class="wm-ev-physical">Fysiek</span>' +
+          '<span class="wm-panel-event-sub">' + escapeHtml(ev.subtype || "—") + '</span>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
   function ensurePeriodFilter(){
@@ -578,7 +646,6 @@
         try { if (window.WDStorage) WDStorage.set("worldmap_period", String(days)); } catch(e){}
         div.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
-        LOG("Periode gewijzigd naar " + days + " dagen (scale=" + getPeriodScale(days) + ")");
         WM.lastHeatCalc = 0;
         if (WM._allEvents && WM._allEvents.length) refresh(WM._allEvents, true);
       });
@@ -608,7 +675,7 @@
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
-      '<div class="wm-legend-hint">Klik op een land voor details</div>';
+      '<div class="wm-legend-hint">Klik op een land of stad</div>';
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
   }
@@ -733,7 +800,7 @@
     restoreLegendVisibility();
     restorePeriodFilter();
     WM.isLoaded = true;
-    LOG("Wereldkaart v2.8 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v2.9 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -783,6 +850,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v2.8 geladen (city-drempel 0.15)");
+  LOG("worldmap.js v2.9 geladen (city-dots van events)");
 
 })();
