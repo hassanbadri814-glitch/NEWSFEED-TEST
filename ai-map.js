@@ -1,9 +1,12 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.14
+   WAR DESK — ai-map.js v3.15
+   - v3.15: CITY > COUNTRY preference in locatie-extractie
+           * Stad krijgt altijd voorrang op land
+           * Betere word-boundary matching
+           * Skip logica strakker
    - v3.14: LOCATIONS gecentraliseerd naar worldmap-data.js
-   - v3.13: CityStatus v2.0 integratie (control + attack)
+   - v3.13: CityStatus v2.0 integratie
    - v3.12: suffix-skip + Pakistaanse regio's
-   - v3.11: prefix-match in findTargetByPosition
    ============================================================ */
 
 (function(){
@@ -33,14 +36,31 @@
     /قصف|غارة|هجوم|قتل|انفجار/
   ];
 
-  /* ============================================================
-     v3.14: LOCATIONS nu centraal in worldmap-data.js
-     ============================================================ */
   var LOCATIONS = (window.WorldMapData && window.WorldMapData.LOCATIONS)
     ? window.WorldMapData.LOCATIONS
     : {};
 
   try { window.__wm_locations = LOCATIONS; } catch(e){}
+
+  /* ============================================================
+     v3.15: STEDEN vs LANDEN — aparte sets
+     ============================================================ */
+  var _countryKeyCache = null;
+
+  function isCountryKey(key){
+    if (!_countryKeyCache) _countryKeyCache = {};
+    if (_countryKeyCache[key] !== undefined) return _countryKeyCache[key];
+
+    var isCountry = false;
+    try {
+      if (window.WorldMapData && window.WorldMapData.getISO3){
+        var iso = window.WorldMapData.getISO3(key);
+        if (iso && iso.indexOf("REG-") !== 0) isCountry = true;
+      }
+    } catch(e){}
+    _countryKeyCache[key] = isCountry;
+    return isCountry;
+  }
 
   var REGION_LOCATIONS = {
     "Oost-Europa":   { lat: 49.0, lng: 32.0,  country: "Oost-Europa", region: "Oost-Europa" },
@@ -102,6 +122,9 @@
     return firstPos;
   }
 
+  /* ============================================================
+     v3.15: findTargetByPosition — STAD > LAND preference
+     ============================================================ */
   function findTargetByPosition(title, actorCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -110,8 +133,9 @@
     var afterVerb = " " + title.slice(actionPos).toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
     if (afterVerb.length < 3) return null;
 
-    var best = null;
-    var bestPos = -1;
+    var bestCity = null, bestCityPos = -1;
+    var bestCountry = null, bestCountryPos = -1;
+
     for (var key in LOCATIONS){
       if (!Object.prototype.hasOwnProperty.call(LOCATIONS, key)) continue;
       if (key.length < 4) continue;
@@ -129,14 +153,26 @@
       var nextChunk = afterVerb.slice(afterIdx, afterIdx + 20);
       if (CONTEXT_SUFFIX.test(nextChunk)) continue;
 
-      if (bestPos === -1 || idx < bestPos){
-        best = loc;
-        bestPos = idx;
+      if (isCountryKey(key)){
+        if (bestCountryPos === -1 || idx < bestCountryPos){
+          bestCountry = loc; bestCountryPos = idx;
+        }
+      } else {
+        if (bestCityPos === -1 || idx < bestCityPos){
+          bestCity = loc; bestCityPos = idx;
+        }
       }
     }
-    return best;
+
+    /* v3.15: prefereer stad boven land */
+    if (bestCity) return bestCity;
+    if (bestCountry) return bestCountry;
+    return null;
   }
 
+  /* ============================================================
+     v3.15: extractLocation — STAD > LAND preference
+     ============================================================ */
   function extractLocation(text, skipCountries){
     if (!text) return null;
     var skip = [];
@@ -145,21 +181,33 @@
       else skip = [skipCountries];
     }
     var lower = " " + String(text).toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
-    var found = null, foundLen = 0;
+
+    var bestCity = null, bestCityLen = 0;
+    var bestCountry = null, bestCountryLen = 0;
 
     for (var key in LOCATIONS) {
       var pattern = " " + key + " ";
       var idx = lower.indexOf(pattern);
-      if (idx !== -1) {
-        var loc = LOCATIONS[key];
-        if (loc.country && skip.indexOf(loc.country) !== -1) continue;
-        var after = lower.slice(idx + pattern.length).trim();
-        if (CONTEXT_AFTER.test(after)) continue;
-        if (CONTEXT_SUFFIX.test(after)) continue;
-        if (key.length > foundLen) { found = loc; foundLen = key.length; }
+      if (idx === -1) continue;
+
+      var loc = LOCATIONS[key];
+      if (loc.country && skip.indexOf(loc.country) !== -1) continue;
+
+      var after = lower.slice(idx + pattern.length).trim();
+      if (CONTEXT_AFTER.test(after)) continue;
+      if (CONTEXT_SUFFIX.test(after)) continue;
+
+      if (isCountryKey(key)){
+        if (key.length > bestCountryLen){ bestCountry = loc; bestCountryLen = key.length; }
+      } else {
+        if (key.length > bestCityLen){ bestCity = loc; bestCityLen = key.length; }
       }
     }
-    return found;
+
+    /* v3.15: prefereer stad boven land */
+    if (bestCity) return bestCity;
+    if (bestCountry) return bestCountry;
+    return null;
   }
 
   function extractTargetLocation(title, actorCountries, skipCountries){
@@ -265,6 +313,7 @@
     var skippedNoLocation = 0, skippedNonPhysical = 0;
     var controlCount = 0, attackCount = 0;
     var positionHits = 0, contextHits = 0;
+    var cityHits = 0;
 
     for (var i = 0; i < items.length; i++) {
       var article = items[i];
@@ -290,6 +339,8 @@
       if (targetResult.method === "position") positionHits++;
       else if (targetResult.method === "context") contextHits++;
 
+      if (loc && loc.country && !isCountryKey(loc.country.toLowerCase())) cityHits++;
+
       if (!loc) loc = extractRegionFallback(article, skipForLoc);
       if (!loc) { skippedNoLocation++; continue; }
 
@@ -298,7 +349,6 @@
 
       var iso3 = getISO3For(loc.country);
 
-      /* v3.13: CityStatus v2.0 integratie */
       if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
           window.WDEventDetector.extractCityEvent){
         try {
@@ -384,7 +434,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.14] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.15] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -393,6 +443,7 @@
         " control:" + controlCount + " attack:" + attackCount +
         " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
         " | loc-pos:" + positionHits + " loc-ctx:" + contextHits +
+        " city-hits:" + cityHits +
         " | " + Math.round(elapsed) + "ms");
     }
 
@@ -463,7 +514,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.14 geladen (CityStatus v2.0, LOCATIONS centraal)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15 geladen (city-first locatie)");
   }
 
   function getCountries(){
