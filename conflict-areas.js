@@ -1,12 +1,15 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v10.1
+   WAR DESK — conflict-areas.js v10.2
    ------------------------------------------------------------
-   - v10.1: PROFESSIONELE CARTOGRAFIE
-           * Casing-effect via 2 Leaflet-lagen (geen CSS filter)
-           * Zoom-responsive border-diktes
-           * Provincies subtiel (18% wit, 0.6px)
-           * Landsgrens professioneel (donkere casing + witte lijn)
-           * 4 gedeelde panes i.p.v. 1 per land
+   - v10.2: BUURLANDEN-LAAG (neutrale achtergrond-fill)
+           * 16 buurlanden met donkergrijze fill
+           * Aparte pane (z=410) onder alle andere lagen
+           * Thema-adaptief (dark/light)
+           * In batches van 4 geladen om proxies te sparen
+   - v10.1: Casing + zoom-responsive borders
+           * Landsgrens = 2 lagen (donkere casing + witte lijn)
+           * Provincies subtiel (18% wit)
+           * 5 gedeelde panes
    - v10.0: ADM0 landsgrens-laag
    - v9.4: Witte randen + drop-shadow
    - v9.3: Hybride legenda + zoom-navigatie
@@ -284,6 +287,12 @@
 
   var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SAU", "ISR", "PSE"];
 
+  /* v10.2: Buurlanden voor neutrale achtergrond-fill */
+  var NEIGHBOR_COUNTRIES = [
+    "TUR", "IRQ", "JOR", "EGY", "OMN", "ARE", "QAT", "KWT", "CYP",
+    "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA"
+  ];
+
   var PROXIES = [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
     "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
@@ -295,22 +304,28 @@
   var STORE_GEOJSON = "geojson";
 
   /* ============================================================
-     v10.1: 4 GEDEELDE PANES (i.p.v. 1 per land)
+     v10.2: 5 GEDEELDE PANES
      ============================================================ */
   var PANES = {
+    neighbors:     { name: "caPaneNeighbors",     z: 410 },
     province:      { name: "caPaneProvince",      z: 420 },
     countryShadow: { name: "caPaneCountryShadow", z: 430 },
     country:       { name: "caPaneCountry",       z: 440 },
     overlay:       { name: "caPaneOverlay",       z: 450 }
   };
 
-  /* v10.1: Professionele kleuren — geen puur wit meer */
+  /* v10.2: professionele kleuren + buurland-tinten */
   var COLORS = {
-    provinceBorder: "rgba(255,255,255,0.18)",   /* subtiel grijs-wit */
-    countryBorder:  "rgba(255,255,255,0.88)",   /* bijna wit, niet fel */
-    countryShadow:  "rgba(0,0,0,0.65)",         /* donkere casing */
+    provinceBorder: "rgba(255,255,255,0.18)",
+    countryBorder:  "rgba(255,255,255,0.88)",
+    countryShadow:  "rgba(0,0,0,0.65)",
     pulse:          "rgba(255,110,110,0.95)",
-    territoryGain:  "#e0a857"
+    territoryGain:  "#e0a857",
+    /* v10.2: buurlanden */
+    neighborFillDark:    "#0f1520",
+    neighborFillLight:   "#e8e4dc",
+    neighborStrokeDark:  "rgba(255,255,255,0.10)",
+    neighborStrokeLight: "rgba(0,0,0,0.12)"
   };
 
   var FILL_OPACITY = 0.42;
@@ -360,6 +375,8 @@
     countryShadowLayers: {},
     countryLayers: {},
     overlayLayers: {},
+    neighborLayer: null,
+    neighborGeojsons: {},
     geojsons: {},
     countryGeojsons: {},
     areas: {},
@@ -374,7 +391,9 @@
     pulsePhase: 0,
     isMapActive: true,
     _zoomBound: false,
-    _snapshotSavedFor: {}
+    _snapshotSavedFor: {},
+    _currentConflictIso: null,
+    _currentConflict: null
   };
 
   var db = null;
@@ -694,6 +713,130 @@
     });
   }
 
+  /* ============================================================
+     v10.2: BUURLANDEN
+     ============================================================ */
+  function isLightTheme(){
+    return document.body.classList.contains("light");
+  }
+
+  function styleNeighbor(){
+    var light = isLightTheme();
+    return {
+      fillColor: light ? COLORS.neighborFillLight : COLORS.neighborFillDark,
+      fillOpacity: light ? 0.75 : 0.55,
+      color: light ? COLORS.neighborStrokeLight : COLORS.neighborStrokeDark,
+      weight: 0.4,
+      opacity: 1,
+      interactive: false,
+      lineCap: "round",
+      lineJoin: "round"
+    };
+  }
+
+  function loadNeighbor(iso3){
+    var cacheKey = "wardesk_neighbor_" + iso3;
+    var cacheVer = "v1";
+    return dbGet(cacheKey).then(function(cached){
+      if(cached && cached.v && cached.v.version === cacheVer &&
+         (Date.now() - cached.v.t) < CACHE_MAX_AGE_MS &&
+         isValidGeoJSON(cached.v.geojson)){
+        CA.neighborGeojsons[iso3] = cached.v.geojson;
+        return cached.v.geojson;
+      }
+      var sources = adm0Sources(iso3);
+      var lastErr = null;
+      function trySource(idx){
+        if(idx >= sources.length) return Promise.reject(lastErr || new Error("geen bron"));
+        return fetchViaProxy(sources[idx])
+          .then(function(json){
+            if(!isValidGeoJSON(json)) throw new Error("ongeldig");
+            CA.neighborGeojsons[iso3] = json;
+            return dbPut(cacheKey, { version: cacheVer, t: Date.now(), geojson: json })
+              .then(function(){ return json; });
+          })
+          .catch(function(e){ lastErr = e; return trySource(idx + 1); });
+      }
+      return trySource(0);
+    });
+  }
+
+  function loadAllNeighbors(){
+    var toLoad = NEIGHBOR_COUNTRIES.filter(function(iso3){
+      return ACTIVE_CONFLICTS.indexOf(iso3) === -1;
+    });
+
+    var batches = [];
+    for(var i = 0; i < toLoad.length; i += 4){
+      batches.push(toLoad.slice(i, i + 4));
+    }
+
+    LOG("Buurlanden laden: " + toLoad.length + " in " + batches.length + " batches");
+
+    return batches.reduce(function(chain, batch){
+      return chain.then(function(){
+        return Promise.all(batch.map(function(iso3){
+          return loadNeighbor(iso3)
+            .then(function(json){
+              if(json) LOG("  ✓ " + iso3 + " (" + json.features.length + ")");
+              return json;
+            })
+            .catch(function(e){
+              LOG("  ✗ " + iso3 + " faalde: " + (e.message || "?"));
+              return null;
+            });
+        }));
+      });
+    }, Promise.resolve()).then(function(){
+      renderNeighbors();
+      LOG("Buurlanden klaar — " + Object.keys(CA.neighborGeojsons).length + " geladen");
+    });
+  }
+
+  function renderNeighbors(){
+    if(!CA.map) return;
+    if(CA.neighborLayer){
+      try { CA.map.removeLayer(CA.neighborLayer); } catch(e){}
+      CA.neighborLayer = null;
+    }
+
+    var allFeatures = [];
+    Object.keys(CA.neighborGeojsons).forEach(function(iso3){
+      var g = CA.neighborGeojsons[iso3];
+      if(g && g.features){
+        for(var i = 0; i < g.features.length; i++){
+          allFeatures.push(g.features[i]);
+        }
+      }
+    });
+
+    if(!allFeatures.length) return;
+
+    ensurePanes(CA.map);
+
+    CA.neighborLayer = L.geoJSON(
+      { type: "FeatureCollection", features: allFeatures },
+      {
+        style: styleNeighbor,
+        pane: PANES.neighbors.name,
+        smoothFactor: 1.8,
+        interactive: false
+      }
+    );
+    CA.neighborLayer.addTo(CA.map);
+    LOG("Buurland-laag gerenderd: " + allFeatures.length + " features");
+  }
+
+  function updateNeighborTheme(){
+    if(!CA.neighborLayer) return;
+    CA.neighborLayer.eachLayer(function(l){
+      try { l.setStyle(styleNeighbor()); } catch(e){}
+    });
+  }
+
+  /* ============================================================
+     DeepState / ISW
+     ============================================================ */
   function extractDeepStateGeometry(json){
     if(!json) return null;
     if(json.type === "FeatureCollection" && json.features){
@@ -887,12 +1030,11 @@
   }
 
   /* ============================================================
-     v10.1: STIJL-FUNCTIES (zoom-responsive)
+     STIJL-FUNCTIES
      ============================================================ */
   function styleProvince(feature){
     var props = (feature && feature.properties) || {};
     var conflict = CA._currentConflict;
-    if(!conflict){ conflict = getConflict(CA._currentConflictIso); }
     var fillColor = "transparent";
     if(props.controller && conflict && conflict.parties[props.controller]){
       fillColor = conflict.parties[props.controller].fill;
@@ -949,31 +1091,28 @@
   }
 
   /* ============================================================
-     v10.1: ZOOM-RESPONSIVE UPDATE
+     ZOOM-RESPONSIVE UPDATE
      ============================================================ */
   function updateBorderWeights(){
     if(!CA.map) return;
     var z = CA.map.getZoom();
     ACTIVE_CONFLICTS.forEach(function(iso){
-      /* Provincies */
       var layer = CA.layers[iso];
       if(layer){
         CA._currentConflictIso = iso;
         CA._currentConflict = getConflict(iso);
         layer.eachLayer(function(l){
           if(!l.feature) return;
-          if(l._caHover) return; /* niet overschrijven tijdens hover */
+          if(l._caHover) return;
           try { l.setStyle(styleProvince(l.feature)); } catch(e){}
         });
       }
-      /* Casing */
       var shadow = CA.countryShadowLayers[iso];
       if(shadow){
         shadow.eachLayer(function(l){
           try { l.setStyle({ weight: countryShadowWeight(z) }); } catch(e){}
         });
       }
-      /* Witte landgrens */
       var country = CA.countryLayers[iso];
       if(country){
         country.eachLayer(function(l){
@@ -996,7 +1135,7 @@
   }
 
   /* ============================================================
-     v10.1: PANES (gedeeld)
+     PANES
      ============================================================ */
   function ensurePanes(map){
     Object.keys(PANES).forEach(function(key){
@@ -1291,9 +1430,6 @@
     };
   }
 
-  /* ============================================================
-     CSS (alleen voor hover-feedback, geen filters meer)
-     ============================================================ */
   function injectAreaStyles(){
     if(document.getElementById("caAreaStyles")) return;
     var s = document.createElement("style");
@@ -1312,7 +1448,6 @@
     if(!CA.map || !geojson || !conflict) return;
     ensurePanes(CA.map);
 
-    /* Verwijder oude lagen */
     ["layers", "countryShadowLayers", "countryLayers"].forEach(function(bucket){
       if(CA[bucket][conflictIso]){
         try{ CA.map.removeLayer(CA[bucket][conflictIso]); }catch(e){}
@@ -1321,7 +1456,6 @@
 
     injectAreaStyles();
 
-    /* Zorg dat styleProvince de juiste conflict kent */
     CA._currentConflictIso = conflictIso;
     CA._currentConflict = conflict;
 
@@ -1347,7 +1481,7 @@
       }
     });
 
-    /* 2. LANDSGRENS — casing (onder) */
+    /* 2. LANDSGRENS — casing + witte lijn */
     var countryJson = CA.countryGeojsons[conflictIso];
     if(countryJson && countryJson.features && countryJson.features.length){
       CA.countryShadowLayers[conflictIso] = L.geoJSON(countryJson, {
@@ -1358,7 +1492,6 @@
       });
       CA.countryShadowLayers[conflictIso].addTo(CA.map);
 
-      /* 3. LANDsGRENS — witte lijn (boven) */
       CA.countryLayers[conflictIso] = L.geoJSON(countryJson, {
         style: styleCountry,
         pane: PANES.country.name,
@@ -1502,6 +1635,11 @@
     return openDB().then(function(){
       return Promise.all(ACTIVE_CONFLICTS.map(function(iso){ return initOneConflict(iso); }));
     }).then(function(){
+      /* v10.2: laad buurlanden in de achtergrond */
+      loadAllNeighbors().catch(function(e){
+        LOG("Buurlanden faalden: " + (e.message || "?"));
+      });
+    }).then(function(){
       CA.isInitialized = true;
       CA.isLoaded = true;
       ensurePanes(CA.map);
@@ -1569,7 +1707,12 @@
         ops.push(dbPut(conflict.cacheKeys.country.key, { version: "cleared", t: 0, geojson: null }));
       }
       return Promise.all(ops);
-    })).then(function(){ return true; });
+    })).then(function(){
+      /* ook buurlanden caches wissen */
+      return Promise.all(NEIGHBOR_COUNTRIES.map(function(iso3){
+        return dbPut("wardesk_neighbor_" + iso3, { version: "cleared", t: 0, geojson: null });
+      }));
+    }).then(function(){ return true; });
   }
 
   function destroy(){
@@ -1582,6 +1725,10 @@
         }
       });
     });
+    if(CA.neighborLayer && CA.map){
+      try { CA.map.removeLayer(CA.neighborLayer); } catch(e){}
+    }
+    CA.neighborLayer = null;
     CA.layers = {}; CA.countryShadowLayers = {}; CA.countryLayers = {}; CA.overlayLayers = {};
     CA.isInitialized = false; CA.isLoaded = false;
     _initPromise = null;
@@ -1612,9 +1759,10 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v10.1",
+    state: CA, _version: "v10.2",
     _conflicts: CONFLICTS,
-    _activeConflicts: ACTIVE_CONFLICTS
+    _activeConflicts: ACTIVE_CONFLICTS,
+    _neighborCountries: NEIGHBOR_COUNTRIES
   };
 
   var tries = 0, MAX = 60;
@@ -1649,5 +1797,22 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v10.1 geladen (casing + zoom-responsive)");
+  /* ============================================================
+     v10.2: THEME-OBSERVER — update buurlandkleuren
+     ============================================================ */
+  (function observeTheme(){
+    if(typeof MutationObserver === "undefined") return;
+    var last = isLightTheme();
+    var obs = new MutationObserver(function(){
+      var current = isLightTheme();
+      if(current !== last){
+        last = current;
+        updateNeighborTheme();
+        LOG("Thema gewijzigd — buurlanden herstijld");
+      }
+    });
+    obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  })();
+
+  LOG("conflict-areas.js v10.2 geladen (buurlanden + casing + zoom-responsive)");
 })();
