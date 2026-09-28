@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK Service Worker v3.65
-   - v3.65: province-mapper.js + province-consensus.js toegevoegd
-   - v3.64: conflict-areas.js v11.0 integratie voorbereid
-   - v3.63: buurlanden + Houthi-aanvallen
+   WAR DESK Service Worker v3.77
+   - v3.77: osint-feeds.js toegevoegd
+   - v3.76: worldmap-data.js v3.1
+   - v3.75: conflict-areas.js v11.1
    ============================================================ */
 
-const CACHE_VERSION = 'v3.76';
+const CACHE_VERSION = 'v3.77';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -18,9 +18,11 @@ const PRECACHE_ASSETS = [
   './world-status.js',
   './classifier.js',
   './event-dedup.js',
-  './conflict-areas.js',
   './province-mapper.js',
-  './province-consensus.js'
+  './province-consensus.js',
+  './diagnostic.js',
+  './osint-feeds.js',
+  './conflict-areas.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
