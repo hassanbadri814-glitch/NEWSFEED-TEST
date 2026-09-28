@@ -1,5 +1,5 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v10.2
+   WAR DESK — conflict-areas.js v10.3
    ------------------------------------------------------------
    - v10.2: BUURLANDEN-LAAG (neutrale achtergrond-fill)
            * 16 buurlanden met donkergrijze fill
