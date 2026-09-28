@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v7.1
+   WAR DESK — conflict-areas.js v7.2
    ------------------------------------------------------------
-   - v7.1: OVERLAY POLYGONEN voor Israëlische bezetting
-           District-overrides verwijderd voor Daraa/As-Suwayda
-           Nieuwe strook op basis van 10 coördinaten
-   - v7.0: Inheritance model voor Syrië
+   - v7.2: Verbeterde Israëlische zone (UNDOF-vorm benadering)
+           Polygoon volgt de noord-zuid strook langs de grens
+   - v7.1: Overlay polygonen
+   - v7.0: Inheritance model
    ============================================================ */
 
 (function(){
@@ -78,45 +78,66 @@
         { match: ["hims", "homs"],                                      controller: "Regering" },
         { match: ["idlib"],                                             controller: "Regering" },
         { match: ["lattakia", "latakia"],                               controller: "Regering" },
-        { match: ["quneitra"],                                          controller: "Israël" },
+        { match: ["quneitra"],                                          controller: "Regering" },
         { match: ["rifdimashq", "dimashq"],                             controller: "Regering" },
         { match: ["tartus"],                                            controller: "Regering" }
       ],
-      /* v7.1: geen district-overrides meer — alles loopt via provincie-erfenis */
       districtOverrides: [],
-      /* v7.1: overlay-polygonen bovenop de districten
-         Israëlische bezettingszone — 10 coördinaten van gebruiker, 
-         uitgebreid naar het westen (~20km breed) */
+      /* v7.2: Verbeterde polygoon — volgt de UNDOF-bufferzone-vorm
+         Van Mount Hermon (noord) tot Yarmouk-rivier (zuid)
+         Vorm volgt: westelijke rand langs Golan, oostelijke rand langs Syrië */
       overlayPolygons: [
         {
-          name: "Israëlische zone",
+          name: "Israëlische zone (UNDOF)",
           controller: "Israël",
           coords: [
-            [33.418247, 35.872234],
-            [33.385096, 35.852867],
-            [33.326452, 35.847765],
-            [33.279023, 35.831388],
-            [33.238815, 35.869717],
-            [33.197144, 35.893914],
-            [33.133917, 35.911581],
-            [33.103915, 35.878137],
-            [32.932406, 35.905606],
-            [32.854882, 35.854716],
-            [32.854882, 35.664716],
-            [32.932406, 35.705606],
-            [33.103915, 35.678137],
-            [33.133917, 35.711581],
-            [33.197144, 35.693914],
-            [33.238815, 35.669717],
-            [33.279023, 35.631388],
-            [33.326452, 35.647765],
-            [33.385096, 35.652867],
-            [33.418247, 35.672234]
+            /* === Westelijke rand (Alpha-lijn — Golan-zijde) van noord naar zuid === */
+            [33.3200, 35.8050],   /* Mount Hermon — noordpunt */
+            [33.2900, 35.8150],
+            [33.2600, 35.8250],
+            [33.2300, 35.8300],
+            [33.2000, 35.8400],
+            [33.1700, 35.8450],
+            [33.1400, 35.8500],
+            [33.1100, 35.8600],
+            [33.0800, 35.8650],
+            [33.0500, 35.8700],
+            [33.0200, 35.8700],
+            [32.9900, 35.8600],
+            [32.9600, 35.8500],
+            [32.9300, 35.8400],
+            [32.9000, 35.8300],
+            [32.8700, 35.8200],
+            [32.8400, 35.8100],
+            [32.8100, 35.8000],
+            [32.7800, 35.7900],
+            [32.7550, 35.7770],   /* Zuidpunt — Yarmouk */
+            /* === Oostelijke rand (Bravo-lijn — Syrië-zijde) van zuid naar noord === */
+            [32.7700, 35.9000],
+            [32.8000, 35.9200],
+            [32.8300, 35.9350],
+            [32.8600, 35.9450],
+            [32.8900, 35.9550],
+            [32.9200, 35.9600],
+            [32.9500, 35.9700],
+            [32.9800, 35.9750],
+            [33.0100, 35.9800],
+            [33.0400, 35.9800],
+            [33.0700, 35.9750],
+            [33.1000, 35.9650],
+            [33.1300, 35.9550],
+            [33.1600, 35.9450],
+            [33.1900, 35.9400],
+            [33.2200, 35.9350],
+            [33.2500, 35.9300],
+            [33.2800, 35.9250],
+            [33.3100, 35.9200],
+            [33.3300, 35.8800]    /* Terug naar noordpunt */
           ]
         }
       ],
       cacheKeys: {
-        oblasts:   { key: "wardesk_syria_adm2",      version: "v2" },
+        oblasts:   { key: "wardesk_syria_adm2",      version: "v3" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -146,7 +167,7 @@
   var OVERLAY_FILL_OPACITY = 0.55;
   var BORDER_WEIGHT = 0.6;
   var BORDER_WEIGHT_HOVER = 2.2;
-  var OVERLAY_BORDER_WEIGHT = 1.2;
+  var OVERLAY_BORDER_WEIGHT = 1.5;
 
   var PULSE_INTERVAL_MS = 900;
   var PULSE_MIN_INTENSITY = 0.15;
@@ -542,9 +563,6 @@
     });
   }
 
-  /* ============================================================
-     Controller berekening
-     ============================================================ */
   function calculateControllers(conflictIso){
     var conflict = getConflict(conflictIso);
     var geojson = CA.geojsons[conflictIso];
@@ -599,7 +617,6 @@
         return;
       }
 
-      /* Automatisch (UKR) */
       var centroid = getCentroid(feature);
       if(!centroid){ props.controller = null; stats.unknown++; return; }
       var cx = centroid[0], cy = centroid[1];
@@ -644,9 +661,6 @@
     }
   }
 
-  /* ============================================================
-     Attack intensity
-     ============================================================ */
   function calculateAttackIntensity(conflictIso){
     var geojson = CA.geojsons[conflictIso];
     if(!geojson || !geojson.features) return;
@@ -706,9 +720,6 @@
     return false;
   }
 
-  /* ============================================================
-     Styling
-     ============================================================ */
   function styleAreaFor(conflictIso){
     return function(feature){
       var props = (feature && feature.properties) || {};
@@ -738,15 +749,11 @@
     };
   }
 
-  /* ============================================================
-     v7.1: Overlay-polygonen renderen (bovenop districten)
-     ============================================================ */
   function renderOverlayPolygons(conflictIso){
     var conflict = getConflict(conflictIso);
     if(!conflict || !conflict.overlayPolygons || !conflict.overlayPolygons.length) return;
     if(!CA.map) return;
 
-    /* Verwijder bestaande overlay */
     if(CA.overlayLayers[conflictIso]){
       try{ CA.map.removeLayer(CA.overlayLayers[conflictIso]); }catch(e){}
     }
@@ -774,7 +781,6 @@
         { direction: "top", className: "wm-tooltip", offset: [0, -6] }
       );
 
-      /* Klik → paneel tonen */
       poly.on("click", function(e){
         if(L.DomEvent) L.DomEvent.stopPropagation(e);
         var syntheticArea = {
@@ -808,9 +814,6 @@
     LOG("[" + conflictIso + "] Overlay-polygonen gerenderd: " + conflict.overlayPolygons.length);
   }
 
-  /* ============================================================
-     Pulse
-     ============================================================ */
   var _pulseRetryTimer = null;
   var _pulseEmptyChecks = 0;
   var _pulseGraceMax = 3;
@@ -871,9 +874,6 @@
     if(_pulseRetryTimer){ clearTimeout(_pulseRetryTimer); _pulseRetryTimer = null; }
   }
 
-  /* ============================================================
-     Paneel
-     ============================================================ */
   function ensurePanel(){
     if(CA.panel) return CA.panel;
     var panel = document.createElement("div");
@@ -999,9 +999,6 @@
     CA.selectedId = null;
   }
 
-  /* ============================================================
-     Render per conflict
-     ============================================================ */
   function ensurePane(map, conflictIso){
     var conflict = getConflict(conflictIso);
     if(!conflict) return;
@@ -1079,13 +1076,9 @@
     });
     LOG("[" + conflictIso + "] Gebiedslaag gerenderd: " + CA.areas[conflictIso].length + " gebieden");
 
-    /* v7.1: overlay-polygonen bovenop renderen */
     renderOverlayPolygons(conflictIso);
   }
 
-  /* ============================================================
-     Legenda
-     ============================================================ */
   function getLegendHtml(){
     var html = "";
     ACTIVE_CONFLICTS.forEach(function(iso){
@@ -1109,9 +1102,6 @@
     return html;
   }
 
-  /* ============================================================
-     Init
-     ============================================================ */
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
       CA.geojsons[conflictIso] = oblastsJson;
@@ -1232,7 +1222,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v7.1",
+    state: CA, _version: "v7.2",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1269,5 +1259,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v7.1 geladen (overlay-polygonen voor Israëlische zone)");
+  LOG("conflict-areas.js v7.2 geladen");
 })();
