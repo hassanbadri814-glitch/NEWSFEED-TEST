@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK — world-status.js v2.0
-   Militaire druk-indicator in de header
-   - telt ALLEEN category === "militair" events
-   - 4 niveaus: Rustig / Verhoogd / Hoog / Kritiek
-   - klik = naar Kaart tab met Militair filter
+   WAR DESK — world-status.js v2.1
+   - v2.1: filter op countsForHeat (alleen fysieke events)
+   - v2.0: militaire druk-indicator
    ============================================================ */
 
 (function(){
@@ -54,9 +52,9 @@
 
     if(_countEl) _countEl.textContent = count;
 
-    var aria = "Wereldstatus: " + info.label + " — " + count + " militaire events actief";
+    var aria = "Wereldstatus: " + info.label + " — " + count + " fysieke militaire events actief";
     _el.setAttribute("aria-label", aria);
-    _el.setAttribute("title", info.label + " · " + count + " militaire events actief");
+    _el.setAttribute("title", info.label + " · " + count + " fysieke events");
 
     if(_hasRendered && _lastCount !== -1 && _lastCount !== count){
       flashUpdate();
@@ -98,11 +96,16 @@
     return true;
   }
 
+  /* v2.1: telt alleen events met countsForHeat !== false */
   function countMilitary(events){
     if(!Array.isArray(events)) return 0;
     var n = 0;
     for(var i = 0; i < events.length; i++){
-      if(events[i] && events[i].category === "militair") n++;
+      var e = events[i];
+      if(!e) continue;
+      if(e.category !== "militair") continue;
+      if(e.countsForHeat === false) continue;
+      n++;
     }
     return n;
   }
@@ -140,7 +143,7 @@
       }, 3000);
     }
 
-    LOG("v2.0 geïnitialiseerd — telt alleen militaire events");
+    LOG("v2.1 geïnitialiseerd — telt alleen fysieke events");
   }
 
   if(document.readyState === "loading"){
@@ -149,5 +152,5 @@
     setTimeout(init, 400);
   }
 
-  wdLog.info("[WAR DESK] world-status.js v2.0 geladen");
+  wdLog.info("[WAR DESK] world-status.js v2.1 geladen");
 })();
