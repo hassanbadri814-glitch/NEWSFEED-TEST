@@ -1,10 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v7.2
+   WAR DESK — conflict-areas.js v8.0
    ------------------------------------------------------------
-   - v7.2: Verbeterde Israëlische zone (UNDOF-vorm benadering)
-           Polygoon volgt de noord-zuid strook langs de grens
-   - v7.1: Overlay polygonen
-   - v7.0: Inheritance model
+   - v8.0: LIBANON toegevoegd (ADM2 — 30 districten)
+   - v7.2: Verbeterde Syrië overlay
    ============================================================ */
 
 (function(){
@@ -83,56 +81,25 @@
         { match: ["tartus"],                                            controller: "Regering" }
       ],
       districtOverrides: [],
-      /* v7.2: Verbeterde polygoon — volgt de UNDOF-bufferzone-vorm
-         Van Mount Hermon (noord) tot Yarmouk-rivier (zuid)
-         Vorm volgt: westelijke rand langs Golan, oostelijke rand langs Syrië */
       overlayPolygons: [
         {
           name: "Israëlische zone (UNDOF)",
           controller: "Israël",
           coords: [
-            /* === Westelijke rand (Alpha-lijn — Golan-zijde) van noord naar zuid === */
-            [33.3200, 35.8050],   /* Mount Hermon — noordpunt */
-            [33.2900, 35.8150],
-            [33.2600, 35.8250],
-            [33.2300, 35.8300],
-            [33.2000, 35.8400],
-            [33.1700, 35.8450],
-            [33.1400, 35.8500],
-            [33.1100, 35.8600],
-            [33.0800, 35.8650],
-            [33.0500, 35.8700],
-            [33.0200, 35.8700],
-            [32.9900, 35.8600],
-            [32.9600, 35.8500],
-            [32.9300, 35.8400],
-            [32.9000, 35.8300],
-            [32.8700, 35.8200],
-            [32.8400, 35.8100],
-            [32.8100, 35.8000],
-            [32.7800, 35.7900],
-            [32.7550, 35.7770],   /* Zuidpunt — Yarmouk */
-            /* === Oostelijke rand (Bravo-lijn — Syrië-zijde) van zuid naar noord === */
-            [32.7700, 35.9000],
-            [32.8000, 35.9200],
-            [32.8300, 35.9350],
-            [32.8600, 35.9450],
-            [32.8900, 35.9550],
-            [32.9200, 35.9600],
-            [32.9500, 35.9700],
-            [32.9800, 35.9750],
-            [33.0100, 35.9800],
-            [33.0400, 35.9800],
-            [33.0700, 35.9750],
-            [33.1000, 35.9650],
-            [33.1300, 35.9550],
-            [33.1600, 35.9450],
-            [33.1900, 35.9400],
-            [33.2200, 35.9350],
-            [33.2500, 35.9300],
-            [33.2800, 35.9250],
-            [33.3100, 35.9200],
-            [33.3300, 35.8800]    /* Terug naar noordpunt */
+            [33.3200, 35.8050], [33.2900, 35.8150], [33.2600, 35.8250],
+            [33.2300, 35.8300], [33.2000, 35.8400], [33.1700, 35.8450],
+            [33.1400, 35.8500], [33.1100, 35.8600], [33.0800, 35.8650],
+            [33.0500, 35.8700], [33.0200, 35.8700], [32.9900, 35.8600],
+            [32.9600, 35.8500], [32.9300, 35.8400], [32.9000, 35.8300],
+            [32.8700, 35.8200], [32.8400, 35.8100], [32.8100, 35.8000],
+            [32.7800, 35.7900], [32.7550, 35.7770],
+            [32.7700, 35.9000], [32.8000, 35.9200], [32.8300, 35.9350],
+            [32.8600, 35.9450], [32.8900, 35.9550], [32.9200, 35.9600],
+            [32.9500, 35.9700], [32.9800, 35.9750], [33.0100, 35.9800],
+            [33.0400, 35.9800], [33.0700, 35.9750], [33.1000, 35.9650],
+            [33.1300, 35.9550], [33.1600, 35.9450], [33.1900, 35.9400],
+            [33.2200, 35.9350], [33.2500, 35.9300], [33.2800, 35.9250],
+            [33.3100, 35.9200], [33.3300, 35.8800]
           ]
         }
       ],
@@ -142,10 +109,75 @@
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
       }
+    },
+
+    "LBN": {
+      name: "Libanon",
+      paneName: "conflictAreasPaneLBN",
+      paneZ: 422,
+      level: "ADM2",
+      parties: {
+        "Libanese staat": { color: "#2E7D32", fill: "#2E7D32" },
+        "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
+        "Israël":         { color: "#C62828", fill: "#C62828" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_LBN_2.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_LBN_2.json"
+      ],
+      iswUrl: null,
+      deepStateUrlFn: null,
+      /* 8 gouvernementen → 2 partijen:
+         - Noord/Centrum (Beirut, MountLebanon, North, Akkar) = Libanese staat
+         - Zuid/Oost (Bekaa, Baalbak-Hermel, Nabatiyeh, South) = Hezbollah */
+      provinceRules: [
+        { match: ["akkar"],                          controller: "Libanese staat" },
+        { match: ["beirut"],                         controller: "Libanese staat" },
+        { match: ["mountlebanon"],                   controller: "Libanese staat" },
+        { match: ["north"],                          controller: "Libanese staat" },
+        { match: ["baalbak", "hermel"],              controller: "Hezbollah" },
+        { match: ["bekaa"],                          controller: "Hezbollah" },
+        { match: ["nabatiyeh"],                      controller: "Hezbollah" },
+        { match: ["south"],                          controller: "Hezbollah" }
+      ],
+      districtOverrides: [],
+      /* Overlay: Israëlische bezetting Zuid-Libanon (ruwe benadering)
+         Smalle strook langs de Blue Line, van Naqoura (west) tot Ghajar (oost) */
+      overlayPolygons: [
+        {
+          name: "Israëlische zone (Zuid-Libanon)",
+          controller: "Israël",
+          coords: [
+            /* Noordrand (iets in Libanon) */
+            [33.1300, 35.1000],
+            [33.1350, 35.2000],
+            [33.1400, 35.3000],
+            [33.1450, 35.4000],
+            [33.1500, 35.5000],
+            [33.2000, 35.5800],
+            [33.2700, 35.6200],
+            /* Oostrand — Ghajar */
+            [33.2750, 35.6250],
+            /* Zuidrand (Blue Line — grens) */
+            [33.1000, 35.6200],
+            [33.1000, 35.5000],
+            [33.0950, 35.4000],
+            [33.0900, 35.3000],
+            [33.0850, 35.2000],
+            [33.0800, 35.1000]
+          ]
+        }
+      ],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_lebanon_adm2",      version: "v1" },
+        deepState: { key: "wardesk_lebanon_ds",        version: "v1" },
+        isw:       { key: "wardesk_lebanon_isw",       version: "v1" },
+        snapshot:  { key: "wardesk_lebanon_snapshot",  version: "v1" }
+      }
     }
   };
 
-  var ACTIVE_CONFLICTS = ["UKR", "SYR"];
+  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN"];
 
   var PROXIES = [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
@@ -239,9 +271,6 @@
     return null;
   }
 
-  /* ============================================================
-     GEO HELPERS
-     ============================================================ */
   function pointInRing(x, y, ring){
     var inside = false;
     var len = ring.length;
@@ -335,9 +364,6 @@
     return [(minX + maxX) / 2, (minY + maxY) / 2];
   }
 
-  /* ============================================================
-     IndexedDB
-     ============================================================ */
   function openDB(){
     return new Promise(function(resolve){
       try {
@@ -381,9 +407,6 @@
     return json && json.features && Array.isArray(json.features) && json.features.length > 0;
   }
 
-  /* ============================================================
-     Fetch helpers
-     ============================================================ */
   function parseJsonText(text){
     var trimmed = String(text).replace(/^\uFEFF/, "").replace(/^\s+/, "");
     if(trimmed.charAt(0) !== "{" && trimmed.charAt(0) !== "["){
@@ -939,7 +962,7 @@
     var ctrlLabel = props.controller || "Onbekend";
     var ctrlClass = "conf-med";
     if(props.controller === "Rusland" || props.controller === "Israël") ctrlClass = "conf-low";
-    else if(props.controller === "Oekraïne" || props.controller === "Regering") ctrlClass = "conf-high";
+    else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat") ctrlClass = "conf-high";
 
     var events = getEventsForArea(area);
     var physicalCount = 0;
@@ -1222,7 +1245,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v7.2",
+    state: CA, _version: "v8.0",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1259,5 +1282,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v7.2 geladen");
+  LOG("conflict-areas.js v8.0 geladen (Oekraïne + Syrië + Libanon)");
 })();
