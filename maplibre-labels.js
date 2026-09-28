@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — maplibre-labels.js v1.0
-   Past MapLibre kaart-labels aan:
-   - Alleen Latijns schrift (geen Cyrillisch/Arabisch)
-   - Betere kleur en leesbaarheid
-   - Fallback: name:en → name:latin → name
+   WAR DESK — maplibre-labels.js v1.1
+   ------------------------------------------------------------
+   - v1.1: reset poll bij Map-tab klik; langere timeout; 
+           betere detectie van MapLibre instantie
+   - v1.0: eerste versie
    ============================================================ */
 
 (function(){
@@ -24,94 +24,139 @@
   var LABEL_HALO_COLOR = "rgba(0, 0, 0, 0.9)";
   var LABEL_HALO_WIDTH = 1.5;
 
-  var applied = false;
+  var appliedFor = {}; /* track per theme welke al aangepast is */
 
-  function customizeMapLabels(glMap){
-    if(!glMap || applied) return;
+  function customizeMapLabels(glMap, theme){
+    if(!glMap) return;
     try {
       var style = glMap.getStyle();
       if(!style || !style.layers){
-        LOG("Geen style layers gevonden");
         return;
       }
 
       var count = 0;
       style.layers.forEach(function(layer){
         if(layer.type !== "symbol") return;
-
         try { glMap.setLayoutProperty(layer.id, "text-field", LABEL_FIELD); count++; } catch(e){}
         try { glMap.setPaintProperty(layer.id, "text-color", LABEL_COLOR); } catch(e){}
         try { glMap.setPaintProperty(layer.id, "text-halo-color", LABEL_HALO_COLOR); } catch(e){}
         try { glMap.setPaintProperty(layer.id, "text-halo-width", LABEL_HALO_WIDTH); } catch(e){}
       });
 
-      LOG("Labels aangepast — " + count + " symbol layers");
-      applied = true;
+      if(count > 0){
+        LOG("Labels aangepast — " + count + " symbol layers (" + theme + ")");
+        appliedFor[theme] = true;
+      }
     } catch(e){
-      LOG("Fout: " + e.message);
+      LOG("Fout bij aanpassen labels: " + e.message);
     }
   }
 
-  function findGlMap(){
+  function findGlMapForTheme(theme){
     try {
-      if(!window.MAPAPI || !window.MAPAPI.state) return null;
-      var tileLayers = window.MAPAPI.state.tileLayers;
-      if(!tileLayers) return null;
-      var themes = Object.keys(tileLayers);
-      for(var i = 0; i < themes.length; i++){
-        var layer = tileLayers[themes[i]];
-        if(!layer) continue;
-        if(layer._glMap) return layer._glMap;
-        if(layer.getMaplibreMap) return layer.getMaplibreMap();
+      if(!window.MAPAPI || !window.MAPAPI.state || !window.MAPAPI.state.tileLayers) return null;
+      var layer = window.MAPAPI.state.tileLayers[theme];
+      if(!layer) return null;
+
+      /* Meerdere manieren om de interne MapLibre instantie te krijgen */
+      if(typeof layer.getMaplibreMap === "function"){
+        var m1 = layer.getMaplibreMap();
+        if(m1) return m1;
       }
+      if(layer._glMap) return layer._glMap;
+      if(layer._map && layer._map._glMap) return layer._map._glMap;
     } catch(e){}
     return null;
   }
 
-  function tryApply(){
-    if(applied) return;
-    var glMap = findGlMap();
-    if(!glMap) return;
+  function tryApplyForCurrentTheme(){
+    var theme = document.body.classList.contains("light") ? "light" : "dark";
+    if(appliedFor[theme]) return true;
+
+    var glMap = findGlMapForTheme(theme);
+    if(!glMap) return false;
 
     try {
       if(glMap.isStyleLoaded && glMap.isStyleLoaded()){
-        customizeMapLabels(glMap);
+        customizeMapLabels(glMap, theme);
+        return true;
       } else {
-        glMap.once("styledata", function(){ customizeMapLabels(glMap); });
+        /* Wacht op styledata event, eenmalig */
+        glMap.once("styledata", function(){ customizeMapLabels(glMap, theme); });
+        return true;
       }
     } catch(e){
       LOG("Apply fout: " + e.message);
+      return false;
     }
   }
 
-  var tries = 0;
-  var MAX = 60;
+  /* ============================================================
+     Poll — reset bij elke Map-tab klik en probeert 60x met 800ms
+     ============================================================ */
+  var pollTimer = null;
+  var attempts = 0;
+  var MAX_ATTEMPTS = 60;
+
+  function startPoll(reason){
+    if(pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
+    attempts = 0;
+    LOG("Poll gestart (" + reason + ")");
+    poll();
+  }
+
   function poll(){
-    if(applied) return;
-    tries++;
-    tryApply();
-    if(!applied && tries < MAX){
-      setTimeout(poll, 500);
-    } else if(!applied){
-      LOG("Kon MapLibre instance niet vinden na " + MAX + " pogingen");
+    if(attempts >= MAX_ATTEMPTS){
+      LOG("Poll opgegeven na " + MAX_ATTEMPTS + " pogingen");
+      return;
     }
+    attempts++;
+
+    if(tryApplyForCurrentTheme()){
+      /* Gelukt — check of beide themes gedaan zijn */
+      if(appliedFor.dark && appliedFor.light){
+        LOG("Beide themes klaar — poll gestopt");
+        return;
+      }
+      /* Anders: blijf proberen voor de andere theme */
+    }
+
+    pollTimer = setTimeout(poll, 800);
   }
 
-  /* Reset bij theme-wissel of terugkeren naar kaart-tab */
+  /* Bij elke klik op de Map-tab: herstart poll */
   document.addEventListener("click", function(e){
     var tab = e.target.closest && e.target.closest('.bottom-tabs .tab[data-view="map"]');
     if(tab){
-      applied = false;
-      tries = 0;
-      setTimeout(poll, 2000);
+      /* Reset appliedFor voor de huidige theme — want switchTile() hermaakt de laag */
+      appliedFor = {};
+      setTimeout(function(){ startPoll("Map-tab klik"); }, 1500);
     }
   });
 
+  /* Ook herstarten bij theme-wissel */
+  try {
+    var themeObserver = new MutationObserver(function(muts){
+      muts.forEach(function(m){
+        if(m.attributeName === "class"){
+          var theme = document.body.classList.contains("light") ? "light" : "dark";
+          if(!appliedFor[theme]){
+            setTimeout(function(){
+              if(tryApplyForCurrentTheme()) LOG("Labels toegepast na theme-wissel (" + theme + ")");
+            }, 500);
+          }
+        }
+      });
+    });
+    themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
+  } catch(e){}
+
+  /* Initiele start */
   if(document.readyState === "loading"){
-    document.addEventListener("DOMContentLoaded", function(){ setTimeout(poll, 3000); });
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(function(){ startPoll("init"); }, 3000); });
   } else {
-    setTimeout(poll, 3000);
+    setTimeout(function(){ startPoll("init"); }, 3000);
   }
 
-  LOG("maplibre-labels.js v1.0 geladen");
+  LOG("maplibre-labels.js v1.1 geladen");
 })();
