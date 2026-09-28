@@ -1,11 +1,10 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v6.0
+   WAR DESK — conflict-areas.js v6.1
    ------------------------------------------------------------
-   - v6.0: MULTI-COUNTRY — Oekraïne + Syrië
-           Handmatige overrides voor actuele situaties
-           Per-conflict eigen pane + laag
-   - v5.3: pulse grace period
-   - v5.2: CONFLICTS configuratie
+   - v6.1: Fuzzy matching voor manualOverrides (aliassen)
+           Fallback-fix: geen automatische toewijzing bij manual landen
+           Uitgebreide logging van GADM-namen
+   - v6.0: MULTI-COUNTRY (Oekraïne + Syrië)
    ============================================================ */
 
 (function(){
@@ -31,7 +30,6 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json"
       ],
-      /* DeepState + ISW blijven primair voor Oekraïne */
       iswUrl: "https://services5.arcgis.com/SaBe5HMtmnbqSWlu/ArcGIS/rest/services/VIEW_RussiaCoTinUkraine_V3/FeatureServer/49/query?where=1%3D1&outFields=*&f=geojson",
       deepStateUrlFn: function(){
         var now = new Date();
@@ -41,7 +39,6 @@
         var d = String(now.getUTCDate()).padStart(2, "0");
         return "https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/deepstatemap_data_" + y + m + d + ".geojson";
       },
-      /* DeepState is de primaire bron — geen handmatige overrides */
       manualOverrides: null,
       cacheKeys: {
         oblasts:   { key: "wardesk_ukraine_oblasts", version: "v11" },
@@ -56,37 +53,35 @@
       paneName: "conflictAreasPaneSYR",
       paneZ: 421,
       parties: {
-        "Regering":  { color: "#2E7D32", fill: "#2E7D32" },  /* groen */
-        "SDF":       { color: "#2A6FDB", fill: "#2A6FDB" },  /* blauw */
-        "Druze":     { color: "#9333EA", fill: "#9333EA" },  /* paars */
-        "Israël":    { color: "#C62828", fill: "#C62828" }   /* rood */
+        "Regering":  { color: "#2E7D32", fill: "#2E7D32" },
+        "SDF":       { color: "#2A6FDB", fill: "#2A6FDB" },
+        "Druze":     { color: "#9333EA", fill: "#9333EA" },
+        "Israël":    { color: "#C62828", fill: "#C62828" }
       },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SYR_1.json"
       ],
-      /* Geen betrouwbare automatische bron — alles via manualOverrides */
       iswUrl: null,
       deepStateUrlFn: null,
-      /* Handmatige toewijzing — de 14 Syrische provincies */
-      manualOverrides: {
-        "aleppo":        "Regering",
-        "damascus":      "Regering",
-        "damascus rural":"Regering",   /* gedeeltelijk Israëlisch, maar hoofddeel regering */
-        "homs":          "Regering",
-        "hama":          "Regering",
-        "latakia":       "Regering",
-        "tartus":        "Regering",
-        "idlib":         "Regering",
-        "deir ez-zor":   "Regering",
-        "raqqa":         "Regering",
-        "al-hasakah":    "Regering",   /* SDF-invloed in het noordoosten — wij zetten hoofddeel op regering */
-        "daraa":         "Regering",   /* Israëlisch bezet in het westen */
-        "quneitra":      "Israël",     /* volledig Israëlisch bezet */
-        "as-suwayda":    "Druze"       /* Druze-milities */
-      },
+      /* v6.1: aliassen in plaats van exacte keys — fuzzy matching */
+      manualOverrides: [
+        { match: ["aleppo", "halab"],                     controller: "Regering" },
+        { match: ["damascus", "dimashq", "rif"],          controller: "Regering" },
+        { match: ["homs"],                                controller: "Regering" },
+        { match: ["hama", "hamah"],                       controller: "Regering" },
+        { match: ["latakia", "ladhiqiyah", "lattakia"],   controller: "Regering" },
+        { match: ["tartus", "tartous"],                   controller: "Regering" },
+        { match: ["idlib", "idleb"],                      controller: "Regering" },
+        { match: ["deir", "zawr", "zur", "deirezzor"],    controller: "Regering" },
+        { match: ["raqqa", "raqqah", "raqa"],             controller: "Regering" },
+        { match: ["hasakah", "hasakeh", "hasaka"],        controller: "Regering" },
+        { match: ["daraa", "dara", "dar'a"],              controller: "Regering" },
+        { match: ["quneitra", "qunaytirah", "kuneitra"],  controller: "Israël" },
+        { match: ["suwayda", "suweida", "suwaydah"],      controller: "Druze" }
+      ],
       cacheKeys: {
-        oblasts:   { key: "wardesk_syria_provinces", version: "v1" },
+        oblasts:   { key: "wardesk_syria_provinces", version: "v2" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -127,15 +122,15 @@
 
   var CA = {
     map: null,
-    layers: {},       /* per conflict: Leaflet layer */
-    geojsons: {},     /* per conflict: ruwe GeoJSON */
-    areas: {},        /* per conflict: array van areas */
+    layers: {},
+    geojsons: {},
+    areas: {},
     deepStateGeos: {},
     iswGeos: {},
     prevSnapshots: {},
     isLoaded: false,
     isInitialized: false,
-    stats: {},        /* per conflict */
+    stats: {},
     panel: null,
     selectedId: null,
     pulseTimer: null,
@@ -156,6 +151,22 @@
     if(!conflict || !conflict.parties) return "#6b7280";
     var p = conflict.parties[partyName];
     return p ? p.color : "#6b7280";
+  }
+
+  /* ============================================================
+     v6.1: Fuzzy matcher voor manualOverrides (array van {match, controller})
+     ============================================================ */
+  function findManualOverride(provinceName, overrides){
+    if(!provinceName || !overrides || !overrides.length) return null;
+    var norm = String(provinceName).toLowerCase().replace(/[\s\-_',\.]/g, "");
+    for(var i = 0; i < overrides.length; i++){
+      var entry = overrides[i];
+      for(var j = 0; j < entry.match.length; j++){
+        var needle = String(entry.match[j]).toLowerCase().replace(/[\s\-_',\.]/g, "");
+        if(norm.indexOf(needle) !== -1) return entry.controller;
+      }
+    }
+    return null;
   }
 
   /* ============================================================
@@ -418,7 +429,7 @@
   }
 
   /* ============================================================
-     DeepState (alleen UKR)
+     DeepState + ISW
      ============================================================ */
   function extractDeepStateGeometry(json){
     if(!json) return null;
@@ -468,9 +479,6 @@
     });
   }
 
-  /* ============================================================
-     ISW (alleen UKR — SYR heeft null)
-     ============================================================ */
   function loadISW(conflictIso){
     var conflict = getConflict(conflictIso);
     if(!conflict || !conflict.iswUrl) return Promise.resolve(null);
@@ -498,7 +506,7 @@
   }
 
   /* ============================================================
-     Controller berekening — v6.0: manualOverrides ondersteund
+     Controller berekening — v6.1 met logging + fallback-fix
      ============================================================ */
   function calculateControllers(conflictIso){
     var conflict = getConflict(conflictIso);
@@ -511,6 +519,12 @@
 
     LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", manual: " + hasManual);
 
+    /* v6.1: log alle GADM-namen zodat we kunnen zien hoe ze heten */
+    if(hasManual){
+      var allNames = geojson.features.map(function(f){ return f.properties.name; });
+      LOG("[" + conflictIso + "] GADM provincie-namen: " + allNames.join(" | "));
+    }
+
     var stats = {};
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
@@ -518,22 +532,16 @@
     stats.unknown = 0;
 
     var dsCount = 0, iswCount = 0, manualCount = 0;
+    var unmatched = [];
 
     geojson.features.forEach(function(feature){
       if(!feature || !feature.properties) return;
       stats.total++;
       var props = feature.properties;
 
-      /* MANUAL OVERRIDE EERST — als die er is, wint die altijd */
-      if(hasManual && conflict.manualOverrides){
-        var nameLower = String(props.name || "").toLowerCase().trim();
-        var override = null;
-        for(var key in conflict.manualOverrides){
-          if(nameLower === key || nameLower.indexOf(key) !== -1){
-            override = conflict.manualOverrides[key];
-            break;
-          }
-        }
+      /* ============ MANUAL OVERRIDES ============ */
+      if(hasManual){
+        var override = findManualOverride(props.name, conflict.manualOverrides);
         if(override){
           props.controller = override;
           props.control_confidence = 0.9;
@@ -542,10 +550,19 @@
           if(stats[override] !== undefined) stats[override]++;
           manualCount++;
           return;
+        } else {
+          /* v6.1 FIX: geen match = onbekend, NIET automatisch toewijzen */
+          props.controller = null;
+          props.control_confidence = 0;
+          props.control_source = "Onbekend";
+          props.last_update = new Date().toISOString();
+          stats.unknown++;
+          unmatched.push(props.name);
+          return;
         }
       }
 
-      /* AUTOMATISCH (alleen UKR) */
+      /* ============ AUTOMATISCH (UKR) ============ */
       var centroid = getCentroid(feature);
       if(!centroid){
         props.controller = null;
@@ -594,7 +611,12 @@
     CA.stats[conflictIso] = stats;
     var summary = partyNames.map(function(p){ return p + ": " + (stats[p] || 0); }).join(" | ");
     LOG("[" + conflictIso + "] Controllers: " + stats.total + " gebieden | " + summary +
+        " | onbekend: " + stats.unknown +
         " (auto: DS " + dsCount + ", ISW " + iswCount + ", manual: " + manualCount + ")");
+
+    if(unmatched.length){
+      LOG("[" + conflictIso + "] ⚠️ Geen override voor: " + unmatched.join(" | "));
+    }
   }
 
   /* ============================================================
@@ -645,10 +667,7 @@
     geojson.features.forEach(function(f){
       if(!f.properties) return;
       var count = countByArea[f.properties.id] || 0;
-      if(count > 0){
-        activeAreas++;
-        totalEvents += count;
-      }
+      if(count > 0){ activeAreas++; totalEvents += count; }
       var intensity = Math.min(1, Math.log(1 + count) / Math.log(21));
       f.properties.attack_intensity = Math.round(intensity * 100) / 100;
       f.properties.attack_count = count;
@@ -725,7 +744,7 @@
           if(CA.isMapActive && CA.isInitialized) startPulse();
         }, 5000);
       } else {
-        LOG("Geen actieve gebieden in " + ACTIVE_CONFLICTS.join(",") + " — pulse over 30s");
+        LOG("Geen actieve gebieden — pulse over 30s");
         _pulseRetryTimer = setTimeout(function(){
           _pulseRetryTimer = null;
           _pulseEmptyChecks = 0;
@@ -844,7 +863,8 @@
 
     var statsEl = panel.querySelector("#caPanelStats");
     var ctrlLabel = props.controller || "Onbekend";
-    var ctrlClass = "conf-med";
+    var ctrlClass = props.controller === "Rusland" ? "conf-low" :
+                    (props.controller === "Oekraïne" || props.controller === "Regering" ? "conf-high" : "conf-med");
     var sourceLabel = props.control_source || "—";
 
     var events = getEventsForArea(area);
@@ -991,7 +1011,7 @@
   }
 
   /* ============================================================
-     Legenda — HTML voor worldmap.js
+     Legenda
      ============================================================ */
   function getLegendHtml(){
     var html = "";
@@ -1012,22 +1032,16 @@
       });
 
       html += '<div class="wm-legend-row">' +
-        '<span class="wm-legend-swatch-square wm-legend-swatch-gold"></span>' +
-        'Terreinwinst' +
-      '</div>';
-
+        '<span class="wm-legend-swatch-square wm-legend-swatch-gold"></span>Terreinwinst</div>';
       html += '<div class="wm-legend-row">' +
-        '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>' +
-        'Actief conflict' +
-      '</div>';
-
+        '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
       html += '</div>';
     });
     return html;
   }
 
   /* ============================================================
-     Init — per conflict
+     Init
      ============================================================ */
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
@@ -1053,18 +1067,14 @@
 
   function _doInit(){
     LOG("Init gestart voor: " + ACTIVE_CONFLICTS.join(", "));
-
     return openDB().then(function(){
       return Promise.all(ACTIVE_CONFLICTS.map(function(iso){ return initOneConflict(iso); }));
-    }).then(function(results){
+    }).then(function(){
       CA.isInitialized = true;
       CA.isLoaded = true;
-
-      /* Legenda verversen */
       try {
         if(window.WorldMap && window.WorldMap.refreshLegend) window.WorldMap.refreshLegend();
       } catch(e){}
-
       startPulse();
       LOG("Init volledig klaar — " + ACTIVE_CONFLICTS.length + " conflicten actief");
       return true;
@@ -1079,7 +1089,6 @@
     if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
     if(_initPromise){ LOG("Init al bezig — wacht"); return _initPromise; }
     if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
-
     CA.map = mapInstance;
     _initPromise = _doInit();
     return _initPromise;
@@ -1156,12 +1165,11 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v6.0",
+    state: CA, _version: "v6.1",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
 
-  /* Auto-init */
   var tries = 0, MAX = 60;
   function tryInit(){
     if(CA.isInitialized) return;
@@ -1194,5 +1202,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v6.0 geladen (multi-country: " + ACTIVE_CONFLICTS.join(", ") + ")");
+  LOG("conflict-areas.js v6.1 geladen (fuzzy matching + fallback fix)");
 })();
