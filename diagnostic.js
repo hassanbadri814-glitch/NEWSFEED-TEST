@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — diagnostic.js v1.0
-   Draait automatisch 8s na laden en dumpt alles naar debug-paneel.
+   WAR DESK — diagnostic.js v1.1
+   Wacht tot PM + CA klaar zijn, dan diagnostic dump.
    ============================================================ */
+
 (function(){
   "use strict";
 
@@ -16,7 +17,7 @@
 
   function runDiagnostic(){
     log("═══════════════════════════════");
-    log("CONSENSUS DIAGNOSTIC v1.0");
+    log("CONSENSUS DIAGNOSTIC v1.1");
     log("═══════════════════════════════");
 
     log("1. PM ready: " + (window.ProvinceMapper && ProvinceMapper.isReady()));
@@ -25,14 +26,14 @@
     log("   CA version: " + (window.ConflictAreas && ConflictAreas._version));
 
     var state = window.MAPAPI && window.MAPAPI.state;
-var events = [];
-if(state){
-  if(Array.isArray(state.events) && state.events.length > 0) events = state.events;
-  else if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) events = state.militaryEvents;
-}
-log("2. Totaal events: " + events.length);
-log("   (events=" + (state && state.events ? state.events.length : 0) + 
-    ", militaryEvents=" + (state && state.militaryEvents ? state.militaryEvents.length : 0) + ")");
+    var events = [];
+    if(state){
+      if(Array.isArray(state.events) && state.events.length > 0) events = state.events;
+      else if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) events = state.militaryEvents;
+    }
+    log("2. Totaal events: " + events.length);
+    log("   (events=" + (state && state.events ? state.events.length : 0) +
+        ", militaryEvents=" + (state && state.militaryEvents ? state.militaryEvents.length : 0) + ")");
 
     var withLatLng = events.filter(function(e){
       return typeof e.lat === "number" && typeof e.lng === "number";
@@ -71,7 +72,7 @@ log("   (events=" + (state && state.events ? state.events.length : 0) +
       log("   countsForHeat: " + e.countsForHeat);
     }
 
-    if(withLatLng.length > 0){
+    if(withLatLng.length > 0 && window.ProvinceMapper){
       var e2 = withLatLng[0];
       try {
         var p = ProvinceMapper.getProvinceForPoint(e2.lat, e2.lng, e2.countryISO3);
@@ -130,11 +131,23 @@ log("   (events=" + (state && state.events ? state.events.length : 0) +
     log("═══════════════════════════════");
   }
 
-  setTimeout(function(){
-    try { runDiagnostic(); } catch(e){
-      log("FATAL: " + e.message);
+  function waitForReady(attempt){
+    attempt = attempt || 0;
+    var pmReady = window.ProvinceMapper && ProvinceMapper.isReady();
+    var caReady = window.ConflictAreas && window.ConflictAreas.state && window.ConflictAreas.state.isInitialized;
+
+    if((pmReady && caReady) || attempt >= 20){
+      log("Diagnostic start na " + (attempt*2) + "s (PM=" + pmReady + ", CA=" + caReady + ")");
+      try { runDiagnostic(); } catch(e){
+        log("FATAL: " + e.message);
+      }
+      return;
     }
-  }, 8000);
+    log("Wacht op init... (" + (attempt+1) + "/20, PM=" + pmReady + ", CA=" + caReady + ")");
+    setTimeout(function(){ waitForReady(attempt + 1); }, 2000);
+  }
+
+  setTimeout(function(){ waitForReady(0); }, 5000);
 
   window.WDDiagnostic = { run: runDiagnostic };
 })();
