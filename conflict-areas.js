@@ -214,10 +214,10 @@
         { match: ["aljawf"],                   controller: "Saoedi-Arabië" },
         { match: ["almadinah"],                controller: "Saoedi-Arabië" },
         { match: ["alqassim"],                 controller: "Saoedi-Arabië" },
-        { match: ["arriyadh"],                 controller: "Saoedi-Arabië" },
+        { match: ["arriyadh","arriyad"],                 controller: "Saoedi-Arabië" },
         { match: ["ashsharqiyah"],             controller: "Saoedi-Arabië" },
         { match: ["ha'il", "hail"],            controller: "Saoedi-Arabië" },
-        { match: ["jazan"],                    controller: "Saoedi-Arabië" },
+        { match: ["jazan","jizan"],                    controller: "Saoedi-Arabië" },
         { match: ["makkah"],                   controller: "Saoedi-Arabië" },
         { match: ["najran"],                   controller: "Saoedi-Arabië" },
         { match: ["tabuk"],                    controller: "Saoedi-Arabië" }
