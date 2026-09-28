@@ -1,13 +1,15 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v10.0
+   WAR DESK — conflict-areas.js v10.1
    ------------------------------------------------------------
-   - v10.0: TWEE-LAGEN SYSTEEM
-           * Provinciegrenzen: dun + subtiel (weight 0.9, opacity .38)
-           * Landsgrenzen (ADM0): dik + fel wit (weight 3.5)
-           * Alleen landsgrenzen krijgen drop-shadow
-   - v9.4: Witte randen + zwarte drop-shadow
+   - v10.1: PROFESSIONELE CARTOGRAFIE
+           * Casing-effect via 2 Leaflet-lagen (geen CSS filter)
+           * Zoom-responsive border-diktes
+           * Provincies subtiel (18% wit, 0.6px)
+           * Landsgrens professioneel (donkere casing + witte lijn)
+           * 4 gedeelde panes i.p.v. 1 per land
+   - v10.0: ADM0 landsgrens-laag
+   - v9.4: Witte randen + drop-shadow
    - v9.3: Hybride legenda + zoom-navigatie
-   - v9.2: Israël + Palestina toegevoegd
    ============================================================ */
 
 (function(){
@@ -24,7 +26,6 @@
     { label: "Druze (Syrië)", color: "#9333EA" }
   ];
 
-  /* Helper: genereer GADM level-0 URLs voor een land */
   function adm0Sources(iso3){
     return [
       "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_" + iso3 + "_0.json",
@@ -34,11 +35,7 @@
 
   var CONFLICTS = {
     "UKR": {
-      name: "Oekraïne",
-      paneName: "conflictAreasPaneUKR",
-      paneZ: 420,
-      level: "ADM1",
-      center: [49.0, 32.0, 6],
+      name: "Oekraïne", level: "ADM1", center: [49.0, 32.0, 6],
       parties: {
         "Rusland":  { color: "#C62828", fill: "#C62828" },
         "Oekraïne": { color: "#2A6FDB", fill: "#2A6FDB" }
@@ -57,9 +54,7 @@
         var d = String(now.getUTCDate()).padStart(2, "0");
         return "https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/deepstatemap_data_" + y + m + d + ".geojson";
       },
-      provinceRules: null,
-      districtOverrides: null,
-      overlayPolygons: null,
+      provinceRules: null, districtOverrides: null, overlayPolygons: null,
       cacheKeys: {
         oblasts:   { key: "wardesk_ukraine_oblasts", version: "v11" },
         country:   { key: "wardesk_ukraine_country", version: "v1"  },
@@ -68,13 +63,8 @@
         snapshot:  { key: "wardesk_ukraine_snapshot",version: "v1"  }
       }
     },
-
     "SYR": {
-      name: "Syrië",
-      paneName: "conflictAreasPaneSYR",
-      paneZ: 421,
-      level: "ADM2",
-      center: [34.8, 38.9, 7],
+      name: "Syrië", level: "ADM2", center: [34.8, 38.9, 7],
       parties: {
         "Regering":  { color: "#2A6FDB", fill: "#2A6FDB" },
         "Druze":     { color: "#C62828", fill: "#C62828" },
@@ -85,8 +75,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SYR_2.json"
       ],
       countrySources: adm0Sources("SYR"),
-      iswUrl: null,
-      deepStateUrlFn: null,
+      iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
         { match: ["aleppo"],                                            controller: "Regering" },
         { match: ["alhasakah", "hasakah"],                              controller: "Regering" },
@@ -106,8 +95,7 @@
       districtOverrides: [],
       overlayPolygons: [
         {
-          name: "Israëlische zone (UNDOF)",
-          controller: "Israël",
+          name: "Israëlische zone (UNDOF)", controller: "Israël",
           coords: [
             [33.3200, 35.8050], [33.2900, 35.8150], [33.2600, 35.8250],
             [33.2300, 35.8300], [33.2000, 35.8400], [33.1700, 35.8450],
@@ -134,13 +122,8 @@
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
       }
     },
-
     "LBN": {
-      name: "Libanon",
-      paneName: "conflictAreasPaneLBN",
-      paneZ: 422,
-      level: "ADM2",
-      center: [33.85, 35.86, 8],
+      name: "Libanon", level: "ADM2", center: [33.85, 35.86, 8],
       parties: {
         "Libanese staat": { color: "#2A6FDB", fill: "#2A6FDB" },
         "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
@@ -151,20 +134,18 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_LBN_2.json"
       ],
       countrySources: adm0Sources("LBN"),
-      iswUrl: null,
-      deepStateUrlFn: null,
+      iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["akkar"],                          controller: "Libanese staat" },
-        { match: ["beirut"],                         controller: "Libanese staat" },
-        { match: ["mountlebanon"],                   controller: "Libanese staat" },
-        { match: ["north"],                          controller: "Libanese staat" },
-        { match: ["baalbak", "hermel"],              controller: "Hezbollah" },
-        { match: ["bekaa"],                          controller: "Hezbollah" },
-        { match: ["nabatiyeh"],                      controller: "Hezbollah" },
-        { match: ["south"],                          controller: "Hezbollah" }
+        { match: ["akkar"],                 controller: "Libanese staat" },
+        { match: ["beirut"],                controller: "Libanese staat" },
+        { match: ["mountlebanon"],          controller: "Libanese staat" },
+        { match: ["north"],                 controller: "Libanese staat" },
+        { match: ["baalbak", "hermel"],     controller: "Hezbollah" },
+        { match: ["bekaa"],                 controller: "Hezbollah" },
+        { match: ["nabatiyeh"],             controller: "Hezbollah" },
+        { match: ["south"],                 controller: "Hezbollah" }
       ],
-      districtOverrides: [],
-      overlayPolygons: [],
+      districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_lebanon_adm2",      version: "v2" },
         country:   { key: "wardesk_lebanon_country",   version: "v1" },
@@ -173,13 +154,8 @@
         snapshot:  { key: "wardesk_lebanon_snapshot",  version: "v1" }
       }
     },
-
     "YEM": {
-      name: "Jemen",
-      paneName: "conflictAreasPaneYEM",
-      paneZ: 423,
-      level: "ADM1",
-      center: [15.55, 48.52, 6],
+      name: "Jemen", level: "ADM1", center: [15.55, 48.52, 6],
       parties: {
         "Regering":  { color: "#2A6FDB", fill: "#2A6FDB" },
         "Houthi's":  { color: "#C62828", fill: "#C62828" }
@@ -189,8 +165,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_YEM_1.json"
       ],
       countrySources: adm0Sources("YEM"),
-      iswUrl: null,
-      deepStateUrlFn: null,
+      iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
         { match: ["sa'dah", "sadah"],         controller: "Houthi's" },
         { match: ["san'a'", "sanaa"],         controller: "Houthi's" },
@@ -214,8 +189,7 @@
         { match: ["hadramawt"],               controller: "Regering" },
         { match: ["almahrah", "mahra"],       controller: "Regering" }
       ],
-      districtOverrides: [],
-      overlayPolygons: [],
+      districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_yemen_adm1",      version: "v1" },
         country:   { key: "wardesk_yemen_country",   version: "v1" },
@@ -224,40 +198,31 @@
         snapshot:  { key: "wardesk_yemen_snapshot",  version: "v1" }
       }
     },
-
     "SAU": {
-      name: "Saoedi-Arabië",
-      paneName: "conflictAreasPaneSAU",
-      paneZ: 424,
-      level: "ADM1",
-      center: [24.71, 46.68, 5],
-      parties: {
-        "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" }
-      },
+      name: "Saoedi-Arabië", level: "ADM1", center: [24.71, 46.68, 5],
+      parties: { "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" } },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SAU_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SAU_1.json"
       ],
       countrySources: adm0Sources("SAU"),
-      iswUrl: null,
-      deepStateUrlFn: null,
+      iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["asir"],                     controller: "Saoedi-Arabië" },
-        { match: ["albahah"],                  controller: "Saoedi-Arabië" },
-        { match: ["alhududashshamaliyah"],     controller: "Saoedi-Arabië" },
-        { match: ["aljawf"],                   controller: "Saoedi-Arabië" },
-        { match: ["almadinah"],                controller: "Saoedi-Arabië" },
-        { match: ["alqassim"],                 controller: "Saoedi-Arabië" },
-        { match: ["arriyad", "arriyadh"],      controller: "Saoedi-Arabië" },
-        { match: ["ashsharqiyah"],             controller: "Saoedi-Arabië" },
-        { match: ["ha'il", "hail"],            controller: "Saoedi-Arabië" },
-        { match: ["jizan", "jazan"],           controller: "Saoedi-Arabië" },
-        { match: ["makkah"],                   controller: "Saoedi-Arabië" },
-        { match: ["najran"],                   controller: "Saoedi-Arabië" },
-        { match: ["tabuk"],                    controller: "Saoedi-Arabië" }
+        { match: ["asir"],                 controller: "Saoedi-Arabië" },
+        { match: ["albahah"],              controller: "Saoedi-Arabië" },
+        { match: ["alhududashshamaliyah"], controller: "Saoedi-Arabië" },
+        { match: ["aljawf"],               controller: "Saoedi-Arabië" },
+        { match: ["almadinah"],            controller: "Saoedi-Arabië" },
+        { match: ["alqassim"],             controller: "Saoedi-Arabië" },
+        { match: ["arriyad", "arriyadh"],  controller: "Saoedi-Arabië" },
+        { match: ["ashsharqiyah"],         controller: "Saoedi-Arabië" },
+        { match: ["ha'il", "hail"],        controller: "Saoedi-Arabië" },
+        { match: ["jizan", "jazan"],       controller: "Saoedi-Arabië" },
+        { match: ["makkah"],               controller: "Saoedi-Arabië" },
+        { match: ["najran"],               controller: "Saoedi-Arabië" },
+        { match: ["tabuk"],                controller: "Saoedi-Arabië" }
       ],
-      districtOverrides: [],
-      overlayPolygons: [],
+      districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_saudi_adm1",      version: "v1" },
         country:   { key: "wardesk_saudi_country",   version: "v1" },
@@ -266,34 +231,25 @@
         snapshot:  { key: "wardesk_saudi_snapshot",  version: "v1" }
       }
     },
-
     "ISR": {
-      name: "Israël",
-      paneName: "conflictAreasPaneISR",
-      paneZ: 425,
-      level: "ADM1",
-      center: [31.4, 34.9, 7],
-      parties: {
-        "Israël": { color: "#C62828", fill: "#C62828" }
-      },
+      name: "Israël", level: "ADM1", center: [31.4, 34.9, 7],
+      parties: { "Israël": { color: "#C62828", fill: "#C62828" } },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_ISR_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_ISR_1.json"
       ],
       countrySources: adm0Sources("ISR"),
-      iswUrl: null,
-      deepStateUrlFn: null,
+      iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["golan"],                    controller: "Israël" },
-        { match: ["hadarom"],                  controller: "Israël" },
-        { match: ["haifa"],                    controller: "Israël" },
-        { match: ["hamerkaz"],                 controller: "Israël" },
-        { match: ["hazafon"],                  controller: "Israël" },
-        { match: ["jerusalem"],                controller: "Israël" },
-        { match: ["telaviv"],                  controller: "Israël" }
+        { match: ["golan"],    controller: "Israël" },
+        { match: ["hadarom"],  controller: "Israël" },
+        { match: ["haifa"],    controller: "Israël" },
+        { match: ["hamerkaz"], controller: "Israël" },
+        { match: ["hazafon"],  controller: "Israël" },
+        { match: ["jerusalem"],controller: "Israël" },
+        { match: ["telaviv"],  controller: "Israël" }
       ],
-      districtOverrides: [],
-      overlayPolygons: [],
+      districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_israel_adm1",      version: "v1" },
         country:   { key: "wardesk_israel_country",   version: "v1" },
@@ -302,35 +258,26 @@
         snapshot:  { key: "wardesk_israel_snapshot",  version: "v1" }
       }
     },
-
     "PSE": {
-      name: "Palestina",
-      paneName: "conflictAreasPanePSE",
-      paneZ: 426,
-      level: "ADM1",
-      center: [31.95, 35.23, 8],
-      parties: {
-        "Palestina": { color: "#2A6FDB", fill: "#2A6FDB" }
-      },
+      name: "Palestina", level: "ADM1", center: [31.95, 35.23, 8],
+      parties: { "Palestina": { color: "#2A6FDB", fill: "#2A6FDB" } },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_PSE_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_PSE_1.json"
       ],
       countrySources: adm0Sources("PSE"),
-      iswUrl: null,
-      deepStateUrlFn: null,
+      iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["gaza"],                     controller: "Palestina" },
-        { match: ["westbank"],                 controller: "Palestina" }
+        { match: ["gaza"],     controller: "Palestina" },
+        { match: ["westbank"], controller: "Palestina" }
       ],
-      districtOverrides: [],
-      overlayPolygons: [],
+      districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_palestine_adm1",    version: "v1" },
-        country:   { key: "wardesk_palestine_country", version: "v1" },
-        deepState: { key: "wardesk_palestine_ds",      version: "v1" },
-        isw:       { key: "wardesk_palestine_isw",     version: "v1" },
-        snapshot:  { key: "wardesk_palestine_snapshot",version: "v1" }
+        oblasts:   { key: "wardesk_palestine_adm1",     version: "v1" },
+        country:   { key: "wardesk_palestine_country",  version: "v1" },
+        deepState: { key: "wardesk_palestine_ds",       version: "v1" },
+        isw:       { key: "wardesk_palestine_isw",      version: "v1" },
+        snapshot:  { key: "wardesk_palestine_snapshot", version: "v1" }
       }
     }
   };
@@ -347,25 +294,61 @@
   var DB_VERSION = 1;
   var STORE_GEOJSON = "geojson";
 
+  /* ============================================================
+     v10.1: 4 GEDEELDE PANES (i.p.v. 1 per land)
+     ============================================================ */
+  var PANES = {
+    province:      { name: "caPaneProvince",      z: 420 },
+    countryShadow: { name: "caPaneCountryShadow", z: 430 },
+    country:       { name: "caPaneCountry",       z: 440 },
+    overlay:       { name: "caPaneOverlay",       z: 450 }
+  };
+
+  /* v10.1: Professionele kleuren — geen puur wit meer */
   var COLORS = {
-    provinceBorder: "rgba(255,255,255,0.38)",
-    countryBorder:  "#ffffff",
-    pulse:          "rgba(255,90,90,0.95)",
+    provinceBorder: "rgba(255,255,255,0.18)",   /* subtiel grijs-wit */
+    countryBorder:  "rgba(255,255,255,0.88)",   /* bijna wit, niet fel */
+    countryShadow:  "rgba(0,0,0,0.65)",         /* donkere casing */
+    pulse:          "rgba(255,110,110,0.95)",
     territoryGain:  "#e0a857"
   };
 
-  var FILL_OPACITY = 0.45;
+  var FILL_OPACITY = 0.42;
   var OVERLAY_FILL_OPACITY = 0.55;
 
-  var PROVINCE_BORDER_WEIGHT = 0.9;
-  var COUNTRY_BORDER_WEIGHT  = 3.5;
-  var BORDER_WEIGHT_HOVER    = 2.8;
-  var OVERLAY_BORDER_WEIGHT  = 1.6;
+  /* v10.1: Zoom-responsive diktes */
+  function countryShadowWeight(z){
+    if(z <= 4) return 2.2;
+    if(z <= 6) return 2.7;
+    if(z <= 8) return 3.2;
+    return 3.8;
+  }
+  function countryWhiteWeight(z){
+    if(z <= 4) return 1.0;
+    if(z <= 6) return 1.3;
+    if(z <= 8) return 1.6;
+    return 2.0;
+  }
+  function provinceWeight(z){
+    if(z <= 4) return 0.35;
+    if(z <= 6) return 0.55;
+    if(z <= 8) return 0.75;
+    return 0.95;
+  }
+  function provinceOpacity(z){
+    if(z <= 4) return 0.12;
+    if(z <= 6) return 0.20;
+    if(z <= 8) return 0.30;
+    return 0.38;
+  }
+
+  var BORDER_WEIGHT_HOVER = 2.0;
+  var OVERLAY_BORDER_WEIGHT = 1.4;
 
   var PULSE_INTERVAL_MS   = 900;
   var PULSE_MIN_INTENSITY = 0.15;
-  var PULSE_WEIGHT_MIN    = 1.4;
-  var PULSE_WEIGHT_MAX    = 3.6;
+  var PULSE_WEIGHT_MIN    = 1.2;
+  var PULSE_WEIGHT_MAX    = 2.8;
 
   var CACHE_MAX_AGE_MS    = 30 * 24 * 60 * 60 * 1000;
   var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
@@ -374,6 +357,7 @@
   var CA = {
     map: null,
     layers: {},
+    countryShadowLayers: {},
     countryLayers: {},
     overlayLayers: {},
     geojsons: {},
@@ -389,6 +373,7 @@
     pulseTimer: null,
     pulsePhase: 0,
     isMapActive: true,
+    _zoomBound: false,
     _snapshotSavedFor: {}
   };
 
@@ -435,8 +420,7 @@
   }
 
   function pointInRing(x, y, ring){
-    var inside = false;
-    var len = ring.length;
+    var inside = false, len = ring.length;
     for(var i = 0, j = len - 1; i < len; j = i++){
       var xi = ring[i][0], yi = ring[i][1];
       var xj = ring[j][0], yj = ring[j][1];
@@ -482,18 +466,13 @@
 
   function getCentroid(feature){
     if(!feature || !feature.geometry) return null;
-    var geom = feature.geometry;
-    var outerRing = null;
-    if(geom.type === "Polygon"){
-      outerRing = geom.coordinates[0];
-    } else if(geom.type === "MultiPolygon"){
+    var geom = feature.geometry, outerRing = null;
+    if(geom.type === "Polygon"){ outerRing = geom.coordinates[0]; }
+    else if(geom.type === "MultiPolygon"){
       var largest = null, largestSize = 0;
       for(var i = 0; i < geom.coordinates.length; i++){
         var ring = geom.coordinates[i][0];
-        if(ring && ring.length > largestSize){
-          largestSize = ring.length;
-          largest = ring;
-        }
+        if(ring && ring.length > largestSize){ largestSize = ring.length; largest = ring; }
       }
       outerRing = largest;
     }
@@ -509,15 +488,13 @@
     }
     area = area / 2;
     if(Math.abs(area) < 1e-12) return getBBoxCenter(outerRing);
-    cx = cx / (6 * area);
-    cy = cy / (6 * area);
+    cx = cx / (6 * area); cy = cy / (6 * area);
     if(!pointInRing(cx, cy, outerRing)) return getBBoxCenter(outerRing);
     return [cx, cy];
   }
 
   function getBBoxCenter(ring){
-    var minX = ring[0][0], maxX = ring[0][0];
-    var minY = ring[0][1], maxY = ring[0][1];
+    var minX = ring[0][0], maxX = ring[0][0], minY = ring[0][1], maxY = ring[0][1];
     for(var i = 1; i < ring.length; i++){
       if(ring[i][0] < minX) minX = ring[i][0];
       if(ring[i][0] > maxX) maxX = ring[i][0];
@@ -595,9 +572,7 @@
   function fetchViaProxy(targetUrl){
     var idx = 0;
     function tryNext(){
-      if(idx >= PROXIES.length){
-        return Promise.reject(new Error("Alle proxies faalden"));
-      }
+      if(idx >= PROXIES.length) return Promise.reject(new Error("Alle proxies faalden"));
       var proxy = PROXIES[idx];
       var fullUrl = proxy + encodeURIComponent(targetUrl);
       idx++;
@@ -640,7 +615,6 @@
       if(idx >= conflict.oblastSources.length){
         return Promise.reject(lastErr || new Error("Alle bronnen faalden"));
       }
-      LOG("[" + conflictIso + "] Bron " + (idx+1) + "/" + conflict.oblastSources.length);
       return fetchViaProxy(conflict.oblastSources[idx])
         .then(function(json){
           if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON");
@@ -651,7 +625,6 @@
           return json;
         })
         .catch(function(e){
-          LOG("[" + conflictIso + "]   bron " + (idx+1) + " faalde: " + e.message);
           lastErr = e;
           return trySource(idx+1);
         });
@@ -670,14 +643,10 @@
       return fetchViaProxy(conflict.countrySources[idx])
         .then(function(json){
           if(!isValidGeoJSON(json)) throw new Error("Ongeldige country GeoJSON");
-          LOG("[" + conflictIso + "]   ✓ Landsgeometrie (" + json.features.length + ")");
+          LOG("[" + conflictIso + "]   ✓ Landsgeometrie");
           return json;
         })
-        .catch(function(e){
-          LOG("[" + conflictIso + "]   country bron " + (idx+1) + " faalde: " + e.message);
-          lastErr = e;
-          return trySource(idx+1);
-        });
+        .catch(function(e){ lastErr = e; return trySource(idx+1); });
     }
     return trySource(0);
   }
@@ -691,14 +660,12 @@
       if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < CACHE_MAX_AGE_MS &&
          isValidGeoJSON(cached.v.geojson)){
-        LOG("[" + conflictIso + "] Gebieden uit cache (" + cached.v.geojson.features.length + ")");
+        LOG("[" + conflictIso + "] Gebieden uit cache");
         return cached.v.geojson;
       }
-      LOG("[" + conflictIso + "] Cache leeg — fetch externe bron");
       return fetchOblasts(conflictIso).then(function(json){
-        return dbPut(cacheKey, {
-          version: cacheVer, t: Date.now(), geojson: json
-        }).then(function(){ LOG("[" + conflictIso + "] Gebieden opgeslagen"); return json; });
+        return dbPut(cacheKey, { version: cacheVer, t: Date.now(), geojson: json })
+          .then(function(){ return json; });
       });
     });
   }
@@ -717,11 +684,9 @@
         LOG("[" + conflictIso + "] Landsgrens uit cache");
         return cached.v.geojson;
       }
-      LOG("[" + conflictIso + "] Landsgeometrie cache leeg — fetch");
       return fetchCountry(conflictIso).then(function(json){
-        return dbPut(cacheKey, {
-          version: cacheVer, t: Date.now(), geojson: json
-        }).then(function(){ return json; });
+        return dbPut(cacheKey, { version: cacheVer, t: Date.now(), geojson: json })
+          .then(function(){ return json; });
       }).catch(function(e){
         LOG("[" + conflictIso + "] Landsgeometrie faalde: " + e.message);
         return null;
@@ -756,19 +721,15 @@
     return dbGet(cacheKey).then(function(cached){
       if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < DS_CACHE_MAX_AGE_MS && cached.v.geojson){
-        LOG("[" + conflictIso + "] DeepState uit cache");
         return cached.v.geojson;
       }
-      LOG("[" + conflictIso + "] DeepState cache leeg — fetch");
       var url = conflict.deepStateUrlFn();
       return fetchRaw(url, 20000)
         .then(function(json){
           var feat = extractDeepStateGeometry(json);
           if(!feat) throw new Error("Geen polygoon");
-          LOG("[" + conflictIso + "]   ✓ DeepState geladen");
-          return dbPut(cacheKey, {
-            version: cacheVer, t: Date.now(), geojson: feat
-          }).then(function(){ return feat; });
+          return dbPut(cacheKey, { version: cacheVer, t: Date.now(), geojson: feat })
+            .then(function(){ return feat; });
         })
         .catch(function(e){ LOG("[" + conflictIso + "] DeepState faalde: " + e.message); return null; });
     });
@@ -782,17 +743,13 @@
     return dbGet(cacheKey).then(function(cached){
       if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < ISW_CACHE_MAX_AGE_MS && isValidGeoJSON(cached.v.geojson)){
-        LOG("[" + conflictIso + "] ISW uit cache");
         return cached.v.geojson;
       }
-      LOG("[" + conflictIso + "] ISW fallback — fetch ArcGIS");
       return fetchViaProxy(conflict.iswUrl)
         .then(function(json){
           if(!isValidGeoJSON(json)) throw new Error("Ongeldige ISW GeoJSON");
-          LOG("[" + conflictIso + "]   ✓ ISW geladen (" + json.features.length + ")");
-          return dbPut(cacheKey, {
-            version: cacheVer, t: Date.now(), geojson: json
-          }).then(function(){ return json; });
+          return dbPut(cacheKey, { version: cacheVer, t: Date.now(), geojson: json })
+            .then(function(){ return json; });
         })
         .catch(function(e){ LOG("[" + conflictIso + "] ISW faalde: " + e.message); return null; });
     });
@@ -808,16 +765,10 @@
     var hasInheritance = !!conflict.provinceRules;
     var isADM1 = conflict.level === "ADM1";
 
-    LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", inheritance: " + hasInheritance + ", level: " + conflict.level);
-
     var stats = {};
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
-    stats.total = 0;
-    stats.unknown = 0;
-
-    var dsCount = 0, iswCount = 0, provinceCount = 0, districtOverrideCount = 0;
-    var unmatched = [];
+    stats.total = 0; stats.unknown = 0;
 
     geojson.features.forEach(function(feature){
       if(!feature || !feature.properties) return;
@@ -832,7 +783,6 @@
           props.control_source = "Handmatig (district)";
           props.last_update = new Date().toISOString();
           if(stats[districtOverride] !== undefined) stats[districtOverride]++;
-          districtOverrideCount++;
           return;
         }
         var matchTarget = isADM1 ? props.name : props.provinceName;
@@ -843,14 +793,11 @@
           props.control_source = "Handmatig (provincie)";
           props.last_update = new Date().toISOString();
           if(stats[provinceRule] !== undefined) stats[provinceRule]++;
-          provinceCount++;
           return;
         }
         props.controller = null;
-        props.control_confidence = 0;
         props.control_source = "Onbekend";
         stats.unknown++;
-        unmatched.push(props.name);
         return;
       }
 
@@ -862,15 +809,14 @@
       if(hasDS){
         try {
           if(featureContainsPoint(CA.deepStateGeos[conflictIso], cx, cy)){
-            inOccupied = true; source = "DeepState"; dsCount++;
+            inOccupied = true; source = "DeepState";
           }
         } catch(e){}
       }
       if(!inOccupied && hasISW){
         for(var i = 0; i < CA.iswGeos[conflictIso].features.length; i++){
           if(featureContainsPoint(CA.iswGeos[conflictIso].features[i], cx, cy)){
-            inOccupied = true; source = "ISW"; iswCount++;
-            break;
+            inOccupied = true; source = "ISW"; break;
           }
         }
       }
@@ -878,24 +824,12 @@
       props.controller = controller;
       props.control_confidence = 0.7;
       props.last_update = new Date().toISOString();
-      if(controller === "Rusland"){
-        props.control_source = source || "Onbekend";
-      } else {
-        props.control_source = hasDS ? "DeepState" : (hasISW ? "ISW" : "Onbekend");
-      }
+      props.control_source = controller === "Rusland" ? (source || "Onbekend")
+        : (hasDS ? "DeepState" : (hasISW ? "ISW" : "Onbekend"));
       if(stats[controller] !== undefined) stats[controller]++;
     });
 
     CA.stats[conflictIso] = stats;
-    var summary = partyNames.map(function(p){ return p + ": " + (stats[p] || 0); }).join(" | ");
-    LOG("[" + conflictIso + "] Controllers: " + stats.total + " gebieden | " + summary +
-        " | onbekend: " + stats.unknown +
-        " (auto: DS " + dsCount + ", ISW " + iswCount +
-        ", province: " + provinceCount + ", district: " + districtOverrideCount + ")");
-
-    if(unmatched.length){
-      LOG("[" + conflictIso + "] ⚠️ Onbekend: " + unmatched.join(" | "));
-    }
   }
 
   function calculateAttackIntensity(conflictIso){
@@ -931,18 +865,13 @@
       }
     });
 
-    var activeAreas = 0, totalEvents = 0;
     geojson.features.forEach(function(f){
       if(!f.properties) return;
       var count = countByArea[f.properties.id] || 0;
-      if(count > 0){ activeAreas++; totalEvents += count; }
       var intensity = Math.min(1, Math.log(1 + count) / Math.log(21));
       f.properties.attack_intensity = Math.round(intensity * 100) / 100;
       f.properties.attack_count = count;
     });
-    if(totalEvents > 0){
-      LOG("[" + conflictIso + "] Attack intensity: " + totalEvents + " events in " + activeAreas + " gebieden");
-    }
   }
 
   function hasActiveAreas(){
@@ -958,56 +887,125 @@
   }
 
   /* ============================================================
-     v10.0: STIJL — provincies dun+subtiel
+     v10.1: STIJL-FUNCTIES (zoom-responsive)
      ============================================================ */
-  function styleAreaFor(conflictIso){
-    return function(feature){
-      var props = (feature && feature.properties) || {};
-      var conflict = getConflict(conflictIso);
-      var fillColor = "transparent";
-      if(props.controller && conflict.parties[props.controller]){
-        fillColor = conflict.parties[props.controller].fill;
-      }
+  function styleProvince(feature){
+    var props = (feature && feature.properties) || {};
+    var conflict = CA._currentConflict;
+    if(!conflict){ conflict = getConflict(CA._currentConflictIso); }
+    var fillColor = "transparent";
+    if(props.controller && conflict && conflict.parties[props.controller]){
+      fillColor = conflict.parties[props.controller].fill;
+    }
+    var z = CA.map ? CA.map.getZoom() : 6;
+    var w = provinceWeight(z);
+    var o = provinceOpacity(z);
+    var color = COLORS.provinceBorder;
 
-      var borderWeight = PROVINCE_BORDER_WEIGHT;
-      var borderColor = COLORS.provinceBorder;
-      var borderOpacity = 0.9;
+    if(props.territory_gain){
+      color = COLORS.territoryGain;
+      w = w * 1.6;
+      o = 1.0;
+    }
 
-      if(props.territory_gain){
-        borderColor = COLORS.territoryGain;
-        borderWeight = 2.6;
-        borderOpacity = 1.0;
-      }
-
-      return {
-        fillColor: fillColor,
-        fillOpacity: props.controller ? FILL_OPACITY : 0,
-        color: borderColor,
-        weight: borderWeight,
-        opacity: borderOpacity,
-        dashArray: null,
-        interactive: true,
-        lineCap: "round",
-        lineJoin: "round"
-      };
+    return {
+      fillColor: fillColor,
+      fillOpacity: props.controller ? FILL_OPACITY : 0,
+      color: color,
+      weight: w,
+      opacity: o,
+      interactive: true,
+      lineCap: "round",
+      lineJoin: "round"
     };
   }
 
-  /* v10.0: stijl voor landsgrenslaag (ADM0) */
-  function styleCountryFor(){
-    return function(){
-      return {
-        fillColor: "transparent",
-        fillOpacity: 0,
-        color: COLORS.countryBorder,
-        weight: COUNTRY_BORDER_WEIGHT,
-        opacity: 1.0,
-        dashArray: null,
-        interactive: false,
-        lineCap: "round",
-        lineJoin: "round"
-      };
+  function styleCountryShadow(){
+    var z = CA.map ? CA.map.getZoom() : 6;
+    return {
+      fillColor: "transparent",
+      fillOpacity: 0,
+      color: COLORS.countryShadow,
+      weight: countryShadowWeight(z),
+      opacity: 0.9,
+      interactive: false,
+      lineCap: "round",
+      lineJoin: "round"
     };
+  }
+
+  function styleCountry(){
+    var z = CA.map ? CA.map.getZoom() : 6;
+    return {
+      fillColor: "transparent",
+      fillOpacity: 0,
+      color: COLORS.countryBorder,
+      weight: countryWhiteWeight(z),
+      opacity: 1.0,
+      interactive: false,
+      lineCap: "round",
+      lineJoin: "round"
+    };
+  }
+
+  /* ============================================================
+     v10.1: ZOOM-RESPONSIVE UPDATE
+     ============================================================ */
+  function updateBorderWeights(){
+    if(!CA.map) return;
+    var z = CA.map.getZoom();
+    ACTIVE_CONFLICTS.forEach(function(iso){
+      /* Provincies */
+      var layer = CA.layers[iso];
+      if(layer){
+        CA._currentConflictIso = iso;
+        CA._currentConflict = getConflict(iso);
+        layer.eachLayer(function(l){
+          if(!l.feature) return;
+          if(l._caHover) return; /* niet overschrijven tijdens hover */
+          try { l.setStyle(styleProvince(l.feature)); } catch(e){}
+        });
+      }
+      /* Casing */
+      var shadow = CA.countryShadowLayers[iso];
+      if(shadow){
+        shadow.eachLayer(function(l){
+          try { l.setStyle({ weight: countryShadowWeight(z) }); } catch(e){}
+        });
+      }
+      /* Witte landgrens */
+      var country = CA.countryLayers[iso];
+      if(country){
+        country.eachLayer(function(l){
+          try { l.setStyle({ weight: countryWhiteWeight(z) }); } catch(e){}
+        });
+      }
+    });
+  }
+
+  function bindZoomListener(){
+    if(!CA.map || CA._zoomBound) return;
+    CA._zoomBound = true;
+    CA.map.on("zoomend", updateBorderWeights);
+    LOG("Zoom-listener gebonden");
+  }
+  function unbindZoomListener(){
+    if(!CA.map || !CA._zoomBound) return;
+    try { CA.map.off("zoomend", updateBorderWeights); } catch(e){}
+    CA._zoomBound = false;
+  }
+
+  /* ============================================================
+     v10.1: PANES (gedeeld)
+     ============================================================ */
+  function ensurePanes(map){
+    Object.keys(PANES).forEach(function(key){
+      var p = PANES[key];
+      if(map.getPane(p.name)) return;
+      map.createPane(p.name);
+      map.getPane(p.name).style.zIndex = p.z;
+      map.getPane(p.name).style.pointerEvents = "auto";
+    });
   }
 
   function renderOverlayPolygons(conflictIso){
@@ -1026,7 +1024,7 @@
       if(!party) return;
 
       var poly = L.polygon(overlay.coords, {
-        pane: conflict.paneName,
+        pane: PANES.overlay.name,
         color: COLORS.countryBorder,
         fillColor: party.fill,
         fillOpacity: OVERLAY_FILL_OPACITY,
@@ -1072,31 +1070,24 @@
 
     overlayGroup.addTo(CA.map);
     CA.overlayLayers[conflictIso] = overlayGroup;
-    LOG("[" + conflictIso + "] Overlay-polygonen gerenderd: " + conflict.overlayPolygons.length);
   }
 
+  /* ============================================================
+     PULSE
+     ============================================================ */
   var _pulseRetryTimer = null;
   var _pulseEmptyChecks = 0;
-  var _pulseGraceMax = 3;
 
   function startPulse(){
     stopPulse();
     if(!CA.isMapActive) return;
     if(!hasActiveAreas()){
       _pulseEmptyChecks++;
-      if(_pulseEmptyChecks < _pulseGraceMax){
-        _pulseRetryTimer = setTimeout(function(){
-          _pulseRetryTimer = null;
-          if(CA.isMapActive && CA.isInitialized) startPulse();
-        }, 5000);
-      } else {
-        LOG("Geen actieve gebieden — pulse over 30s");
-        _pulseRetryTimer = setTimeout(function(){
-          _pulseRetryTimer = null;
-          _pulseEmptyChecks = 0;
-          if(CA.isMapActive && CA.isInitialized) startPulse();
-        }, 30000);
-      }
+      var wait = _pulseEmptyChecks < 3 ? 5000 : 30000;
+      _pulseRetryTimer = setTimeout(function(){
+        _pulseRetryTimer = null;
+        if(CA.isMapActive && CA.isInitialized) startPulse();
+      }, wait);
       return;
     }
     _pulseEmptyChecks = 0;
@@ -1107,27 +1098,25 @@
       ACTIVE_CONFLICTS.forEach(function(iso){
         var layer = CA.layers[iso];
         if(!layer) return;
+        var z = CA.map ? CA.map.getZoom() : 6;
+        var baseW = provinceWeight(z);
         layer.eachLayer(function(l){
           if(!l.feature || !l.feature.properties) return;
           var p = l.feature.properties;
           if(!p.attack_intensity || p.attack_intensity < PULSE_MIN_INTENSITY) return;
           if(l._caHover) return;
-          var baseWeight = p.territory_gain ? 2.6 : PROVINCE_BORDER_WEIGHT;
           var extra = (PULSE_WEIGHT_MAX - PULSE_WEIGHT_MIN) * p.attack_intensity;
-          var newWeight = growing ? (baseWeight + extra) : baseWeight;
-          var newOpacity = growing ? 1.0 : 0.9;
+          var newWeight = growing ? (baseW + extra) : baseW;
           try {
             l.setStyle({
               weight: newWeight,
-              opacity: newOpacity,
-              color: p.territory_gain ? COLORS.territoryGain : COLORS.pulse,
-              fillOpacity: Math.min(0.65, FILL_OPACITY + (growing ? 0.08 * p.attack_intensity : 0))
+              opacity: growing ? 1.0 : 0.9,
+              color: p.territory_gain ? COLORS.territoryGain : COLORS.pulse
             });
           } catch(e){}
         });
       });
     }, PULSE_INTERVAL_MS);
-    LOG("Pulse animatie gestart (" + PULSE_INTERVAL_MS + "ms)");
   }
 
   function stopPulse(){
@@ -1135,6 +1124,9 @@
     if(_pulseRetryTimer){ clearTimeout(_pulseRetryTimer); _pulseRetryTimer = null; }
   }
 
+  /* ============================================================
+     INFO PANEL
+     ============================================================ */
   function ensurePanel(){
     if(CA.panel) return CA.panel;
     var panel = document.createElement("div");
@@ -1260,16 +1252,6 @@
     CA.selectedId = null;
   }
 
-  function ensurePane(map, conflictIso){
-    var conflict = getConflict(conflictIso);
-    if(!conflict) return;
-    var paneName = conflict.paneName;
-    if(map.getPane(paneName)) return;
-    map.createPane(paneName);
-    map.getPane(paneName).style.zIndex = conflict.paneZ;
-    map.getPane(paneName).style.pointerEvents = "auto";
-  }
-
   function onEachAreaFor(conflictIso){
     return function(feature, layer){
       layer.on({
@@ -1279,21 +1261,22 @@
           var conflict = getConflict(conflictIso);
           var props = feature.properties;
           var col = props.controller && conflict.parties[props.controller]
-                    ? conflict.parties[props.controller].color
-                    : "#ffffff";
-          l.setStyle({
-            weight: BORDER_WEIGHT_HOVER,
-            color: col,
-            opacity: 1.0,
-            fillOpacity: Math.min(0.75, FILL_OPACITY + 0.15)
-          });
-          if(l.bringToFront) l.bringToFront();
+                    ? conflict.parties[props.controller].color : "#ffffff";
+          try {
+            l.setStyle({
+              weight: BORDER_WEIGHT_HOVER,
+              color: col,
+              opacity: 1.0,
+              fillOpacity: Math.min(0.72, FILL_OPACITY + 0.15)
+            });
+          } catch(e2){}
         },
         mouseout: function(e){
           var l = e.target;
           l._caHover = false;
-          var layer = CA.layers[conflictIso];
-          if(layer) layer.resetStyle(l);
+          CA._currentConflictIso = conflictIso;
+          CA._currentConflict = getConflict(conflictIso);
+          try { l.setStyle(styleProvince(feature)); } catch(e2){}
         },
         click: function(e){
           if(L.DomEvent) L.DomEvent.stopPropagation(e);
@@ -1309,43 +1292,43 @@
   }
 
   /* ============================================================
-     v10.0: CSS — alleen #ffffff landsgrens krijgt drop-shadow
+     CSS (alleen voor hover-feedback, geen filters meer)
      ============================================================ */
   function injectAreaStyles(){
     if(document.getElementById("caAreaStyles")) return;
     var s = document.createElement("style");
     s.id = "caAreaStyles";
     s.textContent =
-      /* Landsgrens (puur wit #ffffff) krijgt zwarte gloed */
-      ".leaflet-container svg path[stroke='#ffffff']{" +
-        "filter: drop-shadow(0 0 1.5px rgba(0,0,0,0.95));" +
-      "}" +
-      /* Terreinvinst */
-      ".leaflet-container svg path[stroke='#e0a857']{" +
-        "filter: drop-shadow(0 0 2px rgba(224,168,87,0.8)) drop-shadow(0 0 1px rgba(0,0,0,0.9));" +
-      "}" +
-      /* Pulse */
-      ".leaflet-container svg path[stroke='rgba(255,90,90,0.95)']{" +
-        "filter: drop-shadow(0 0 2.5px rgba(255,90,90,0.6)) drop-shadow(0 0 1px rgba(0,0,0,0.9));" +
-      "}";
+      ".leaflet-container .ca-pane-province path{transition:stroke .15s, stroke-width .15s;}";
     document.head.appendChild(s);
   }
 
+  /* ============================================================
+     RENDER
+     ============================================================ */
   function renderLayer(conflictIso){
     var conflict = getConflict(conflictIso);
     var geojson = CA.geojsons[conflictIso];
     if(!CA.map || !geojson || !conflict) return;
-    ensurePane(CA.map, conflictIso);
+    ensurePanes(CA.map);
 
-    if(CA.layers[conflictIso]){ try{ CA.map.removeLayer(CA.layers[conflictIso]); }catch(e){} }
-    if(CA.countryLayers[conflictIso]){ try{ CA.map.removeLayer(CA.countryLayers[conflictIso]); }catch(e){} }
+    /* Verwijder oude lagen */
+    ["layers", "countryShadowLayers", "countryLayers"].forEach(function(bucket){
+      if(CA[bucket][conflictIso]){
+        try{ CA.map.removeLayer(CA[bucket][conflictIso]); }catch(e){}
+      }
+    });
 
     injectAreaStyles();
 
-    /* 1. PROVINCIES — dun + subtiel */
+    /* Zorg dat styleProvince de juiste conflict kent */
+    CA._currentConflictIso = conflictIso;
+    CA._currentConflict = conflict;
+
+    /* 1. PROVINCIES */
     CA.layers[conflictIso] = L.geoJSON(geojson, {
-      style: styleAreaFor(conflictIso),
-      pane: conflict.paneName,
+      style: styleProvince,
+      pane: PANES.province.name,
       smoothFactor: 1.5,
       onEachFeature: onEachAreaFor(conflictIso)
     });
@@ -1363,32 +1346,40 @@
         });
       }
     });
-    LOG("[" + conflictIso + "] Provincies gerenderd: " + CA.areas[conflictIso].length);
 
-    /* 2. LANDSGRENS — dik + fel wit, BOVENOP provincies */
+    /* 2. LANDSGRENS — casing (onder) */
     var countryJson = CA.countryGeojsons[conflictIso];
     if(countryJson && countryJson.features && countryJson.features.length){
+      CA.countryShadowLayers[conflictIso] = L.geoJSON(countryJson, {
+        style: styleCountryShadow,
+        pane: PANES.countryShadow.name,
+        smoothFactor: 1.5,
+        interactive: false
+      });
+      CA.countryShadowLayers[conflictIso].addTo(CA.map);
+
+      /* 3. LANDsGRENS — witte lijn (boven) */
       CA.countryLayers[conflictIso] = L.geoJSON(countryJson, {
-        style: styleCountryFor(),
-        pane: conflict.paneName,
+        style: styleCountry,
+        pane: PANES.country.name,
         smoothFactor: 1.5,
         interactive: false
       });
       CA.countryLayers[conflictIso].addTo(CA.map);
-      LOG("[" + conflictIso + "] Landsgrens gerenderd (weight " + COUNTRY_BORDER_WEIGHT + ")");
+
+      LOG("[" + conflictIso + "] Casing + witte lijn gerenderd (" + CA.areas[conflictIso].length + " provincies)");
     } else {
-      LOG("[" + conflictIso + "] ⚠️ Geen landsgeometrie — alleen provincies");
+      LOG("[" + conflictIso + "] ⚠️ Geen landsgeometrie");
     }
 
     renderOverlayPolygons(conflictIso);
   }
 
   /* ============================================================
-     Hybride legenda
+     LEGENDA
      ============================================================ */
   function getLegendHtml(){
     var html = '';
-
     html += '<div class="wm-legend-block wm-legend-universal">';
     html += '<div class="wm-legend-block-title">── Legenda ──</div>';
     UNIVERSAL_COLORS.forEach(function(u){
@@ -1413,7 +1404,7 @@
       html += '<summary class="wm-legend-country-head">';
       html += '<span class="wm-legend-country-name">' + escapeHtml(conflict.name) + '</span>';
       html += '<span class="wm-legend-country-count">' + partyNames.length + '</span>';
-      html += '<button class="wm-legend-zoom" data-iso="' + iso + '" aria-label="Zoom naar ' + escapeHtml(conflict.name) + '" type="button">📍</button>';
+      html += '<button class="wm-legend-zoom" data-iso="' + iso + '" aria-label="Zoom" type="button">📍</button>';
       html += '</summary>';
       partyNames.forEach(function(party){
         var c = conflict.parties[party];
@@ -1424,7 +1415,6 @@
       html += '</details>';
     });
     html += '</div>';
-
     return html;
   }
 
@@ -1435,8 +1425,7 @@
         if(btn._caBound) return;
         btn._caBound = true;
         btn.addEventListener("click", function(e){
-          e.preventDefault();
-          e.stopPropagation();
+          e.preventDefault(); e.stopPropagation();
           var iso = btn.getAttribute("data-iso");
           var conflict = getConflict(iso);
           if(!conflict || !conflict.center) return;
@@ -1444,7 +1433,6 @@
           if(!mapInstance) return;
           var c = conflict.center;
           mapInstance.flyTo([c[0], c[1]], c[2] || 6, { duration: 1.2 });
-          LOG("Zoom naar " + conflict.name + " (" + c[0] + ", " + c[1] + ")");
         });
       })(buttons[i]);
     }
@@ -1456,7 +1444,6 @@
     s.id = "caLegendStyles";
     s.textContent =
       ".wm-legend-universal{padding-bottom:.4rem;margin-bottom:.4rem;border-bottom:1px solid rgba(255,255,255,.08);}" +
-      ".wm-legend-details{margin-top:.2rem;}" +
       ".wm-legend-country{background:rgba(255,255,255,.03);border-radius:6px;margin-bottom:.2rem;overflow:hidden;}" +
       ".wm-legend-country-head{display:flex;align-items:center;gap:.3rem;padding:.3rem .4rem;cursor:pointer;list-style:none;font-size:.55rem;font-weight:700;color:#e0a857;user-select:none;}" +
       ".wm-legend-country-head::-webkit-details-marker{display:none;}" +
@@ -1464,36 +1451,30 @@
       ".wm-legend-country[open] .wm-legend-country-head::before{transform:rotate(90deg);}" +
       ".wm-legend-country-name{flex:1;text-transform:uppercase;letter-spacing:.03em;}" +
       ".wm-legend-country-count{background:rgba(224,168,87,.2);color:#e0a857;font-size:.48rem;padding:.05rem .3rem;border-radius:6px;font-weight:700;}" +
-      ".wm-legend-zoom{background:transparent;border:0;color:#e0a857;font-size:.7rem;cursor:pointer;padding:0 .15rem;line-height:1;font-family:inherit;opacity:.8;transition:opacity .15s,transform .15s;}" +
-      ".wm-legend-zoom:hover{opacity:1;transform:scale(1.2);}" +
-      ".wm-legend-country .wm-legend-row{padding:.15rem .4rem .15rem .9rem;font-size:.52rem;}" +
-      ".wm-legend-country[open]{background:rgba(255,255,255,.05);}" +
-      "html.light .wm-legend-country{background:rgba(0,0,0,.03);}" +
-      "html.light .wm-legend-country[open]{background:rgba(0,0,0,.05);}" +
-      "html.light .wm-legend-country-head{color:#a07a2e;}" +
-      "html.light .wm-legend-country-count{background:rgba(160,122,46,.15);color:#a07a2e;}";
+      ".wm-legend-zoom{background:transparent;border:0;color:#e0a857;font-size:.7rem;cursor:pointer;padding:0 .15rem;font-family:inherit;opacity:.8;}" +
+      ".wm-legend-country .wm-legend-row{padding:.15rem .4rem .15rem .9rem;font-size:.52rem;}";
     document.head.appendChild(s);
   }
 
-  function refreshLegend(){
-    injectLegendStyles();
-    bindLegendZoom();
-  }
+  function refreshLegend(){ injectLegendStyles(); bindLegendZoom(); }
 
   function hookLegendRefresh(){
     if(!window.WorldMap) return;
     var original = window.WorldMap.refreshLegend;
     if(original && !original._caPatched){
       var wrapped = function(){
-        var result = original.apply(this, arguments);
+        var r = original.apply(this, arguments);
         refreshLegend();
-        return result;
+        return r;
       };
       wrapped._caPatched = true;
       window.WorldMap.refreshLegend = wrapped;
     }
   }
 
+  /* ============================================================
+     INIT
+     ============================================================ */
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
       CA.geojsons[conflictIso] = oblastsJson;
@@ -1508,8 +1489,6 @@
         calculateControllers(conflictIso);
         calculateAttackIntensity(conflictIso);
         renderLayer(conflictIso);
-        LOG("[" + conflictIso + "] Klaar — " + (CA.areas[conflictIso] || []).length +
-            " provincies + land: " + (CA.countryGeojsons[conflictIso] ? "ja" : "nee"));
         return true;
       });
     }).catch(function(e){
@@ -1519,22 +1498,22 @@
   }
 
   function _doInit(){
-    LOG("Init gestart voor: " + ACTIVE_CONFLICTS.join(", "));
+    LOG("Init gestart: " + ACTIVE_CONFLICTS.join(", "));
     return openDB().then(function(){
       return Promise.all(ACTIVE_CONFLICTS.map(function(iso){ return initOneConflict(iso); }));
     }).then(function(){
       CA.isInitialized = true;
       CA.isLoaded = true;
-
+      ensurePanes(CA.map);
+      bindZoomListener();
       injectAreaStyles();
       hookLegendRefresh();
       try {
         if(window.WorldMap && window.WorldMap.refreshLegend) window.WorldMap.refreshLegend();
       } catch(e){}
       refreshLegend();
-
       startPulse();
-      LOG("Init volledig klaar — " + ACTIVE_CONFLICTS.length + " conflicten actief");
+      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten actief");
       return true;
     }).catch(function(e){
       LOG("Init faalde: " + (e.message || "?"));
@@ -1544,8 +1523,8 @@
   }
 
   function init(mapInstance){
-    if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
-    if(_initPromise){ LOG("Init al bezig — wacht"); return _initPromise; }
+    if(CA.isInitialized){ return Promise.resolve(); }
+    if(_initPromise){ return _initPromise; }
     if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
     CA.map = mapInstance;
     _initPromise = _doInit();
@@ -1554,7 +1533,6 @@
 
   function refresh(){
     if(!CA.isInitialized) return Promise.resolve();
-    LOG("Refresh — alle conflicten");
     return Promise.all(ACTIVE_CONFLICTS.map(function(iso){
       var conflict = getConflict(iso);
       return dbPut(conflict.cacheKeys.deepState.key, { version: "cleared", t: 0, geojson: null })
@@ -1566,12 +1544,13 @@
   function updateIntensity(){
     ACTIVE_CONFLICTS.forEach(function(iso){
       calculateAttackIntensity(iso);
+      CA._currentConflictIso = iso;
+      CA._currentConflict = getConflict(iso);
       var layer = CA.layers[iso];
       if(!layer) return;
-      var styleFn = styleAreaFor(iso);
       layer.eachLayer(function(l){
         if(!l.feature) return;
-        try { l.setStyle(styleFn(l.feature)); } catch(e){}
+        try { l.setStyle(styleProvince(l.feature)); } catch(e){}
       });
     });
     if(hasActiveAreas() && !CA.pulseTimer) startPulse();
@@ -1590,17 +1569,20 @@
         ops.push(dbPut(conflict.cacheKeys.country.key, { version: "cleared", t: 0, geojson: null }));
       }
       return Promise.all(ops);
-    })).then(function(){ LOG("Alle caches gewist"); return true; });
+    })).then(function(){ return true; });
   }
 
   function destroy(){
     stopPulse();
+    unbindZoomListener();
     ACTIVE_CONFLICTS.forEach(function(iso){
-      if(CA.layers[iso] && CA.map){ try{ CA.map.removeLayer(CA.layers[iso]); }catch(e){} }
-      if(CA.countryLayers[iso] && CA.map){ try{ CA.map.removeLayer(CA.countryLayers[iso]); }catch(e){} }
-      if(CA.overlayLayers[iso] && CA.map){ try{ CA.map.removeLayer(CA.overlayLayers[iso]); }catch(e){} }
+      ["layers", "countryShadowLayers", "countryLayers", "overlayLayers"].forEach(function(bucket){
+        if(CA[bucket][iso] && CA.map){
+          try { CA.map.removeLayer(CA[bucket][iso]); } catch(e){}
+        }
+      });
     });
-    CA.layers = {}; CA.countryLayers = {}; CA.overlayLayers = {};
+    CA.layers = {}; CA.countryShadowLayers = {}; CA.countryLayers = {}; CA.overlayLayers = {};
     CA.isInitialized = false; CA.isLoaded = false;
     _initPromise = null;
   }
@@ -1630,7 +1612,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v10.0",
+    state: CA, _version: "v10.1",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1667,5 +1649,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v10.0 geladen (provincies dun + landsgrenzen dik)");
+  LOG("conflict-areas.js v10.1 geladen (casing + zoom-responsive)");
 })();
