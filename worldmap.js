@@ -1,15 +1,20 @@
 /* ============================================================
-   WAR DESK — worldmap.js v3.2
+   WAR DESK — worldmap.js v3.3
    ------------------------------------------------------------
+   - v3.3: A1 — landen met oblast-laag worden transparant
+           A2 — legenda krijgt placeholder voor gebied-legenda
    - v3.2: CityStatus v2.0 integratie (control + attack ring)
-   - v3.1: amber ring dots
-   - v3.0: subtielere dots
    ============================================================ */
 
 (function(){
   "use strict";
 
   var LOG = function(){ try{ wdLog.info.apply(null, ["[WM]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
+
+  /* A1: Landen met een eigen oblast-laag in conflict-areas.js
+     Worden hier transparant gemaakt om dubbele kleuring te voorkomen.
+     Later uitbreiden: bijv. "YEM", "SYR", "LBN" zodra die een oblast-laag krijgen. */
+  var COUNTRIES_WITH_AREA_LAYER = ["UKR"];
 
   var GEOJSON_URLS = [
     "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
@@ -66,6 +71,11 @@
     if (!feature || !feature.properties) return "?";
     var p = feature.properties;
     return p.NAME_NL || p.name_nl || p.NAME || p.name || p.ADMIN || p.admin || "?";
+  }
+
+  function hasAreaLayer(iso3){
+    if (!iso3) return false;
+    return COUNTRIES_WITH_AREA_LAYER.indexOf(iso3.toUpperCase()) !== -1;
   }
 
   function getPeriodScale(periodDays){
@@ -207,6 +217,20 @@
 
   function styleCountry(feature){
     var iso3 = getISO3(feature);
+
+    /* A1: Als dit land een eigen oblast-laag heeft, maak het transparant.
+       De oblast-laag van conflict-areas.js neemt de weergave over. */
+    if (hasAreaLayer(iso3)){
+      return {
+        fillColor: "transparent",
+        fillOpacity: 0,
+        color: "transparent",
+        weight: 0,
+        opacity: 0,
+        interactive: false
+      };
+    }
+
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var totalHeat = targetHeat + actorHeat;
@@ -251,6 +275,9 @@
   }
 
   function buildTooltipHtml(iso3, name){
+    if (hasAreaLayer(iso3)){
+      return "<b>" + name + "</b><br>Zie oblast-laag voor details";
+    }
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var conf = WM.countryConfidence[iso3];
@@ -268,7 +295,14 @@
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
     var name = getCountryName(feature);
+
     layer.bindTooltip(buildTooltipHtml(iso3, name), { sticky: true, direction: "top", className: "wm-tooltip" });
+
+    if (hasAreaLayer(iso3)){
+      /* Geen interactie: oblast-laag neemt over */
+      return;
+    }
+
     layer.on({
       mouseover: function(e){
         var l = e.target;
@@ -370,7 +404,7 @@
   function closeCountryPanel(){ if (WM.panel) WM.panel.classList.remove("show"); }
 
   /* ============================================================
-     v3.2: CITY-DOTS met CityStatus v2.0 (control + attack)
+     CITY-DOTS
      ============================================================ */
   function renderCityDots(map){
     if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
@@ -389,18 +423,14 @@
 
     cities.forEach(function(c){
       if (!c || !c.city) return;
-
       var loc = window.__wm_locations ? window.__wm_locations[c.city] : null;
       if (!loc) { skippedNoLoc++; return; }
-
-      /* Periode-filter op lastUpdate */
       if (c.lastUpdate && c.lastUpdate < periodAgo) { skippedOld++; return; }
 
       var hasController = !!c.controller;
       var hasAttack = (c.attackIntensity || 0) > 0.15;
       if (!hasController && !hasAttack) { skippedBoth++; return; }
 
-      /* Core stip kleur + grootte */
       var size = 8;
       var coreColor = "#6b7280";
       var isClaim = false;
@@ -419,7 +449,7 @@
         } catch(e){}
 
         if (c.contested){
-          coreColor = "#a855f7"; /* paars */
+          coreColor = "#a855f7";
         } else {
           var alliance = window.WorldMapData
             ? window.WorldMapData.getAlliance(effISO3 || c.controller)
@@ -436,7 +466,6 @@
           ? 'border:1.5px dashed rgba(255,255,255,0.85);box-sizing:border-box;'
           : 'border:1.5px solid rgba(255,255,255,0.55);box-sizing:border-box;';
       } else {
-        /* Alleen attack, geen controller */
         coreColor = "#4b5563";
         size = 7;
         borderStyle = 'border:1px solid rgba(255,255,255,0.4);box-sizing:border-box;';
@@ -449,7 +478,6 @@
         borderStyle +
       '"></div>';
 
-      /* Attack-ring */
       var ringHtml = "";
       if (hasAttack){
         var intensity = c.attackIntensity || 0;
@@ -468,7 +496,6 @@
         '"></div>';
       }
 
-      /* Badge met attack count */
       var badgeHtml = "";
       var totalCount = (c.attackCount || 0);
       if (totalCount >= 3){
@@ -497,7 +524,6 @@
 
       var marker = L.marker([loc.lat, loc.lng], { icon: icon });
 
-      /* Tooltip */
       var tooltipParts = ['<b>' + escapeHtml(capitalizeCity(c.city)) + '</b>' + (loc.country ? ' · ' + escapeHtml(loc.country) : '')];
       if (hasController){
         var statusLabel = c.contested ? "Betwist" : (isClaim ? "Claim" : "Bevestigd");
@@ -512,7 +538,6 @@
 
       marker.bindTooltip(tooltipParts.join("<br>"), { direction: "top", className: "wm-tooltip", offset: [0, -6] });
 
-      /* Click → event-lijst voor die stad */
       marker.on("click", function(e){
         if (L.DomEvent) L.DomEvent.stopPropagation(e);
         openCityPanel(c.city, c);
@@ -535,7 +560,6 @@
     }
     panel.querySelector("#wmPanelTitle").textContent = titleParts.join(" · ");
 
-    /* Stats */
     var statsEl = panel.querySelector("#wmPanelStats");
     var ctrlConf = Math.round((record.controllerConfidence || 0) * 100);
     var atkIntensity = Math.round((record.attackIntensity || 0) * 100);
@@ -561,7 +585,6 @@
             (record.controllerSources || 0) + ' ' + ((record.controllerSources === 1) ? 'bron' : 'bronnen') + '</div>'
           : ''));
 
-    /* Events voor deze stad uit _allEvents */
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
     var lowerCity = cityKey.toLowerCase();
@@ -597,6 +620,9 @@
     requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
+  /* ============================================================
+     Periodefilter
+     ============================================================ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
     if (!wrap || wrap.querySelector(".wm-period-filter")) return;
@@ -633,6 +659,9 @@
     } catch(e){}
   }
 
+  /* ============================================================
+     Legenda — v3.3: met placeholder voor gebied-legenda
+     ============================================================ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -645,9 +674,26 @@
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
+      /* A2: Placeholder voor de gebied-legenda (gevuld door ConflictAreas) */
+      '<div id="wmAreaLegend" class="wm-area-legend"></div>' +
       '<div class="wm-legend-hint">Klik op een land of stad</div>';
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
+
+    /* Als ConflictAreas al klaar is, vraag de legenda direct op */
+    refreshAreaLegend();
+  }
+
+  /* A2: Wordt aangeroepen door ConflictAreas (via WorldMap.refreshLegend) */
+  function refreshAreaLegend(){
+    var el = document.getElementById("wmAreaLegend");
+    if (!el) return;
+    if (!window.ConflictAreas || typeof window.ConflictAreas.getLegendHtml !== "function"){
+      el.innerHTML = "";
+      return;
+    }
+    var html = window.ConflictAreas.getLegendHtml();
+    el.innerHTML = html || "";
   }
 
   function ensureLegendToggle(){
@@ -688,7 +734,7 @@
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
-      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:110px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;}" +
+      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:130px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;max-height:70vh;overflow-y:auto;}" +
       "html.light .wm-legend{background:rgba(255,255,255,.95);color:#131721;border-color:rgba(0,0,0,.12);}" +
       ".wm-legend-title{font-weight:800;font-size:.5rem;text-transform:uppercase;letter-spacing:.04em;color:#e0a857;margin-bottom:.2rem;padding-bottom:.2rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
       ".wm-legend-row{display:flex;align-items:center;gap:.25rem;padding:.03rem 0;font-size:.52rem;}" +
@@ -696,6 +742,14 @@
       ".wm-legend-row-ring{padding-top:.12rem;margin-top:.12rem;border-top:1px solid rgba(255,255,255,.08);}" +
       ".wm-legend-swatch-ring{background:transparent!important;border:2px solid #ff6666;box-sizing:border-box;border-radius:50%;}" +
       ".wm-legend-hint{margin-top:.2rem;padding-top:.2rem;border-top:1px solid rgba(255,255,255,.08);font-size:.48rem;opacity:.7;line-height:1.2;}" +
+      ".wm-area-legend{margin-top:.4rem;padding-top:.4rem;border-top:1px solid rgba(255,255,255,.08);}" +
+      ".wm-area-legend .wm-legend-block{margin-bottom:.4rem;}" +
+      ".wm-area-legend .wm-legend-block:last-child{margin-bottom:0;}" +
+      ".wm-area-legend .wm-legend-block-title{font-weight:800;font-size:.48rem;text-transform:uppercase;letter-spacing:.04em;color:#e0a857;margin-bottom:.15rem;}" +
+      ".wm-legend-swatch-square{width:9px;height:9px;border-radius:2px;flex-shrink:0;box-shadow:0 0 6px currentColor;}" +
+      ".wm-legend-swatch-gold{background:transparent!important;border:2px solid #e0a857;box-sizing:border-box;border-radius:2px;}" +
+      ".wm-legend-swatch-pulse{background:transparent!important;border:2px solid #ff5a5a;box-sizing:border-box;border-radius:2px;animation:wmLegendPulse 1.2s infinite;}" +
+      "@keyframes wmLegendPulse{0%,100%{opacity:1}50%{opacity:.35}}" +
       ".wm-city-dot{background:transparent!important;border:none!important;}" +
       ".wm-legend-toggle{position:absolute;bottom:.6rem;right:.6rem;z-index:401;width:28px;height:28px;border-radius:8px;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.4);color:#e0a857;display:none;place-items:center;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.45);transition:all .18s;padding:0;}" +
       ".wm-legend-toggle:hover{background:rgba(226,168,87,.2);}" +
@@ -736,7 +790,7 @@
       ".wm-ev-political{background:rgba(107,122,147,.15);color:#a3adc0;padding:.1rem .4rem;border-radius:5px;font-weight:700;font-size:.58rem;text-transform:uppercase;letter-spacing:.03em;}" +
       ".wm-panel-empty{padding:1.5rem 1rem;text-align:center;color:var(--ink-3,#6b7a93);font-size:.78rem;}" +
       "@media (max-width:640px){" +
-        ".wm-legend{max-width:100px!important;font-size:.5rem!important;padding:.35rem .45rem!important;}" +
+        ".wm-legend{max-width:120px!important;font-size:.5rem!important;padding:.35rem .45rem!important;}" +
         ".wm-legend-title{font-size:.5rem!important;margin-bottom:.2rem!important;padding-bottom:.2rem!important;}" +
         ".wm-legend-row{font-size:.5rem!important;padding:.02rem 0!important;}" +
         ".wm-legend-hint{font-size:.45rem!important;}" +
@@ -770,7 +824,7 @@
     restoreLegendVisibility();
     restorePeriodFilter();
     WM.isLoaded = true;
-    LOG("Wereldkaart v3.2 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v3.3 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -817,9 +871,10 @@
     getTargetHeatMap: function(){ return WM.targetHeatByCountry; },
     getActorHeatMap: function(){ return WM.actorHeatByCountry; },
     getConfidenceMap: function(){ return WM.countryConfidence; },
+    refreshLegend: refreshAreaLegend, /* A2: API voor ConflictAreas */
     _state: WM
   };
 
-  LOG("worldmap.js v3.2 geladen (CityStatus 2-laags)");
+  LOG("worldmap.js v3.3 geladen (met gebied-legenda placeholder)");
 
 })();
