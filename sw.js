@@ -5,7 +5,7 @@
    - v3.63: buurlanden + Houthi-aanvallen
    ============================================================ */
 
-const CACHE_VERSION = 'v3.66';
+const CACHE_VERSION = 'v3.67';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
