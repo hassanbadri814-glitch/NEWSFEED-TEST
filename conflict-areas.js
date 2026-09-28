@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v9.2
+   WAR DESK — conflict-areas.js v9.3
    ------------------------------------------------------------
-   - v9.2: ISRAËL (rood) + PALESTINA (blauw) toegevoegd
-   - v9.1.1: SAU fix (ArRiyad, Jizan)
-   - v9.0: 5 landen
+   - v9.3: Neutrale lichte landsgrenzen (grijze rand)
+           Hybride legenda (universele kleuren + uitklapbaar)
+           Zoom-navigatie met 📍-icoon per land
+   - v9.2: Israël + Palestina toegevoegd
    ============================================================ */
 
 (function(){
@@ -13,12 +14,23 @@
     try{ wdLog.info.apply(null, ["[AREA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
+  /* ============================================================
+     Universele kleuren voor de compacte legenda
+     ============================================================ */
+  var UNIVERSAL_COLORS = [
+    { label: "Regering / staat", color: "#2A6FDB" },
+    { label: "Tegenstander / bezetter", color: "#C62828" },
+    { label: "Hezbollah", color: "#FBC02D" },
+    { label: "Druze (Syrië)", color: "#9333EA" }
+  ];
+
   var CONFLICTS = {
     "UKR": {
       name: "Oekraïne",
       paneName: "conflictAreasPaneUKR",
       paneZ: 420,
       level: "ADM1",
+      center: [49.0, 32.0, 6],
       parties: {
         "Rusland":  { color: "#C62828", fill: "#C62828" },
         "Oekraïne": { color: "#2A6FDB", fill: "#2A6FDB" }
@@ -52,6 +64,7 @@
       paneName: "conflictAreasPaneSYR",
       paneZ: 421,
       level: "ADM2",
+      center: [34.8, 38.9, 7],
       parties: {
         "Regering":  { color: "#2A6FDB", fill: "#2A6FDB" },
         "Druze":     { color: "#C62828", fill: "#C62828" },
@@ -115,6 +128,7 @@
       paneName: "conflictAreasPaneLBN",
       paneZ: 422,
       level: "ADM2",
+      center: [33.85, 35.86, 8],
       parties: {
         "Libanese staat": { color: "#2A6FDB", fill: "#2A6FDB" },
         "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
@@ -151,6 +165,7 @@
       paneName: "conflictAreasPaneYEM",
       paneZ: 423,
       level: "ADM1",
+      center: [15.55, 48.52, 6],
       parties: {
         "Regering":  { color: "#2A6FDB", fill: "#2A6FDB" },
         "Houthi's":  { color: "#C62828", fill: "#C62828" }
@@ -199,6 +214,7 @@
       paneName: "conflictAreasPaneSAU",
       paneZ: 424,
       level: "ADM1",
+      center: [24.71, 46.68, 5],
       parties: {
         "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" }
       },
@@ -238,6 +254,7 @@
       paneName: "conflictAreasPaneISR",
       paneZ: 425,
       level: "ADM1",
+      center: [31.4, 34.9, 7],
       parties: {
         "Israël": { color: "#C62828", fill: "#C62828" }
       },
@@ -271,6 +288,7 @@
       paneName: "conflictAreasPanePSE",
       paneZ: 426,
       level: "ADM1",
+      center: [31.95, 35.23, 8],
       parties: {
         "Palestina": { color: "#2A6FDB", fill: "#2A6FDB" }
       },
@@ -309,14 +327,15 @@
 
   var COLORS = {
     neutralBorder: "rgba(255,255,255,0.10)",
+    visibleBorder: "rgba(200,200,200,0.55)",
     pulse:         "rgba(255,90,90,0.95)",
     territoryGain: "#e0a857"
   };
 
   var FILL_OPACITY = 0.45;
   var OVERLAY_FILL_OPACITY = 0.55;
-  var BORDER_WEIGHT = 0.6;
-  var BORDER_WEIGHT_HOVER = 2.2;
+  var BORDER_WEIGHT = 1.0;
+  var BORDER_WEIGHT_HOVER = 2.5;
   var OVERLAY_BORDER_WEIGHT = 1.5;
 
   var PULSE_INTERVAL_MS = 900;
@@ -863,27 +882,35 @@
     return false;
   }
 
+  /* ============================================================
+     v9.3: Neutrale lichte randen voor altijd zichtbare grenzen
+     ============================================================ */
   function styleAreaFor(conflictIso){
     return function(feature){
       var props = (feature && feature.properties) || {};
       var conflict = getConflict(conflictIso);
       var fillColor = "transparent";
-      var borderColor = COLORS.neutralBorder;
       if(props.controller && conflict.parties[props.controller]){
         fillColor = conflict.parties[props.controller].fill;
-        borderColor = conflict.parties[props.controller].color;
       }
+
       var borderWeight = BORDER_WEIGHT;
+      var borderColor = COLORS.visibleBorder;
+      var borderOpacity = 0.6;
+
+      /* Terreinwinst krijgt gouden rand (uitzondering) */
       if(props.territory_gain){
         borderColor = COLORS.territoryGain;
         borderWeight = 2.4;
+        borderOpacity = 0.95;
       }
+
       return {
         fillColor: fillColor,
         fillOpacity: props.controller ? FILL_OPACITY : 0,
         color: borderColor,
         weight: borderWeight,
-        opacity: props.territory_gain ? 0.95 : 0.7,
+        opacity: borderOpacity,
         dashArray: null,
         interactive: true,
         lineCap: "round",
@@ -909,11 +936,11 @@
 
       var poly = L.polygon(overlay.coords, {
         pane: conflict.paneName,
-        color: party.color,
+        color: COLORS.visibleBorder,
         fillColor: party.fill,
         fillOpacity: OVERLAY_FILL_OPACITY,
         weight: OVERLAY_BORDER_WEIGHT,
-        opacity: 0.9,
+        opacity: 0.8,
         interactive: true,
         lineCap: "round",
         lineJoin: "round"
@@ -997,7 +1024,7 @@
           var baseWeight = p.territory_gain ? 2.4 : BORDER_WEIGHT;
           var extra = (PULSE_WEIGHT_MAX - PULSE_WEIGHT_MIN) * p.attack_intensity;
           var newWeight = growing ? (baseWeight + extra) : baseWeight;
-          var newOpacity = growing ? 0.95 : 0.7;
+          var newOpacity = growing ? 0.95 : 0.6;
           try {
             l.setStyle({
               weight: newWeight,
@@ -1160,13 +1187,13 @@
           l._caHover = true;
           var conflict = getConflict(conflictIso);
           var props = feature.properties;
-          var w = props.territory_gain ? 3.0 : BORDER_WEIGHT_HOVER;
-          var col = props.territory_gain ? COLORS.territoryGain :
-                    (props.controller && conflict.parties[props.controller]
-                     ? conflict.parties[props.controller].color
-                     : "rgba(255,255,255,0.5)");
+          var col = props.controller && conflict.parties[props.controller]
+                    ? conflict.parties[props.controller].color
+                    : "rgba(255,255,255,0.8)";
           l.setStyle({
-            weight: w, color: col, opacity: 0.95,
+            weight: BORDER_WEIGHT_HOVER,
+            color: col,
+            opacity: 1.0,
             fillOpacity: Math.min(0.75, FILL_OPACITY + 0.15)
           });
           if(l.bringToFront) l.bringToFront();
@@ -1200,7 +1227,7 @@
     CA.layers[conflictIso] = L.geoJSON(geojson, {
       style: styleAreaFor(conflictIso),
       pane: conflict.paneName,
-      smoothFactor: 1.2,
+      smoothFactor: 1.5,
       onEachFeature: onEachAreaFor(conflictIso)
     });
     CA.layers[conflictIso].addTo(CA.map);
@@ -1222,23 +1249,126 @@
     renderOverlayPolygons(conflictIso);
   }
 
+  /* ============================================================
+     v9.3: Nieuwe hybride legenda
+     Bovenkant: universele kleuren
+     Onderkant: uitklapbaar per land met 📍 zoom-knop
+     ============================================================ */
   function getLegendHtml(){
-    var html = "";
+    var html = '';
+
+    /* === Universeel blok === */
+    html += '<div class="wm-legend-block wm-legend-universal">';
+    html += '<div class="wm-legend-block-title">── Legenda ──</div>';
+    UNIVERSAL_COLORS.forEach(function(u){
+      html += '<div class="wm-legend-row">' +
+        '<span class="wm-legend-swatch-square" style="background:' + u.color + '"></span>' +
+        escapeHtml(u.label) +
+      '</div>';
+    });
+    html += '<div class="wm-legend-row">' +
+      '<span class="wm-legend-swatch-square wm-legend-swatch-gold"></span>Terreinwinst</div>';
+    html += '<div class="wm-legend-row">' +
+      '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
+    html += '</div>';
+
+    /* === Per land: uitklapbaar === */
+    html += '<div class="wm-legend-block wm-legend-details">';
+    html += '<div class="wm-legend-block-title">── Details per land ──</div>';
     ACTIVE_CONFLICTS.forEach(function(iso){
       var conflict = getConflict(iso);
       if(!conflict || !conflict.parties) return;
-      html += '<div class="wm-legend-block">';
-      html += '<div class="wm-legend-block-title">── ' + escapeHtml(conflict.name) + ' ──</div>';
       var partyNames = Object.keys(conflict.parties);
+      html += '<details class="wm-legend-country">';
+      html += '<summary class="wm-legend-country-head">';
+      html += '<span class="wm-legend-country-name">' + escapeHtml(conflict.name) + '</span>';
+      html += '<span class="wm-legend-country-count">' + partyNames.length + '</span>';
+      html += '<button class="wm-legend-zoom" data-iso="' + iso + '" aria-label="Zoom naar ' + escapeHtml(conflict.name) + '" type="button">📍</button>';
+      html += '</summary>';
       partyNames.forEach(function(party){
         var c = conflict.parties[party];
         html += '<div class="wm-legend-row">' +
           '<span class="wm-legend-swatch-square" style="background:' + c.fill + '"></span>' +
           escapeHtml(party) + '</div>';
       });
-      html += '</div>';
+      html += '</details>';
     });
+    html += '</div>';
+
     return html;
+  }
+
+  /* ============================================================
+     Zoom-navigatie: bind op de 📍-knoppen
+     ============================================================ */
+  function bindLegendZoom(){
+    var buttons = document.querySelectorAll(".wm-legend-zoom");
+    for(var i = 0; i < buttons.length; i++){
+      (function(btn){
+        if(btn._caBound) return;
+        btn._caBound = true;
+        btn.addEventListener("click", function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          var iso = btn.getAttribute("data-iso");
+          var conflict = getConflict(iso);
+          if(!conflict || !conflict.center) return;
+          var mapInstance = window.MAPAPI && window.MAPAPI.state && window.MAPAPI.state.instance;
+          if(!mapInstance) return;
+          var c = conflict.center;
+          mapInstance.flyTo([c[0], c[1]], c[2] || 6, { duration: 1.2 });
+          LOG("Zoom naar " + conflict.name + " (" + c[0] + ", " + c[1] + ")");
+        });
+      })(buttons[i]);
+    }
+  }
+
+  /* ============================================================
+     Injecteer CSS voor de nieuwe legenda-elementen
+     ============================================================ */
+  function injectLegendStyles(){
+    if(document.getElementById("caLegendStyles")) return;
+    var s = document.createElement("style");
+    s.id = "caLegendStyles";
+    s.textContent =
+      ".wm-legend-universal{padding-bottom:.4rem;margin-bottom:.4rem;border-bottom:1px solid rgba(255,255,255,.08);}" +
+      ".wm-legend-details{margin-top:.2rem;}" +
+      ".wm-legend-country{background:rgba(255,255,255,.03);border-radius:6px;margin-bottom:.2rem;overflow:hidden;}" +
+      ".wm-legend-country-head{display:flex;align-items:center;gap:.3rem;padding:.3rem .4rem;cursor:pointer;list-style:none;font-size:.55rem;font-weight:700;color:#e0a857;user-select:none;}" +
+      ".wm-legend-country-head::-webkit-details-marker{display:none;}" +
+      ".wm-legend-country-head::before{content:'▶';font-size:.5rem;opacity:.6;transition:transform .15s;display:inline-block;}" +
+      ".wm-legend-country[open] .wm-legend-country-head::before{transform:rotate(90deg);}" +
+      ".wm-legend-country-name{flex:1;text-transform:uppercase;letter-spacing:.03em;}" +
+      ".wm-legend-country-count{background:rgba(224,168,87,.2);color:#e0a857;font-size:.48rem;padding:.05rem .3rem;border-radius:6px;font-weight:700;}" +
+      ".wm-legend-zoom{background:transparent;border:0;color:#e0a857;font-size:.7rem;cursor:pointer;padding:0 .15rem;line-height:1;font-family:inherit;opacity:.8;transition:opacity .15s,transform .15s;}" +
+      ".wm-legend-zoom:hover{opacity:1;transform:scale(1.2);}" +
+      ".wm-legend-country .wm-legend-row{padding:.15rem .4rem .15rem .9rem;font-size:.52rem;}" +
+      ".wm-legend-country[open]{background:rgba(255,255,255,.05);}" +
+      "html.light .wm-legend-country{background:rgba(0,0,0,.03);}" +
+      "html.light .wm-legend-country[open]{background:rgba(0,0,0,.05);}" +
+      "html.light .wm-legend-country-head{color:#a07a2e;}" +
+      "html.light .wm-legend-country-count{background:rgba(160,122,46,.15);color:#a07a2e;}";
+    document.head.appendChild(s);
+  }
+
+  function refreshLegend(){
+    injectLegendStyles();
+    bindLegendZoom();
+  }
+
+  /* Patch WorldMap.refreshLegend om onze zoom-binders te triggeren */
+  function hookLegendRefresh(){
+    if(!window.WorldMap) return;
+    var original = window.WorldMap.refreshLegend;
+    if(original && !original._caPatched){
+      var wrapped = function(){
+        var result = original.apply(this, arguments);
+        refreshLegend();
+        return result;
+      };
+      wrapped._caPatched = true;
+      window.WorldMap.refreshLegend = wrapped;
+    }
   }
 
   function initOneConflict(conflictIso){
@@ -1266,9 +1396,13 @@
     }).then(function(){
       CA.isInitialized = true;
       CA.isLoaded = true;
+
+      hookLegendRefresh();
       try {
         if(window.WorldMap && window.WorldMap.refreshLegend) window.WorldMap.refreshLegend();
       } catch(e){}
+      refreshLegend();
+
       startPulse();
       LOG("Init volledig klaar — " + ACTIVE_CONFLICTS.length + " conflicten actief");
       return true;
@@ -1361,7 +1495,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v9.2",
+    state: CA, _version: "v9.3",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1398,5 +1532,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v9.2 geladen (7 landen: UKR, SYR, LBN, YEM, SAU, ISR, PSE)");
+  LOG("conflict-areas.js v9.3 geladen (grenzen + hybride legenda + zoom)");
 })();
