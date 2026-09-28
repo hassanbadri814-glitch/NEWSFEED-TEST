@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v9.1
+   WAR DESK — conflict-areas.js v9.2
    ------------------------------------------------------------
-   - v9.1: Diagnostic logging van alle gebiedsnamen (voor SAU-fix)
-   - v9.0: 5 landen — UKR, SYR, LBN, YEM, SAU
+   - v9.2: ISRAËL (rood) + PALESTINA (blauw) toegevoegd
+   - v9.1.1: SAU fix (ArRiyad, Jizan)
+   - v9.0: 5 landen
    ============================================================ */
 
 (function(){
@@ -214,10 +215,10 @@
         { match: ["aljawf"],                   controller: "Saoedi-Arabië" },
         { match: ["almadinah"],                controller: "Saoedi-Arabië" },
         { match: ["alqassim"],                 controller: "Saoedi-Arabië" },
-        { match: ["arriyadh","arriyad"],                 controller: "Saoedi-Arabië" },
+        { match: ["arriyad", "arriyadh"],      controller: "Saoedi-Arabië" },
         { match: ["ashsharqiyah"],             controller: "Saoedi-Arabië" },
         { match: ["ha'il", "hail"],            controller: "Saoedi-Arabië" },
-        { match: ["jazan","jizan"],                    controller: "Saoedi-Arabië" },
+        { match: ["jizan", "jazan"],           controller: "Saoedi-Arabië" },
         { match: ["makkah"],                   controller: "Saoedi-Arabië" },
         { match: ["najran"],                   controller: "Saoedi-Arabië" },
         { match: ["tabuk"],                    controller: "Saoedi-Arabië" }
@@ -230,10 +231,71 @@
         isw:       { key: "wardesk_saudi_isw",       version: "v1" },
         snapshot:  { key: "wardesk_saudi_snapshot",  version: "v1" }
       }
+    },
+
+    "ISR": {
+      name: "Israël",
+      paneName: "conflictAreasPaneISR",
+      paneZ: 425,
+      level: "ADM1",
+      parties: {
+        "Israël": { color: "#C62828", fill: "#C62828" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_ISR_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_ISR_1.json"
+      ],
+      iswUrl: null,
+      deepStateUrlFn: null,
+      provinceRules: [
+        { match: ["golan"],                    controller: "Israël" },
+        { match: ["hadarom"],                  controller: "Israël" },
+        { match: ["haifa"],                    controller: "Israël" },
+        { match: ["hamerkaz"],                 controller: "Israël" },
+        { match: ["hazafon"],                  controller: "Israël" },
+        { match: ["jerusalem"],                controller: "Israël" },
+        { match: ["telaviv"],                  controller: "Israël" }
+      ],
+      districtOverrides: [],
+      overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_israel_adm1",      version: "v1" },
+        deepState: { key: "wardesk_israel_ds",        version: "v1" },
+        isw:       { key: "wardesk_israel_isw",       version: "v1" },
+        snapshot:  { key: "wardesk_israel_snapshot",  version: "v1" }
+      }
+    },
+
+    "PSE": {
+      name: "Palestina",
+      paneName: "conflictAreasPanePSE",
+      paneZ: 426,
+      level: "ADM1",
+      parties: {
+        "Palestina": { color: "#2A6FDB", fill: "#2A6FDB" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_PSE_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_PSE_1.json"
+      ],
+      iswUrl: null,
+      deepStateUrlFn: null,
+      provinceRules: [
+        { match: ["gaza"],                     controller: "Palestina" },
+        { match: ["westbank"],                 controller: "Palestina" }
+      ],
+      districtOverrides: [],
+      overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_palestine_adm1",   version: "v1" },
+        deepState: { key: "wardesk_palestine_ds",     version: "v1" },
+        isw:       { key: "wardesk_palestine_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_palestine_snapshot", version: "v1" }
+      }
     }
   };
 
-  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SAU"];
+  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SAU", "ISR", "PSE"];
 
   var PROXIES = [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
@@ -654,12 +716,6 @@
 
     LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", inheritance: " + hasInheritance + ", level: " + conflict.level);
 
-    /* v9.1: log alle gebiedsnamen voor SAU om naam-mismatch op te lossen */
-    if(hasInheritance){
-      var allNames = geojson.features.map(function(f){ return f.properties.name; });
-      LOG("[" + conflictIso + "] GADM namen: " + allNames.join(" | "));
-    }
-
     var stats = {};
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
@@ -1026,7 +1082,7 @@
     var ctrlLabel = props.controller || "Onbekend";
     var ctrlClass = "conf-med";
     if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's") ctrlClass = "conf-low";
-    else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië") ctrlClass = "conf-high";
+    else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina") ctrlClass = "conf-high";
 
     var events = getEventsForArea(area);
     var physicalCount = 0;
@@ -1305,7 +1361,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v9.1",
+    state: CA, _version: "v9.2",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1342,5 +1398,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v9.1 geladen (met diagnostic logging)");
+  LOG("conflict-areas.js v9.2 geladen (7 landen: UKR, SYR, LBN, YEM, SAU, ISR, PSE)");
 })();
