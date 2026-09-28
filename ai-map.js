@@ -1,12 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.15
+   WAR DESK — ai-map.js v3.15.1
+   - v3.15.1: zwak-civiel versoepeld + city-hits teller fix
    - v3.15: CITY > COUNTRY preference in locatie-extractie
-           * Stad krijgt altijd voorrang op land
-           * Betere word-boundary matching
-           * Skip logica strakker
    - v3.14: LOCATIONS gecentraliseerd naar worldmap-data.js
    - v3.13: CityStatus v2.0 integratie
-   - v3.12: suffix-skip + Pakistaanse regio's
    ============================================================ */
 
 (function(){
@@ -16,6 +13,9 @@
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
+
+  /* v3.15.1: war-context voor ruimere civiel-check */
+  var WAR_CONTEXT_PATTERN = /\b(war|oorlog|conflict|attack|strike|military|troops|army|soldier|weapon|missile|drone|bomb|border|front|offensive|invasion|ceasefire|sanction|refugee|evacuation|shelling|artillery|airstrike|casualties|killed|wounded|strike|strikes|troepen|leger|soldaten|wapen|raketten|drone|bommen|grens|front|offensief|invasie|staakt-het-vuren|sanctie|vluchtelingen|beschieting|artillerie|luchtaanval|slachtoffers|gedood|gewond)\b/i;
 
   var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen|program|programma|nuclear|nucleair)\b/i;
 
@@ -122,9 +122,6 @@
     return firstPos;
   }
 
-  /* ============================================================
-     v3.15: findTargetByPosition — STAD > LAND preference
-     ============================================================ */
   function findTargetByPosition(title, actorCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -164,15 +161,12 @@
       }
     }
 
-    /* v3.15: prefereer stad boven land */
-    if (bestCity) return bestCity;
-    if (bestCountry) return bestCountry;
+    /* v3.15.1: markeer of het een stad is voor de teller */
+    if (bestCity) { bestCity._isCity = true; return bestCity; }
+    if (bestCountry) { bestCountry._isCity = false; return bestCountry; }
     return null;
   }
 
-  /* ============================================================
-     v3.15: extractLocation — STAD > LAND preference
-     ============================================================ */
   function extractLocation(text, skipCountries){
     if (!text) return null;
     var skip = [];
@@ -204,9 +198,9 @@
       }
     }
 
-    /* v3.15: prefereer stad boven land */
-    if (bestCity) return bestCity;
-    if (bestCountry) return bestCountry;
+    /* v3.15.1: markeer of het een stad is */
+    if (bestCity) { bestCity._isCity = true; return bestCity; }
+    if (bestCountry) { bestCountry._isCity = false; return bestCountry; }
     return null;
   }
 
@@ -324,9 +318,12 @@
       var cls = classifyItem(article);
       if (cls.category === "sport") { skippedSport++; continue; }
 
+      /* v3.15.1: ruimere civiel-check */
       if (cls.category === "civiel") {
         var titleStr = String(article.title || "");
-        if (!STRONG_CIVIEL_PATTERN.test(titleStr)) { skippedWeakCiviel++; continue; }
+        if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
+          if (!WAR_CONTEXT_PATTERN.test(titleStr)) { skippedWeakCiviel++; continue; }
+        }
       }
 
       var actorCountries = detectActorCountries(article.title, article.description || article.desc);
@@ -339,7 +336,8 @@
       if (targetResult.method === "position") positionHits++;
       else if (targetResult.method === "context") contextHits++;
 
-      if (loc && loc.country && !isCountryKey(loc.country.toLowerCase())) cityHits++;
+      /* v3.15.1: correcte city-hits teller */
+      if (loc && loc._isCity) cityHits++;
 
       if (!loc) loc = extractRegionFallback(article, skipForLoc);
       if (!loc) { skippedNoLocation++; continue; }
@@ -434,7 +432,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.15] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.15.1] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -514,7 +512,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15 geladen (city-first locatie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15.1 geladen (city-preference + zwak-civiel versoepeld)");
   }
 
   function getCountries(){
