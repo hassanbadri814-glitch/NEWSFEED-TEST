@@ -1,8 +1,11 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v9.4
+   WAR DESK — conflict-areas.js v10.0
    ------------------------------------------------------------
-   - v9.4: Witte landsgrenzen met zwarte drop-shadow
-           (professionele "double-stroke" stijl zoals Google Maps)
+   - v10.0: TWEE-LAGEN SYSTEEM
+           * Provinciegrenzen: dun + subtiel (weight 0.9, opacity .38)
+           * Landsgrenzen (ADM0): dik + fel wit (weight 3.5)
+           * Alleen landsgrenzen krijgen drop-shadow
+   - v9.4: Witte randen + zwarte drop-shadow
    - v9.3: Hybride legenda + zoom-navigatie
    - v9.2: Israël + Palestina toegevoegd
    ============================================================ */
@@ -21,6 +24,14 @@
     { label: "Druze (Syrië)", color: "#9333EA" }
   ];
 
+  /* Helper: genereer GADM level-0 URLs voor een land */
+  function adm0Sources(iso3){
+    return [
+      "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_" + iso3 + "_0.json",
+      "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_" + iso3 + "_0.json"
+    ];
+  }
+
   var CONFLICTS = {
     "UKR": {
       name: "Oekraïne",
@@ -36,6 +47,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json"
       ],
+      countrySources: adm0Sources("UKR"),
       iswUrl: "https://services5.arcgis.com/SaBe5HMtmnbqSWlu/ArcGIS/rest/services/VIEW_RussiaCoTinUkraine_V3/FeatureServer/49/query?where=1%3D1&outFields=*&f=geojson",
       deepStateUrlFn: function(){
         var now = new Date();
@@ -50,6 +62,7 @@
       overlayPolygons: null,
       cacheKeys: {
         oblasts:   { key: "wardesk_ukraine_oblasts", version: "v11" },
+        country:   { key: "wardesk_ukraine_country", version: "v1"  },
         deepState: { key: "wardesk_deepstate_geo",   version: "v7"  },
         isw:       { key: "wardesk_isw_geo",         version: "v5"  },
         snapshot:  { key: "wardesk_ukraine_snapshot",version: "v1"  }
@@ -71,6 +84,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_2.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SYR_2.json"
       ],
+      countrySources: adm0Sources("SYR"),
       iswUrl: null,
       deepStateUrlFn: null,
       provinceRules: [
@@ -114,6 +128,7 @@
       ],
       cacheKeys: {
         oblasts:   { key: "wardesk_syria_adm2",      version: "v4" },
+        country:   { key: "wardesk_syria_country",   version: "v1" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -135,6 +150,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_LBN_2.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_LBN_2.json"
       ],
+      countrySources: adm0Sources("LBN"),
       iswUrl: null,
       deepStateUrlFn: null,
       provinceRules: [
@@ -151,6 +167,7 @@
       overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_lebanon_adm2",      version: "v2" },
+        country:   { key: "wardesk_lebanon_country",   version: "v1" },
         deepState: { key: "wardesk_lebanon_ds",        version: "v1" },
         isw:       { key: "wardesk_lebanon_isw",       version: "v1" },
         snapshot:  { key: "wardesk_lebanon_snapshot",  version: "v1" }
@@ -171,6 +188,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_YEM_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_YEM_1.json"
       ],
+      countrySources: adm0Sources("YEM"),
       iswUrl: null,
       deepStateUrlFn: null,
       provinceRules: [
@@ -200,6 +218,7 @@
       overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_yemen_adm1",      version: "v1" },
+        country:   { key: "wardesk_yemen_country",   version: "v1" },
         deepState: { key: "wardesk_yemen_ds",        version: "v1" },
         isw:       { key: "wardesk_yemen_isw",       version: "v1" },
         snapshot:  { key: "wardesk_yemen_snapshot",  version: "v1" }
@@ -219,6 +238,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SAU_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SAU_1.json"
       ],
+      countrySources: adm0Sources("SAU"),
       iswUrl: null,
       deepStateUrlFn: null,
       provinceRules: [
@@ -240,6 +260,7 @@
       overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_saudi_adm1",      version: "v1" },
+        country:   { key: "wardesk_saudi_country",   version: "v1" },
         deepState: { key: "wardesk_saudi_ds",        version: "v1" },
         isw:       { key: "wardesk_saudi_isw",       version: "v1" },
         snapshot:  { key: "wardesk_saudi_snapshot",  version: "v1" }
@@ -259,6 +280,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_ISR_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_ISR_1.json"
       ],
+      countrySources: adm0Sources("ISR"),
       iswUrl: null,
       deepStateUrlFn: null,
       provinceRules: [
@@ -274,6 +296,7 @@
       overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_israel_adm1",      version: "v1" },
+        country:   { key: "wardesk_israel_country",   version: "v1" },
         deepState: { key: "wardesk_israel_ds",        version: "v1" },
         isw:       { key: "wardesk_israel_isw",       version: "v1" },
         snapshot:  { key: "wardesk_israel_snapshot",  version: "v1" }
@@ -293,6 +316,7 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_PSE_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_PSE_1.json"
       ],
+      countrySources: adm0Sources("PSE"),
       iswUrl: null,
       deepStateUrlFn: null,
       provinceRules: [
@@ -302,10 +326,11 @@
       districtOverrides: [],
       overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_palestine_adm1",   version: "v1" },
-        deepState: { key: "wardesk_palestine_ds",     version: "v1" },
-        isw:       { key: "wardesk_palestine_isw",    version: "v1" },
-        snapshot:  { key: "wardesk_palestine_snapshot", version: "v1" }
+        oblasts:   { key: "wardesk_palestine_adm1",    version: "v1" },
+        country:   { key: "wardesk_palestine_country", version: "v1" },
+        deepState: { key: "wardesk_palestine_ds",      version: "v1" },
+        isw:       { key: "wardesk_palestine_isw",     version: "v1" },
+        snapshot:  { key: "wardesk_palestine_snapshot",version: "v1" }
       }
     }
   };
@@ -323,31 +348,36 @@
   var STORE_GEOJSON = "geojson";
 
   var COLORS = {
-    visibleBorder: "rgba(255,255,255,0.85)",
-    pulse:         "rgba(255,90,90,0.95)",
-    territoryGain: "#e0a857"
+    provinceBorder: "rgba(255,255,255,0.38)",
+    countryBorder:  "#ffffff",
+    pulse:          "rgba(255,90,90,0.95)",
+    territoryGain:  "#e0a857"
   };
 
   var FILL_OPACITY = 0.45;
   var OVERLAY_FILL_OPACITY = 0.55;
-  var BORDER_WEIGHT = 1.6;
-  var BORDER_WEIGHT_HOVER = 2.8;
-  var OVERLAY_BORDER_WEIGHT = 1.6;
 
-  var PULSE_INTERVAL_MS = 900;
+  var PROVINCE_BORDER_WEIGHT = 0.9;
+  var COUNTRY_BORDER_WEIGHT  = 3.5;
+  var BORDER_WEIGHT_HOVER    = 2.8;
+  var OVERLAY_BORDER_WEIGHT  = 1.6;
+
+  var PULSE_INTERVAL_MS   = 900;
   var PULSE_MIN_INTENSITY = 0.15;
-  var PULSE_WEIGHT_MIN = 1.4;
-  var PULSE_WEIGHT_MAX = 3.6;
+  var PULSE_WEIGHT_MIN    = 1.4;
+  var PULSE_WEIGHT_MAX    = 3.6;
 
-  var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  var CACHE_MAX_AGE_MS    = 30 * 24 * 60 * 60 * 1000;
   var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-  var ISW_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+  var ISW_CACHE_MAX_AGE_MS= 7 * 24 * 60 * 60 * 1000;
 
   var CA = {
     map: null,
     layers: {},
+    countryLayers: {},
     overlayLayers: {},
     geojsons: {},
+    countryGeojsons: {},
     areas: {},
     deepStateGeos: {},
     iswGeos: {},
@@ -629,6 +659,29 @@
     return trySource(0);
   }
 
+  function fetchCountry(conflictIso){
+    var conflict = getConflict(conflictIso);
+    if(!conflict || !conflict.countrySources) return Promise.reject(new Error("Geen country bronnen"));
+    var lastErr = null;
+    function trySource(idx){
+      if(idx >= conflict.countrySources.length){
+        return Promise.reject(lastErr || new Error("Alle country bronnen faalden"));
+      }
+      return fetchViaProxy(conflict.countrySources[idx])
+        .then(function(json){
+          if(!isValidGeoJSON(json)) throw new Error("Ongeldige country GeoJSON");
+          LOG("[" + conflictIso + "]   ✓ Landsgeometrie (" + json.features.length + ")");
+          return json;
+        })
+        .catch(function(e){
+          LOG("[" + conflictIso + "]   country bron " + (idx+1) + " faalde: " + e.message);
+          lastErr = e;
+          return trySource(idx+1);
+        });
+    }
+    return trySource(0);
+  }
+
   function loadOblasts(conflictIso){
     var conflict = getConflict(conflictIso);
     if(!conflict) return Promise.reject(new Error("Geen conflict"));
@@ -646,6 +699,32 @@
         return dbPut(cacheKey, {
           version: cacheVer, t: Date.now(), geojson: json
         }).then(function(){ LOG("[" + conflictIso + "] Gebieden opgeslagen"); return json; });
+      });
+    });
+  }
+
+  function loadCountry(conflictIso){
+    var conflict = getConflict(conflictIso);
+    if(!conflict || !conflict.countrySources || !conflict.cacheKeys.country){
+      return Promise.resolve(null);
+    }
+    var cacheKey = conflict.cacheKeys.country.key;
+    var cacheVer = conflict.cacheKeys.country.version;
+    return dbGet(cacheKey).then(function(cached){
+      if(cached && cached.v && cached.v.version === cacheVer &&
+         (Date.now() - cached.v.t) < CACHE_MAX_AGE_MS &&
+         isValidGeoJSON(cached.v.geojson)){
+        LOG("[" + conflictIso + "] Landsgrens uit cache");
+        return cached.v.geojson;
+      }
+      LOG("[" + conflictIso + "] Landsgeometrie cache leeg — fetch");
+      return fetchCountry(conflictIso).then(function(json){
+        return dbPut(cacheKey, {
+          version: cacheVer, t: Date.now(), geojson: json
+        }).then(function(){ return json; });
+      }).catch(function(e){
+        LOG("[" + conflictIso + "] Landsgeometrie faalde: " + e.message);
+        return null;
       });
     });
   }
@@ -879,7 +958,7 @@
   }
 
   /* ============================================================
-     v9.4: Witte randen met zwarte drop-shadow
+     v10.0: STIJL — provincies dun+subtiel
      ============================================================ */
   function styleAreaFor(conflictIso){
     return function(feature){
@@ -890,8 +969,8 @@
         fillColor = conflict.parties[props.controller].fill;
       }
 
-      var borderWeight = BORDER_WEIGHT;
-      var borderColor = COLORS.visibleBorder;
+      var borderWeight = PROVINCE_BORDER_WEIGHT;
+      var borderColor = COLORS.provinceBorder;
       var borderOpacity = 0.9;
 
       if(props.territory_gain){
@@ -908,6 +987,23 @@
         opacity: borderOpacity,
         dashArray: null,
         interactive: true,
+        lineCap: "round",
+        lineJoin: "round"
+      };
+    };
+  }
+
+  /* v10.0: stijl voor landsgrenslaag (ADM0) */
+  function styleCountryFor(){
+    return function(){
+      return {
+        fillColor: "transparent",
+        fillOpacity: 0,
+        color: COLORS.countryBorder,
+        weight: COUNTRY_BORDER_WEIGHT,
+        opacity: 1.0,
+        dashArray: null,
+        interactive: false,
         lineCap: "round",
         lineJoin: "round"
       };
@@ -931,7 +1027,7 @@
 
       var poly = L.polygon(overlay.coords, {
         pane: conflict.paneName,
-        color: COLORS.visibleBorder,
+        color: COLORS.countryBorder,
         fillColor: party.fill,
         fillOpacity: OVERLAY_FILL_OPACITY,
         weight: OVERLAY_BORDER_WEIGHT,
@@ -1016,7 +1112,7 @@
           var p = l.feature.properties;
           if(!p.attack_intensity || p.attack_intensity < PULSE_MIN_INTENSITY) return;
           if(l._caHover) return;
-          var baseWeight = p.territory_gain ? 2.6 : BORDER_WEIGHT;
+          var baseWeight = p.territory_gain ? 2.6 : PROVINCE_BORDER_WEIGHT;
           var extra = (PULSE_WEIGHT_MAX - PULSE_WEIGHT_MIN) * p.attack_intensity;
           var newWeight = growing ? (baseWeight + extra) : baseWeight;
           var newOpacity = growing ? 1.0 : 0.9;
@@ -1213,21 +1309,22 @@
   }
 
   /* ============================================================
-     v9.4: CSS drop-shadow op SVG paths voor professionele grenzen
+     v10.0: CSS — alleen #ffffff landsgrens krijgt drop-shadow
      ============================================================ */
   function injectAreaStyles(){
     if(document.getElementById("caAreaStyles")) return;
     var s = document.createElement("style");
     s.id = "caAreaStyles";
-    /* Witte lijnen met zwarte drop-shadow voor alle conflict-area paths */
     s.textContent =
-      "svg.leaflet-zoom-animated path[stroke='rgba(255,255,255,0.85)']," +
-      ".leaflet-container svg path[stroke*='255,255,255']{" +
-        "filter: drop-shadow(0 0 1.2px rgba(0,0,0,0.95));" +
+      /* Landsgrens (puur wit #ffffff) krijgt zwarte gloed */
+      ".leaflet-container svg path[stroke='#ffffff']{" +
+        "filter: drop-shadow(0 0 1.5px rgba(0,0,0,0.95));" +
       "}" +
+      /* Terreinvinst */
       ".leaflet-container svg path[stroke='#e0a857']{" +
         "filter: drop-shadow(0 0 2px rgba(224,168,87,0.8)) drop-shadow(0 0 1px rgba(0,0,0,0.9));" +
       "}" +
+      /* Pulse */
       ".leaflet-container svg path[stroke='rgba(255,90,90,0.95)']{" +
         "filter: drop-shadow(0 0 2.5px rgba(255,90,90,0.6)) drop-shadow(0 0 1px rgba(0,0,0,0.9));" +
       "}";
@@ -1239,10 +1336,13 @@
     var geojson = CA.geojsons[conflictIso];
     if(!CA.map || !geojson || !conflict) return;
     ensurePane(CA.map, conflictIso);
+
     if(CA.layers[conflictIso]){ try{ CA.map.removeLayer(CA.layers[conflictIso]); }catch(e){} }
+    if(CA.countryLayers[conflictIso]){ try{ CA.map.removeLayer(CA.countryLayers[conflictIso]); }catch(e){} }
 
     injectAreaStyles();
 
+    /* 1. PROVINCIES — dun + subtiel */
     CA.layers[conflictIso] = L.geoJSON(geojson, {
       style: styleAreaFor(conflictIso),
       pane: conflict.paneName,
@@ -1263,7 +1363,22 @@
         });
       }
     });
-    LOG("[" + conflictIso + "] Gebiedslaag gerenderd: " + CA.areas[conflictIso].length + " gebieden");
+    LOG("[" + conflictIso + "] Provincies gerenderd: " + CA.areas[conflictIso].length);
+
+    /* 2. LANDSGRENS — dik + fel wit, BOVENOP provincies */
+    var countryJson = CA.countryGeojsons[conflictIso];
+    if(countryJson && countryJson.features && countryJson.features.length){
+      CA.countryLayers[conflictIso] = L.geoJSON(countryJson, {
+        style: styleCountryFor(),
+        pane: conflict.paneName,
+        smoothFactor: 1.5,
+        interactive: false
+      });
+      CA.countryLayers[conflictIso].addTo(CA.map);
+      LOG("[" + conflictIso + "] Landsgrens gerenderd (weight " + COUNTRY_BORDER_WEIGHT + ")");
+    } else {
+      LOG("[" + conflictIso + "] ⚠️ Geen landsgeometrie — alleen provincies");
+    }
 
     renderOverlayPolygons(conflictIso);
   }
@@ -1382,13 +1497,19 @@
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
       CA.geojsons[conflictIso] = oblastsJson;
-      return Promise.all([loadDeepState(conflictIso), loadISW(conflictIso)]).then(function(res){
+      return Promise.all([
+        loadDeepState(conflictIso),
+        loadISW(conflictIso),
+        loadCountry(conflictIso)
+      ]).then(function(res){
         CA.deepStateGeos[conflictIso] = res[0];
         CA.iswGeos[conflictIso] = res[1];
+        CA.countryGeojsons[conflictIso] = res[2];
         calculateControllers(conflictIso);
         calculateAttackIntensity(conflictIso);
         renderLayer(conflictIso);
-        LOG("[" + conflictIso + "] Klaar — " + (CA.areas[conflictIso] || []).length + " gebieden");
+        LOG("[" + conflictIso + "] Klaar — " + (CA.areas[conflictIso] || []).length +
+            " provincies + land: " + (CA.countryGeojsons[conflictIso] ? "ja" : "nee"));
         return true;
       });
     }).catch(function(e){
@@ -1459,12 +1580,16 @@
   function clearCache(){
     return Promise.all(ACTIVE_CONFLICTS.map(function(iso){
       var conflict = getConflict(iso);
-      return Promise.all([
+      var ops = [
         dbPut(conflict.cacheKeys.oblasts.key, { version: "cleared", t: 0, geojson: null }),
         dbPut(conflict.cacheKeys.deepState.key, { version: "cleared", t: 0, geojson: null }),
         dbPut(conflict.cacheKeys.isw.key, { version: "cleared", t: 0, geojson: null }),
         dbPut(conflict.cacheKeys.snapshot.key, { version: "cleared", t: 0, geojson: null })
-      ]);
+      ];
+      if(conflict.cacheKeys.country){
+        ops.push(dbPut(conflict.cacheKeys.country.key, { version: "cleared", t: 0, geojson: null }));
+      }
+      return Promise.all(ops);
     })).then(function(){ LOG("Alle caches gewist"); return true; });
   }
 
@@ -1472,9 +1597,10 @@
     stopPulse();
     ACTIVE_CONFLICTS.forEach(function(iso){
       if(CA.layers[iso] && CA.map){ try{ CA.map.removeLayer(CA.layers[iso]); }catch(e){} }
+      if(CA.countryLayers[iso] && CA.map){ try{ CA.map.removeLayer(CA.countryLayers[iso]); }catch(e){} }
       if(CA.overlayLayers[iso] && CA.map){ try{ CA.map.removeLayer(CA.overlayLayers[iso]); }catch(e){} }
     });
-    CA.layers = {}; CA.overlayLayers = {};
+    CA.layers = {}; CA.countryLayers = {}; CA.overlayLayers = {};
     CA.isInitialized = false; CA.isLoaded = false;
     _initPromise = null;
   }
@@ -1504,7 +1630,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v9.4",
+    state: CA, _version: "v10.0",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1541,5 +1667,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v9.4 geladen (witte randen + drop-shadow)");
+  LOG("conflict-areas.js v10.0 geladen (provincies dun + landsgrenzen dik)");
 })();
