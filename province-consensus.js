@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.5
-   - v1.5: non-physical events krijgen 0.3 weight (meer events)
+   WAR DESK — province-consensus.js v1.6
+   - v1.6: contested drempel versoepeld (25% share, 1 bron)
+   - v1.5: non-physical events krijgen 0.3 weight
    - v1.4: default-actor per land + skip niet-conflict landen
    - v1.3: actor-fallback
    - v1.2: retry-logica
@@ -20,8 +21,8 @@
   var THROTTLE_MS = 60 * 60 * 1000;
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
-  var MIN_ACTOR_SHARE = 0.35;
-  var MIN_ACTOR_SOURCES = 2;
+  var MIN_ACTOR_SHARE = 0.25;    /* v1.6: was 0.35 */
+  var MIN_ACTOR_SOURCES = 1;     /* v1.6: was 2 */
 
   var COUNTRY_DEFAULT_ACTOR = {
     "SYR": "Regering",
@@ -193,7 +194,6 @@
   function processEvent(ev, aggregator){
     if(!ev) return;
 
-    /* v1.5: niet-fysieke events krijgen lagere weight */
     var physicalBoost = 1.0;
     if(ev.countsForHeat === false){
       physicalBoost = 0.3;
@@ -431,8 +431,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.5"
+    _version: "v1.6"
   };
 
-  LOG("province-consensus.js v1.5 geladen (non-physical boost)");
+  LOG("province-consensus.js v1.6 geladen (contested 25%/1bron)");
 })();
