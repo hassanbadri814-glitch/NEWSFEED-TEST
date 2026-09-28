@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Districts Extractor</title>
+<style>
+body { background:#0a0e14; color:#e6ebf5; font-family:monospace; padding:16px; }
+h1 { color:#e0a857; font-size:16px; }
+#status { padding:12px; margin:10px 0; background:#111b2d; border-radius:8px; }
+#result { white-space:pre-wrap; background:#111b2d; padding:12px; border-radius:8px; font-size:11px; line-height:1.4; }
+button { background:#e0a857; color:#0a0e14; border:0; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; margin:10px 0; }
+</style>
+</head>
+<body>
+<h1>🇸🇾 Syrië Districten Extractor</h1>
+<button onclick="run()">▶ Start extractie</button>
+<div id="status">Klaar om te starten...</div>
+<div id="result"></div>
+
+<script>
+async function run() {
+  document.getElementById('status').textContent = 'Bezig met laden... (kan 5-10 sec duren)';
+  document.getElementById('result').textContent = '';
+  try {
+    const r = await fetch('https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_2.json');
+    const d = await r.json();
+    const provs = {};
+    d.features.forEach(f => {
+      const n1 = f.properties.NAME_1;
+      const n2 = f.properties.NAME_2;
+      if (!provs[n1]) provs[n1] = [];
+      provs[n1].push(n2);
+    });
+    const totaal = d.features.length;
+    document.getElementById('status').innerHTML = '✅ <b>Gelukt!</b> Totaal: <b>' + totaal + '</b> districten in <b>' + Object.keys(provs).length + '</b> provincies.';
+    let out = 'TOTAAL: ' + totaal + '\n\n';
+    Object.keys(provs).sort().forEach(p => {
+      out += '=== ' + p + ' (' + provs[p].length + ') ===\n';
+      provs[p].sort().forEach(x => { out += '  - ' + x + '\n'; });
+      out += '\n';
+    });
+    document.getElementById('result').textContent = out;
+  } catch(e) {
+    document.getElementById('status').textContent = '❌ Fout: ' + e.message;
+  }
+}
+</script>
+</body>
+</html>
