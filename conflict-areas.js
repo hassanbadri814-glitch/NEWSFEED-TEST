@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v6.2.1
+   WAR DESK — conflict-areas.js v6.2.2
    ------------------------------------------------------------
-   - v6.2.1: Diagnostische logging in findManualOverride
-             (om te achterhalen waarom AlHasakah niet matcht)
-   - v6.2: Robuuste fuzzy matching
+   - v6.2.2: NFD-normalisatie in findManualOverride
+             (fix voor Unicode-tekens zoals Ḥ in "AlḤasakah")
+   - v6.2.1: Diagnostische logging
    - v6.0: MULTI-COUNTRY (Oekraïne + Syrië)
    ============================================================ */
 
@@ -81,7 +81,7 @@
         { match: ["assuwayda", "suwayda", "suweida", "suwaydah"],           controller: "Druze" }
       ],
       cacheKeys: {
-        oblasts:   { key: "wardesk_syria_provinces", version: "v4" },
+        oblasts:   { key: "wardesk_syria_provinces", version: "v5" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -154,38 +154,32 @@
   }
 
   /* ============================================================
-     v6.2.1: Robuuste fuzzy matcher + diagnostic logging
+     v6.2.2: Robuuste fuzzy matcher met NFD-normalisatie
+     - Verwijdert diakritische tekens (Ḥ → H, á → a, ç → c)
+     - Stript alle niet-alfanumerieke tekens
      ============================================================ */
   function findManualOverride(provinceName, overrides){
     if(!provinceName || !overrides || !overrides.length) return null;
-    var norm = String(provinceName).toLowerCase().replace(/[^a-z0-9]/g, "");
+    var norm = String(provinceName)
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "");
     if(!norm) return null;
 
     for(var i = 0; i < overrides.length; i++){
       var entry = overrides[i];
       if(!entry || !entry.match) continue;
       for(var j = 0; j < entry.match.length; j++){
-        var needle = String(entry.match[j]).toLowerCase().replace(/[^a-z0-9]/g, "");
+        var needle = String(entry.match[j])
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]/g, "");
         if(!needle) continue;
         if(norm.indexOf(needle) !== -1) return entry.controller;
       }
     }
-
-    /* v6.2.1: diagnostic — log eerste unmatched naam met char codes */
-    if(!window.__caLoggedUnmatched){
-      window.__caLoggedUnmatched = {};
-    }
-    if(!window.__caLoggedUnmatched[norm]){
-      window.__caLoggedUnmatched[norm] = true;
-      var codes = [];
-      var rawStr = String(provinceName);
-      for(var c = 0; c < Math.min(rawStr.length, 30); c++){
-        codes.push(rawStr.charCodeAt(c));
-      }
-      LOG("DIAG unmatched: norm='" + norm + "' raw='" + provinceName +
-          "' len=" + rawStr.length + " codes=[" + codes.join(",") + "]");
-    }
-
     return null;
   }
 
@@ -1181,7 +1175,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v6.2.1",
+    state: CA, _version: "v6.2.2",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1218,5 +1212,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v6.2.1 geladen (met diagnostic logging)");
+  LOG("conflict-areas.js v6.2.2 geladen (NFD-normalisatie)");
 })();
