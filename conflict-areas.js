@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v9.0
+   WAR DESK — conflict-areas.js v9.1
    ------------------------------------------------------------
+   - v9.1: Diagnostic logging van alle gebiedsnamen (voor SAU-fix)
    - v9.0: 5 landen — UKR, SYR, LBN, YEM, SAU
-           Consistent kleurpalet: blauw/rood + geel (Hezbollah)
-   - v8.1: Libanon cyaan, geen overlay
    ============================================================ */
 
 (function(){
@@ -161,9 +160,7 @@
       ],
       iswUrl: null,
       deepStateUrlFn: null,
-      /* ADM1 — match op de gebiedsnaam zelf (geen provinceName) */
       provinceRules: [
-        /* Houthi-gecontroleerd (noord + west) */
         { match: ["sa'dah", "sadah"],         controller: "Houthi's" },
         { match: ["san'a'", "sanaa"],         controller: "Houthi's" },
         { match: ["amanatalasimah", "sana"],  controller: "Houthi's" },
@@ -179,7 +176,6 @@
         { match: ["ma'rib", "marib"],         controller: "Houthi's" },
         { match: ["aljawf"],                  controller: "Houthi's" },
         { match: ["aldali", "dhale"],         controller: "Houthi's" },
-        /* Regering-gecontroleerd (zuid + oost) */
         { match: ["'adan", "adan", "aden"],   controller: "Regering" },
         { match: ["abyan"],                   controller: "Regering" },
         { match: ["lahij"],                   controller: "Regering" },
@@ -211,7 +207,6 @@
       ],
       iswUrl: null,
       deepStateUrlFn: null,
-      /* Alle regio's → Saoedi-Arabië (blauw) */
       provinceRules: [
         { match: ["asir"],                     controller: "Saoedi-Arabië" },
         { match: ["albahah"],                  controller: "Saoedi-Arabië" },
@@ -659,6 +654,12 @@
 
     LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", inheritance: " + hasInheritance + ", level: " + conflict.level);
 
+    /* v9.1: log alle gebiedsnamen voor SAU om naam-mismatch op te lossen */
+    if(hasInheritance){
+      var allNames = geojson.features.map(function(f){ return f.properties.name; });
+      LOG("[" + conflictIso + "] GADM namen: " + allNames.join(" | "));
+    }
+
     var stats = {};
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
@@ -684,7 +685,6 @@
           districtOverrideCount++;
           return;
         }
-        /* ADM1 → match op gebiedsnaam. ADM2 → match op provinceName */
         var matchTarget = isADM1 ? props.name : props.provinceName;
         var provinceRule = findProvinceRule(matchTarget, conflict.provinceRules);
         if(provinceRule){
@@ -700,7 +700,7 @@
         props.control_confidence = 0;
         props.control_source = "Onbekend";
         stats.unknown++;
-        unmatched.push((props.provinceName || "?") + " / " + props.name);
+        unmatched.push(props.name);
         return;
       }
 
@@ -744,7 +744,7 @@
         ", province: " + provinceCount + ", district: " + districtOverrideCount + ")");
 
     if(unmatched.length){
-      LOG("[" + conflictIso + "] ⚠️ Onbekend: " + unmatched.slice(0, 10).join(" | "));
+      LOG("[" + conflictIso + "] ⚠️ Onbekend: " + unmatched.join(" | "));
     }
   }
 
@@ -1305,7 +1305,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v9.0",
+    state: CA, _version: "v9.1",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1342,5 +1342,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v9.0 geladen (5 landen: UKR, SYR, LBN, YEM, SAU)");
+  LOG("conflict-areas.js v9.1 geladen (met diagnostic logging)");
 })();
