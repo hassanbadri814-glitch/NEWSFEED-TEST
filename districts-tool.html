@@ -2,17 +2,17 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Districts Extractor</title>
+<title>Districts Extractor — Libanon</title>
 <style>
 body { background:#0a0e14; color:#e6ebf5; font-family:monospace; padding:16px; }
 h1 { color:#e0a857; font-size:16px; }
 #status { padding:12px; margin:10px 0; background:#111b2d; border-radius:8px; }
 #result { white-space:pre-wrap; background:#111b2d; padding:12px; border-radius:8px; font-size:11px; line-height:1.4; }
-button { background:#e0a857; color:#0a0e14; border:0; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; margin:10px 0; }
+button { background:#e0a857; color:#0a0e14; border:0; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; margin:10px 0; cursor:pointer; }
 </style>
 </head>
 <body>
-<h1>🇸🇾 Syrië Districten Extractor</h1>
+<h1>🇱🇧 Libanon Districten Extractor</h1>
 <button onclick="run()">▶ Start extractie</button>
 <div id="status">Klaar om te starten...</div>
 <div id="result"></div>
@@ -21,10 +21,10 @@ button { background:#e0a857; color:#0a0e14; border:0; padding:10px 20px; border-
 async function run() {
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
-  statusEl.textContent = 'Bezig met laden via proxy... (kan 10-20 sec duren)';
+  statusEl.textContent = 'Bezig met laden via proxy... (kan 10-30 sec duren)';
   resultEl.textContent = '';
 
-  const targetUrl = 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_2.json';
+  const targetUrl = 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_LBN_2.json';
   const proxies = [
     'https://newsfeed2.hassanbadri814.workers.dev/?url=',
     'https://nieuwsproxy.hassanbadri814.workers.dev/?url=',
@@ -58,15 +58,18 @@ async function run() {
   data.features.forEach(f => {
     const n1 = f.properties.NAME_1;
     const n2 = f.properties.NAME_2;
+    const gid = f.properties.GID_2 || '';
     if (!provs[n1]) provs[n1] = [];
-    provs[n1].push(n2);
+    provs[n1].push({ name: n2, gid: gid });
   });
   const totaal = data.features.length;
   statusEl.innerHTML = '✅ <b>Gelukt!</b> Totaal: <b>' + totaal + '</b> districten in <b>' + Object.keys(provs).length + '</b> provincies.';
   let out = 'TOTAAL: ' + totaal + '\n\n';
   Object.keys(provs).sort().forEach(p => {
     out += '=== ' + p + ' (' + provs[p].length + ') ===\n';
-    provs[p].sort().forEach(x => { out += '  - ' + x + '\n'; });
+    provs[p].sort((a,b) => a.name.localeCompare(b.name)).forEach(x => {
+      out += '  - ' + x.name + '   [' + x.gid + ']\n';
+    });
     out += '\n';
   });
   resultEl.textContent = out;
