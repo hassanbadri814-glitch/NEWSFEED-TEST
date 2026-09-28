@@ -1,10 +1,11 @@
 /* ============================================================
-   WAR DESK Service Worker v3.4.1
-   - v3.4.1: conflict-areas.js toegevoegd aan precache
-   - v3.4: event-dedup.js toegevoegd aan precache
+   WAR DESK Service Worker v3.65
+   - v3.65: province-mapper.js + province-consensus.js toegevoegd
+   - v3.64: conflict-areas.js v11.0 integratie voorbereid
+   - v3.63: buurlanden + Houthi-aanvallen
    ============================================================ */
 
-const CACHE_VERSION = 'v3.9';
+const CACHE_VERSION = 'v3.65';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -17,7 +18,9 @@ const PRECACHE_ASSETS = [
   './world-status.js',
   './classifier.js',
   './event-dedup.js',
-  './conflict-areas.js'
+  './conflict-areas.js',
+  './province-mapper.js',
+  './province-consensus.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
