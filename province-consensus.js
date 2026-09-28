@@ -1,10 +1,7 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.1
-   ------------------------------------------------------------
-   - v1.1: FIX — leest militaryEvents als events leeg is
-           FIX — auto-init ProvinceMapper bij run
-           FIX — robuustere event-detectie
-   - v1.0: eerste versie
+   WAR DESK — province-consensus.js v1.2
+   - v1.2: retry-logica voor PM init (8x, 2s tussen)
+   - v1.1: leest militaryEvents als events leeg is
    ============================================================ */
 
 (function(){
@@ -101,9 +98,6 @@
     });
   }
 
-  /* ============================================================
-     HULPFUNCTIES
-     ============================================================ */
   function getTier(source){
     try {
       if(window.WorldMapData && window.WorldMapData.getTier){
@@ -134,14 +128,9 @@
     return null;
   }
 
-  /* ============================================================
-     EVENTS VERZAMELEN — v1.1 fallback logic
-     ============================================================ */
   function collectEvents(){
     var state = window.MAPAPI && window.MAPAPI.state;
     if(!state) return [];
-
-    /* Probeer meerdere bronnen in volgorde van betrouwbaarheid */
     if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
       return state.militaryEvents;
     }
@@ -154,14 +143,9 @@
     return [];
   }
 
-  /* ============================================================
-     PROVINCE MAPPER — v1.1 auto-init
-     ============================================================ */
   function ensureProvinceMapper(){
     if(!window.ProvinceMapper) return false;
     if(ProvinceMapper.isReady()) return true;
-
-    /* Probeer init opnieuw met CA.geojsons */
     try {
       var geojsons = null;
       if(window.ConflictAreas && window.ConflictAreas.state){
@@ -171,8 +155,6 @@
         var ok = ProvinceMapper.init(geojsons);
         LOG("Auto-init ProvinceMapper: " + (ok ? "OK" : "faalde"));
         return ok;
-      } else {
-        LOG("Auto-init mislukt — CA.geojsons leeg of niet beschikbaar");
       }
     } catch(e){
       LOG("Auto-init error: " + e.message);
@@ -180,9 +162,6 @@
     return false;
   }
 
-  /* ============================================================
-     CLAIM VERWERKEN
-     ============================================================ */
   function processEvent(ev, aggregator){
     if(!ev) return;
     if(ev.category !== "militair" && ev.category !== "crime") return;
@@ -311,31 +290,34 @@
 
     var startTime = Date.now();
 
-    /* v1.1: Zorg dat ProvinceMapper ready is */
     if(!ensureProvinceMapper()){
+      var retries = (opts._retries || 0);
+      if(retries < 8){
+        isRunning = false;
+        LOG("PM niet ready — retry " + (retries+1) + "/8 over 2s");
+        return new Promise(function(resolve){
+          setTimeout(function(){
+            runNow({ force: true, _retries: retries + 1 }).then(resolve);
+          }, 2000);
+        });
+      }
       isRunning = false;
-      LOG("ProvinceMapper niet ready — skip run");
+      LOG("PM definitief niet ready na 8 retries — skip");
       return Promise.resolve(consensusByGid);
     }
 
-    /* v1.1: Verzamel events uit militaryEvents met fallback */
     var events = collectEvents();
     if(!events.length){
       isRunning = false;
-      LOG("Geen events om te verwerken (militaryEvents + events beide leeg)");
+      LOG("Geen events om te verwerken");
       return Promise.resolve(consensusByGid);
     }
 
     LOG("Verwerken " + events.length + " events...");
 
     var aggregator = {};
-    var processed = 0;
     events.forEach(function(ev){
-      try {
-        var before = Object.keys(aggregator).length;
-        processEvent(ev, aggregator);
-        if(Object.keys(aggregator).length > before) processed++;
-      } catch(e){}
+      try { processEvent(ev, aggregator); } catch(e){}
     });
 
     var results = computeConsensus(aggregator);
@@ -349,11 +331,9 @@
     LOG("Run klaar — " + results.length + " provincies | " +
         contestedCount + " contested | " + events.length + " events | " + elapsed + "ms");
 
-    var savePromise = dbPutAll(results).then(function(){
+    return dbPutAll(results).then(function(){
       return dbPutMeta("lastRun", lastRun);
-    }).catch(function(){});
-
-    return savePromise.then(function(){
+    }).catch(function(){}).then(function(){
       try {
         if(window.WarDesk && WarDesk.events){
           WarDesk.events.emit("province:consensus", {
@@ -420,17 +400,13 @@
           }
         });
         LOG("EventBus listener actief");
-      } else {
-        LOG("EventBus niet beschikbaar");
       }
-
       setInterval(function(){
         if(document.hidden) return;
         if(Date.now() - lastRun > 65 * 60 * 1000){
           scheduleRun(1000);
         }
       }, 5 * 60 * 1000);
-
       return true;
     });
   }
@@ -442,8 +418,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.1"
+    _version: "v1.2"
   };
 
-  LOG("province-consensus.js v1.1 geladen (militaryEvents fallback + auto-init)");
+  LOG("province-consensus.js v1.2 geladen (retry-logica)");
 })();
