@@ -19,30 +19,57 @@ button { background:#e0a857; color:#0a0e14; border:0; padding:10px 20px; border-
 
 <script>
 async function run() {
-  document.getElementById('status').textContent = 'Bezig met laden... (kan 5-10 sec duren)';
-  document.getElementById('result').textContent = '';
-  try {
-    const r = await fetch('https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_2.json');
-    const d = await r.json();
-    const provs = {};
-    d.features.forEach(f => {
-      const n1 = f.properties.NAME_1;
-      const n2 = f.properties.NAME_2;
-      if (!provs[n1]) provs[n1] = [];
-      provs[n1].push(n2);
-    });
-    const totaal = d.features.length;
-    document.getElementById('status').innerHTML = '✅ <b>Gelukt!</b> Totaal: <b>' + totaal + '</b> districten in <b>' + Object.keys(provs).length + '</b> provincies.';
-    let out = 'TOTAAL: ' + totaal + '\n\n';
-    Object.keys(provs).sort().forEach(p => {
-      out += '=== ' + p + ' (' + provs[p].length + ') ===\n';
-      provs[p].sort().forEach(x => { out += '  - ' + x + '\n'; });
-      out += '\n';
-    });
-    document.getElementById('result').textContent = out;
-  } catch(e) {
-    document.getElementById('status').textContent = '❌ Fout: ' + e.message;
+  const statusEl = document.getElementById('status');
+  const resultEl = document.getElementById('result');
+  statusEl.textContent = 'Bezig met laden via proxy... (kan 10-20 sec duren)';
+  resultEl.textContent = '';
+
+  const targetUrl = 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_2.json';
+  const proxies = [
+    'https://newsfeed2.hassanbadri814.workers.dev/?url=',
+    'https://nieuwsproxy.hassanbadri814.workers.dev/?url=',
+    'https://api.allorigins.win/raw?url='
+  ];
+
+  let data = null;
+  let lastErr = null;
+
+  for (let i = 0; i < proxies.length; i++) {
+    try {
+      statusEl.textContent = 'Poging ' + (i+1) + '/' + proxies.length + ' via proxy...';
+      const url = proxies[i] + encodeURIComponent(targetUrl);
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      data = await r.json();
+      statusEl.innerHTML = '✅ Gelukt via proxy ' + (i+1) + '!';
+      break;
+    } catch(e) {
+      lastErr = e;
+      statusEl.textContent = 'Proxy ' + (i+1) + ' faalde: ' + e.message + ' — probeer volgende...';
+    }
   }
+
+  if (!data) {
+    statusEl.textContent = '❌ Alle proxies faalden. Laatste fout: ' + (lastErr ? lastErr.message : '?');
+    return;
+  }
+
+  const provs = {};
+  data.features.forEach(f => {
+    const n1 = f.properties.NAME_1;
+    const n2 = f.properties.NAME_2;
+    if (!provs[n1]) provs[n1] = [];
+    provs[n1].push(n2);
+  });
+  const totaal = data.features.length;
+  statusEl.innerHTML = '✅ <b>Gelukt!</b> Totaal: <b>' + totaal + '</b> districten in <b>' + Object.keys(provs).length + '</b> provincies.';
+  let out = 'TOTAAL: ' + totaal + '\n\n';
+  Object.keys(provs).sort().forEach(p => {
+    out += '=== ' + p + ' (' + provs[p].length + ') ===\n';
+    provs[p].sort().forEach(x => { out += '  - ' + x + '\n'; });
+    out += '\n';
+  });
+  resultEl.textContent = out;
 }
 </script>
 </body>
