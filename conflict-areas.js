@@ -1,10 +1,11 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v5.0
+   WAR DESK — conflict-areas.js v5.2
    ------------------------------------------------------------
-   FASE 3: Aanvalspulsen + Terreinwinst
-   - v5.0: pulserende randen bij aanvallen, gouden rand bij terreinwinst
-   - v4.0: interactief paneel
-   - v3.1: eigen point-in-polygon (geen turf.js)
+   - v5.2: CONFLICTS configuratie (schaalbaar naar andere landen)
+           pulse alleen actief bij aanwezige events (A3)
+           legenda-API voor worldmap.js (A2)
+   - v5.1: bron altijd gevuld, dubbele init/snapshot voorkomen
+   - v5.0: pulserende randen + terreinwinst
    ============================================================ */
 
 (function(){
@@ -14,30 +15,51 @@
     try{ wdLog.info.apply(null, ["[AREA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  var OBLAST_SOURCES = [
-    "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
-    "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json"
-  ];
+  /* ============================================================
+     CONFLICTS — centrale configuratie (schaalbaar)
+     Voeg nieuwe conflicten toe met eigen land-ISO + partijen.
+     ============================================================ */
+  var CONFLICTS = {
+    "UKR": {
+      name: "Oekraïne",
+      country: "Oekraïne",
+      parties: {
+        "Rusland":  { color: "#C62828", fill: "#C62828" },
+        "Oekraïne": { color: "#2A6FDB", fill: "#2A6FDB" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_UKR_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_UKR_1.json"
+      ],
+      iswUrl: "https://services5.arcgis.com/SaBe5HMtmnbqSWlu/ArcGIS/rest/services/VIEW_RussiaCoTinUkraine_V3/FeatureServer/49/query?where=1%3D1&outFields=*&f=geojson",
+      deepStateUrlFn: function(){
+        var now = new Date();
+        if(now.getUTCHours() < 4){ now.setUTCDate(now.getUTCDate() - 1); }
+        var y = now.getUTCFullYear();
+        var m = String(now.getUTCMonth() + 1).padStart(2, "0");
+        var d = String(now.getUTCDate()).padStart(2, "0");
+        return "https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/deepstatemap_data_" + y + m + d + ".geojson";
+      },
+      cacheKeys: {
+        oblasts:   { key: "wardesk_ukraine_oblasts", version: "v11" },
+        deepState: { key: "wardesk_deepstate_geo",   version: "v7"  },
+        isw:       { key: "wardesk_isw_geo",         version: "v5"  },
+        snapshot:  { key: "wardesk_ukraine_snapshot",version: "v1"  }
+      }
+    }
+    /* Later uitbreiden:
+       "YEM": { name: "Jemen", parties: { "Houthi's": {...}, "Regering": {...} }, ... },
+       "SYR": { ... }, "LBN": { ... }
+    */
+  };
 
-  var ISW_URL = "https://services5.arcgis.com/SaBe5HMtmnbqSWlu/ArcGIS/rest/services/VIEW_RussiaCoTinUkraine_V3/FeatureServer/49/query?where=1%3D1&outFields=*&f=geojson";
+  var ACTIVE_CONFLICT_ISO = "UKR";
 
   var PROXIES = [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
     "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
     "https://api.allorigins.win/raw?url="
   ];
-
-  var CACHE_KEY = "wardesk_ukraine_oblasts";
-  var CACHE_KEY_DS = "wardesk_deepstate_geo";
-  var CACHE_KEY_ISW = "wardesk_isw_geo";
-  var CACHE_KEY_SNAPSHOT = "wardesk_ukraine_snapshot";
-  var CACHE_VERSION = "v10";
-  var CACHE_VERSION_DS = "v6";
-  var CACHE_VERSION_ISW = "v4";
-  var SNAPSHOT_VERSION = "v1";
-  var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
-  var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
-  var ISW_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
@@ -46,13 +68,7 @@
   var PANE_Z = 420;
 
   var COLORS = {
-    russiaFill:    "#C62828",
-    ukraineFill:   "#2A6FDB",
-    russiaBorder:  "rgba(180,40,40,0.55)",
-    ukraineBorder: "rgba(50,110,200,0.55)",
     neutralBorder: "rgba(255,255,255,0.10)",
-    russiaBorderHover:  "rgba(220,60,60,0.95)",
-    ukraineBorderHover: "rgba(70,140,240,0.95)",
     pulse:         "rgba(255,90,90,0.95)",
     territoryGain: "#e0a857"
   };
@@ -61,11 +77,14 @@
   var BORDER_WEIGHT = 0.6;
   var BORDER_WEIGHT_HOVER = 2.2;
 
-  /* Pulserende animatie-instellingen */
   var PULSE_INTERVAL_MS = 900;
   var PULSE_MIN_INTENSITY = 0.15;
   var PULSE_WEIGHT_MIN = 1.4;
   var PULSE_WEIGHT_MAX = 3.6;
+
+  var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+  var ISW_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
   var CA = {
     map: null, layer: null, geojson: null, areas: [],
@@ -75,10 +94,23 @@
     panel: null, selectedId: null,
     snapshot: null, prevSnapshot: null,
     pulseTimer: null, pulsePhase: 0,
-    isMapActive: true
+    isMapActive: true,
+    _snapshotSavedFor: null
   };
 
   var db = null;
+  var _initPromise = null;
+
+  function getActiveConflict(){
+    return CONFLICTS[ACTIVE_CONFLICT_ISO] || null;
+  }
+
+  function getPartyColor(partyName){
+    var conflict = getActiveConflict();
+    if(!conflict || !conflict.parties) return "#6b7280";
+    var p = conflict.parties[partyName];
+    return p ? p.color : "#6b7280";
+  }
 
   /* ============================================================
      GEO HELPERS
@@ -290,13 +322,16 @@
   }
 
   function fetchOblasts(){
+    var conflict = getActiveConflict();
+    if(!conflict || !conflict.oblastSources) return Promise.reject(new Error("Geen oblast-bronnen"));
+
     var lastErr = null;
     function trySource(idx){
-      if(idx >= OBLAST_SOURCES.length){
+      if(idx >= conflict.oblastSources.length){
         return Promise.reject(lastErr || new Error("Alle oblast-bronnen faalden"));
       }
-      LOG("Oblasten bron " + (idx+1) + "/" + OBLAST_SOURCES.length);
-      return fetchViaProxy(OBLAST_SOURCES[idx])
+      LOG("Oblasten bron " + (idx+1) + "/" + conflict.oblastSources.length);
+      return fetchViaProxy(conflict.oblastSources[idx])
         .then(function(json){
           if(!isValidGeoJSON(json)) throw new Error("Ongeldige GeoJSON");
           return normalizeOblast(json);
@@ -315,8 +350,13 @@
   }
 
   function loadOblasts(){
-    return dbGet(CACHE_KEY).then(function(cached){
-      if(cached && cached.v && cached.v.version === CACHE_VERSION &&
+    var conflict = getActiveConflict();
+    if(!conflict) return Promise.reject(new Error("Geen actief conflict"));
+    var cacheKey = conflict.cacheKeys.oblasts.key;
+    var cacheVer = conflict.cacheKeys.oblasts.version;
+
+    return dbGet(cacheKey).then(function(cached){
+      if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < CACHE_MAX_AGE_MS &&
          isValidGeoJSON(cached.v.geojson)){
         LOG("Oblasten uit cache (" + cached.v.geojson.features.length + ")");
@@ -324,8 +364,8 @@
       }
       LOG("Oblast-cache leeg — fetch externe bron");
       return fetchOblasts().then(function(json){
-        return dbPut(CACHE_KEY, {
-          version: CACHE_VERSION, t: Date.now(), geojson: json
+        return dbPut(cacheKey, {
+          version: cacheVer, t: Date.now(), geojson: json
         }).then(function(){ LOG("Oblasten opgeslagen"); return json; });
       });
     });
@@ -334,15 +374,6 @@
   /* ============================================================
      DeepState + ISW laden
      ============================================================ */
-  function getDeepStateUrl(){
-    var now = new Date();
-    if(now.getUTCHours() < 4){ now.setUTCDate(now.getUTCDate() - 1); }
-    var y = now.getUTCFullYear();
-    var m = String(now.getUTCMonth() + 1).padStart(2, "0");
-    var d = String(now.getUTCDate()).padStart(2, "0");
-    return "https://raw.githubusercontent.com/cyterat/deepstate-map-data/main/data/deepstatemap_data_" + y + m + d + ".geojson";
-  }
-
   function extractDeepStateGeometry(json){
     if(!json) return null;
     if(json.type === "FeatureCollection" && json.features){
@@ -363,23 +394,28 @@
   }
 
   function loadDeepState(){
-    return dbGet(CACHE_KEY_DS).then(function(cached){
-      if(cached && cached.v && cached.v.version === CACHE_VERSION_DS &&
+    var conflict = getActiveConflict();
+    if(!conflict || !conflict.deepStateUrlFn) return Promise.resolve(null);
+    var cacheKey = conflict.cacheKeys.deepState.key;
+    var cacheVer = conflict.cacheKeys.deepState.version;
+
+    return dbGet(cacheKey).then(function(cached){
+      if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < DS_CACHE_MAX_AGE_MS &&
          cached.v.geojson){
         LOG("DeepState uit cache");
         return cached.v.geojson;
       }
       LOG("DeepState cache leeg — fetch");
-      var url = getDeepStateUrl();
+      var url = conflict.deepStateUrlFn();
       LOG("DeepState URL: ..." + url.slice(-30));
       return fetchRaw(url, 20000)
         .then(function(json){
           var feat = extractDeepStateGeometry(json);
           if(!feat) throw new Error("Geen polygoon");
           LOG("  ✓ DeepState geladen");
-          return dbPut(CACHE_KEY_DS, {
-            version: CACHE_VERSION_DS, t: Date.now(), geojson: feat
+          return dbPut(cacheKey, {
+            version: cacheVer, t: Date.now(), geojson: feat
           }).then(function(){ LOG("DeepState opgeslagen"); return feat; });
         })
         .catch(function(e){ LOG("DeepState faalde: " + e.message); return null; });
@@ -387,20 +423,25 @@
   }
 
   function loadISW(){
-    return dbGet(CACHE_KEY_ISW).then(function(cached){
-      if(cached && cached.v && cached.v.version === CACHE_VERSION_ISW &&
+    var conflict = getActiveConflict();
+    if(!conflict || !conflict.iswUrl) return Promise.resolve(null);
+    var cacheKey = conflict.cacheKeys.isw.key;
+    var cacheVer = conflict.cacheKeys.isw.version;
+
+    return dbGet(cacheKey).then(function(cached){
+      if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < ISW_CACHE_MAX_AGE_MS &&
          isValidGeoJSON(cached.v.geojson)){
         LOG("ISW uit cache");
         return cached.v.geojson;
       }
       LOG("ISW fallback — fetch ArcGIS");
-      return fetchViaProxy(ISW_URL)
+      return fetchViaProxy(conflict.iswUrl)
         .then(function(json){
           if(!isValidGeoJSON(json)) throw new Error("Ongeldige ISW GeoJSON");
           LOG("  ✓ ISW geladen (" + json.features.length + ")");
-          return dbPut(CACHE_KEY_ISW, {
-            version: CACHE_VERSION_ISW, t: Date.now(), geojson: json
+          return dbPut(cacheKey, {
+            version: cacheVer, t: Date.now(), geojson: json
           }).then(function(){ LOG("ISW opgeslagen"); return json; });
         })
         .catch(function(e){ LOG("ISW faalde: " + e.message); return null; });
@@ -428,6 +469,7 @@
       var centroid = getCentroid(feature);
       if(!centroid){
         props.controller = "Onbekend";
+        props.control_source = "Onbekend";
         stats.unknown++;
         return;
       }
@@ -455,9 +497,16 @@
 
       var controller = inOccupied ? "Rusland" : "Oekraïne";
       props.controller = controller;
-      props.control_source = source || (controller === "Oekraïne" ? "DeepState" : null);
       props.control_confidence = 0.7;
       props.last_update = new Date().toISOString();
+
+      if(controller === "Rusland"){
+        props.control_source = source || "Onbekend";
+      } else if(controller === "Oekraïne"){
+        props.control_source = hasDS ? "DeepState" : (hasISW ? "ISW" : "Onbekend");
+      } else {
+        props.control_source = "Onbekend";
+      }
 
       if(controller === "Rusland") stats.russia++;
       else stats.ukraine++;
@@ -469,7 +518,7 @@
   }
 
   /* ============================================================
-     SNAPSHOT — dagelijkse momentopname voor terreinwinst
+     Snapshot + terreinwinst
      ============================================================ */
   function getTodayKey(){
     var d = new Date();
@@ -480,7 +529,16 @@
 
   function saveSnapshot(){
     if(!CA.geojson || !CA.geojson.features) return Promise.resolve();
+    var conflict = getActiveConflict();
+    if(!conflict) return Promise.resolve();
+
     var today = getTodayKey();
+    if(CA._snapshotSavedFor === today){
+      LOG("Snapshot voor " + today + " al opgeslagen — skip");
+      return Promise.resolve();
+    }
+    CA._snapshotSavedFor = today;
+
     var areas = {};
     CA.geojson.features.forEach(function(f){
       if(f.properties && f.properties.id){
@@ -491,27 +549,26 @@
       }
     });
     var snap = {
-      version: SNAPSHOT_VERSION,
+      version: conflict.cacheKeys.snapshot.version,
       date: today,
       t: Date.now(),
       areas: areas
     };
-    return dbPut(CACHE_KEY_SNAPSHOT, snap).then(function(){
+    return dbPut(conflict.cacheKeys.snapshot.key, snap).then(function(){
       LOG("Snapshot opgeslagen (" + today + "): " + Object.keys(areas).length + " oblasten");
       return snap;
     });
   }
 
   function loadPrevSnapshot(){
-    return dbGet(CACHE_KEY_SNAPSHOT).then(function(cached){
+    var conflict = getActiveConflict();
+    if(!conflict) return Promise.resolve(null);
+    return dbGet(conflict.cacheKeys.snapshot.key).then(function(cached){
       if(!cached || !cached.v) return null;
       var snap = cached.v;
-      if(snap.version !== SNAPSHOT_VERSION) return null;
+      if(snap.version !== conflict.cacheKeys.snapshot.version) return null;
       var today = getTodayKey();
-      if(snap.date === today){
-        /* Snapshot is van vandaag; gebruik hem als huidige */
-        return null;
-      }
+      if(snap.date === today) return null;
       LOG("Vorige snapshot: " + snap.date);
       return snap;
     });
@@ -519,7 +576,7 @@
 
   function calculateTerritoryGain(){
     if(!CA.geojson || !CA.geojson.features) return;
-    if(!CA.prevSnapshot || !CA.prevSnapshot.areas) {
+    if(!CA.prevSnapshot || !CA.prevSnapshot.areas){
       LOG("Geen vorige snapshot — geen terreinwinst berekend");
       return;
     }
@@ -548,7 +605,7 @@
   }
 
   /* ============================================================
-     Attack intensity — gebaseerd op MAPAPI events
+     Attack intensity
      ============================================================ */
   function calculateAttackIntensity(){
     if(!CA.geojson || !CA.geojson.features) return;
@@ -565,7 +622,6 @@
       return;
     }
 
-    /* Reset eerst */
     CA.geojson.features.forEach(function(f){
       if(f.properties){
         f.properties.attack_intensity = 0;
@@ -573,11 +629,9 @@
       }
     });
 
-    /* Tijdvenster: laatste 7 dagen */
     var periodAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-    /* Voor elk event: vind de oblast waarin het valt */
     var countByArea = {};
+
     events.forEach(function(ev){
       if(!ev || typeof ev.lat !== "number" || typeof ev.lng !== "number") return;
       if(ev.category !== "militair" && ev.category !== "crime") return;
@@ -585,7 +639,6 @@
       var t = new Date(ev.date).getTime();
       if(t < periodAgo) return;
 
-      /* Vind eerste oblast die het event bevat */
       for(var i = 0; i < CA.geojson.features.length; i++){
         var f = CA.geojson.features[i];
         if(featureContainsPoint(f, ev.lng, ev.lat)){
@@ -596,7 +649,6 @@
       }
     });
 
-    /* Bereken intensiteit per oblast (0.0 – 1.0) */
     var activeAreas = 0;
     var totalEvents = 0;
     CA.geojson.features.forEach(function(f){
@@ -606,7 +658,6 @@
         activeAreas++;
         totalEvents += count;
       }
-      /* Logaritmische schaal: 1 event = 0.15, 3 = 0.4, 10 = 0.7, 20+ = 1.0 */
       var intensity = Math.min(1, Math.log(1 + count) / Math.log(21));
       f.properties.attack_intensity = Math.round(intensity * 100) / 100;
       f.properties.attack_count = count;
@@ -615,34 +666,45 @@
     LOG("Attack intensity: " + totalEvents + " events in " + activeAreas + " oblasten");
   }
 
+  function hasActiveAreas(){
+    if(!CA.geojson || !CA.geojson.features) return false;
+    for(var i = 0; i < CA.geojson.features.length; i++){
+      var p = CA.geojson.features[i].properties;
+      if(p && p.attack_intensity >= PULSE_MIN_INTENSITY) return true;
+    }
+    return false;
+  }
+
   /* ============================================================
      Styling
      ============================================================ */
-  function getColorsFor(props){
-    var controller = props && props.controller;
-    if(controller === "Rusland"){
-      return { fill: COLORS.russiaFill, border: COLORS.russiaBorder, borderHover: COLORS.russiaBorderHover };
+  function getFillColorFor(props){
+    if(!props || !props.controller) return "transparent";
+    return getPartyColor(props.controller);
+  }
+
+  function getBorderColorFor(props){
+    if(!props || !props.controller){
+      return COLORS.neutralBorder;
     }
-    if(controller === "Oekraïne"){
-      return { fill: COLORS.ukraineFill, border: COLORS.ukraineBorder, borderHover: COLORS.ukraineBorderHover };
-    }
-    return { fill: "transparent", border: COLORS.neutralBorder, borderHover: "rgba(255,255,255,0.5)" };
+    var c = getPartyColor(props.controller);
+    /* Converteer hex naar rgba met lagere opacity voor subtiele rand */
+    return c;
   }
 
   function styleArea(feature){
     var props = (feature && feature.properties) || {};
-    var c = getColorsFor(props);
-
-    /* Terreinwinst: gouden rand */
-    var borderColor = c.border;
+    var fillColor = getFillColorFor(props);
+    var borderColor = getBorderColorFor(props);
     var borderWeight = BORDER_WEIGHT;
+
     if(props.territory_gain){
       borderColor = COLORS.territoryGain;
       borderWeight = 2.4;
     }
 
     return {
-      fillColor: c.fill,
+      fillColor: fillColor,
       fillOpacity: props.controller ? FILL_OPACITY : 0,
       color: borderColor,
       weight: borderWeight,
@@ -655,11 +717,23 @@
   }
 
   /* ============================================================
-     Pulse animatie — randen van actieve oblasten knipperen
+     Pulse animatie — A3: alleen starten als er actieve oblasten zijn
      ============================================================ */
+  var _pulseRetryTimer = null;
+
   function startPulse(){
     stopPulse();
     if(!CA.isMapActive) return;
+    if(!CA.layer) return;
+
+    if(!hasActiveAreas()){
+      LOG("Geen actieve oblasten — pulse over 30s opnieuw proberen");
+      _pulseRetryTimer = setTimeout(function(){
+        _pulseRetryTimer = null;
+        if(CA.isMapActive && CA.isInitialized) startPulse();
+      }, 30000);
+      return;
+    }
 
     CA.pulseTimer = setInterval(function(){
       if(!CA.isMapActive || !CA.layer) return;
@@ -670,11 +744,8 @@
         if(!l.feature || !l.feature.properties) return;
         var p = l.feature.properties;
         if(!p.attack_intensity || p.attack_intensity < PULSE_MIN_INTENSITY) return;
-
-        /* Skip als de laag gehoverd is */
         if(l._caHover) return;
 
-        var c = getColorsFor(p);
         var baseWeight = p.territory_gain ? 2.4 : BORDER_WEIGHT;
         var extra = (PULSE_WEIGHT_MAX - PULSE_WEIGHT_MIN) * p.attack_intensity;
         var newWeight = growing ? (baseWeight + extra) : baseWeight;
@@ -698,6 +769,10 @@
     if(CA.pulseTimer){
       clearInterval(CA.pulseTimer);
       CA.pulseTimer = null;
+    }
+    if(_pulseRetryTimer){
+      clearTimeout(_pulseRetryTimer);
+      _pulseRetryTimer = null;
     }
   }
 
@@ -851,9 +926,8 @@
       mouseover: function(e){
         var l = e.target;
         l._caHover = true;
-        var c = getColorsFor(feature.properties);
         var w = feature.properties.territory_gain ? 3.0 : BORDER_WEIGHT_HOVER;
-        var col = feature.properties.territory_gain ? COLORS.territoryGain : c.borderHover;
+        var col = feature.properties.territory_gain ? COLORS.territoryGain : getPartyColor(feature.properties.controller);
         l.setStyle({
           weight: w,
           color: col,
@@ -906,14 +980,43 @@
   }
 
   /* ============================================================
+     Legenda — A2: HTML genereren die worldmap.js injecteert
+     ============================================================ */
+  function getLegendHtml(){
+    var conflict = getActiveConflict();
+    if(!conflict || !conflict.parties) return "";
+
+    var html = '<div class="wm-legend-block">';
+    html += '<div class="wm-legend-block-title">── ' + escapeHtml(conflict.name) + ' ──</div>';
+
+    var partyNames = Object.keys(conflict.parties);
+    partyNames.forEach(function(party){
+      var c = conflict.parties[party];
+      html += '<div class="wm-legend-row">' +
+        '<span class="wm-legend-swatch-square" style="background:' + c.fill + '"></span>' +
+        escapeHtml(party) +
+      '</div>';
+    });
+
+    html += '<div class="wm-legend-row">' +
+      '<span class="wm-legend-swatch-square wm-legend-swatch-gold"></span>' +
+      'Terreinwinst' +
+    '</div>';
+
+    html += '<div class="wm-legend-row">' +
+      '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>' +
+      'Actief conflict' +
+    '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  /* ============================================================
      Public API
      ============================================================ */
-  function init(mapInstance){
-    if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
-    if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
-
-    CA.map = mapInstance;
-    LOG("Init gestart");
+  function _doInit(){
+    LOG("Init gestart voor " + ACTIVE_CONFLICT_ISO);
 
     return openDB()
       .then(function(){ return loadOblasts(); })
@@ -939,22 +1042,42 @@
           LOG("Init klaar — " + CA.areas.length + " oblasten (" +
               CA.stats.russia + " rood, " + CA.stats.ukraine + " blauw)");
 
+          /* A2: Vraag worldmap.js om de legenda te verversen */
+          try {
+            if(window.WorldMap && window.WorldMap.refreshLegend){
+              window.WorldMap.refreshLegend();
+            }
+          } catch(e){}
+
           startPulse();
           return true;
         });
       })
       .catch(function(e){
         LOG("Init faalde: " + (e.message || "?"));
+        _initPromise = null;
         throw e;
       });
   }
 
+  function init(mapInstance){
+    if(CA.isInitialized){ LOG("Al geïnitialiseerd"); return Promise.resolve(); }
+    if(_initPromise){ LOG("Init al bezig — wacht"); return _initPromise; }
+    if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
+
+    CA.map = mapInstance;
+    _initPromise = _doInit();
+    return _initPromise;
+  }
+
   function refresh(){
     if(!CA.isInitialized) return Promise.resolve();
-    LOG("Refresh — DeepState + ISW + intensity opnieuw");
+    var conflict = getActiveConflict();
+    if(!conflict) return Promise.resolve();
+    LOG("Refresh — bronnen opnieuw");
     return Promise.all([
-      dbPut(CACHE_KEY_DS, { version: "cleared", t: 0, geojson: null }),
-      dbPut(CACHE_KEY_ISW, { version: "cleared", t: 0, geojson: null })
+      dbPut(conflict.cacheKeys.deepState.key, { version: "cleared", t: 0, geojson: null }),
+      dbPut(conflict.cacheKeys.isw.key, { version: "cleared", t: 0, geojson: null })
     ]).then(function(){
       return Promise.all([loadDeepState(), loadISW()]);
     }).then(function(res){
@@ -976,15 +1099,19 @@
         try { l.setStyle(styleArea(l.feature)); } catch(e){}
       });
     }
+    /* Herstart pulse in geval van nieuwe actieve oblasten */
+    if(hasActiveAreas() && !CA.pulseTimer) startPulse();
     LOG("Attack intensity bijgewerkt");
   }
 
   function clearCache(){
+    var conflict = getActiveConflict();
+    if(!conflict) return Promise.resolve();
     return Promise.all([
-      dbPut(CACHE_KEY, { version: "cleared", t: 0, geojson: null }),
-      dbPut(CACHE_KEY_DS, { version: "cleared", t: 0, geojson: null }),
-      dbPut(CACHE_KEY_ISW, { version: "cleared", t: 0, geojson: null }),
-      dbPut(CACHE_KEY_SNAPSHOT, { version: "cleared", t: 0, geojson: null })
+      dbPut(conflict.cacheKeys.oblasts.key, { version: "cleared", t: 0, geojson: null }),
+      dbPut(conflict.cacheKeys.deepState.key, { version: "cleared", t: 0, geojson: null }),
+      dbPut(conflict.cacheKeys.isw.key, { version: "cleared", t: 0, geojson: null }),
+      dbPut(conflict.cacheKeys.snapshot.key, { version: "cleared", t: 0, geojson: null })
     ]).then(function(){ LOG("Caches gewist"); return true; });
   }
 
@@ -992,6 +1119,7 @@
     stopPulse();
     if(CA.layer && CA.map){ try{ CA.map.removeLayer(CA.layer); }catch(e){} }
     CA.layer = null; CA.isInitialized = false; CA.isLoaded = false;
+    _initPromise = null;
   }
 
   function getStats(){ return CA.stats; }
@@ -1013,7 +1141,9 @@
   window.ConflictAreas = {
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
-    state: CA, _version: "v5.0"
+    getLegendHtml: getLegendHtml,
+    state: CA, _version: "v5.2",
+    _conflicts: CONFLICTS
   };
 
   /* ============================================================
@@ -1054,5 +1184,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v5.0 geladen (pulse + territory gain)");
+  LOG("conflict-areas.js v5.2 geladen (CONFLICTS configuratie)");
 })();
