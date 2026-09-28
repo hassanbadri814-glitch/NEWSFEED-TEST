@@ -1,6 +1,6 @@
 /* ============================================================
-   WAR DESK — diagnostic.js v1.1
-   Wacht tot PM + CA + events klaar zijn, dan diagnostic dump.
+   WAR DESK — diagnostic.js v1.2
+   Wacht onbeperkt tot PM + events klaar zijn (max 3 min fallback).
    ============================================================ */
 
 (function(){
@@ -17,7 +17,7 @@
 
   function runDiagnostic(){
     log("═══════════════════════════════");
-    log("CONSENSUS DIAGNOSTIC v1.1");
+    log("CONSENSUS DIAGNOSTIC v1.2");
     log("═══════════════════════════════");
 
     log("1. PM ready: " + (window.ProvinceMapper && ProvinceMapper.isReady()));
@@ -136,23 +136,27 @@
     var pmReady = window.ProvinceMapper && ProvinceMapper.isReady();
     var caReady = window.ConflictAreas && window.ConflictAreas.state && window.ConflictAreas.state.isInitialized;
     var state = window.MAPAPI && window.MAPAPI.state;
-    var hasEvents = state && (
-      (Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) ||
-      (Array.isArray(state.events) && state.events.length > 0)
-    );
+    var eventCount = 0;
+    if(state){
+      if(Array.isArray(state.events)) eventCount = Math.max(eventCount, state.events.length);
+      if(Array.isArray(state.militaryEvents)) eventCount = Math.max(eventCount, state.militaryEvents.length);
+    }
 
-    if((pmReady && caReady && hasEvents) || attempt >= 30){
-      log("Diagnostic start na " + (attempt*2) + "s (PM=" + pmReady + ", CA=" + caReady + ", events=" + hasEvents + ")");
+    /* Stop pas als PM ready is EN events binnen zijn, of na 90 pogingen (3 min) */
+    if((pmReady && caReady && eventCount > 50) || attempt >= 90){
+      log("Diagnostic start na " + (attempt*2) + "s (PM=" + pmReady + ", CA=" + caReady + ", events=" + eventCount + ")");
       try { runDiagnostic(); } catch(e){
         log("FATAL: " + e.message);
       }
       return;
     }
-    log("Wacht op init... (" + (attempt+1) + "/30, PM=" + pmReady + ", CA=" + caReady + ", events=" + hasEvents + ")");
+    if(attempt % 5 === 0){
+      log("Wacht... (" + (attempt+1) + "/90, PM=" + pmReady + ", CA=" + caReady + ", events=" + eventCount + ")");
+    }
     setTimeout(function(){ waitForReady(attempt + 1); }, 2000);
   }
 
-  setTimeout(function(){ waitForReady(0); }, 5000);
+  setTimeout(function(){ waitForReady(0); }, 3000);
 
   window.WDDiagnostic = { run: runDiagnostic };
 })();
