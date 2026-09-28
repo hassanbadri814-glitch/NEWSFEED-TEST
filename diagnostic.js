@@ -1,6 +1,6 @@
 /* ============================================================
    WAR DESK — diagnostic.js v1.1
-   Wacht tot PM + CA klaar zijn, dan diagnostic dump.
+   Wacht tot PM + CA + events klaar zijn, dan diagnostic dump.
    ============================================================ */
 
 (function(){
@@ -135,15 +135,20 @@
     attempt = attempt || 0;
     var pmReady = window.ProvinceMapper && ProvinceMapper.isReady();
     var caReady = window.ConflictAreas && window.ConflictAreas.state && window.ConflictAreas.state.isInitialized;
+    var state = window.MAPAPI && window.MAPAPI.state;
+    var hasEvents = state && (
+      (Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) ||
+      (Array.isArray(state.events) && state.events.length > 0)
+    );
 
-    if((pmReady && caReady) || attempt >= 20){
-      log("Diagnostic start na " + (attempt*2) + "s (PM=" + pmReady + ", CA=" + caReady + ")");
+    if((pmReady && caReady && hasEvents) || attempt >= 30){
+      log("Diagnostic start na " + (attempt*2) + "s (PM=" + pmReady + ", CA=" + caReady + ", events=" + hasEvents + ")");
       try { runDiagnostic(); } catch(e){
         log("FATAL: " + e.message);
       }
       return;
     }
-    log("Wacht op init... (" + (attempt+1) + "/20, PM=" + pmReady + ", CA=" + caReady + ")");
+    log("Wacht op init... (" + (attempt+1) + "/30, PM=" + pmReady + ", CA=" + caReady + ", events=" + hasEvents + ")");
     setTimeout(function(){ waitForReady(attempt + 1); }, 2000);
   }
 
