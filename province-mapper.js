@@ -3,14 +3,6 @@
    ------------------------------------------------------------
    Brug tussen stad-claims (uit ai-map) en provincie-areas
    (uit conflict-areas GADM geojsons).
-
-   Interface:
-     init(gadmGeojsons)                → van ConflictAreas
-     getProvinceForCity(key)           → "aleppo" → {iso3, admin1}
-     getProvinceForPoint(lat,lng,iso3) → reverse geocoding
-     getAreasForProvince(iso3,admin1)  → [areaId, ...]
-     resolveActor(name)                → "Assad" → "Regering"
-     debugTest()                       → console test
    ============================================================ */
 
 (function(){
@@ -20,11 +12,7 @@
     try{ wdLog.info.apply(null, ["[PROVMAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  /* ============================================================
-     CITY → (iso3, admin1) — admin1 matcht GADM NAME_1 (na normalize)
-     ============================================================ */
   var CITY_TO_PROVINCE = {
-    /* OEKRAÏNE */
     "kyiv":{"iso3":"UKR","admin1":"Kyiv"},"kiev":{"iso3":"UKR","admin1":"Kyiv"},
     "kharkiv":{"iso3":"UKR","admin1":"Kharkiv"},"odesa":{"iso3":"UKR","admin1":"Odesa"},
     "donetsk":{"iso3":"UKR","admin1":"Donetsk"},"donbas":{"iso3":"UKR","admin1":"Donetsk"},
@@ -40,11 +28,9 @@
     "lviv":{"iso3":"UKR","admin1":"Lviv"},
     "krim":{"iso3":"UKR","admin1":"Crimea"},"crimea":{"iso3":"UKR","admin1":"Crimea"},
     "sevastopol":{"iso3":"UKR","admin1":"Crimea"},
-    /* RUSLAND */
     "belgorod":{"iso3":"RUS","admin1":"Belgorod"},"koersk":{"iso3":"RUS","admin1":"Kursk"},
     "kursk":{"iso3":"RUS","admin1":"Kursk"},"bryansk":{"iso3":"RUS","admin1":"Bryansk"},
     "rostov":{"iso3":"RUS","admin1":"Rostov"},"voronezh":{"iso3":"RUS","admin1":"Voronezh"},
-    /* SYRIË */
     "aleppo":{"iso3":"SYR","admin1":"Aleppo"},"damascus":{"iso3":"SYR","admin1":"Damascus"},
     "homs":{"iso3":"SYR","admin1":"Homs"},"hama":{"iso3":"SYR","admin1":"Hama"},
     "idlib":{"iso3":"SYR","admin1":"Idlib"},"latakia":{"iso3":"SYR","admin1":"Latakia"},
@@ -56,14 +42,12 @@
     "daraa":{"iso3":"SYR","admin1":"Daraa"},"dara":{"iso3":"SYR","admin1":"Daraa"},
     "suwayda":{"iso3":"SYR","admin1":"As-Suwayda"},"sweida":{"iso3":"SYR","admin1":"As-Suwayda"},
     "quneitra":{"iso3":"SYR","admin1":"Quneitra"},
-    /* LIBANON */
     "beirut":{"iso3":"LBN","admin1":"Beyrouth"},"beiroet":{"iso3":"LBN","admin1":"Beyrouth"},
     "tripoli":{"iso3":"LBN","admin1":"Liban-Nord"},
     "sidon":{"iso3":"LBN","admin1":"Liban-Sud"},"tyre":{"iso3":"LBN","admin1":"Liban-Sud"},
     "baalbek":{"iso3":"LBN","admin1":"Baalbek-Hermel"},
     "bekaa":{"iso3":"LBN","admin1":"Béqaa"},"beqaa":{"iso3":"LBN","admin1":"Béqaa"},
     "nabatieh":{"iso3":"LBN","admin1":"Nabatîyé"},"akkar":{"iso3":"LBN","admin1":"Aakkâr"},
-    /* JEMEN */
     "sanaa":{"iso3":"YEM","admin1":"Amanat Al Asimah"},"aden":{"iso3":"YEM","admin1":"Adan"},
     "hodeidah":{"iso3":"YEM","admin1":"Al Hudaydah"},
     "taiz":{"iso3":"YEM","admin1":"Ta'izz"},"ta'izz":{"iso3":"YEM","admin1":"Ta'izz"},
@@ -72,18 +56,15 @@
     "ibb":{"iso3":"YEM","admin1":"Ibb"},"dhamar":{"iso3":"YEM","admin1":"Dhamar"},
     "hajjah":{"iso3":"YEM","admin1":"Hajjah"},"aljawf":{"iso3":"YEM","admin1":"Al Jawf"},
     "hadramawt":{"iso3":"YEM","admin1":"Hadramawt"},
-    /* SAOEDI-ARABIË */
     "riyadh":{"iso3":"SAU","admin1":"Ar Riyad"},
     "jeddah":{"iso3":"SAU","admin1":"Makkah"},"makkah":{"iso3":"SAU","admin1":"Makkah"},
     "medina":{"iso3":"SAU","admin1":"Al Madinah"},
     "jizan":{"iso3":"SAU","admin1":"Jizan"},"jazan":{"iso3":"SAU","admin1":"Jizan"},
     "najran":{"iso3":"SAU","admin1":"Najran"},
     "abha":{"iso3":"SAU","admin1":"Asir"},"khamis mushait":{"iso3":"SAU","admin1":"Asir"},
-    /* ISRAËL */
     "tel aviv":{"iso3":"ISR","admin1":"Tel Aviv"},
     "jeruzalem":{"iso3":"ISR","admin1":"Jerusalem"},"jerusalem":{"iso3":"ISR","admin1":"Jerusalem"},
     "haifa":{"iso3":"ISR","admin1":"Haifa"},"golan":{"iso3":"ISR","admin1":"Northern"},
-    /* PALESTINA */
     "gaza":{"iso3":"PSE","admin1":"Gaza"},"rafah":{"iso3":"PSE","admin1":"Gaza"},
     "khan younis":{"iso3":"PSE","admin1":"Gaza"},"jabalia":{"iso3":"PSE","admin1":"Gaza"},
     "westelijke jordaanoever":{"iso3":"PSE","admin1":"West Bank"},
@@ -93,7 +74,6 @@
     "hebron":{"iso3":"PSE","admin1":"West Bank"}
   };
 
-  /* ACTOR → canonieke naam (match conflict-areas partij-namen) */
   var ACTOR_ALIASES = {
     "rusland":"Rusland","russia":"Rusland","russian":"Rusland",
     "russian army":"Rusland","russian forces":"Rusland","kremlin":"Rusland",
@@ -293,7 +273,10 @@
     getAreasForProvince: getAreasForProvince,
     resolveActor: resolveActor,
     debugTest: debugTest,
-    isReady: function(){ return _initialized; },
+    isReady: function(){
+      if(!_initialized) return false;
+      return Object.keys(_areaCache).length > 0;
+    },
     _version: "v1.0",
     _cityTable: CITY_TO_PROVINCE,
     _actorTable: ACTOR_ALIASES
