@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v6.2
+   WAR DESK — conflict-areas.js v6.2.1
    ------------------------------------------------------------
-   - v6.2: Robuuste fuzzy matching — stript alle niet-alfanumerieke
-           tekens; aliassen aangepast op exacte GADM-namen
-   - v6.1: Fuzzy matching + fallback fix + logging
+   - v6.2.1: Diagnostische logging in findManualOverride
+             (om te achterhalen waarom AlHasakah niet matcht)
+   - v6.2: Robuuste fuzzy matching
    - v6.0: MULTI-COUNTRY (Oekraïne + Syrië)
    ============================================================ */
 
@@ -64,10 +64,6 @@
       ],
       iswUrl: null,
       deepStateUrlFn: null,
-      /* v6.2: aliassen afgestemd op exacte GADM-namen
-         GADM gebruikt: AlHasakah, Aleppo, ArRaqqah, AsSuwayda',
-         Damascus, Dar`a, DayrAzZawr, Hamah, Hims, Idlib,
-         Lattakia, Quneitra, RifDimashq, Tartus */
       manualOverrides: [
         { match: ["aleppo"],                                                controller: "Regering" },
         { match: ["damascus"],                                              controller: "Regering" },
@@ -85,7 +81,7 @@
         { match: ["assuwayda", "suwayda", "suweida", "suwaydah"],           controller: "Druze" }
       ],
       cacheKeys: {
-        oblasts:   { key: "wardesk_syria_provinces", version: "v3" },
+        oblasts:   { key: "wardesk_syria_provinces", version: "v4" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -158,7 +154,7 @@
   }
 
   /* ============================================================
-     v6.2: Robuuste fuzzy matcher — stript alle niet-alfanumerieke tekens
+     v6.2.1: Robuuste fuzzy matcher + diagnostic logging
      ============================================================ */
   function findManualOverride(provinceName, overrides){
     if(!provinceName || !overrides || !overrides.length) return null;
@@ -174,6 +170,22 @@
         if(norm.indexOf(needle) !== -1) return entry.controller;
       }
     }
+
+    /* v6.2.1: diagnostic — log eerste unmatched naam met char codes */
+    if(!window.__caLoggedUnmatched){
+      window.__caLoggedUnmatched = {};
+    }
+    if(!window.__caLoggedUnmatched[norm]){
+      window.__caLoggedUnmatched[norm] = true;
+      var codes = [];
+      var rawStr = String(provinceName);
+      for(var c = 0; c < Math.min(rawStr.length, 30); c++){
+        codes.push(rawStr.charCodeAt(c));
+      }
+      LOG("DIAG unmatched: norm='" + norm + "' raw='" + provinceName +
+          "' len=" + rawStr.length + " codes=[" + codes.join(",") + "]");
+    }
+
     return null;
   }
 
@@ -546,7 +558,6 @@
       stats.total++;
       var props = feature.properties;
 
-      /* ============ MANUAL OVERRIDES ============ */
       if(hasManual){
         var override = findManualOverride(props.name, conflict.manualOverrides);
         if(override){
@@ -568,7 +579,6 @@
         }
       }
 
-      /* ============ AUTOMATISCH (UKR) ============ */
       var centroid = getCentroid(feature);
       if(!centroid){
         props.controller = null;
@@ -1171,7 +1181,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v6.2",
+    state: CA, _version: "v6.2.1",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1208,5 +1218,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v6.2 geladen (robuste fuzzy matching)");
+  LOG("conflict-areas.js v6.2.1 geladen (met diagnostic logging)");
 })();
