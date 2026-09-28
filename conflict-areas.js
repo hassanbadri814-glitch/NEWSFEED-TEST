@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v8.1
+   WAR DESK — conflict-areas.js v9.0
    ------------------------------------------------------------
-   - v8.1: Libanese staat → cyaan (#00BCD4)
-           Rode overlay Libanon verwijderd (was onnauwkeurig)
-   - v8.0: Libanon toegevoegd
+   - v9.0: 5 landen — UKR, SYR, LBN, YEM, SAU
+           Consistent kleurpalet: blauw/rood + geel (Hezbollah)
+   - v8.1: Libanon cyaan, geen overlay
    ============================================================ */
 
 (function(){
@@ -53,11 +53,9 @@
       paneZ: 421,
       level: "ADM2",
       parties: {
-        "Regering":  { color: "#2E7D32", fill: "#2E7D32" },
-        "SDF":       { color: "#2A6FDB", fill: "#2A6FDB" },
-        "Druze":     { color: "#9333EA", fill: "#9333EA" },
-        "Israël":    { color: "#C62828", fill: "#C62828" },
-        "Betwist":   { color: "#F57C00", fill: "#F57C00" }
+        "Regering":  { color: "#2A6FDB", fill: "#2A6FDB" },
+        "Druze":     { color: "#C62828", fill: "#C62828" },
+        "Israël":    { color: "#C62828", fill: "#C62828" }
       },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SYR_2.json",
@@ -105,7 +103,7 @@
         }
       ],
       cacheKeys: {
-        oblasts:   { key: "wardesk_syria_adm2",      version: "v3" },
+        oblasts:   { key: "wardesk_syria_adm2",      version: "v4" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -118,7 +116,7 @@
       paneZ: 422,
       level: "ADM2",
       parties: {
-        "Libanese staat": { color: "#00BCD4", fill: "#00BCD4" },
+        "Libanese staat": { color: "#2A6FDB", fill: "#2A6FDB" },
         "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
         "Israël":         { color: "#C62828", fill: "#C62828" }
       },
@@ -139,18 +137,108 @@
         { match: ["south"],                          controller: "Hezbollah" }
       ],
       districtOverrides: [],
-      /* v8.1: geen overlay voor Libanon — data was onnauwkeurig */
       overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_lebanon_adm2",      version: "v1" },
+        oblasts:   { key: "wardesk_lebanon_adm2",      version: "v2" },
         deepState: { key: "wardesk_lebanon_ds",        version: "v1" },
         isw:       { key: "wardesk_lebanon_isw",       version: "v1" },
         snapshot:  { key: "wardesk_lebanon_snapshot",  version: "v1" }
       }
+    },
+
+    "YEM": {
+      name: "Jemen",
+      paneName: "conflictAreasPaneYEM",
+      paneZ: 423,
+      level: "ADM1",
+      parties: {
+        "Regering":  { color: "#2A6FDB", fill: "#2A6FDB" },
+        "Houthi's":  { color: "#C62828", fill: "#C62828" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_YEM_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_YEM_1.json"
+      ],
+      iswUrl: null,
+      deepStateUrlFn: null,
+      /* ADM1 — match op de gebiedsnaam zelf (geen provinceName) */
+      provinceRules: [
+        /* Houthi-gecontroleerd (noord + west) */
+        { match: ["sa'dah", "sadah"],         controller: "Houthi's" },
+        { match: ["san'a'", "sanaa"],         controller: "Houthi's" },
+        { match: ["amanatalasimah", "sana"],  controller: "Houthi's" },
+        { match: ["amran"],                   controller: "Houthi's" },
+        { match: ["dhamar"],                  controller: "Houthi's" },
+        { match: ["almahwit"],                controller: "Houthi's" },
+        { match: ["raymah"],                  controller: "Houthi's" },
+        { match: ["alhaduyadah", "hodeidah"], controller: "Houthi's" },
+        { match: ["hajjah"],                  controller: "Houthi's" },
+        { match: ["ibb"],                     controller: "Houthi's" },
+        { match: ["ta'izz", "taizz"],         controller: "Houthi's" },
+        { match: ["albayda"],                 controller: "Houthi's" },
+        { match: ["ma'rib", "marib"],         controller: "Houthi's" },
+        { match: ["aljawf"],                  controller: "Houthi's" },
+        { match: ["aldali", "dhale"],         controller: "Houthi's" },
+        /* Regering-gecontroleerd (zuid + oost) */
+        { match: ["'adan", "adan", "aden"],   controller: "Regering" },
+        { match: ["abyan"],                   controller: "Regering" },
+        { match: ["lahij"],                   controller: "Regering" },
+        { match: ["shabwah"],                 controller: "Regering" },
+        { match: ["hadramawt"],               controller: "Regering" },
+        { match: ["almahrah", "mahra"],       controller: "Regering" }
+      ],
+      districtOverrides: [],
+      overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_yemen_adm1",      version: "v1" },
+        deepState: { key: "wardesk_yemen_ds",        version: "v1" },
+        isw:       { key: "wardesk_yemen_isw",       version: "v1" },
+        snapshot:  { key: "wardesk_yemen_snapshot",  version: "v1" }
+      }
+    },
+
+    "SAU": {
+      name: "Saoedi-Arabië",
+      paneName: "conflictAreasPaneSAU",
+      paneZ: 424,
+      level: "ADM1",
+      parties: {
+        "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SAU_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SAU_1.json"
+      ],
+      iswUrl: null,
+      deepStateUrlFn: null,
+      /* Alle regio's → Saoedi-Arabië (blauw) */
+      provinceRules: [
+        { match: ["asir"],                     controller: "Saoedi-Arabië" },
+        { match: ["albahah"],                  controller: "Saoedi-Arabië" },
+        { match: ["alhududashshamaliyah"],     controller: "Saoedi-Arabië" },
+        { match: ["aljawf"],                   controller: "Saoedi-Arabië" },
+        { match: ["almadinah"],                controller: "Saoedi-Arabië" },
+        { match: ["alqassim"],                 controller: "Saoedi-Arabië" },
+        { match: ["arriyadh"],                 controller: "Saoedi-Arabië" },
+        { match: ["ashsharqiyah"],             controller: "Saoedi-Arabië" },
+        { match: ["ha'il", "hail"],            controller: "Saoedi-Arabië" },
+        { match: ["jazan"],                    controller: "Saoedi-Arabië" },
+        { match: ["makkah"],                   controller: "Saoedi-Arabië" },
+        { match: ["najran"],                   controller: "Saoedi-Arabië" },
+        { match: ["tabuk"],                    controller: "Saoedi-Arabië" }
+      ],
+      districtOverrides: [],
+      overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_saudi_adm1",      version: "v1" },
+        deepState: { key: "wardesk_saudi_ds",        version: "v1" },
+        isw:       { key: "wardesk_saudi_isw",       version: "v1" },
+        snapshot:  { key: "wardesk_saudi_snapshot",  version: "v1" }
+      }
     }
   };
 
-  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN"];
+  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SAU"];
 
   var PROXIES = [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
@@ -212,9 +300,9 @@
       .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   }
 
-  function findProvinceRule(provinceName, rules){
-    if(!provinceName || !rules || !rules.length) return null;
-    var norm = normalize(provinceName);
+  function findProvinceRule(nameOrProvince, rules){
+    if(!nameOrProvince || !rules || !rules.length) return null;
+    var norm = normalize(nameOrProvince);
     if(!norm) return null;
     for(var i = 0; i < rules.length; i++){
       var entry = rules[i];
@@ -411,7 +499,7 @@
       var proxy = PROXIES[idx];
       var fullUrl = proxy + encodeURIComponent(targetUrl);
       idx++;
-      return fetchRaw(fullUrl, 40000).catch(function(){ return tryNext(); });
+      return fetchRaw(fullUrl, 50000).catch(function(){ return tryNext(); });
     }
     return tryNext();
   }
@@ -567,8 +655,9 @@
     var hasDS = !!CA.deepStateGeos[conflictIso];
     var hasISW = !!CA.iswGeos[conflictIso] && CA.iswGeos[conflictIso].features && CA.iswGeos[conflictIso].features.length > 0;
     var hasInheritance = !!conflict.provinceRules;
+    var isADM1 = conflict.level === "ADM1";
 
-    LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", inheritance: " + hasInheritance);
+    LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", inheritance: " + hasInheritance + ", level: " + conflict.level);
 
     var stats = {};
     var partyNames = Object.keys(conflict.parties);
@@ -595,7 +684,9 @@
           districtOverrideCount++;
           return;
         }
-        var provinceRule = findProvinceRule(props.provinceName, conflict.provinceRules);
+        /* ADM1 → match op gebiedsnaam. ADM2 → match op provinceName */
+        var matchTarget = isADM1 ? props.name : props.provinceName;
+        var provinceRule = findProvinceRule(matchTarget, conflict.provinceRules);
         if(provinceRule){
           props.controller = provinceRule;
           props.control_confidence = 0.8;
@@ -934,8 +1025,8 @@
     var statsEl = panel.querySelector("#caPanelStats");
     var ctrlLabel = props.controller || "Onbekend";
     var ctrlClass = "conf-med";
-    if(props.controller === "Rusland" || props.controller === "Israël") ctrlClass = "conf-low";
-    else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat") ctrlClass = "conf-high";
+    if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's") ctrlClass = "conf-low";
+    else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië") ctrlClass = "conf-high";
 
     var events = getEventsForArea(area);
     var physicalCount = 0;
@@ -1089,10 +1180,6 @@
           '<span class="wm-legend-swatch-square" style="background:' + c.fill + '"></span>' +
           escapeHtml(party) + '</div>';
       });
-      html += '<div class="wm-legend-row">' +
-        '<span class="wm-legend-swatch-square wm-legend-swatch-gold"></span>Terreinwinst</div>';
-      html += '<div class="wm-legend-row">' +
-        '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
       html += '</div>';
     });
     return html;
@@ -1218,7 +1305,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v8.1",
+    state: CA, _version: "v9.0",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1255,5 +1342,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v8.1 geladen (Libanon cyaan, geen overlay)");
+  LOG("conflict-areas.js v9.0 geladen (5 landen: UKR, SYR, LBN, YEM, SAU)");
 })();
