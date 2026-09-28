@@ -2,109 +2,77 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GADM Extractor</title>
+<title>ISR + PSE Extractor</title>
 <style>
 body { background:#0a0e14; color:#e6ebf5; font-family:monospace; padding:16px; }
 h1 { color:#e0a857; font-size:16px; }
 #status { padding:12px; margin:10px 0; background:#111b2d; border-radius:8px; }
 #result { white-space:pre-wrap; background:#111b2d; padding:12px; border-radius:8px; font-size:11px; line-height:1.4; }
 button { background:#e0a857; color:#0a0e14; border:0; padding:10px 20px; border-radius:8px; font-weight:700; font-size:14px; margin:10px 0; cursor:pointer; }
-input { background:#111b2d; color:#e6ebf5; border:1px solid #2a3a52; padding:8px 12px; border-radius:8px; font-size:13px; font-family:inherit; width:100%; box-sizing:border-box; margin:4px 0; }
 </style>
 </head>
 <body>
-<h1>🗺️ GADM Extractor</h1>
-<input type="text" id="urlInput" placeholder="Plak hier de GADM URL..." value="https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SAU_1.json">
+<h1>🇮🇱🇵🇸 ISR + PSE Extractor</h1>
 <button onclick="run()">▶ Start extractie</button>
 <div id="status">Klaar om te starten...</div>
 <div id="result"></div>
 
 <script>
+const PROXIES = [
+  'https://newsfeed2.hassanbadri814.workers.dev/?url=',
+  'https://nieuwsproxy.hassanbadri814.workers.dev/?url=',
+  'https://api.allorigins.win/raw?url='
+];
+
+async function fetchGadm(baseUrl) {
+  for (let i = 0; i < PROXIES.length; i++) {
+    try {
+      const url = PROXIES[i] + encodeURIComponent(baseUrl);
+      const r = await fetch(url);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } catch(e) { /* probeer volgende proxy */ }
+  }
+  throw new Error('Alle proxies faalden voor ' + baseUrl);
+}
+
 async function run() {
   const statusEl = document.getElementById('status');
   const resultEl = document.getElementById('result');
-  const targetUrl = document.getElementById('urlInput').value.trim();
-  statusEl.textContent = 'Bezig met laden via proxy... (kan 10-60 sec duren)';
+  statusEl.textContent = 'Bezig met laden... (kan 30-60 sec duren)';
   resultEl.textContent = '';
 
-  const proxies = [
-    'https://newsfeed2.hassanbadri814.workers.dev/?url=',
-    'https://nieuwsproxy.hassanbadri814.workers.dev/?url=',
-    'https://api.allorigins.win/raw?url='
+  const countries = [
+    { code: 'ISR', label: '🇮🇱 Israël',   url: 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_ISR_1.json' },
+    { code: 'PSE', label: '🇵🇸 Palestina', url: 'https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_PSE_1.json' }
   ];
 
-  let data = null;
-  let lastErr = null;
+  let out = '';
 
-  for (let i = 0; i < proxies.length; i++) {
+  for (const c of countries) {
     try {
-      statusEl.textContent = 'Poging ' + (i+1) + '/' + proxies.length + ' via proxy...';
-      const url = proxies[i] + encodeURIComponent(targetUrl);
-      const r = await fetch(url);
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      data = await r.json();
-      statusEl.innerHTML = '✅ Gelukt via proxy ' + (i+1) + '!';
-      break;
-    } catch(e) {
-      lastErr = e;
-      statusEl.textContent = 'Proxy ' + (i+1) + ' faalde: ' + e.message + ' — probeer volgende...';
-    }
-  }
+      statusEl.textContent = 'Laden ' + c.label + '...';
+      const data = await fetchGadm(c.url);
+      if (!data || !data.features) throw new Error('Geen features');
 
-  if (!data || !data.features) {
-    statusEl.textContent = '❌ Alle proxies faalden of geen features. Fout: ' + (lastErr ? lastErr.message : '?');
-    return;
-  }
+      out += '═══════════════════════════════════\n';
+      out += c.label + ' (' + c.code + ') — TOTAAL: ' + data.features.length + '\n';
+      out += '═══════════════════════════════════\n';
 
-  // Detecteer niveau: heeft NAME_2? Dan ADM2, anders ADM1
-  const sample = data.features[0].properties || {};
-  const hasName2 = !!sample.NAME_2;
-  const hasName1 = !!sample.NAME_1;
-  const hasName0 = !!sample.NAME_0;
-
-  const level = hasName2 ? 'ADM2' : (hasName1 ? 'ADM1' : 'ADM0');
-  statusEl.innerHTML = '✅ <b>Gelukt!</b> Totaal: <b>' + data.features.length + '</b> features — niveau: <b>' + level + '</b>';
-
-  // Groepeer op basis van niveau
-  const groups = {};
-  data.features.forEach(f => {
-    const p = f.properties || {};
-    let parent, child, gid;
-
-    if (level === 'ADM2') {
-      parent = p.NAME_1 || '?';
-      child = p.NAME_2 || '?';
-      gid = p.GID_2 || '';
-    } else if (level === 'ADM1') {
-      parent = '—';
-      child = p.NAME_1 || '?';
-      gid = p.GID_1 || '';
-    } else {
-      parent = '—';
-      child = p.NAME_0 || p.COUNTRY || '?';
-      gid = p.GID_0 || '';
-    }
-
-    if (!groups[parent]) groups[parent] = [];
-    groups[parent].push({ name: child, gid: gid });
-  });
-
-  let out = 'TOTAAL: ' + data.features.length + ' | NIVEAU: ' + level + '\n\n';
-  if (level === 'ADM1') {
-    // Simpele lijst
-    const all = groups['—'] || [];
-    all.sort((a,b) => a.name.localeCompare(b.name));
-    all.forEach(x => { out += '  - ' + x.name + '   [' + x.gid + ']\n'; });
-  } else {
-    // Gegroepeerd per provincie
-    Object.keys(groups).sort().forEach(p => {
-      out += '=== ' + p + ' (' + groups[p].length + ') ===\n';
-      groups[p].sort((a,b) => a.name.localeCompare(b.name)).forEach(x => {
-        out += '  - ' + x.name + '   [' + x.gid + ']\n';
+      const names = data.features.map(f => {
+        const p = f.properties || {};
+        return p.NAME_1 || p.NAME_0 || '?';
       });
+      names.sort((a,b) => a.localeCompare(b));
+      names.forEach(n => { out += '  - ' + n + '\n'; });
       out += '\n';
-    });
+    } catch(e) {
+      out += '═══════════════════════════════════\n';
+      out += c.label + ' — FOUT: ' + e.message + '\n\n';
+    }
   }
+
+  statusEl.innerHTML = '✅ Klaar';
   resultEl.textContent = out;
 }
 </script>
