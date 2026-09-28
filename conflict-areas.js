@@ -117,10 +117,11 @@
       paneZ: 422,
       level: "ADM2",
       parties: {
-        "Libanese staat": { color: "#2E7D32", fill: "#2E7D32" },
-        "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
-        "Israël":         { color: "#C62828", fill: "#C62828" }
-      },
+        parties: {
+  "Libanese staat": { color: "#00BCD4", fill: "#00BCD4" },
+  "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
+  "Israël":         { color: "#C62828", fill: "#C62828" }
+},
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_LBN_2.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_LBN_2.json"
