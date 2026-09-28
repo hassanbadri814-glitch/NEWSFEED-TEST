@@ -1,18 +1,14 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v10.3
+   WAR DESK — conflict-areas.js v10.4
    ------------------------------------------------------------
-   - v10.2: BUURLANDEN-LAAG (neutrale achtergrond-fill)
-           * 16 buurlanden met donkergrijze fill
-           * Aparte pane (z=410) onder alle andere lagen
-           * Thema-adaptief (dark/light)
-           * In batches van 4 geladen om proxies te sparen
+   - v10.4: ZICHTBAARHEIDS-FIX
+           * Buurlanden veel lichter (#2d3a52, opacity 0.85)
+           * Attacked rand 2.5px dik goud
+           * Attacked fill iets feller
+           * Neighbor cache v3
+   - v10.3: Houthi-aanvallen op Saoedi-Arabië
+   - v10.2: Buurlanden-laag (16 landen)
    - v10.1: Casing + zoom-responsive borders
-           * Landsgrens = 2 lagen (donkere casing + witte lijn)
-           * Provincies subtiel (18% wit)
-           * 5 gedeelde panes
-   - v10.0: ADM0 landsgrens-laag
-   - v9.4: Witte randen + drop-shadow
-   - v9.3: Hybride legenda + zoom-navigatie
    ============================================================ */
 
 (function(){
@@ -26,7 +22,8 @@
     { label: "Regering / staat", color: "#2A6FDB" },
     { label: "Tegenstander / bezetter", color: "#C62828" },
     { label: "Hezbollah", color: "#FBC02D" },
-    { label: "Druze (Syrië)", color: "#9333EA" }
+    { label: "Druze (Syrië)", color: "#9333EA" },
+    { label: "Onder vuur", color: "#f59e0b" }
   ];
 
   function adm0Sources(iso3){
@@ -146,7 +143,7 @@
         { match: ["baalbak", "hermel"],     controller: "Hezbollah" },
         { match: ["bekaa"],                 controller: "Hezbollah" },
         { match: ["nabatiyeh"],             controller: "Hezbollah" },
-        { match: ["south"],                 controller: "Hezbollah" }
+        { match: ["south"],                 controller: "Hezbollah", attacked: true }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
@@ -210,9 +207,12 @@
       ],
       countrySources: adm0Sources("SAU"),
       iswUrl: null, deepStateUrlFn: null,
+      /* v10.3: zuidelijke provincies onder Houthi-vuur */
       provinceRules: [
-        { match: ["asir"],                 controller: "Saoedi-Arabië" },
-        { match: ["albahah"],              controller: "Saoedi-Arabië" },
+        { match: ["jizan", "jazan"],       controller: "Saoedi-Arabië", attacked: true },
+        { match: ["najran"],               controller: "Saoedi-Arabië", attacked: true },
+        { match: ["asir"],                 controller: "Saoedi-Arabië", attacked: true },
+        { match: ["albahah"],              controller: "Saoedi-Arabië", attacked: true },
         { match: ["alhududashshamaliyah"], controller: "Saoedi-Arabië" },
         { match: ["aljawf"],               controller: "Saoedi-Arabië" },
         { match: ["almadinah"],            controller: "Saoedi-Arabië" },
@@ -220,9 +220,7 @@
         { match: ["arriyad", "arriyadh"],  controller: "Saoedi-Arabië" },
         { match: ["ashsharqiyah"],         controller: "Saoedi-Arabië" },
         { match: ["ha'il", "hail"],        controller: "Saoedi-Arabië" },
-        { match: ["jizan", "jazan"],       controller: "Saoedi-Arabië" },
         { match: ["makkah"],               controller: "Saoedi-Arabië" },
-        { match: ["najran"],               controller: "Saoedi-Arabië" },
         { match: ["tabuk"],                controller: "Saoedi-Arabië" }
       ],
       districtOverrides: [], overlayPolygons: [],
@@ -244,11 +242,11 @@
       countrySources: adm0Sources("ISR"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["golan"],    controller: "Israël" },
-        { match: ["hadarom"],  controller: "Israël" },
+        { match: ["golan"],    controller: "Israël", attacked: true },
+        { match: ["hadarom"],  controller: "Israël", attacked: true },
         { match: ["haifa"],    controller: "Israël" },
         { match: ["hamerkaz"], controller: "Israël" },
-        { match: ["hazafon"],  controller: "Israël" },
+        { match: ["hazafon"],  controller: "Israël", attacked: true },
         { match: ["jerusalem"],controller: "Israël" },
         { match: ["telaviv"],  controller: "Israël" }
       ],
@@ -271,7 +269,7 @@
       countrySources: adm0Sources("PSE"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["gaza"],     controller: "Palestina" },
+        { match: ["gaza"],     controller: "Palestina", attacked: true },
         { match: ["westbank"], controller: "Palestina" }
       ],
       districtOverrides: [], overlayPolygons: [],
@@ -287,7 +285,6 @@
 
   var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SAU", "ISR", "PSE"];
 
-  /* v10.2: Buurlanden voor neutrale achtergrond-fill */
   var NEIGHBOR_COUNTRIES = [
     "TUR", "IRQ", "JOR", "EGY", "OMN", "ARE", "QAT", "KWT", "CYP",
     "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA"
@@ -303,9 +300,6 @@
   var DB_VERSION = 1;
   var STORE_GEOJSON = "geojson";
 
-  /* ============================================================
-     v10.2: 5 GEDEELDE PANES
-     ============================================================ */
   var PANES = {
     neighbors:     { name: "caPaneNeighbors",     z: 410 },
     province:      { name: "caPaneProvince",      z: 420 },
@@ -314,24 +308,24 @@
     overlay:       { name: "caPaneOverlay",       z: 450 }
   };
 
-  /* v10.2: professionele kleuren + buurland-tinten */
+  /* v10.4: Buurlanden VEEL lichter + felle attacked-kleur */
   var COLORS = {
     provinceBorder: "rgba(255,255,255,0.18)",
     countryBorder:  "rgba(255,255,255,0.88)",
     countryShadow:  "rgba(0,0,0,0.65)",
     pulse:          "rgba(255,110,110,0.95)",
     territoryGain:  "#e0a857",
-    /* v10.2: buurlanden */
-    neighborFillDark:    "#0f1520",
-    neighborFillLight:   "#e8e4dc",
-    neighborStrokeDark:  "rgba(255,255,255,0.10)",
-    neighborStrokeLight: "rgba(0,0,0,0.12)"
+    attacked:       "#f59e0b",
+    /* v10.4: buurlanden echt zichtbaar */
+    neighborFillDark:    "#2d3a52",
+    neighborFillLight:   "#d0cbc0",
+    neighborStrokeDark:  "rgba(255,255,255,0.28)",
+    neighborStrokeLight: "rgba(0,0,0,0.25)"
   };
 
   var FILL_OPACITY = 0.42;
   var OVERLAY_FILL_OPACITY = 0.55;
 
-  /* v10.1: Zoom-responsive diktes */
   function countryShadowWeight(z){
     if(z <= 4) return 2.2;
     if(z <= 6) return 2.7;
@@ -357,7 +351,7 @@
     return 0.38;
   }
 
-  var BORDER_WEIGHT_HOVER = 2.0;
+  var BORDER_WEIGHT_HOVER = 2.5;
   var OVERLAY_BORDER_WEIGHT = 1.4;
 
   var PULSE_INTERVAL_MS   = 900;
@@ -416,7 +410,7 @@
       for(var j = 0; j < entry.match.length; j++){
         var needle = normalize(entry.match[j]);
         if(!needle) continue;
-        if(norm.indexOf(needle) !== -1) return entry.controller;
+        if(norm.indexOf(needle) !== -1) return entry;
       }
     }
     return null;
@@ -713,9 +707,6 @@
     });
   }
 
-  /* ============================================================
-     v10.2: BUURLANDEN
-     ============================================================ */
   function isLightTheme(){
     return document.body.classList.contains("light");
   }
@@ -724,9 +715,9 @@
     var light = isLightTheme();
     return {
       fillColor: light ? COLORS.neighborFillLight : COLORS.neighborFillDark,
-      fillOpacity: light ? 0.75 : 0.55,
+      fillOpacity: light ? 0.90 : 0.85,
       color: light ? COLORS.neighborStrokeLight : COLORS.neighborStrokeDark,
-      weight: 0.4,
+      weight: 0.7,
       opacity: 1,
       interactive: false,
       lineCap: "round",
@@ -736,7 +727,7 @@
 
   function loadNeighbor(iso3){
     var cacheKey = "wardesk_neighbor_" + iso3;
-    var cacheVer = "v1";
+    var cacheVer = "v3";  /* v10.4: bump voor nieuwe kleuren */
     return dbGet(cacheKey).then(function(cached){
       if(cached && cached.v && cached.v.version === cacheVer &&
          (Date.now() - cached.v.t) < CACHE_MAX_AGE_MS &&
@@ -834,9 +825,6 @@
     });
   }
 
-  /* ============================================================
-     DeepState / ISW
-     ============================================================ */
   function extractDeepStateGeometry(json){
     if(!json) return null;
     if(json.type === "FeatureCollection" && json.features){
@@ -911,7 +899,7 @@
     var stats = {};
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
-    stats.total = 0; stats.unknown = 0;
+    stats.total = 0; stats.unknown = 0; stats.attacked = 0;
 
     geojson.features.forEach(function(feature){
       if(!feature || !feature.properties) return;
@@ -931,11 +919,20 @@
         var matchTarget = isADM1 ? props.name : props.provinceName;
         var provinceRule = findProvinceRule(matchTarget, conflict.provinceRules);
         if(provinceRule){
-          props.controller = provinceRule;
+          props.controller = provinceRule.controller;
           props.control_confidence = 0.8;
-          props.control_source = "Handmatig (provincie)";
           props.last_update = new Date().toISOString();
-          if(stats[provinceRule] !== undefined) stats[provinceRule]++;
+          if(stats[provinceRule.controller] !== undefined) stats[provinceRule.controller]++;
+
+          /* v10.4: attacked-provincies krijgen gouden rand */
+          if(provinceRule.attacked){
+            props.territory_gain = true;
+            props.territory_gain_from = "Onder vuur";
+            props.control_source = provinceRule.controller + " (onder vuur)";
+            stats.attacked++;
+          } else {
+            props.control_source = "Handmatig (provincie)";
+          }
           return;
         }
         props.controller = null;
@@ -973,6 +970,9 @@
     });
 
     CA.stats[conflictIso] = stats;
+    if(stats.attacked > 0){
+      LOG("[" + conflictIso + "] ⚠️ " + stats.attacked + " provincies onder vuur");
+    }
   }
 
   function calculateAttackIntensity(conflictIso){
@@ -987,7 +987,10 @@
     if(!events.length) return;
 
     geojson.features.forEach(function(f){
-      if(f.properties){ f.properties.attack_intensity = 0; f.properties.attack_count = 0; }
+      if(f.properties){
+        f.properties.attack_intensity = 0;
+        f.properties.attack_count = 0;
+      }
     });
 
     var periodAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -1029,9 +1032,6 @@
     return false;
   }
 
-  /* ============================================================
-     STIJL-FUNCTIES
-     ============================================================ */
   function styleProvince(feature){
     var props = (feature && feature.properties) || {};
     var conflict = CA._currentConflict;
@@ -1042,17 +1042,20 @@
     var z = CA.map ? CA.map.getZoom() : 6;
     var w = provinceWeight(z);
     var o = provinceOpacity(z);
+    var fillOp = props.controller ? FILL_OPACITY : 0;
     var color = COLORS.provinceBorder;
 
+    /* v10.4: attacked → gouden rand DIK + fellere fill */
     if(props.territory_gain){
-      color = COLORS.territoryGain;
-      w = w * 1.6;
+      color = COLORS.attacked;
+      w = Math.max(w, 2.5);
       o = 1.0;
+      fillOp = Math.min(0.75, FILL_OPACITY + 0.15);
     }
 
     return {
       fillColor: fillColor,
-      fillOpacity: props.controller ? FILL_OPACITY : 0,
+      fillOpacity: fillOp,
       color: color,
       weight: w,
       opacity: o,
@@ -1090,9 +1093,6 @@
     };
   }
 
-  /* ============================================================
-     ZOOM-RESPONSIVE UPDATE
-     ============================================================ */
   function updateBorderWeights(){
     if(!CA.map) return;
     var z = CA.map.getZoom();
@@ -1134,9 +1134,6 @@
     CA._zoomBound = false;
   }
 
-  /* ============================================================
-     PANES
-     ============================================================ */
   function ensurePanes(map){
     Object.keys(PANES).forEach(function(key){
       var p = PANES[key];
@@ -1211,9 +1208,6 @@
     CA.overlayLayers[conflictIso] = overlayGroup;
   }
 
-  /* ============================================================
-     PULSE
-     ============================================================ */
   var _pulseRetryTimer = null;
   var _pulseEmptyChecks = 0;
 
@@ -1244,13 +1238,14 @@
           var p = l.feature.properties;
           if(!p.attack_intensity || p.attack_intensity < PULSE_MIN_INTENSITY) return;
           if(l._caHover) return;
+          if(p.territory_gain) return; /* attacked heeft al dikke gouden rand, geen pulse nodig */
           var extra = (PULSE_WEIGHT_MAX - PULSE_WEIGHT_MIN) * p.attack_intensity;
           var newWeight = growing ? (baseW + extra) : baseW;
           try {
             l.setStyle({
               weight: newWeight,
               opacity: growing ? 1.0 : 0.9,
-              color: p.territory_gain ? COLORS.territoryGain : COLORS.pulse
+              color: COLORS.pulse
             });
           } catch(e){}
         });
@@ -1263,9 +1258,6 @@
     if(_pulseRetryTimer){ clearTimeout(_pulseRetryTimer); _pulseRetryTimer = null; }
   }
 
-  /* ============================================================
-     INFO PANEL
-     ============================================================ */
   function ensurePanel(){
     if(CA.panel) return CA.panel;
     var panel = document.createElement("div");
@@ -1344,6 +1336,11 @@
       provinceLine = '<div class="wm-panel-conf-detail">Provincie: ' + escapeHtml(props.provinceName) + '</div>';
     }
 
+    var attackedLine = "";
+    if(props.territory_gain){
+      attackedLine = '<div class="wm-panel-conf-detail" style="color:#f59e0b;font-weight:700">⚠️ Onder vuur — ' + escapeHtml(props.territory_gain_from || "actief conflict") + '</div>';
+    }
+
     statsEl.innerHTML =
       '<div class="wm-panel-stat ' + ctrlClass + '">' +
         '<div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div>' +
@@ -1357,6 +1354,7 @@
         '<div class="wm-panel-stat-val">' + physicalCount + '</div>' +
         '<div class="wm-panel-stat-lbl">Fysiek</div>' +
       '</div>' +
+      attackedLine +
       '<div class="wm-panel-conf-detail">Bron: ' + escapeHtml(props.control_source || "—") +
         ' · Confidence: ' + Math.round((props.control_confidence || 0) * 100) + '%</div>' +
       provinceLine;
@@ -1399,8 +1397,9 @@
           l._caHover = true;
           var conflict = getConflict(conflictIso);
           var props = feature.properties;
-          var col = props.controller && conflict.parties[props.controller]
-                    ? conflict.parties[props.controller].color : "#ffffff";
+          var col = props.territory_gain ? COLORS.attacked :
+                    (props.controller && conflict.parties[props.controller]
+                      ? conflict.parties[props.controller].color : "#ffffff");
           try {
             l.setStyle({
               weight: BORDER_WEIGHT_HOVER,
@@ -1439,9 +1438,6 @@
     document.head.appendChild(s);
   }
 
-  /* ============================================================
-     RENDER
-     ============================================================ */
   function renderLayer(conflictIso){
     var conflict = getConflict(conflictIso);
     var geojson = CA.geojsons[conflictIso];
@@ -1508,9 +1504,6 @@
     renderOverlayPolygons(conflictIso);
   }
 
-  /* ============================================================
-     LEGENDA
-     ============================================================ */
   function getLegendHtml(){
     var html = '';
     html += '<div class="wm-legend-block wm-legend-universal">';
@@ -1521,8 +1514,6 @@
         escapeHtml(u.label) +
       '</div>';
     });
-    html += '<div class="wm-legend-row">' +
-      '<span class="wm-legend-swatch-square wm-legend-swatch-gold"></span>Terreinwinst</div>';
     html += '<div class="wm-legend-row">' +
       '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
     html += '</div>';
@@ -1605,9 +1596,6 @@
     }
   }
 
-  /* ============================================================
-     INIT
-     ============================================================ */
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
       CA.geojsons[conflictIso] = oblastsJson;
@@ -1635,7 +1623,6 @@
     return openDB().then(function(){
       return Promise.all(ACTIVE_CONFLICTS.map(function(iso){ return initOneConflict(iso); }));
     }).then(function(){
-      /* v10.2: laad buurlanden in de achtergrond */
       loadAllNeighbors().catch(function(e){
         LOG("Buurlanden faalden: " + (e.message || "?"));
       });
@@ -1708,7 +1695,6 @@
       }
       return Promise.all(ops);
     })).then(function(){
-      /* ook buurlanden caches wissen */
       return Promise.all(NEIGHBOR_COUNTRIES.map(function(iso3){
         return dbPut("wardesk_neighbor_" + iso3, { version: "cleared", t: 0, geojson: null });
       }));
@@ -1759,7 +1745,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v10.2",
+    state: CA, _version: "v10.4",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES
@@ -1797,9 +1783,6 @@
     }
   } catch(e){}
 
-  /* ============================================================
-     v10.2: THEME-OBSERVER — update buurlandkleuren
-     ============================================================ */
   (function observeTheme(){
     if(typeof MutationObserver === "undefined") return;
     var last = isLightTheme();
@@ -1814,5 +1797,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v10.2 geladen (buurlanden + casing + zoom-responsive)");
+  LOG("conflict-areas.js v10.4 geladen (buurlanden zichtbaar + attacked randen)");
 })();
