@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v8.0
+   WAR DESK — conflict-areas.js v8.1
    ------------------------------------------------------------
-   - v8.0: LIBANON toegevoegd (ADM2 — 30 districten)
-   - v7.2: Verbeterde Syrië overlay
+   - v8.1: Libanese staat → cyaan (#00BCD4)
+           Rode overlay Libanon verwijderd (was onnauwkeurig)
+   - v8.0: Libanon toegevoegd
    ============================================================ */
 
 (function(){
@@ -117,20 +118,16 @@
       paneZ: 422,
       level: "ADM2",
       parties: {
-        parties: {
-  "Libanese staat": { color: "#00BCD4", fill: "#00BCD4" },
-  "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
-  "Israël":         { color: "#C62828", fill: "#C62828" }
-},
+        "Libanese staat": { color: "#00BCD4", fill: "#00BCD4" },
+        "Hezbollah":      { color: "#FBC02D", fill: "#FBC02D" },
+        "Israël":         { color: "#C62828", fill: "#C62828" }
+      },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_LBN_2.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_LBN_2.json"
       ],
       iswUrl: null,
       deepStateUrlFn: null,
-      /* 8 gouvernementen → 2 partijen:
-         - Noord/Centrum (Beirut, MountLebanon, North, Akkar) = Libanese staat
-         - Zuid/Oost (Bekaa, Baalbak-Hermel, Nabatiyeh, South) = Hezbollah */
       provinceRules: [
         { match: ["akkar"],                          controller: "Libanese staat" },
         { match: ["beirut"],                         controller: "Libanese staat" },
@@ -142,33 +139,8 @@
         { match: ["south"],                          controller: "Hezbollah" }
       ],
       districtOverrides: [],
-      /* Overlay: Israëlische bezetting Zuid-Libanon (ruwe benadering)
-         Smalle strook langs de Blue Line, van Naqoura (west) tot Ghajar (oost) */
-      overlayPolygons: [
-        {
-          name: "Israëlische zone (Zuid-Libanon)",
-          controller: "Israël",
-          coords: [
-            /* Noordrand (iets in Libanon) */
-            [33.1300, 35.1000],
-            [33.1350, 35.2000],
-            [33.1400, 35.3000],
-            [33.1450, 35.4000],
-            [33.1500, 35.5000],
-            [33.2000, 35.5800],
-            [33.2700, 35.6200],
-            /* Oostrand — Ghajar */
-            [33.2750, 35.6250],
-            /* Zuidrand (Blue Line — grens) */
-            [33.1000, 35.6200],
-            [33.1000, 35.5000],
-            [33.0950, 35.4000],
-            [33.0900, 35.3000],
-            [33.0850, 35.2000],
-            [33.0800, 35.1000]
-          ]
-        }
-      ],
+      /* v8.1: geen overlay voor Libanon — data was onnauwkeurig */
+      overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_lebanon_adm2",      version: "v1" },
         deepState: { key: "wardesk_lebanon_ds",        version: "v1" },
@@ -1246,7 +1218,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v8.0",
+    state: CA, _version: "v8.1",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1283,5 +1255,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v8.0 geladen (Oekraïne + Syrië + Libanon)");
+  LOG("conflict-areas.js v8.1 geladen (Libanon cyaan, geen overlay)");
 })();
