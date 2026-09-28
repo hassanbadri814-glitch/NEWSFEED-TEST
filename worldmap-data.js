@@ -1,20 +1,21 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v3.0
+   WAR DESK — worldmap-data.js v3.1
    ------------------------------------------------------------
+   - v3.1: LOCATIONS uitgebreid met conflict-steden
+           (Syrië, Oekraïne, Jemen, Gaza, Israël, Saoedi, Irak, Iran)
    - v3.0: LOCATIONS gecentraliseerd (was in ai-map.js)
-   - v2.5: batch A (geen databestandwijzigingen, alleen versie)
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v3.0";
+  window.WORLDMAP_VERSION = "v3.1";
 
   /* ============================================================
      LOCATIONS — alle bekende steden/regio's voor geo-mapping
-     Centrale bron. ai-map.js en event-detector.js lezen hieruit.
      ============================================================ */
   var LOCATIONS = {
+    /* ================= OEKRAÏNE ================= */
     "oekraïne":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
     "ukraine":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
     "kyiv":{lat:50.45,lng:30.52,country:"Oekraïne",region:"Oost-Europa"},
@@ -40,6 +41,23 @@
     "mykolaiv":{lat:46.97,lng:31.99,country:"Oekraïne",region:"Oost-Europa"},
     "dnipro":{lat:48.46,lng:35.05,country:"Oekraïne",region:"Oost-Europa"},
     "lviv":{lat:49.84,lng:24.03,country:"Oekraïne",region:"Oost-Europa"},
+    "krim":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
+    "crimea":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
+    "sevastopol":{lat:44.62,lng:33.53,country:"Oekraïne",region:"Oost-Europa"},
+    /* v3.1 nieuwe Oekraïne conflict-steden */
+    "soledar":{lat:48.68,lng:38.10,country:"Oekraïne",region:"Oost-Europa"},
+    "vuhledar":{lat:47.78,lng:37.25,country:"Oekraïne",region:"Oost-Europa"},
+    "chasiv yar":{lat:48.58,lng:37.85,country:"Oekraïne",region:"Oost-Europa"},
+    "kupyansk":{lat:49.71,lng:37.61,country:"Oekraïne",region:"Oost-Europa"},
+    "izium":{lat:49.21,lng:37.28,country:"Oekraïne",region:"Oost-Europa"},
+    "lyman":{lat:48.98,lng:37.81,country:"Oekraïne",region:"Oost-Europa"},
+    "siversk":{lat:48.87,lng:38.10,country:"Oekraïne",region:"Oost-Europa"},
+    "pokrovsk":{lat:48.28,lng:37.18,country:"Oekraïne",region:"Oost-Europa"},
+    "toretsk":{lat:48.40,lng:37.85,country:"Oekraïne",region:"Oost-Europa"},
+    "huliaipole":{lat:47.66,lng:36.25,country:"Oekraïne",region:"Oost-Europa"},
+    "enerhodar":{lat:47.50,lng:34.65,country:"Oekraïne",region:"Oost-Europa"},
+
+    /* ================= RUSLAND ================= */
     "rusland":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
     "russia":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
     "moskou":{lat:55.75,lng:37.62,country:"Rusland",region:"Oost-Europa"},
@@ -51,51 +69,122 @@
     "bryansk":{lat:53.25,lng:34.37,country:"Rusland",region:"Oost-Europa"},
     "saratov":{lat:51.53,lng:46.03,country:"Rusland",region:"Oost-Europa"},
     "voronezh":{lat:51.67,lng:39.21,country:"Rusland",region:"Oost-Europa"},
-    "krim":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
-    "crimea":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
-    "sevastopol":{lat:44.62,lng:33.53,country:"Oekraïne",region:"Oost-Europa"},
+
+    /* ================= ISRAËL ================= */
     "israël":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "israel":{lat:31.77,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "tel aviv":{lat:32.08,lng:34.78,country:"Israël",region:"Midden-Oosten"},
     "jeruzalem":{lat:31.78,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "jerusalem":{lat:31.78,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "haifa":{lat:32.79,lng:34.99,country:"Israël",region:"Midden-Oosten"},
+    /* v3.1 grensgebied Israël-Libanon */
+    "metula":{lat:33.28,lng:35.58,country:"Israël",region:"Midden-Oosten"},
+    "kiryat shmona":{lat:33.21,lng:35.57,country:"Israël",region:"Midden-Oosten"},
+    "nahariya":{lat:33.01,lng:35.09,country:"Israël",region:"Midden-Oosten"},
+    "acre":{lat:32.93,lng:35.08,country:"Israël",region:"Midden-Oosten"},
+    "akko":{lat:32.93,lng:35.08,country:"Israël",region:"Midden-Oosten"},
+    "sderot":{lat:31.52,lng:34.60,country:"Israël",region:"Midden-Oosten"},
+    "ashkelon":{lat:31.67,lng:34.57,country:"Israël",region:"Midden-Oosten"},
+
+    /* ================= GAZA ================= */
     "gaza":{lat:31.35,lng:34.31,country:"Gaza",region:"Midden-Oosten"},
     "rafah":{lat:31.29,lng:34.25,country:"Gaza",region:"Midden-Oosten"},
     "khan younis":{lat:31.35,lng:34.30,country:"Gaza",region:"Midden-Oosten"},
     "jabalia":{lat:31.53,lng:34.50,country:"Gaza",region:"Midden-Oosten"},
+    /* v3.1 nieuwe Gaza steden */
+    "deir al-balah":{lat:31.42,lng:34.35,country:"Gaza",region:"Midden-Oosten"},
+    "bureij":{lat:31.44,lng:34.40,country:"Gaza",region:"Midden-Oosten"},
+    "maghazi":{lat:31.42,lng:34.38,country:"Gaza",region:"Midden-Oosten"},
+    "nuseirat":{lat:31.45,lng:34.39,country:"Gaza",region:"Midden-Oosten"},
+    "beit hanoun":{lat:31.54,lng:34.53,country:"Gaza",region:"Midden-Oosten"},
+    "beit lahia":{lat:31.55,lng:34.50,country:"Gaza",region:"Midden-Oosten"},
+
+    /* ================= WESTELIJKE JORDAANOEVER ================= */
     "westelijke jordaanoever":{lat:32.00,lng:35.30,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
     "west bank":{lat:32.00,lng:35.30,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
     "ramallah":{lat:31.90,lng:35.20,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
     "jenin":{lat:32.46,lng:35.30,country:"Westelijke Jordaanoever",region:"Midden-Oosten"},
+
+    /* ================= LIBANON ================= */
     "libanon":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "lebanon":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "beiroet":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
     "beirut":{lat:33.89,lng:35.50,country:"Libanon",region:"Midden-Oosten"},
+
+    /* ================= SYRIË ================= */
     "syrië":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "syria":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "damascus":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "aleppo":{lat:36.20,lng:37.13,country:"Syrië",region:"Midden-Oosten"},
-    "iran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
-    "teheran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
-    "tehran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
-    "isfahan":{lat:32.65,lng:51.67,country:"Iran",region:"Midden-Oosten"},
+    /* v3.1 nieuwe Syrië conflict-steden */
+    "idlib city":{lat:35.93,lng:36.63,country:"Syrië",region:"Midden-Oosten"},
+    "jisr al-shughur":{lat:35.81,lng:36.32,country:"Syrië",region:"Midden-Oosten"},
+    "afrin":{lat:36.51,lng:36.87,country:"Syrië",region:"Midden-Oosten"},
+    "azaz":{lat:36.59,lng:37.05,country:"Syrië",region:"Midden-Oosten"},
+    "al-bab":{lat:36.37,lng:37.52,country:"Syrië",region:"Midden-Oosten"},
+    "manbij":{lat:36.53,lng:37.95,country:"Syrië",region:"Midden-Oosten"},
+    "kobani":{lat:36.90,lng:38.35,country:"Syrië",region:"Midden-Oosten"},
+    "tabqa":{lat:35.84,lng:38.55,country:"Syrië",region:"Midden-Oosten"},
+    "mayadin":{lat:35.02,lng:40.45,country:"Syrië",region:"Midden-Oosten"},
+    "abu kamal":{lat:34.45,lng:40.92,country:"Syrië",region:"Midden-Oosten"},
+    "palmyra":{lat:34.55,lng:38.28,country:"Syrië",region:"Midden-Oosten"},
+
+    /* ================= IRAK ================= */
     "irak":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "iraq":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "bagdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "baghdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
+    /* v3.1 */
+    "erbil":{lat:36.19,lng:44.01,country:"Irak",region:"Midden-Oosten"},
+    "mosul":{lat:36.34,lng:43.13,country:"Irak",region:"Midden-Oosten"},
+    "basra":{lat:30.51,lng:47.78,country:"Irak",region:"Midden-Oosten"},
+    "kirkuk":{lat:35.47,lng:44.39,country:"Irak",region:"Midden-Oosten"},
+    "najaf":{lat:31.99,lng:44.33,country:"Irak",region:"Midden-Oosten"},
+
+    /* ================= IRAN ================= */
+    "iran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
+    "teheran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
+    "tehran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
+    "isfahan":{lat:32.65,lng:51.67,country:"Iran",region:"Midden-Oosten"},
+    /* v3.1 */
+    "bandar abbas":{lat:27.18,lng:56.28,country:"Iran",region:"Midden-Oosten"},
+    "bushehr":{lat:28.92,lng:50.83,country:"Iran",region:"Midden-Oosten"},
+    "shiraz":{lat:29.60,lng:52.53,country:"Iran",region:"Midden-Oosten"},
+    "tabriz":{lat:38.08,lng:46.29,country:"Iran",region:"Midden-Oosten"},
+    "qom":{lat:34.64,lng:50.87,country:"Iran",region:"Midden-Oosten"},
+
+    /* ================= JEMEN ================= */
     "jemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "yemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "sanaa":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "aden":{lat:12.78,lng:45.03,country:"Jemen",region:"Midden-Oosten"},
+    /* v3.1 */
+    "mocha":{lat:13.32,lng:43.25,country:"Jemen",region:"Midden-Oosten"},
+    "al-mukha":{lat:13.32,lng:43.25,country:"Jemen",region:"Midden-Oosten"},
+    "durayhimi":{lat:14.65,lng:43.05,country:"Jemen",region:"Midden-Oosten"},
+    "zabid":{lat:14.20,lng:43.32,country:"Jemen",region:"Midden-Oosten"},
+    "bayda":{lat:13.98,lng:45.57,country:"Jemen",region:"Midden-Oosten"},
+    "mukalla":{lat:14.53,lng:49.12,country:"Jemen",region:"Midden-Oosten"},
+
+    /* ================= SAOEDI-ARABIË ================= */
     "saudi":{lat:24.71,lng:46.68,country:"Saudi-Arabië",region:"Midden-Oosten"},
     "riyadh":{lat:24.71,lng:46.68,country:"Saudi-Arabië",region:"Midden-Oosten"},
+    /* v3.1 */
+    "dhahran":{lat:26.29,lng:50.11,country:"Saoedi-Arabië",region:"Midden-Oosten"},
+    "jubail":{lat:27.00,lng:49.65,country:"Saoedi-Arabië",region:"Midden-Oosten"},
+    "yanbu":{lat:24.09,lng:38.06,country:"Saoedi-Arabië",region:"Midden-Oosten"},
+    "taif":{lat:21.27,lng:40.42,country:"Saoedi-Arabië",region:"Midden-Oosten"},
+    "abqaiq":{lat:25.94,lng:49.67,country:"Saoedi-Arabië",region:"Midden-Oosten"},
+
+    /* ================= GOLF ================= */
     "qatar":{lat:25.28,lng:51.53,country:"Qatar",region:"Midden-Oosten"},
     "doha":{lat:25.28,lng:51.53,country:"Qatar",region:"Midden-Oosten"},
     "koeweit":{lat:29.31,lng:47.48,country:"Koeweit",region:"Midden-Oosten"},
     "kuwait":{lat:29.31,lng:47.48,country:"Koeweit",region:"Midden-Oosten"},
     "dubai":{lat:25.20,lng:55.27,country:"VAE",region:"Midden-Oosten"},
     "abu dhabi":{lat:24.45,lng:54.38,country:"VAE",region:"Midden-Oosten"},
+
+    /* ================= AFRIKA ================= */
     "sudan":{lat:15.55,lng:32.53,country:"Sudan",region:"Afrika"},
     "khartoum":{lat:15.55,lng:32.53,country:"Sudan",region:"Afrika"},
     "darfur":{lat:13.00,lng:25.00,country:"Sudan",region:"Afrika"},
@@ -114,6 +203,8 @@
     "kinshasa":{lat:-4.44,lng:15.27,country:"Congo",region:"Afrika"},
     "goma":{lat:-1.68,lng:29.23,country:"Congo",region:"Afrika"},
     "mozambique":{lat:-25.97,lng:32.57,country:"Mozambique",region:"Afrika"},
+
+    /* ================= AZIË ================= */
     "afghanistan":{lat:34.53,lng:69.17,country:"Afghanistan",region:"Azië"},
     "kabul":{lat:34.53,lng:69.17,country:"Afghanistan",region:"Azië"},
     "pakistan":{lat:33.68,lng:73.05,country:"Pakistan",region:"Azië"},
@@ -134,6 +225,8 @@
     "noord-korea":{lat:39.03,lng:125.75,country:"Noord-Korea",region:"Azië"},
     "north korea":{lat:39.03,lng:125.75,country:"Noord-Korea",region:"Azië"},
     "myanmar":{lat:19.75,lng:96.10,country:"Myanmar",region:"Azië"},
+
+    /* ================= EUROPA ================= */
     "nederland":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
     "netherlands":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
     "amsterdam":{lat:52.37,lng:4.90,country:"Nederland",region:"West-Europa"},
@@ -173,11 +266,15 @@
     "portugal":{lat:38.72,lng:-9.14,country:"Portugal",region:"West-Europa"},
     "griekenland":{lat:37.98,lng:23.73,country:"Griekenland",region:"West-Europa"},
     "athene":{lat:37.98,lng:23.73,country:"Griekenland",region:"West-Europa"},
+
+    /* ================= AFRIKA (NOORD) ================= */
     "marokko":{lat:34.02,lng:-6.84,country:"Marokko",region:"Afrika"},
     "morocco":{lat:34.02,lng:-6.84,country:"Marokko",region:"Afrika"},
     "rabat":{lat:34.02,lng:-6.84,country:"Marokko",region:"Afrika"},
     "casablanca":{lat:33.57,lng:-7.59,country:"Marokko",region:"Afrika"},
     "marrakech":{lat:31.63,lng:-7.99,country:"Marokko",region:"Afrika"},
+
+    /* ================= AMERIKA ================= */
     "vs":{lat:38.90,lng:-77.04,country:"VS",region:"Noord-Amerika"},
     "verenigde staten":{lat:38.90,lng:-77.04,country:"VS",region:"Noord-Amerika"},
     "usa":{lat:38.90,lng:-77.04,country:"VS",region:"Noord-Amerika"},
@@ -402,7 +499,7 @@
   };
 
   window.WorldMapData = {
-    LOCATIONS: LOCATIONS,   /* v3.0: centrale bron */
+    LOCATIONS: LOCATIONS,
 
     getAlliance: function(iso3){
       if (!iso3) return "neutral";
@@ -460,6 +557,6 @@
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v3.0 geladen — LOCATIONS: " + Object.keys(LOCATIONS).length); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v3.1 geladen — LOCATIONS: " + Object.keys(LOCATIONS).length); } catch(e){}
 
 })();
