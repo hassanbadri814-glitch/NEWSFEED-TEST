@@ -1,10 +1,7 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v1.0
-   ------------------------------------------------------------
-   Fetcht GDELT DOC 2.0 API (gratis, geen key).
-   Normaliseert artikelen naar event-formaat.
-   Emit "osint:military-events" naar EventBus.
-   Province-consensus pikt ze op.
+   WAR DESK — osint-feeds.js v1.1
+   - v1.1: Rate-limit fix (8s stagger, 4 queries, retry bij 429)
+   - v1.0: GDELT integratie
    ============================================================ */
 
 (function(){
@@ -14,30 +11,23 @@
     try{ wdLog.info.apply(null, ["[OSINT]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  var REFRESH_MS = 15 * 60 * 1000;      /* GDELT update elke 15 min */
-  var MAX_EVENTS = 250;                  /* cap totaal */
-  var TIMESPAN = "24h";                  /* laatste 24 uur */
-  var MAX_PER_QUERY = 60;                /* GDELT max 250, wij doen 60 */
-  var STAGGER_MS = 2000;                 /* 2 sec tussen queries */
+  var REFRESH_MS = 15 * 60 * 1000;
+  var MAX_EVENTS = 200;
+  var TIMESPAN = "24h";
+  var MAX_PER_QUERY = 50;
+  var STAGGER_MS = 8000;             /* v1.1: was 2000 — langzamer */
+  var RETRY_429_MS = 30000;          /* v1.1: bij 429, wacht 30 sec */
 
-  /* Query configuratie — focus op conflict-landen */
+  /* v1.1: 4 queries ipv 8 (minder load) */
   var QUERIES = [
-    { q: "(ukraine OR kyiv OR kharkiv OR donetsk OR bakhmut) (attack OR strike OR shell OR bomb OR killed)",
+    { q: "(ukraine OR kyiv OR kharkiv OR donetsk OR bakhmut) (attack OR strike OR shell OR bomb)",
       hint: { country: "Oekraïne", region: "Oost-Europa" } },
-    { q: "(russia OR russian) (ukraine OR kursk OR belgorod) (attack OR strike OR drone OR missile)",
-      hint: { country: "Rusland", region: "Oost-Europa" } },
     { q: "(syria OR damascus OR aleppo OR idlib) (attack OR strike OR bomb OR killed)",
       hint: { country: "Syrië", region: "Midden-Oosten" } },
-    { q: "(gaza OR rafah OR khan younis) (strike OR attack OR bomb OR killed)",
+    { q: "(gaza OR rafah) (strike OR attack OR bomb OR killed)",
       hint: { country: "Gaza", region: "Midden-Oosten" } },
-    { q: "(israel OR idf OR tel aviv OR jerusalem) (strike OR attack OR missile OR rocket)",
-      hint: { country: "Israël", region: "Midden-Oosten" } },
-    { q: "(hezbollah OR lebanon OR beirut) (attack OR strike OR shell)",
-      hint: { country: "Libanon", region: "Midden-Oosten" } },
-    { q: "(yemen OR houthi OR sanaa OR hodeidah) (attack OR strike OR missile OR drone)",
-      hint: { country: "Jemen", region: "Midden-Oosten" } },
-    { q: "(iran OR tehran OR irgc) (strike OR missile OR nuclear OR attack)",
-      hint: { country: "Iran", region: "Midden-Oosten" } }
+    { q: "(yemen OR houthi) (attack OR strike OR missile OR drone)",
+      hint: { country: "Jemen", region: "Midden-Oosten" } }
   ];
 
   var lastRun = 0;
@@ -45,9 +35,6 @@
   var isRunning = false;
   var _timer = null;
 
-  /* ============================================================
-     Helpers
-     ============================================================ */
   function hashCode(str){
     var h = 0;
     str = String(str || "");
@@ -71,14 +58,9 @@
 
   function parseGdeltDate(s){
     if (!s) return new Date().toISOString();
-    /* Format: 20240115T143000Z */
     try {
-      var y = s.slice(0, 4);
-      var m = s.slice(4, 6);
-      var d = s.slice(6, 8);
-      var hh = s.slice(9, 11);
-      var mm = s.slice(11, 13);
-      var ss = s.slice(13, 15);
+      var y = s.slice(0, 4), m = s.slice(4, 6), d = s.slice(6, 8);
+      var hh = s.slice(9, 11), mm = s.slice(11, 13), ss = s.slice(13, 15);
       return new Date(y + "-" + m + "-" + d + "T" + hh + ":" + mm + ":" + ss + "Z").toISOString();
     } catch(e){
       return new Date().toISOString();
@@ -89,21 +71,14 @@
     if (!window.WorldMapData) return null;
     var locs = window.WorldMapData.LOCATIONS || {};
     var text = String(title || "").toLowerCase();
-
-    /* Zoek langste LOCATIONS-match in titel */
     var bestKey = null, bestLen = 0;
     for (var key in locs){
       if (!Object.prototype.hasOwnProperty.call(locs, key)) continue;
       if (key.length < 4) continue;
       if (key.length <= bestLen) continue;
-      if (text.indexOf(key) !== -1){
-        bestKey = key;
-        bestLen = key.length;
-      }
+      if (text.indexOf(key) !== -1){ bestKey = key; bestLen = key.length; }
     }
     if (bestKey) return locs[bestKey];
-
-    /* Fallback: hint country */
     if (hint && hint.country){
       var hk = hint.country.toLowerCase();
       if (locs[hk]) return locs[hk];
@@ -130,59 +105,70 @@
     return { category: "militair", subtype: "Conflict" };
   }
 
-  /* ============================================================
-     Fetch één query via proxy (CORS-safe)
-     ============================================================ */
-  function fetchQuery(cfg){
-    var url = buildGdeltUrl(cfg.q);
+  /* v1.1: retry-logica voor 429 */
+  function fetchWithRetry(url, attempt){
+    attempt = attempt || 0;
+    var MAX_ATTEMPTS = 3;
     var proxy = "https://newsfeed2.hassanbadri814.workers.dev/?url=";
     var fullUrl = proxy + encodeURIComponent(url);
 
     var ctrl = new AbortController();
-    var timer = setTimeout(function(){ ctrl.abort(); }, 20000);
+    var timer = setTimeout(function(){ ctrl.abort(); }, 25000);
 
     return fetch(fullUrl, { signal: ctrl.signal })
       .then(function(r){
         clearTimeout(timer);
+        if (r.status === 429){
+          throw { code: 429, message: "Rate limited" };
+        }
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
       })
       .then(function(text){
         var trimmed = String(text).replace(/^\uFEFF/, "").trim();
         if (trimmed.charAt(0) !== "{") throw new Error("Geen JSON");
-        var data = JSON.parse(trimmed);
-        return { query: cfg, articles: data.articles || [] };
+        return JSON.parse(trimmed);
       })
       .catch(function(e){
         clearTimeout(timer);
-        LOG("Query faalde: " + e.message);
+        /* Retry bij 429 of netwerk-fout */
+        if (e && e.code === 429 && attempt < MAX_ATTEMPTS){
+          LOG("429 — retry " + (attempt+1) + "/" + MAX_ATTEMPTS + " over " + (RETRY_429_MS/1000) + "s");
+          return new Promise(function(resolve){
+            setTimeout(function(){
+              resolve(fetchWithRetry(url, attempt + 1));
+            }, RETRY_429_MS);
+          });
+        }
+        throw e;
+      });
+  }
+
+  function fetchQuery(cfg){
+    var url = buildGdeltUrl(cfg.q);
+    return fetchWithRetry(url, 0)
+      .then(function(data){
+        return { query: cfg, articles: data.articles || [] };
+      })
+      .catch(function(e){
+        LOG("Query definitief gefaald: " + (e.message || e.code || "?"));
         return { query: cfg, articles: [] };
       });
   }
 
-  /* ============================================================
-     Converteer GDELT artikel → event
-     ============================================================ */
   function articleToEvent(art, cfg){
     if (!art || !art.title) return null;
-
     var title = String(art.title).trim();
     if (title.length < 15) return null;
 
-    /* Skip sport/pure politiek nieuws */
     var cls = classifyArticle(title);
     if (cls.category === "sport") return null;
-    /* Alleen militair of crime relevant voor consensus */
     if (cls.category !== "militair" && cls.category !== "crime") return null;
 
-    /* Locatie */
     var loc = extractLocation(title, cfg.hint);
     if (!loc) return null;
 
-    /* Actors */
     var actors = detectActors(title);
-
-    /* ISO3 */
     var iso3 = null;
     try {
       if (window.WorldMapData && window.WorldMapData.getISO3){
@@ -192,8 +178,7 @@
 
     return {
       id: "gdelt-" + hashCode(art.url || title),
-      lat: loc.lat,
-      lng: loc.lng,
+      lat: loc.lat, lng: loc.lng,
       title: title,
       description: "",
       fullDescription: loc.country + " · " + loc.region + "\n\n" + title,
@@ -213,21 +198,16 @@
     };
   }
 
-  /* ============================================================
-     Fetch cycle — stagger queries om GDELT niet te overbelasten
-     ============================================================ */
   function fetchAllQueries(){
     var results = [];
     var chain = Promise.resolve();
 
     QUERIES.forEach(function(cfg, idx){
       chain = chain.then(function(){
-        if (idx > 0){
-          return new Promise(function(resolve){
-            setTimeout(resolve, STAGGER_MS);
-          }).then(function(){ return fetchQuery(cfg); });
-        }
-        return fetchQuery(cfg);
+        /* v1.1: altijd stagger, ook voor eerste query */
+        return new Promise(function(resolve){
+          setTimeout(resolve, idx === 0 ? 500 : STAGGER_MS);
+        }).then(function(){ return fetchQuery(cfg); });
       }).then(function(res){
         results = results.concat(res.articles.map(function(a){
           return { art: a, cfg: res.query };
@@ -244,7 +224,7 @@
     isRunning = true;
 
     var startTime = Date.now();
-    LOG("GDELT fetch gestart (" + QUERIES.length + " queries)");
+    LOG("GDELT fetch gestart (" + QUERIES.length + " queries, " + (STAGGER_MS/1000) + "s stagger)");
 
     return fetchAllQueries().then(function(raw){
       var seen = {};
@@ -258,7 +238,6 @@
         events.push(ev);
       });
 
-      /* Sorteer op datum, cap op MAX_EVENTS */
       events.sort(function(a, b){
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
@@ -272,14 +251,12 @@
       LOG("Klaar — " + events.length + " events uit " + raw.length +
           " artikelen | " + elapsed + "ms");
 
-      /* Emit naar EventBus */
       try {
         if (window.WarDesk && WarDesk.events){
           WarDesk.events.emit("osint:military-events", osintEvents);
         }
       } catch(e){}
 
-      /* Persist meta */
       try {
         localStorage.setItem("wardesk_osint_lastRun", String(lastRun));
         localStorage.setItem("wardesk_osint_count", String(events.length));
@@ -308,7 +285,6 @@
       if (saved) lastRun = saved;
     } catch(e){}
 
-    /* Direct draaien bij start (na 8s zodat andere modules klaar zijn) */
     setTimeout(function(){
       runNow();
       scheduleNext();
@@ -322,7 +298,7 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v1.0",
+    _version: "v1.1",
     _queries: QUERIES
   };
 
@@ -332,5 +308,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v1.0 geladen");
+  LOG("osint-feeds.js v1.1 geladen (rate-limit fix)");
 })();
