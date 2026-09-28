@@ -4,7 +4,7 @@
    - v3.4: event-dedup.js toegevoegd aan precache
    ============================================================ */
 
-const CACHE_VERSION = 'v3.55';
+const CACHE_VERSION = 'v3.56';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
