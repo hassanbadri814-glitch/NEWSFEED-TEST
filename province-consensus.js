@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.3
-   - v1.3: actor-fallback via WorldMapData.detectActorsInTitle
-           als event.actorCountries leeg is
+   WAR DESK — province-consensus.js v1.4
+   - v1.4: default-actor per land + skip niet-conflict landen
+   - v1.3: actor-fallback
    - v1.2: retry-logica
-   - v1.1: militaryEvents fallback
    ============================================================ */
 
 (function(){
@@ -22,6 +21,23 @@
   var MAX_AGE_DAYS = 30;
   var MIN_ACTOR_SHARE = 0.35;
   var MIN_ACTOR_SOURCES = 2;
+
+  /* v1.4: default actor per land als niets anders werkt */
+  var COUNTRY_DEFAULT_ACTOR = {
+    "SYR": "Regering",
+    "UKR": "Oekraïne",
+    "RUS": "Rusland",
+    "YEM": "Regering",
+    "ISR": "Israël",
+    "LBN": "Libanese staat",
+    "PSE": "Palestina",
+    "SAU": "Saoedi-Arabië",
+    "IRQ": "Regering",
+    "IRN": "Iran"
+  };
+
+  /* v1.4: skip events in deze landen (geen conflict) */
+  var CONFLICT_ISO3 = ["SYR","UKR","RUS","YEM","ISR","LBN","PSE","SAU","IRQ","IRN"];
 
   var db = null;
   var lastRun = 0;
@@ -133,15 +149,9 @@
   function collectEvents(){
     var state = window.MAPAPI && window.MAPAPI.state;
     if(!state) return [];
-    if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
-      return state.militaryEvents;
-    }
-    if(Array.isArray(state.events) && state.events.length > 0){
-      return state.events;
-    }
-    if(Array.isArray(lastEvents) && lastEvents.length > 0){
-      return lastEvents;
-    }
+    if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) return state.militaryEvents;
+    if(Array.isArray(state.events) && state.events.length > 0) return state.events;
+    if(Array.isArray(lastEvents) && lastEvents.length > 0) return lastEvents;
     return [];
   }
 
@@ -164,12 +174,13 @@
     return false;
   }
 
-  /* v1.3: actor-fallback via WorldMapData */
-  function getActors(ev){
+  /* v1.4: actor met 3-lagen fallback */
+  function getActors(ev, prov){
+    /* 1. Raw */
     if(ev.actorCountries && ev.actorCountries.length > 0){
       return ev.actorCountries;
     }
-    /* Fallback: gebruik detectActorsInTitle */
+    /* 2. detectActorsInTitle */
     try {
       if(window.WorldMapData && window.WorldMapData.detectActorsInTitle){
         var text = (ev.title || "") + " " + (ev.description || "");
@@ -177,17 +188,19 @@
         if(detected && detected.length > 0) return detected;
       }
     } catch(e){}
+    /* 3. Default per land */
+    if(prov && prov.iso3 && COUNTRY_DEFAULT_ACTOR[prov.iso3]){
+      return [COUNTRY_DEFAULT_ACTOR[prov.iso3]];
+    }
     return [];
   }
 
   function processEvent(ev, aggregator){
     if(!ev) return;
-    if(ev.category !== "militair" && ev.category !== "crime") return;
     if(ev.countsForHeat === false) return;
 
-    /* v1.3: actors met fallback */
-    var actors = getActors(ev);
-    if(!actors || !actors.length) return;
+    /* v1.4: skip niet-conflict landen */
+    if(CONFLICT_ISO3.indexOf(ev.countryISO3) === -1) return;
 
     var ts = new Date(ev.date).getTime();
     if(isNaN(ts)) return;
@@ -199,6 +212,7 @@
     var weight = tier * decay;
     if(weight < 0.01) return;
 
+    /* Bepaal provincie */
     var prov = null;
     if(typeof ev.lat === "number" && typeof ev.lng === "number"){
       prov = ProvinceMapper.getProvinceForPoint(ev.lat, ev.lng, ev.countryISO3);
@@ -210,44 +224,35 @@
       var bestLen = 0;
       for(var key in locs){
         if(key.length < 4) continue;
-        if(t.indexOf(key) !== -1 && key.length > bestLen){
-          cityKey = key; bestLen = key.length;
-        }
+        if(t.indexOf(key) !== -1 && key.length > bestLen){ cityKey = key; bestLen = key.length; }
       }
-      if(cityKey){
-        prov = ProvinceMapper.getProvinceForCity(cityKey);
-      }
+      if(cityKey) prov = ProvinceMapper.getProvinceForCity(cityKey);
     }
     if(!prov || !prov.iso3) return;
 
-    var gid = prov.iso3 + "|" + (prov.admin1 || "*");
+    /* v1.4: actors met fallback */
+    var actors = getActors(ev, prov);
+    if(!actors || !actors.length) return;
 
+    var gid = prov.iso3 + "|" + (prov.admin1 || "*");
     if(!aggregator[gid]){
       aggregator[gid] = {
-        gid: gid,
-        iso3: prov.iso3,
-        admin1: prov.admin1 || null,
-        actors: {},
-        rawClaimCount: 0
+        gid: gid, iso3: prov.iso3, admin1: prov.admin1 || null,
+        actors: {}, rawClaimCount: 0
       };
     }
-
     var bucket = aggregator[gid];
     bucket.rawClaimCount++;
 
-    /* v1.3: meerdere actoren per event */
     actors.forEach(function(actorRaw){
       var actor = ProvinceMapper.resolveActor(actorRaw);
       if(!actor || actor === "Onbekend") return;
-
       if(!bucket.actors[actor]){
         bucket.actors[actor] = {
           actor: actor, score: 0,
-          sources: {}, origins: {},
-          count: 0, lastClaim: 0
+          sources: {}, origins: {}, count: 0, lastClaim: 0
         };
       }
-
       var ab = bucket.actors[actor];
       ab.score += weight;
       ab.count++;
@@ -289,9 +294,7 @@
       var contested = contestedActors.length >= 2;
 
       results.push({
-        gid: gid,
-        iso3: bucket.iso3,
-        admin1: bucket.admin1,
+        gid: gid, iso3: bucket.iso3, admin1: bucket.admin1,
         dominantActor: best.actor,
         consensusStrength: Math.round(bestShare * 100) / 100,
         confidence: confidence,
@@ -318,7 +321,7 @@
       var retries = (opts._retries || 0);
       if(retries < 8){
         isRunning = false;
-        LOG("PM niet ready — retry " + (retries+1) + "/8 over 2s");
+        LOG("PM niet ready — retry " + (retries+1) + "/8");
         return new Promise(function(resolve){
           setTimeout(function(){
             runNow({ force: true, _retries: retries + 1 }).then(resolve);
@@ -326,14 +329,14 @@
         });
       }
       isRunning = false;
-      LOG("PM definitief niet ready na 8 retries — skip");
+      LOG("PM definitief niet ready — skip");
       return Promise.resolve(consensusByGid);
     }
 
     var events = collectEvents();
     if(!events.length){
       isRunning = false;
-      LOG("Geen events om te verwerken");
+      LOG("Geen events");
       return Promise.resolve(consensusByGid);
     }
 
@@ -345,7 +348,6 @@
     });
 
     var results = computeConsensus(aggregator);
-
     consensusByGid = {};
     results.forEach(function(r){ consensusByGid[r.gid] = r; });
     lastRun = Date.now();
@@ -382,14 +384,10 @@
   }
 
   function getConsensus(gid){ return consensusByGid[gid] || null; }
-
   function getConsensusForArea(iso3, admin1){
-    var gid = iso3 + "|" + (admin1 || "*");
-    return consensusByGid[gid] || null;
+    return consensusByGid[iso3 + "|" + (admin1 || "*")] || null;
   }
-
   function getAllConsensus(){ return consensusByGid; }
-
   function getStats(){
     var arr = Object.keys(consensusByGid).map(function(k){ return consensusByGid[k]; });
     return {
@@ -417,33 +415,27 @@
         WarDesk.events.on("map:military-events", function(events){
           lastEvents = Array.isArray(events) ? events : [];
           var sinceLast = Date.now() - lastRun;
-          if(sinceLast > THROTTLE_MS){
-            scheduleRun(3000);
-          } else {
-            LOG("Throttle — " + Math.round((THROTTLE_MS - sinceLast) / 60000) + " min tot volgende run");
-          }
+          if(sinceLast > THROTTLE_MS) scheduleRun(3000);
+          else LOG("Throttle — " + Math.round((THROTTLE_MS - sinceLast) / 60000) + " min");
         });
         LOG("EventBus listener actief");
       }
       setInterval(function(){
         if(document.hidden) return;
-        if(Date.now() - lastRun > 65 * 60 * 1000){
-          scheduleRun(1000);
-        }
+        if(Date.now() - lastRun > 65 * 60 * 1000) scheduleRun(1000);
       }, 5 * 60 * 1000);
       return true;
     });
   }
 
   window.ProvinceConsensus = {
-    init: init,
-    runNow: runNow,
+    init: init, runNow: runNow,
     getConsensus: getConsensus,
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.3"
+    _version: "v1.4"
   };
 
-  LOG("province-consensus.js v1.3 geladen (actor-fallback + retry)");
+  LOG("province-consensus.js v1.4 geladen (default-actor fallback)");
 })();
