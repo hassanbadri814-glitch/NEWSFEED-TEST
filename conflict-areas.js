@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v9.3
+   WAR DESK — conflict-areas.js v9.4
    ------------------------------------------------------------
-   - v9.3: Neutrale lichte landsgrenzen (grijze rand)
-           Hybride legenda (universele kleuren + uitklapbaar)
-           Zoom-navigatie met 📍-icoon per land
+   - v9.4: Witte landsgrenzen met zwarte drop-shadow
+           (professionele "double-stroke" stijl zoals Google Maps)
+   - v9.3: Hybride legenda + zoom-navigatie
    - v9.2: Israël + Palestina toegevoegd
    ============================================================ */
 
@@ -14,9 +14,6 @@
     try{ wdLog.info.apply(null, ["[AREA]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  /* ============================================================
-     Universele kleuren voor de compacte legenda
-     ============================================================ */
   var UNIVERSAL_COLORS = [
     { label: "Regering / staat", color: "#2A6FDB" },
     { label: "Tegenstander / bezetter", color: "#C62828" },
@@ -326,17 +323,16 @@
   var STORE_GEOJSON = "geojson";
 
   var COLORS = {
-    neutralBorder: "rgba(255,255,255,0.10)",
-    visibleBorder: "rgba(200,200,200,0.55)",
+    visibleBorder: "rgba(255,255,255,0.85)",
     pulse:         "rgba(255,90,90,0.95)",
     territoryGain: "#e0a857"
   };
 
   var FILL_OPACITY = 0.45;
   var OVERLAY_FILL_OPACITY = 0.55;
-  var BORDER_WEIGHT = 1.0;
-  var BORDER_WEIGHT_HOVER = 2.5;
-  var OVERLAY_BORDER_WEIGHT = 1.5;
+  var BORDER_WEIGHT = 1.6;
+  var BORDER_WEIGHT_HOVER = 2.8;
+  var OVERLAY_BORDER_WEIGHT = 1.6;
 
   var PULSE_INTERVAL_MS = 900;
   var PULSE_MIN_INTENSITY = 0.15;
@@ -883,7 +879,7 @@
   }
 
   /* ============================================================
-     v9.3: Neutrale lichte randen voor altijd zichtbare grenzen
+     v9.4: Witte randen met zwarte drop-shadow
      ============================================================ */
   function styleAreaFor(conflictIso){
     return function(feature){
@@ -896,13 +892,12 @@
 
       var borderWeight = BORDER_WEIGHT;
       var borderColor = COLORS.visibleBorder;
-      var borderOpacity = 0.6;
+      var borderOpacity = 0.9;
 
-      /* Terreinwinst krijgt gouden rand (uitzondering) */
       if(props.territory_gain){
         borderColor = COLORS.territoryGain;
-        borderWeight = 2.4;
-        borderOpacity = 0.95;
+        borderWeight = 2.6;
+        borderOpacity = 1.0;
       }
 
       return {
@@ -940,7 +935,7 @@
         fillColor: party.fill,
         fillOpacity: OVERLAY_FILL_OPACITY,
         weight: OVERLAY_BORDER_WEIGHT,
-        opacity: 0.8,
+        opacity: 0.9,
         interactive: true,
         lineCap: "round",
         lineJoin: "round"
@@ -1021,10 +1016,10 @@
           var p = l.feature.properties;
           if(!p.attack_intensity || p.attack_intensity < PULSE_MIN_INTENSITY) return;
           if(l._caHover) return;
-          var baseWeight = p.territory_gain ? 2.4 : BORDER_WEIGHT;
+          var baseWeight = p.territory_gain ? 2.6 : BORDER_WEIGHT;
           var extra = (PULSE_WEIGHT_MAX - PULSE_WEIGHT_MIN) * p.attack_intensity;
           var newWeight = growing ? (baseWeight + extra) : baseWeight;
-          var newOpacity = growing ? 0.95 : 0.6;
+          var newOpacity = growing ? 1.0 : 0.9;
           try {
             l.setStyle({
               weight: newWeight,
@@ -1189,7 +1184,7 @@
           var props = feature.properties;
           var col = props.controller && conflict.parties[props.controller]
                     ? conflict.parties[props.controller].color
-                    : "rgba(255,255,255,0.8)";
+                    : "#ffffff";
           l.setStyle({
             weight: BORDER_WEIGHT_HOVER,
             color: col,
@@ -1217,12 +1212,36 @@
     };
   }
 
+  /* ============================================================
+     v9.4: CSS drop-shadow op SVG paths voor professionele grenzen
+     ============================================================ */
+  function injectAreaStyles(){
+    if(document.getElementById("caAreaStyles")) return;
+    var s = document.createElement("style");
+    s.id = "caAreaStyles";
+    /* Witte lijnen met zwarte drop-shadow voor alle conflict-area paths */
+    s.textContent =
+      "svg.leaflet-zoom-animated path[stroke='rgba(255,255,255,0.85)']," +
+      ".leaflet-container svg path[stroke*='255,255,255']{" +
+        "filter: drop-shadow(0 0 1.2px rgba(0,0,0,0.95));" +
+      "}" +
+      ".leaflet-container svg path[stroke='#e0a857']{" +
+        "filter: drop-shadow(0 0 2px rgba(224,168,87,0.8)) drop-shadow(0 0 1px rgba(0,0,0,0.9));" +
+      "}" +
+      ".leaflet-container svg path[stroke='rgba(255,90,90,0.95)']{" +
+        "filter: drop-shadow(0 0 2.5px rgba(255,90,90,0.6)) drop-shadow(0 0 1px rgba(0,0,0,0.9));" +
+      "}";
+    document.head.appendChild(s);
+  }
+
   function renderLayer(conflictIso){
     var conflict = getConflict(conflictIso);
     var geojson = CA.geojsons[conflictIso];
     if(!CA.map || !geojson || !conflict) return;
     ensurePane(CA.map, conflictIso);
     if(CA.layers[conflictIso]){ try{ CA.map.removeLayer(CA.layers[conflictIso]); }catch(e){} }
+
+    injectAreaStyles();
 
     CA.layers[conflictIso] = L.geoJSON(geojson, {
       style: styleAreaFor(conflictIso),
@@ -1250,14 +1269,11 @@
   }
 
   /* ============================================================
-     v9.3: Nieuwe hybride legenda
-     Bovenkant: universele kleuren
-     Onderkant: uitklapbaar per land met 📍 zoom-knop
+     Hybride legenda
      ============================================================ */
   function getLegendHtml(){
     var html = '';
 
-    /* === Universeel blok === */
     html += '<div class="wm-legend-block wm-legend-universal">';
     html += '<div class="wm-legend-block-title">── Legenda ──</div>';
     UNIVERSAL_COLORS.forEach(function(u){
@@ -1272,7 +1288,6 @@
       '<span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
     html += '</div>';
 
-    /* === Per land: uitklapbaar === */
     html += '<div class="wm-legend-block wm-legend-details">';
     html += '<div class="wm-legend-block-title">── Details per land ──</div>';
     ACTIVE_CONFLICTS.forEach(function(iso){
@@ -1298,9 +1313,6 @@
     return html;
   }
 
-  /* ============================================================
-     Zoom-navigatie: bind op de 📍-knoppen
-     ============================================================ */
   function bindLegendZoom(){
     var buttons = document.querySelectorAll(".wm-legend-zoom");
     for(var i = 0; i < buttons.length; i++){
@@ -1323,9 +1335,6 @@
     }
   }
 
-  /* ============================================================
-     Injecteer CSS voor de nieuwe legenda-elementen
-     ============================================================ */
   function injectLegendStyles(){
     if(document.getElementById("caLegendStyles")) return;
     var s = document.createElement("style");
@@ -1356,7 +1365,6 @@
     bindLegendZoom();
   }
 
-  /* Patch WorldMap.refreshLegend om onze zoom-binders te triggeren */
   function hookLegendRefresh(){
     if(!window.WorldMap) return;
     var original = window.WorldMap.refreshLegend;
@@ -1397,6 +1405,7 @@
       CA.isInitialized = true;
       CA.isLoaded = true;
 
+      injectAreaStyles();
       hookLegendRefresh();
       try {
         if(window.WorldMap && window.WorldMap.refreshLegend) window.WorldMap.refreshLegend();
@@ -1495,7 +1504,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v9.3",
+    state: CA, _version: "v9.4",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1532,5 +1541,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v9.3 geladen (grenzen + hybride legenda + zoom)");
+  LOG("conflict-areas.js v9.4 geladen (witte randen + drop-shadow)");
 })();
