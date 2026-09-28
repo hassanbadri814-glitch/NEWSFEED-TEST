@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v3.1
+   WAR DESK — conflict-areas.js v4.0
    ------------------------------------------------------------
-   - v3.1: Eigen point-in-polygon + centroid (geen turf.js meer)
+   - v4.0: FASE 4 — klik op oblast → paneel met info + events
+   - v3.1: eigen point-in-polygon (geen turf.js)
    - v3.0: DeepStateMap primair + ISW fallback
    ============================================================ */
 
@@ -28,9 +29,9 @@
   var CACHE_KEY = "wardesk_ukraine_oblasts";
   var CACHE_KEY_DS = "wardesk_deepstate_geo";
   var CACHE_KEY_ISW = "wardesk_isw_geo";
-  var CACHE_VERSION = "v8";
-  var CACHE_VERSION_DS = "v4";
-  var CACHE_VERSION_ISW = "v2";
+  var CACHE_VERSION = "v9";
+  var CACHE_VERSION_DS = "v5";
+  var CACHE_VERSION_ISW = "v3";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var DS_CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
   var ISW_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -46,26 +47,29 @@
     ukraineFill:   "#2A6FDB",
     russiaBorder:  "rgba(180,40,40,0.55)",
     ukraineBorder: "rgba(50,110,200,0.55)",
-    neutralBorder: "rgba(255,255,255,0.10)"
+    neutralBorder: "rgba(255,255,255,0.10)",
+    russiaBorderHover:  "rgba(220,60,60,0.95)",
+    ukraineBorderHover: "rgba(70,140,240,0.95)"
   };
 
   var FILL_OPACITY = 0.45;
   var BORDER_WEIGHT = 0.6;
+  var BORDER_WEIGHT_HOVER = 2.2;
 
   var CA = {
     map: null, layer: null, geojson: null, areas: [],
     deepStateGeo: null, iswGeo: null,
     isLoaded: false, isInitialized: false,
-    stats: { total: 0, russia: 0, ukraine: 0, unknown: 0 }
+    stats: { total: 0, russia: 0, ukraine: 0, unknown: 0 },
+    panel: null,
+    selectedId: null
   };
 
   var db = null;
 
   /* ============================================================
-     GEO HELPERS — eigen implementatie, geen turf.js nodig
+     GEO HELPERS
      ============================================================ */
-
-  /* Ray-casting: is [lng,lat] binnen de ring? */
   function pointInRing(x, y, ring){
     var inside = false;
     var len = ring.length;
@@ -79,12 +83,9 @@
     return inside;
   }
 
-  /* Test punt tegen Polygon (met holes) of MultiPolygon */
   function pointInGeometry(x, y, geometry){
     if(!geometry) return false;
-    var type = geometry.type;
-
-    if(type === "Polygon"){
+    if(geometry.type === "Polygon"){
       var rings = geometry.coordinates;
       if(!rings || !rings.length) return false;
       if(!pointInRing(x, y, rings[0])) return false;
@@ -93,10 +94,8 @@
       }
       return true;
     }
-
-    if(type === "MultiPolygon"){
+    if(geometry.type === "MultiPolygon"){
       var polys = geometry.coordinates;
-      if(!polys || !polys.length) return false;
       for(var p = 0; p < polys.length; p++){
         var rings2 = polys[p];
         if(!rings2 || !rings2.length) continue;
@@ -109,17 +108,14 @@
       }
       return false;
     }
-
     return false;
   }
 
-  /* Test of een Feature (Polygon of MultiPolygon) een punt bevat */
   function featureContainsPoint(feature, x, y){
     if(!feature || !feature.geometry) return false;
     return pointInGeometry(x, y, feature.geometry);
   }
 
-  /* Bepaal centroïde van een Feature — gebruikt shoelace formula */
   function getCentroid(feature){
     if(!feature || !feature.geometry) return null;
     var geom = feature.geometry;
@@ -128,7 +124,6 @@
     if(geom.type === "Polygon"){
       outerRing = geom.coordinates[0];
     } else if(geom.type === "MultiPolygon"){
-      /* Kies het grootste polygoon (meeste punten) */
       var largest = null, largestSize = 0;
       for(var i = 0; i < geom.coordinates.length; i++){
         var ring = geom.coordinates[i][0];
@@ -142,7 +137,6 @@
 
     if(!outerRing || outerRing.length < 3) return null;
 
-    /* Shoelace formula voor centroïde */
     var area = 0, cx = 0, cy = 0;
     for(var j = 0; j < outerRing.length - 1; j++){
       var x0 = outerRing[j][0], y0 = outerRing[j][1];
@@ -154,20 +148,11 @@
     }
     area = area / 2;
 
-    if(Math.abs(area) < 1e-12){
-      /* Fallback: bounding box center */
-      return getBBoxCenter(outerRing);
-    }
+    if(Math.abs(area) < 1e-12) return getBBoxCenter(outerRing);
 
     cx = cx / (6 * area);
     cy = cy / (6 * area);
-
-    /* Verifieer dat centroïde ook daadwerkelijk in polygoon ligt
-       (kan bij concave vormen buiten het polygoon vallen) */
-    if(!pointInRing(cx, cy, outerRing)){
-      return getBBoxCenter(outerRing);
-    }
-
+    if(!pointInRing(cx, cy, outerRing)) return getBBoxCenter(outerRing);
     return [cx, cy];
   }
 
@@ -283,6 +268,7 @@
       f.properties = {
         id: id, name: name, iso: iso,
         controller: null, control_confidence: 0,
+        control_source: null,
         territory_gain: false, attack_intensity: 0, last_update: null
       };
     });
@@ -332,11 +318,10 @@
   }
 
   /* ============================================================
-     DeepStateMap laden
+     DeepState laden
      ============================================================ */
   function getDeepStateUrl(){
     var now = new Date();
-    /* Vóór 04:00 UTC → gebruik gisteren */
     if(now.getUTCHours() < 4){
       now.setUTCDate(now.getUTCDate() - 1);
     }
@@ -402,7 +387,7 @@
   }
 
   /* ============================================================
-     ISW laden (fallback)
+     ISW laden
      ============================================================ */
   function fetchISW(){
     LOG("ISW fallback — fetch ArcGIS");
@@ -467,7 +452,6 @@
       var inOccupied = false;
       var source = null;
 
-      /* DeepState eerst */
       if(hasDS){
         try {
           if(featureContainsPoint(CA.deepStateGeo, cx, cy)){
@@ -478,7 +462,6 @@
         } catch(e){}
       }
 
-      /* ISW als DeepState geen hit gaf */
       if(!inOccupied && hasISW){
         for(var i = 0; i < CA.iswGeo.features.length; i++){
           if(featureContainsPoint(CA.iswGeo.features[i], cx, cy)){
@@ -508,33 +491,163 @@
   /* ============================================================
      Styling
      ============================================================ */
+  function getColorsFor(props){
+    var controller = props && props.controller;
+    if(controller === "Rusland"){
+      return { fill: COLORS.russiaFill, border: COLORS.russiaBorder, borderHover: COLORS.russiaBorderHover };
+    }
+    if(controller === "Oekraïne"){
+      return { fill: COLORS.ukraineFill, border: COLORS.ukraineBorder, borderHover: COLORS.ukraineBorderHover };
+    }
+    return { fill: "transparent", border: COLORS.neutralBorder, borderHover: "rgba(255,255,255,0.5)" };
+  }
+
   function styleArea(feature){
     var props = (feature && feature.properties) || {};
-    var controller = props.controller;
-    var fillColor, borderColor;
-
-    if(controller === "Rusland"){
-      fillColor = COLORS.russiaFill;
-      borderColor = COLORS.russiaBorder;
-    } else if(controller === "Oekraïne"){
-      fillColor = COLORS.ukraineFill;
-      borderColor = COLORS.ukraineBorder;
-    } else {
-      fillColor = "transparent";
-      borderColor = COLORS.neutralBorder;
-    }
-
+    var c = getColorsFor(props);
     return {
-      fillColor: fillColor,
-      fillOpacity: controller ? FILL_OPACITY : 0,
-      color: borderColor,
+      fillColor: c.fill,
+      fillOpacity: props.controller ? FILL_OPACITY : 0,
+      color: c.border,
       weight: BORDER_WEIGHT,
       opacity: 0.7,
       dashArray: null,
-      interactive: false,
+      interactive: true,
       lineCap: "round",
       lineJoin: "round"
     };
+  }
+
+  /* ============================================================
+     Paneel (Fase 4)
+     ============================================================ */
+  function ensurePanel(){
+    if(CA.panel) return CA.panel;
+    var panel = document.createElement("div");
+    panel.id = "caAreaPanel";
+    panel.className = "wm-country-panel"; /* hergebruik CSS van worldmap.js */
+    panel.innerHTML =
+      '<div class="wm-panel-head">' +
+        '<div class="wm-panel-title" id="caPanelTitle">—</div>' +
+        '<button class="wm-panel-close" id="caPanelClose" aria-label="Sluiten">✕</button>' +
+      '</div>' +
+      '<div class="wm-panel-stats" id="caPanelStats"></div>' +
+      '<div class="wm-panel-events" id="caPanelEvents"></div>';
+    document.body.appendChild(panel);
+    CA.panel = panel;
+
+    panel.querySelector("#caPanelClose").addEventListener("click", closePanel);
+    panel.addEventListener("click", function(e){
+      if(e.target === panel) closePanel();
+    });
+    return panel;
+  }
+
+  function getEventsForArea(area){
+    var events = [];
+    try {
+      if(window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events)){
+        events = window.MAPAPI.state.events;
+      }
+    } catch(e){}
+    if(!events.length) return [];
+
+    var filtered = [];
+    for(var i = 0; i < events.length; i++){
+      var ev = events[i];
+      if(!ev || typeof ev.lat !== "number" || typeof ev.lng !== "number") continue;
+      if(ev.category !== "militair" && ev.category !== "crime") continue;
+
+      /* Point-in-polygon: ligt event in deze oblast? */
+      if(featureContainsPoint(area.feature, ev.lng, ev.lat)){
+        filtered.push(ev);
+      }
+    }
+    filtered.sort(function(a, b){
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    });
+    return filtered.slice(0, 15);
+  }
+
+  function escapeHtml(s){
+    return String(s || "").replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  function timeAgoShort(d){
+    var t = new Date(d).getTime();
+    if(isNaN(t)) return "";
+    var diff = (Date.now() - t) / 1000;
+    if(diff < 60) return "nu";
+    if(diff < 3600) return Math.floor(diff / 60) + "m";
+    if(diff < 86400) return Math.floor(diff / 3600) + "u";
+    return Math.floor(diff / 86400) + "d";
+  }
+
+  function openPanel(area){
+    var panel = ensurePanel();
+    var props = area.feature.properties;
+
+    panel.querySelector("#caPanelTitle").textContent = props.name || "?";
+
+    var statsEl = panel.querySelector("#caPanelStats");
+    var ctrlLabel = props.controller || "Onbekend";
+    var ctrlClass = props.controller === "Rusland" ? "conf-low" :
+                    (props.controller === "Oekraïne" ? "conf-high" : "");
+    var sourceLabel = props.control_source || "—";
+
+    var events = getEventsForArea(area);
+    var physicalCount = 0;
+    for(var i = 0; i < events.length; i++){
+      if(events[i].countsForHeat !== false) physicalCount++;
+    }
+
+    statsEl.innerHTML =
+      '<div class="wm-panel-stat ' + ctrlClass + '">' +
+        '<div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div>' +
+        '<div class="wm-panel-stat-lbl">Controller</div>' +
+      '</div>' +
+      '<div class="wm-panel-stat">' +
+        '<div class="wm-panel-stat-val">' + events.length + '</div>' +
+        '<div class="wm-panel-stat-lbl">Events (7d)</div>' +
+      '</div>' +
+      '<div class="wm-panel-stat">' +
+        '<div class="wm-panel-stat-val">' + physicalCount + '</div>' +
+        '<div class="wm-panel-stat-lbl">Fysiek</div>' +
+      '</div>' +
+      '<div class="wm-panel-conf-detail">Bron: ' + escapeHtml(sourceLabel) +
+        ' · Confidence: ' + Math.round((props.control_confidence || 0) * 100) + '%</div>';
+
+    var evEl = panel.querySelector("#caPanelEvents");
+    if(!events.length){
+      evEl.innerHTML = '<div class="wm-panel-empty">Geen militaire events in deze oblast</div>';
+    } else {
+      evEl.innerHTML = events.map(function(ev){
+        var physical = ev.countsForHeat !== false;
+        var actionTag = physical ? "Fysiek" : "Niet-fysiek";
+        var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
+        return '<div class="wm-panel-event">' +
+          '<div class="wm-panel-event-title">' + escapeHtml(ev.title || "?") + '</div>' +
+          '<div class="wm-panel-event-meta">' +
+            '<span class="wm-panel-event-src">' + escapeHtml(ev.source || "?") + '</span>' +
+            '<span class="wm-panel-event-dot">·</span>' +
+            '<span>' + timeAgoShort(ev.date) + '</span>' +
+            '<span class="' + actionClass + '">' + actionTag + '</span>' +
+            '<span class="wm-panel-event-sub">' + escapeHtml(ev.subtype || "—") + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+    }
+
+    CA.selectedId = props.id;
+    requestAnimationFrame(function(){ panel.classList.add("show"); });
+    LOG("Panel geopend: " + props.name + " (" + events.length + " events)");
+  }
+
+  function closePanel(){
+    if(CA.panel) CA.panel.classList.remove("show");
+    CA.selectedId = null;
   }
 
   /* ============================================================
@@ -544,7 +657,35 @@
     if(map.getPane(PANE_NAME)) return;
     map.createPane(PANE_NAME);
     map.getPane(PANE_NAME).style.zIndex = PANE_Z;
-    map.getPane(PANE_NAME).style.pointerEvents = "none";
+    /* pointerEvents auto om kliks toe te staan */
+    map.getPane(PANE_NAME).style.pointerEvents = "auto";
+  }
+
+  function onEachArea(feature, layer){
+    layer.on({
+      mouseover: function(e){
+        var l = e.target;
+        var c = getColorsFor(feature.properties);
+        l.setStyle({
+          weight: BORDER_WEIGHT_HOVER,
+          color: c.borderHover,
+          opacity: 0.95,
+          fillOpacity: Math.min(0.75, FILL_OPACITY + 0.15)
+        });
+        if(l.bringToFront) l.bringToFront();
+      },
+      mouseout: function(e){
+        if(CA.layer) CA.layer.resetStyle(e.target);
+      },
+      click: function(e){
+        if(L.DomEvent) L.DomEvent.stopPropagation(e);
+        var area = null;
+        for(var i = 0; i < CA.areas.length; i++){
+          if(CA.areas[i].layer === e.target){ area = CA.areas[i]; break; }
+        }
+        if(area) openPanel(area);
+      }
+    });
   }
 
   function renderLayer(){
@@ -555,7 +696,8 @@
     CA.layer = L.geoJSON(CA.geojson, {
       style: styleArea,
       pane: PANE_NAME,
-      smoothFactor: 1.5
+      smoothFactor: 1.5,
+      onEachFeature: onEachArea
     });
     CA.layer.addTo(CA.map);
 
@@ -570,7 +712,7 @@
         });
       }
     });
-    LOG("Gebiedslaag gerenderd: " + CA.areas.length + " gebieden");
+    LOG("Gebiedslaag gerenderd: " + CA.areas.length + " gebieden (interactive)");
   }
 
   /* ============================================================
@@ -639,7 +781,7 @@
 
   window.ConflictAreas = {
     init: init, refresh: refresh, destroy: destroy, clearCache: clearCache,
-    getStats: getStats, state: CA, _version: "v3.1"
+    getStats: getStats, state: CA, _version: "v4.0"
   };
 
   /* ============================================================
@@ -669,5 +811,5 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  LOG("conflict-areas.js v3.1 geladen (eigen geo-implementatie)");
+  LOG("conflict-areas.js v4.0 geladen (interactive)");
 })();
