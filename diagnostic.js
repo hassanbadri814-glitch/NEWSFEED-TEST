@@ -1,6 +1,6 @@
 /* ============================================================
-   WAR DESK — diagnostic.js v1.2
-   Wacht onbeperkt tot PM + events klaar zijn (max 3 min fallback).
+   WAR DESK — diagnostic.js v1.3
+   Forceert consensus run voordat diagnostic rapporteert.
    ============================================================ */
 
 (function(){
@@ -9,15 +9,13 @@
   function log(){
     try {
       var args = Array.prototype.slice.call(arguments);
-      if(window.wdLog && wdLog.info){
-        wdLog.info.apply(null, ["[DIAG]"].concat(args));
-      }
+      if(window.wdLog && wdLog.info){ wdLog.info.apply(null, ["[DIAG]"].concat(args)); }
     } catch(e){}
   }
 
   function runDiagnostic(){
     log("═══════════════════════════════");
-    log("CONSENSUS DIAGNOSTIC v1.2");
+    log("CONSENSUS DIAGNOSTIC v1.3");
     log("═══════════════════════════════");
 
     log("1. PM ready: " + (window.ProvinceMapper && ProvinceMapper.isReady()));
@@ -45,6 +43,11 @@
     });
     log("4. Met actors: " + withActors.length);
 
+    var conflictCountry = events.filter(function(e){
+      return ["SYR","UKR","RUS","YEM","ISR","LBN","PSE","SAU","IRQ","IRN"].indexOf(e.countryISO3) !== -1;
+    });
+    log("4b. In conflict-land: " + conflictCountry.length);
+
     var milOrCrime = events.filter(function(e){
       return e.category === "militair" || e.category === "crime";
     });
@@ -57,73 +60,19 @@
 
     var both = events.filter(function(e){
       return typeof e.lat === "number" && typeof e.lng === "number" &&
-             e.actorCountries && e.actorCountries.length > 0 &&
-             (e.category === "militair" || e.category === "crime") &&
-             e.countsForHeat !== false;
+             e.countsForHeat !== false &&
+             ["SYR","UKR","RUS","YEM","ISR","LBN","PSE","SAU","IRQ","IRN"].indexOf(e.countryISO3) !== -1;
     });
     log("7. ★ ALLE voorwaarden: " + both.length);
-
-    if(events.length > 0){
-      var e = events[0];
-      log("8. Sample #0:");
-      log("   title: " + String(e.title || "").slice(0, 50));
-      log("   cat: " + e.category + " | lat: " + e.lat + " | lng: " + e.lng);
-      log("   iso3: " + e.countryISO3 + " | actors: " + JSON.stringify(e.actorCountries));
-      log("   countsForHeat: " + e.countsForHeat);
-    }
-
-    if(withLatLng.length > 0 && window.ProvinceMapper){
-      var e2 = withLatLng[0];
-      try {
-        var p = ProvinceMapper.getProvinceForPoint(e2.lat, e2.lng, e2.countryISO3);
-        log("9. Point lookup: " + (p ? p.iso3 + "/" + (p.admin1 || "*") : "GEEN MATCH"));
-      } catch(err){
-        log("9. ERROR: " + err.message);
-      }
-    }
-
-    var conflictEvents = events.filter(function(e){
-      return ["SYR","UKR","YEM","ISR","LBN","PSE","SAU"].indexOf(e.countryISO3) !== -1;
-    }).slice(0, 8);
-    log("10. Random conflict-events (" + conflictEvents.length + "):");
-    conflictEvents.forEach(function(e){
-      try {
-        var p = ProvinceMapper.getProvinceForPoint(e.lat, e.lng, e.countryISO3);
-        log("   " + e.countryISO3 + " (" +
-            Number(e.lat).toFixed(2) + "," + Number(e.lng).toFixed(2) +
-            ") → " + (p ? p.iso3 + "/" + (p.admin1 || "*") : "GEEN MATCH"));
-      } catch(err){
-        log("   ERROR: " + err.message);
-      }
-    });
 
     try {
       var stats = ProvinceConsensus.getStats();
       log("11. Consensus: " + JSON.stringify(stats));
       var all = ProvinceConsensus.getAllConsensus();
       var keys = Object.keys(all);
-      log("    GIDs: " + (keys.length > 0 ? keys.slice(0, 5).join(", ") : "(leeg)"));
+      log("    GIDs (" + keys.length + "): " + (keys.length > 0 ? keys.slice(0, 5).join(", ") : "(leeg)"));
     } catch(err){
       log("11. ERROR: " + err.message);
-    }
-
-    try {
-      log("12. City → province:");
-      ["aleppo","kyiv","gaza","sanaa","beirut"].forEach(function(c){
-        var r = ProvinceMapper.getProvinceForCity(c);
-        log("   " + c + " → " + (r ? r.iso3 + "/" + (r.admin1 || "*") : "GEEN MATCH"));
-      });
-    } catch(err){
-      log("12. ERROR: " + err.message);
-    }
-
-    try {
-      log("13. Actor resolution:");
-      ["Assad forces","Russian Army","IDF","Houthi rebels"].forEach(function(a){
-        log("   " + a + " → " + ProvinceMapper.resolveActor(a));
-      });
-    } catch(err){
-      log("13. ERROR: " + err.message);
     }
 
     log("═══════════════════════════════");
@@ -142,14 +91,29 @@
       if(Array.isArray(state.militaryEvents)) eventCount = Math.max(eventCount, state.militaryEvents.length);
     }
 
-    /* Stop pas als PM ready is EN events binnen zijn, of na 90 pogingen (3 min) */
-    if((pmReady && caReady && eventCount > 50) || attempt >= 90){
-      log("Diagnostic start na " + (attempt*2) + "s (PM=" + pmReady + ", CA=" + caReady + ", events=" + eventCount + ")");
-      try { runDiagnostic(); } catch(e){
-        log("FATAL: " + e.message);
+    /* v1.3: wacht tot events > 50 EN PM ready, dan forceer run + diagnostic */
+    if(pmReady && caReady && eventCount > 50){
+      log("Alles klaar — forceer consensus run...");
+      if(window.ProvinceConsensus && ProvinceConsensus.runNow){
+        ProvinceConsensus.runNow({ force: true }).then(function(){
+          log("Consensus run voltooid — start diagnostic");
+          try { runDiagnostic(); } catch(e){ log("FATAL: " + e.message); }
+        }).catch(function(e){
+          log("Consensus run faalde: " + e.message);
+          try { runDiagnostic(); } catch(e2){}
+        });
+      } else {
+        runDiagnostic();
       }
       return;
     }
+
+    if(attempt >= 90){
+      log("Timeout na 180s — start diagnostic met beschikbare data");
+      try { runDiagnostic(); } catch(e){ log("FATAL: " + e.message); }
+      return;
+    }
+
     if(attempt % 5 === 0){
       log("Wacht... (" + (attempt+1) + "/90, PM=" + pmReady + ", CA=" + caReady + ", events=" + eventCount + ")");
     }
