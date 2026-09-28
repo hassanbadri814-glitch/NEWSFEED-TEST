@@ -1,15 +1,15 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v3.1
+   WAR DESK — worldmap-data.js v3.2
    ------------------------------------------------------------
+   - v3.2: FEED_TIERS uitgebreid + robuustere getTier()
    - v3.1: LOCATIONS uitgebreid met conflict-steden
-           (Syrië, Oekraïne, Jemen, Gaza, Israël, Saoedi, Irak, Iran)
-   - v3.0: LOCATIONS gecentraliseerd (was in ai-map.js)
+   - v3.0: LOCATIONS gecentraliseerd
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v3.1";
+  window.WORLDMAP_VERSION = "v3.2";
 
   /* ============================================================
      LOCATIONS — alle bekende steden/regio's voor geo-mapping
@@ -44,7 +44,6 @@
     "krim":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
     "crimea":{lat:45.35,lng:34.00,country:"Oekraïne",region:"Oost-Europa"},
     "sevastopol":{lat:44.62,lng:33.53,country:"Oekraïne",region:"Oost-Europa"},
-    /* v3.1 nieuwe Oekraïne conflict-steden */
     "soledar":{lat:48.68,lng:38.10,country:"Oekraïne",region:"Oost-Europa"},
     "vuhledar":{lat:47.78,lng:37.25,country:"Oekraïne",region:"Oost-Europa"},
     "chasiv yar":{lat:48.58,lng:37.85,country:"Oekraïne",region:"Oost-Europa"},
@@ -77,7 +76,6 @@
     "jeruzalem":{lat:31.78,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "jerusalem":{lat:31.78,lng:35.22,country:"Israël",region:"Midden-Oosten"},
     "haifa":{lat:32.79,lng:34.99,country:"Israël",region:"Midden-Oosten"},
-    /* v3.1 grensgebied Israël-Libanon */
     "metula":{lat:33.28,lng:35.58,country:"Israël",region:"Midden-Oosten"},
     "kiryat shmona":{lat:33.21,lng:35.57,country:"Israël",region:"Midden-Oosten"},
     "nahariya":{lat:33.01,lng:35.09,country:"Israël",region:"Midden-Oosten"},
@@ -91,7 +89,6 @@
     "rafah":{lat:31.29,lng:34.25,country:"Gaza",region:"Midden-Oosten"},
     "khan younis":{lat:31.35,lng:34.30,country:"Gaza",region:"Midden-Oosten"},
     "jabalia":{lat:31.53,lng:34.50,country:"Gaza",region:"Midden-Oosten"},
-    /* v3.1 nieuwe Gaza steden */
     "deir al-balah":{lat:31.42,lng:34.35,country:"Gaza",region:"Midden-Oosten"},
     "bureij":{lat:31.44,lng:34.40,country:"Gaza",region:"Midden-Oosten"},
     "maghazi":{lat:31.42,lng:34.38,country:"Gaza",region:"Midden-Oosten"},
@@ -116,7 +113,6 @@
     "syria":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "damascus":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "aleppo":{lat:36.20,lng:37.13,country:"Syrië",region:"Midden-Oosten"},
-    /* v3.1 nieuwe Syrië conflict-steden */
     "idlib city":{lat:35.93,lng:36.63,country:"Syrië",region:"Midden-Oosten"},
     "jisr al-shughur":{lat:35.81,lng:36.32,country:"Syrië",region:"Midden-Oosten"},
     "afrin":{lat:36.51,lng:36.87,country:"Syrië",region:"Midden-Oosten"},
@@ -134,7 +130,6 @@
     "iraq":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "bagdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
     "baghdad":{lat:33.31,lng:44.36,country:"Irak",region:"Midden-Oosten"},
-    /* v3.1 */
     "erbil":{lat:36.19,lng:44.01,country:"Irak",region:"Midden-Oosten"},
     "mosul":{lat:36.34,lng:43.13,country:"Irak",region:"Midden-Oosten"},
     "basra":{lat:30.51,lng:47.78,country:"Irak",region:"Midden-Oosten"},
@@ -146,7 +141,6 @@
     "teheran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
     "tehran":{lat:35.69,lng:51.39,country:"Iran",region:"Midden-Oosten"},
     "isfahan":{lat:32.65,lng:51.67,country:"Iran",region:"Midden-Oosten"},
-    /* v3.1 */
     "bandar abbas":{lat:27.18,lng:56.28,country:"Iran",region:"Midden-Oosten"},
     "bushehr":{lat:28.92,lng:50.83,country:"Iran",region:"Midden-Oosten"},
     "shiraz":{lat:29.60,lng:52.53,country:"Iran",region:"Midden-Oosten"},
@@ -158,7 +152,6 @@
     "yemen":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "sanaa":{lat:15.37,lng:44.19,country:"Jemen",region:"Midden-Oosten"},
     "aden":{lat:12.78,lng:45.03,country:"Jemen",region:"Midden-Oosten"},
-    /* v3.1 */
     "mocha":{lat:13.32,lng:43.25,country:"Jemen",region:"Midden-Oosten"},
     "al-mukha":{lat:13.32,lng:43.25,country:"Jemen",region:"Midden-Oosten"},
     "durayhimi":{lat:14.65,lng:43.05,country:"Jemen",region:"Midden-Oosten"},
@@ -169,7 +162,6 @@
     /* ================= SAOEDI-ARABIË ================= */
     "saudi":{lat:24.71,lng:46.68,country:"Saudi-Arabië",region:"Midden-Oosten"},
     "riyadh":{lat:24.71,lng:46.68,country:"Saudi-Arabië",region:"Midden-Oosten"},
-    /* v3.1 */
     "dhahran":{lat:26.29,lng:50.11,country:"Saoedi-Arabië",region:"Midden-Oosten"},
     "jubail":{lat:27.00,lng:49.65,country:"Saoedi-Arabië",region:"Midden-Oosten"},
     "yanbu":{lat:24.09,lng:38.06,country:"Saoedi-Arabië",region:"Midden-Oosten"},
@@ -369,38 +361,68 @@
     "chinese military": "China", "pla": "China"
   };
 
+  /* ============================================================
+     v3.2: FEED_TIERS — CANONIEKE BRON VOOR ALLE MODULES
+     ============================================================ */
   window.FEED_TIERS = {
-    "NOS": 1.0, "BBC World": 1.0, "BBC UK": 1.0, "BBC Arabic": 1.0,
-    "France24 EN": 1.0, "France24 AR": 1.0,
-    "Reuters": 1.0, "AP News": 1.0, "Reuters TG": 1.0,
-    "Al Jazeera": 0.85, "Al Jazeera AR": 0.85, "Al Jazeera AR TG": 0.85,
-    "Al Arabiya TG": 0.85, "Al-Ahram": 0.85, "Arab News": 0.85,
-    "Saudi Gazette": 0.85, "The National": 0.85, "Gulf News": 0.85,
-    "The Peninsula": 0.85, "Asharq Al-Awsat": 0.85,
+    /* === Tier 1.0 — Hoogste autoriteit === */
+    "NOS": 1.0, "NOS.nl": 1.0,
+    "BBC World": 1.0, "BBC News": 1.0, "BBC UK": 1.0, "BBC": 1.0,
+    "BBC Arabic": 0.95,
+    "Reuters": 1.0, "Reuters TG": 0.9,
+    "AP News": 1.0, "AP": 1.0, "AP TG": 0.9,
+    "AFP": 1.0, "Associated Press": 1.0,
+    "Bloomberg": 1.0,
+    "France24 EN": 1.0, "France24 AR": 0.95,
+    "ACLED": 1.0,
+    /* === Tier 0.95 — Institutioneel === */
+    "ISW": 0.95, "Institute for the Study of War": 0.95,
+    "Bellingcat": 0.95,
+    "OCHA": 0.95,
+    /* === Tier 0.85 — Kwaliteitsmedia === */
+    "Al Jazeera": 0.85, "Al Jazeera EN": 0.85,
+    "Al Jazeera AR": 0.85, "Al Jazeera AR TG": 0.85,
+    "Al Arabiya TG": 0.85,
+    "Al-Ahram": 0.85, "Arab News": 0.85,
+    "Saudi Gazette": 0.85, "The National": 0.85,
+    "Gulf News": 0.85, "The Peninsula": 0.85,
+    "Asharq Al-Awsat": 0.85,
     "Anadolu AR": 0.85, "TRT World": 0.85,
     "SANA": 0.85, "SABA Yemen": 0.85,
     "RT Arabic": 0.85, "RT News": 0.85, "TASS": 0.85,
-    "Times of Israel": 0.85, "Jerusalem Post": 0.85, "Ynet": 0.85,
+    "Times of Israel": 0.85, "Jerusalem Post": 0.85,
+    "Ynet": 0.85, "Haaretz": 0.8,
     "Kyiv Independent": 0.85, "Ukrinform": 0.85,
+    "Kyiv Post": 0.85, "Euromaidan Press": 0.75,
     "Mehr News Iran": 0.85, "MAP": 0.85,
+    "SOHR": 0.85, "Syrian Observatory": 0.85,
+    "NYT": 0.85, "NYT US": 0.85, "NYT World": 0.85,
+    "Washington Post": 0.85, "The Guardian": 0.85,
+    "Guardian UK": 0.85,
+    "CNN": 0.85,
+    "Al-Monitor": 0.75, "Al Monitor": 0.75,
+    /* === Tier 0.7 — Regionaal === */
     "De Telegraaf": 0.7, "AD.nl": 0.7, "De Volkskrant": 0.7,
     "Het Parool": 0.7, "Trouw": 0.7, "RTL Nieuws": 0.7, "Nu.nl": 0.7,
+    "NRC": 0.75, "Het FD": 0.75, "BNR": 0.7,
     "HLN": 0.7, "Nieuwsblad": 0.7, "De Standaard": 0.7,
     "VRT NWS": 0.7, "De Morgen": 0.7, "De Tijd": 0.7,
     "Spiegel": 0.7, "Bild": 0.7, "Zeit": 0.7, "FAZ": 0.7,
-    "Süddeutsche": 0.7, "Die Welt": 0.7,
+    "Süddeutsche": 0.7, "Die Welt": 0.7, "Tagesschau": 0.7,
     "Le Monde": 0.7, "FranceInfo": 0.7, "Libération": 0.7,
+    "Le Figaro": 0.7,
     "Corriere della Sera": 0.7, "Repubblica": 0.7, "La Stampa": 0.7,
-    "Guardian UK": 0.7, "Telegraph": 0.7, "Sky News": 0.7,
+    "ANSA": 0.7,
+    "Telegraph": 0.7, "Sky News": 0.7,
     "Independent": 0.7, "FT": 0.7,
-    "NYT US": 0.7, "CNN": 0.7, "Washington Post": 0.7, "NPR": 0.7,
-    "Guardian": 0.7, "NYT World": 0.7, "Japan Times": 0.7,
-    "Al Monitor": 0.7, "Middle East Eye": 0.7, "CNN Arabic": 0.7,
+    "NPR": 0.7, "Japan Times": 0.7,
+    "Middle East Eye": 0.7, "CNN Arabic": 0.75,
     "Al Quds Al Arabi": 0.7, "L'Orient-Le Jour": 0.7, "Naharnet": 0.7,
     "Hespress": 0.7, "Le360": 0.7, "Yabiladi": 0.7, "TelQuel": 0.7,
     "NOS Sport": 0.7, "NOS Voetbal": 0.7, "ESPN NL": 0.7,
     "NUsport": 0.7, "RTL Sport": 0.7,
     "Egypt Independent": 0.7,
+    /* === Tier 0.5 — Regionaal / speciaal === */
     "Omroep Brabant": 0.5, "Omroep Flevoland": 0.5, "NH Nieuws": 0.5,
     "RTV Utrecht": 0.5, "Omroep Gelderland": 0.5, "L1": 0.5,
     "RTV Oost": 0.5, "Omroep West": 0.5,
@@ -409,10 +431,13 @@
     "FCUpdate": 0.5, "Soccernews": 0.5,
     "Glory Kickboxing": 0.5, "MMA DNA": 0.5,
     "Enab Baladi": 0.5, "Sudan Tribune": 0.5, "Radio Dabanga": 0.5,
-    "Middle East Monitor": 0.5, "Mondoweiss": 0.5,
+    "Middle East Monitor": 0.6, "Mondoweiss": 0.5,
+    "MintPress": 0.5,
+    /* === Tier 0.3 — Social media / OSINT === */
     "Clash Report TG": 0.3, "Liveuamap TG": 0.3, "GeoConfirmed TG": 0.3,
     "OSINTdefender TG": 0.3, "Faytuks TG": 0.3, "NOELreports TG": 0.3,
     "Middle East Eye TG": 0.3,
+    /* === Default === */
     "_default": 0.5
   };
 
@@ -509,11 +534,47 @@
     getColor: function(alliance){
       return window.ALLIANCE_COLORS[alliance] || window.ALLIANCE_COLORS.neutral;
     },
+
+    /* ============================================================
+       v3.2: getTier() — ROBUUST
+       1. Exact match
+       2. Case-insensitive match
+       3. Partial match (bron bevat key of key bevat bron)
+       4. Fallback 0.5
+       ============================================================ */
     getTier: function(sourceName){
-      if (!sourceName) return window.FEED_TIERS._default;
-      var t = window.FEED_TIERS[sourceName];
-      return typeof t === "number" ? t : window.FEED_TIERS._default;
+      if (!sourceName) return 0.5;
+      var s = String(sourceName).trim();
+      if (!s) return 0.5;
+
+      /* 1. Exact */
+      if (typeof window.FEED_TIERS[s] === "number") return window.FEED_TIERS[s];
+
+      /* 2. Case-insensitive exact */
+      var lower = s.toLowerCase();
+      for (var key in window.FEED_TIERS){
+        if (key === "_default") continue;
+        if (!Object.prototype.hasOwnProperty.call(window.FEED_TIERS, key)) continue;
+        if (key.toLowerCase() === lower) return window.FEED_TIERS[key];
+      }
+
+      /* 3. Partial match — kies langste match */
+      var bestMatch = null, bestLen = 0;
+      for (var key2 in window.FEED_TIERS){
+        if (key2 === "_default") continue;
+        if (!Object.prototype.hasOwnProperty.call(window.FEED_TIERS, key2)) continue;
+        var k = key2.toLowerCase();
+        if (k.length < 3) continue;
+        if (lower.indexOf(k) !== -1 || k.indexOf(lower) !== -1){
+          if (k.length > bestLen){ bestMatch = key2; bestLen = k.length; }
+        }
+      }
+      if (bestMatch) return window.FEED_TIERS[bestMatch];
+
+      /* 4. Fallback */
+      return 0.5;
     },
+
     getThresholds: function(){ return window.WORLDMAP_THRESHOLDS; },
     getConflictColor: function(level){
       var c = window.CONFLICT_COLORS;
@@ -557,6 +618,6 @@
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v3.1 geladen — LOCATIONS: " + Object.keys(LOCATIONS).length); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v3.2 geladen — LOCATIONS: " + Object.keys(LOCATIONS).length + ", TIERS: " + Object.keys(window.FEED_TIERS).length); } catch(e){}
 
 })();
