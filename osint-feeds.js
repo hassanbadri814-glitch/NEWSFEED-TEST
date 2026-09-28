@@ -1,6 +1,8 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v1.1
-   - v1.1: Rate-limit fix (8s stagger, 4 queries, retry bij 429)
+   WAR DESK — osint-feeds.js v1.2
+   - v1.2: DIRECT fetch eerst (GDELT heeft CORS), proxy als fallback
+           Stagger 8s → 20s, minder queries (3 ipv 4)
+   - v1.1: Rate-limit fix
    - v1.0: GDELT integratie
    ============================================================ */
 
@@ -15,19 +17,17 @@
   var MAX_EVENTS = 200;
   var TIMESPAN = "24h";
   var MAX_PER_QUERY = 50;
-  var STAGGER_MS = 8000;             /* v1.1: was 2000 — langzamer */
-  var RETRY_429_MS = 30000;          /* v1.1: bij 429, wacht 30 sec */
+  var STAGGER_MS = 20000;            /* v1.2: was 8000 — langzamer */
+  var RETRY_429_MS = 30000;
 
-  /* v1.1: 4 queries ipv 8 (minder load) */
+  /* v1.2: 3 queries ipv 4 */
   var QUERIES = [
-    { q: "(ukraine OR kyiv OR kharkiv OR donetsk OR bakhmut) (attack OR strike OR shell OR bomb)",
+    { q: "(ukraine OR kyiv OR kharkiv OR donetsk) (attack OR strike OR shell OR bomb)",
       hint: { country: "Oekraïne", region: "Oost-Europa" } },
-    { q: "(syria OR damascus OR aleppo OR idlib) (attack OR strike OR bomb OR killed)",
-      hint: { country: "Syrië", region: "Midden-Oosten" } },
-    { q: "(gaza OR rafah) (strike OR attack OR bomb OR killed)",
+    { q: "(gaza OR rafah OR israel OR idf) (strike OR attack OR bomb)",
       hint: { country: "Gaza", region: "Midden-Oosten" } },
-    { q: "(yemen OR houthi) (attack OR strike OR missile OR drone)",
-      hint: { country: "Jemen", region: "Midden-Oosten" } }
+    { q: "(syria OR aleppo OR lebanon OR beirut) (attack OR strike OR bomb)",
+      hint: { country: "Syrië", region: "Midden-Oosten" } }
   ];
 
   var lastRun = 0;
@@ -105,21 +105,52 @@
     return { category: "militair", subtype: "Conflict" };
   }
 
-  /* v1.1: retry-logica voor 429 */
+  /* ============================================================
+     v1.2: DIRECT fetch eerst, proxy als fallback
+     ============================================================ */
   function fetchWithRetry(url, attempt){
     attempt = attempt || 0;
     var MAX_ATTEMPTS = 3;
-    var proxy = "https://newsfeed2.hassanbadri814.workers.dev/?url=";
-    var fullUrl = proxy + encodeURIComponent(url);
 
-    var ctrl = new AbortController();
-    var timer = setTimeout(function(){ ctrl.abort(); }, 25000);
+    function tryDirect(){
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 25000);
+      return fetch(url, { signal: ctrl.signal, mode: "cors" })
+        .then(function(r){
+          clearTimeout(timer);
+          return r;
+        })
+        .catch(function(e){
+          clearTimeout(timer);
+          throw e;
+        });
+    }
 
-    return fetch(fullUrl, { signal: ctrl.signal })
+    function tryProxy(){
+      var proxy = "https://newsfeed2.hassanbadri814.workers.dev/?url=";
+      var fullUrl = proxy + encodeURIComponent(url);
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 40000);
+      return fetch(fullUrl, { signal: ctrl.signal })
+        .then(function(r){
+          clearTimeout(timer);
+          return r;
+        })
+        .catch(function(e){
+          clearTimeout(timer);
+          throw e;
+        });
+    }
+
+    return tryDirect()
       .then(function(r){
-        clearTimeout(timer);
         if (r.status === 429){
-          throw { code: 429, message: "Rate limited" };
+          LOG("429 op direct — probeer via proxy");
+          return tryProxy().then(function(r2){
+            if (r2.status === 429) throw { code: 429, message: "429 proxy" };
+            if (!r2.ok) throw new Error("HTTP " + r2.status);
+            return r2.text();
+          });
         }
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
@@ -130,8 +161,6 @@
         return JSON.parse(trimmed);
       })
       .catch(function(e){
-        clearTimeout(timer);
-        /* Retry bij 429 of netwerk-fout */
         if (e && e.code === 429 && attempt < MAX_ATTEMPTS){
           LOG("429 — retry " + (attempt+1) + "/" + MAX_ATTEMPTS + " over " + (RETRY_429_MS/1000) + "s");
           return new Promise(function(resolve){
@@ -204,7 +233,6 @@
 
     QUERIES.forEach(function(cfg, idx){
       chain = chain.then(function(){
-        /* v1.1: altijd stagger, ook voor eerste query */
         return new Promise(function(resolve){
           setTimeout(resolve, idx === 0 ? 500 : STAGGER_MS);
         }).then(function(){ return fetchQuery(cfg); });
@@ -224,7 +252,7 @@
     isRunning = true;
 
     var startTime = Date.now();
-    LOG("GDELT fetch gestart (" + QUERIES.length + " queries, " + (STAGGER_MS/1000) + "s stagger)");
+    LOG("GDELT fetch gestart (" + QUERIES.length + " queries, " + (STAGGER_MS/1000) + "s stagger, direct-first)");
 
     return fetchAllQueries().then(function(raw){
       var seen = {};
@@ -298,7 +326,7 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v1.1",
+    _version: "v1.2",
     _queries: QUERIES
   };
 
@@ -308,5 +336,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v1.1 geladen (rate-limit fix)");
+  LOG("osint-feeds.js v1.2 geladen (direct-first + proxy fallback)");
 })();
