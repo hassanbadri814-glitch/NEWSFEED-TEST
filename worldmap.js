@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK — worldmap.js v3.3
+   WAR DESK — worldmap.js v3.4
    ------------------------------------------------------------
+   - v3.4: legenda retry tot ConflictAreas klaar is
    - v3.3: A1 — landen met oblast-laag worden transparant
-           A2 — legenda krijgt placeholder voor gebied-legenda
-   - v3.2: CityStatus v2.0 integratie (control + attack ring)
    ============================================================ */
 
 (function(){
@@ -11,9 +10,6 @@
 
   var LOG = function(){ try{ wdLog.info.apply(null, ["[WM]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
-  /* A1: Landen met een eigen oblast-laag in conflict-areas.js
-     Worden hier transparant gemaakt om dubbele kleuring te voorkomen.
-     Later uitbreiden: bijv. "YEM", "SYR", "LBN" zodra die een oblast-laag krijgen. */
   var COUNTRIES_WITH_AREA_LAYER = ["UKR"];
 
   var GEOJSON_URLS = [
@@ -30,6 +26,8 @@
     _allEvents: [], isLoaded: false, isEnabled: true, isLegendVisible: true,
     lastHeatCalc: 0, map: null
   };
+
+  var _legendRetryTimer = null;
 
   async function loadGeoJSON(){
     try {
@@ -217,20 +215,9 @@
 
   function styleCountry(feature){
     var iso3 = getISO3(feature);
-
-    /* A1: Als dit land een eigen oblast-laag heeft, maak het transparant.
-       De oblast-laag van conflict-areas.js neemt de weergave over. */
     if (hasAreaLayer(iso3)){
-      return {
-        fillColor: "transparent",
-        fillOpacity: 0,
-        color: "transparent",
-        weight: 0,
-        opacity: 0,
-        interactive: false
-      };
+      return { fillColor: "transparent", fillOpacity: 0, color: "transparent", weight: 0, opacity: 0, interactive: false };
     }
-
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var totalHeat = targetHeat + actorHeat;
@@ -295,14 +282,8 @@
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
     var name = getCountryName(feature);
-
     layer.bindTooltip(buildTooltipHtml(iso3, name), { sticky: true, direction: "top", className: "wm-tooltip" });
-
-    if (hasAreaLayer(iso3)){
-      /* Geen interactie: oblast-laag neemt over */
-      return;
-    }
-
+    if (hasAreaLayer(iso3)) return;
     layer.on({
       mouseover: function(e){
         var l = e.target;
@@ -403,39 +384,26 @@
 
   function closeCountryPanel(){ if (WM.panel) WM.panel.classList.remove("show"); }
 
-  /* ============================================================
-     CITY-DOTS
-     ============================================================ */
   function renderCityDots(map){
     if (WM.cityLayer){ WM.cityLayer.clearLayers(); }
     else { WM.cityLayer = L.layerGroup().addTo(map); }
-
-    if (!window.CityStatus){
-      LOG("CityStatus niet beschikbaar");
-      return;
-    }
-
+    if (!window.CityStatus){ LOG("CityStatus niet beschikbaar"); return; }
     var cities = window.CityStatus.getAllCities();
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
-
     var rendered = 0, skippedNoLoc = 0, skippedOld = 0, skippedBoth = 0;
-
     cities.forEach(function(c){
       if (!c || !c.city) return;
       var loc = window.__wm_locations ? window.__wm_locations[c.city] : null;
       if (!loc) { skippedNoLoc++; return; }
       if (c.lastUpdate && c.lastUpdate < periodAgo) { skippedOld++; return; }
-
       var hasController = !!c.controller;
       var hasAttack = (c.attackIntensity || 0) > 0.15;
       if (!hasController && !hasAttack) { skippedBoth++; return; }
-
       var size = 8;
       var coreColor = "#6b7280";
       var isClaim = false;
       var borderStyle = "";
-
       if (hasController){
         var effISO3 = null;
         try {
@@ -447,83 +415,38 @@
             }
           }
         } catch(e){}
-
-        if (c.contested){
-          coreColor = "#a855f7";
-        } else {
-          var alliance = window.WorldMapData
-            ? window.WorldMapData.getAlliance(effISO3 || c.controller)
-            : "neutral";
-          coreColor = window.WorldMapData
-            ? window.WorldMapData.getColor(alliance)
-            : "#6b7280";
+        if (c.contested){ coreColor = "#a855f7"; }
+        else {
+          var alliance = window.WorldMapData ? window.WorldMapData.getAlliance(effISO3 || c.controller) : "neutral";
+          coreColor = window.WorldMapData ? window.WorldMapData.getColor(alliance) : "#6b7280";
         }
-
         var ctrlConf = c.controllerConfidence || 0;
         size = Math.round(7 + ctrlConf * 4);
         isClaim = ctrlConf < 0.6;
-        borderStyle = isClaim
-          ? 'border:1.5px dashed rgba(255,255,255,0.85);box-sizing:border-box;'
-          : 'border:1.5px solid rgba(255,255,255,0.55);box-sizing:border-box;';
+        borderStyle = isClaim ? 'border:1.5px dashed rgba(255,255,255,0.85);box-sizing:border-box;' : 'border:1.5px solid rgba(255,255,255,0.55);box-sizing:border-box;';
       } else {
         coreColor = "#4b5563";
         size = 7;
         borderStyle = 'border:1px solid rgba(255,255,255,0.4);box-sizing:border-box;';
       }
-
-      var coreHtml = '<div style="' +
-        'width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
-        'background:' + coreColor + ';' +
-        'box-shadow:0 0 6px rgba(0,0,0,0.8),0 0 8px ' + coreColor + ';' +
-        borderStyle +
-      '"></div>';
-
+      var coreHtml = '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + coreColor + ';box-shadow:0 0 6px rgba(0,0,0,0.8),0 0 8px ' + coreColor + ';' + borderStyle + '"></div>';
       var ringHtml = "";
       if (hasAttack){
         var intensity = c.attackIntensity || 0;
         var ringWidth = Math.round(1 + intensity * 2);
         var ringSize = size + 6 + Math.round(intensity * 4);
         var ringOpacity = 0.5 + intensity * 0.5;
-        ringHtml = '<div style="' +
-          'position:absolute;' +
-          'top:50%;left:50%;' +
-          'transform:translate(-50%,-50%);' +
-          'width:' + ringSize + 'px;height:' + ringSize + 'px;' +
-          'border-radius:50%;' +
-          'border:' + ringWidth + 'px solid rgba(230,57,80,' + ringOpacity + ');' +
-          'box-shadow:0 0 8px rgba(230,57,80,' + (intensity * 0.6) + ');' +
-          'pointer-events:none;' +
-        '"></div>';
+        ringHtml = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:' + ringSize + 'px;height:' + ringSize + 'px;border-radius:50%;border:' + ringWidth + 'px solid rgba(230,57,80,' + ringOpacity + ');box-shadow:0 0 8px rgba(230,57,80,' + (intensity * 0.6) + ');pointer-events:none;"></div>';
       }
-
       var badgeHtml = "";
       var totalCount = (c.attackCount || 0);
       if (totalCount >= 3){
-        badgeHtml = '<div style="' +
-          'position:absolute;top:-5px;right:-5px;' +
-          'background:#070c16;color:#f0c78a;' +
-          'font-size:7.5px;font-weight:800;' +
-          'padding:0px 3px;border-radius:6px;' +
-          'border:1px solid #e0a857;' +
-          'font-family:Inter,sans-serif;' +
-          'line-height:1.2;' +
-          'min-width:12px;text-align:center;' +
-        '">' + totalCount + '</div>';
+        badgeHtml = '<div style="position:absolute;top:-5px;right:-5px;background:#070c16;color:#f0c78a;font-size:7.5px;font-weight:800;padding:0px 3px;border-radius:6px;border:1px solid #e0a857;font-family:Inter,sans-serif;line-height:1.2;min-width:12px;text-align:center;">' + totalCount + '</div>';
       }
-
       var containerSize = size + 16;
-      var container = '<div style="position:relative;width:' + size + 'px;height:' + size + 'px;margin:' + ((containerSize - size) / 2) + 'px;">' +
-        ringHtml + coreHtml + badgeHtml + '</div>';
-
-      var icon = L.divIcon({
-        className: "wm-city-dot",
-        html: container,
-        iconSize: [containerSize, containerSize],
-        iconAnchor: [containerSize / 2, containerSize / 2]
-      });
-
+      var container = '<div style="position:relative;width:' + size + 'px;height:' + size + 'px;margin:' + ((containerSize - size) / 2) + 'px;">' + ringHtml + coreHtml + badgeHtml + '</div>';
+      var icon = L.divIcon({ className: "wm-city-dot", html: container, iconSize: [containerSize, containerSize], iconAnchor: [containerSize / 2, containerSize / 2] });
       var marker = L.marker([loc.lat, loc.lng], { icon: icon });
-
       var tooltipParts = ['<b>' + escapeHtml(capitalizeCity(c.city)) + '</b>' + (loc.country ? ' · ' + escapeHtml(loc.country) : '')];
       if (hasController){
         var statusLabel = c.contested ? "Betwist" : (isClaim ? "Claim" : "Bevestigd");
@@ -535,56 +458,33 @@
         tooltipParts.push('💥 Aanvallen door <b>' + escapeHtml(c.dominantAttacker || '?') + '</b>');
         tooltipParts.push('   ' + (c.attackCount || 0) + ' events · intensiteit ' + intensityPct + '%');
       }
-
       marker.bindTooltip(tooltipParts.join("<br>"), { direction: "top", className: "wm-tooltip", offset: [0, -6] });
-
-      marker.on("click", function(e){
-        if (L.DomEvent) L.DomEvent.stopPropagation(e);
-        openCityPanel(c.city, c);
-      });
-
+      marker.on("click", function(e){ if (L.DomEvent) L.DomEvent.stopPropagation(e); openCityPanel(c.city, c); });
       WM.cityLayer.addLayer(marker);
       rendered++;
     });
-
-    LOG("City-dots: " + rendered + " steden (van " + cities.length +
-        " | skip geen-loc:" + skippedNoLoc + " oud:" + skippedOld + " geen-claim:" + skippedBoth + ")");
+    LOG("City-dots: " + rendered + " steden (van " + cities.length + " | skip geen-loc:" + skippedNoLoc + " oud:" + skippedOld + " geen-claim:" + skippedBoth + ")");
   }
 
   function openCityPanel(cityKey, record){
     var panel = ensurePanel();
     var titleParts = [capitalizeCity(cityKey)];
     if (record.controller) titleParts.push(record.controller);
-    if (record.dominantAttacker && record.attackCount > 0){
-      titleParts.push("← " + record.dominantAttacker);
-    }
+    if (record.dominantAttacker && record.attackCount > 0){ titleParts.push("← " + record.dominantAttacker); }
     panel.querySelector("#wmPanelTitle").textContent = titleParts.join(" · ");
-
     var statsEl = panel.querySelector("#wmPanelStats");
     var ctrlConf = Math.round((record.controllerConfidence || 0) * 100);
     var atkIntensity = Math.round((record.attackIntensity || 0) * 100);
     var confClass = record.contested ? "conf-low" : (ctrlConf >= 70 ? "conf-high" : (ctrlConf >= 40 ? "conf-med" : "conf-low"));
-
     statsEl.innerHTML =
-      '<div class="wm-panel-stat ' + confClass + '">' +
-        '<div class="wm-panel-stat-val">' + ctrlConf + '%</div>' +
-        '<div class="wm-panel-stat-lbl">Control</div>' +
-      '</div>' +
-      '<div class="wm-panel-stat">' +
-        '<div class="wm-panel-stat-val">' + (record.attackCount || 0) + '</div>' +
-        '<div class="wm-panel-stat-lbl">Aanvallen</div>' +
-      '</div>' +
-      '<div class="wm-panel-stat">' +
-        '<div class="wm-panel-stat-val">' + atkIntensity + '%</div>' +
-        '<div class="wm-panel-stat-lbl">Intensiteit</div>' +
-      '</div>' +
+      '<div class="wm-panel-stat ' + confClass + '"><div class="wm-panel-stat-val">' + ctrlConf + '%</div><div class="wm-panel-stat-lbl">Control</div></div>' +
+      '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + (record.attackCount || 0) + '</div><div class="wm-panel-stat-lbl">Aanvallen</div></div>' +
+      '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + atkIntensity + '%</div><div class="wm-panel-stat-lbl">Intensiteit</div></div>' +
       (record.contested
         ? '<div class="wm-panel-conf-detail">⚔️ Betwist gebied — beide partijen claimen</div>'
         : (record.controller
-          ? '<div class="wm-panel-conf-detail">Controller: ' + escapeHtml(record.controller) + ' · ' +
-            (record.controllerSources || 0) + ' ' + ((record.controllerSources === 1) ? 'bron' : 'bronnen') + '</div>'
+          ? '<div class="wm-panel-conf-detail">Controller: ' + escapeHtml(record.controller) + ' · ' + (record.controllerSources || 0) + ' ' + ((record.controllerSources === 1) ? 'bron' : 'bronnen') + '</div>'
           : ''));
-
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
     var lowerCity = cityKey.toLowerCase();
@@ -595,7 +495,6 @@
       if (t.indexOf(lowerCity) === -1) return false;
       return new Date(e.date).getTime() >= periodAgo;
     }).sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); }).slice(0, 15);
-
     var evEl = panel.querySelector("#wmPanelEvents");
     if (!myEvents.length){
       evEl.innerHTML = '<div class="wm-panel-empty">Geen events in deze periode</div>';
@@ -616,13 +515,9 @@
         '</div>';
       }).join("");
     }
-
     requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
-  /* ============================================================
-     Periodefilter
-     ============================================================ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
     if (!wrap || wrap.querySelector(".wm-period-filter")) return;
@@ -660,7 +555,7 @@
   }
 
   /* ============================================================
-     Legenda — v3.3: met placeholder voor gebied-legenda
+     Legenda — v3.4: retry tot ConflictAreas klaar is
      ============================================================ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
@@ -674,26 +569,40 @@
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
-      /* A2: Placeholder voor de gebied-legenda (gevuld door ConflictAreas) */
       '<div id="wmAreaLegend" class="wm-area-legend"></div>' +
       '<div class="wm-legend-hint">Klik op een land of stad</div>';
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
-
-    /* Als ConflictAreas al klaar is, vraag de legenda direct op */
     refreshAreaLegend();
   }
 
-  /* A2: Wordt aangeroepen door ConflictAreas (via WorldMap.refreshLegend) */
   function refreshAreaLegend(){
     var el = document.getElementById("wmAreaLegend");
-    if (!el) return;
+    if (!el) return false;
+
     if (!window.ConflictAreas || typeof window.ConflictAreas.getLegendHtml !== "function"){
-      el.innerHTML = "";
-      return;
+      scheduleLegendRetry();
+      return false;
     }
+
     var html = window.ConflictAreas.getLegendHtml();
-    el.innerHTML = html || "";
+    if (!html || html.length < 10){
+      scheduleLegendRetry();
+      return false;
+    }
+
+    el.innerHTML = html;
+    LOG("Gebied-legenda bijgewerkt");
+    if (_legendRetryTimer){ clearTimeout(_legendRetryTimer); _legendRetryTimer = null; }
+    return true;
+  }
+
+  function scheduleLegendRetry(){
+    if (_legendRetryTimer) return;
+    _legendRetryTimer = setTimeout(function(){
+      _legendRetryTimer = null;
+      if (!refreshAreaLegend()) scheduleLegendRetry();
+    }, 1500);
   }
 
   function ensureLegendToggle(){
@@ -734,7 +643,7 @@
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
-      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:130px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;max-height:70vh;overflow-y:auto;}" +
+      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:140px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;max-height:72vh;overflow-y:auto;}" +
       "html.light .wm-legend{background:rgba(255,255,255,.95);color:#131721;border-color:rgba(0,0,0,.12);}" +
       ".wm-legend-title{font-weight:800;font-size:.5rem;text-transform:uppercase;letter-spacing:.04em;color:#e0a857;margin-bottom:.2rem;padding-bottom:.2rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
       ".wm-legend-row{display:flex;align-items:center;gap:.25rem;padding:.03rem 0;font-size:.52rem;}" +
@@ -824,7 +733,7 @@
     restoreLegendVisibility();
     restorePeriodFilter();
     WM.isLoaded = true;
-    LOG("Wereldkaart v3.3 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v3.4 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -871,10 +780,10 @@
     getTargetHeatMap: function(){ return WM.targetHeatByCountry; },
     getActorHeatMap: function(){ return WM.actorHeatByCountry; },
     getConfidenceMap: function(){ return WM.countryConfidence; },
-    refreshLegend: refreshAreaLegend, /* A2: API voor ConflictAreas */
+    refreshLegend: refreshAreaLegend,
     _state: WM
   };
 
-  LOG("worldmap.js v3.3 geladen (met gebied-legenda placeholder)");
+  LOG("worldmap.js v3.4 geladen (legenda retry)");
 
 })();
