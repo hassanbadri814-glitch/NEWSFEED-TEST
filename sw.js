@@ -5,7 +5,7 @@
    - v3.75: conflict-areas.js v11.1
    ============================================================ */
 
-const CACHE_VERSION = 'v3.78';
+const CACHE_VERSION = 'v3.79';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
