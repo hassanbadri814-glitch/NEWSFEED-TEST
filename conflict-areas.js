@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v6.1
+   WAR DESK — conflict-areas.js v6.2
    ------------------------------------------------------------
-   - v6.1: Fuzzy matching voor manualOverrides (aliassen)
-           Fallback-fix: geen automatische toewijzing bij manual landen
-           Uitgebreide logging van GADM-namen
+   - v6.2: Robuuste fuzzy matching — stript alle niet-alfanumerieke
+           tekens; aliassen aangepast op exacte GADM-namen
+   - v6.1: Fuzzy matching + fallback fix + logging
    - v6.0: MULTI-COUNTRY (Oekraïne + Syrië)
    ============================================================ */
 
@@ -64,24 +64,28 @@
       ],
       iswUrl: null,
       deepStateUrlFn: null,
-      /* v6.1: aliassen in plaats van exacte keys — fuzzy matching */
+      /* v6.2: aliassen afgestemd op exacte GADM-namen
+         GADM gebruikt: AlHasakah, Aleppo, ArRaqqah, AsSuwayda',
+         Damascus, Dar`a, DayrAzZawr, Hamah, Hims, Idlib,
+         Lattakia, Quneitra, RifDimashq, Tartus */
       manualOverrides: [
-        { match: ["aleppo", "halab"],                     controller: "Regering" },
-        { match: ["damascus", "dimashq", "rif"],          controller: "Regering" },
-        { match: ["homs"],                                controller: "Regering" },
-        { match: ["hama", "hamah"],                       controller: "Regering" },
-        { match: ["latakia", "ladhiqiyah", "lattakia"],   controller: "Regering" },
-        { match: ["tartus", "tartous"],                   controller: "Regering" },
-        { match: ["idlib", "idleb"],                      controller: "Regering" },
-        { match: ["deir", "zawr", "zur", "deirezzor"],    controller: "Regering" },
-        { match: ["raqqa", "raqqah", "raqa"],             controller: "Regering" },
-        { match: ["hasakah", "hasakeh", "hasaka"],        controller: "Regering" },
-        { match: ["daraa", "dara", "dar'a"],              controller: "Regering" },
-        { match: ["quneitra", "qunaytirah", "kuneitra"],  controller: "Israël" },
-        { match: ["suwayda", "suweida", "suwaydah"],      controller: "Druze" }
+        { match: ["aleppo"],                                                controller: "Regering" },
+        { match: ["damascus"],                                              controller: "Regering" },
+        { match: ["rifdimashq", "rif", "dimashq"],                          controller: "Regering" },
+        { match: ["homs", "hims"],                                          controller: "Regering" },
+        { match: ["hama", "hamah"],                                         controller: "Regering" },
+        { match: ["latakia", "lattakia", "ladhiqiyah", "lattak"],           controller: "Regering" },
+        { match: ["tartus", "tartous"],                                     controller: "Regering" },
+        { match: ["idlib", "idleb"],                                        controller: "Regering" },
+        { match: ["dayrazzawr", "dayraz", "deirez", "zawr", "zur"],         controller: "Regering" },
+        { match: ["raqqa", "raqqah", "arraqqah"],                           controller: "Regering" },
+        { match: ["alhasakah", "hasakah", "hasakeh", "hasaka"],             controller: "Regering" },
+        { match: ["daraa", "dara", "dar"],                                  controller: "Regering" },
+        { match: ["quneitra", "qunaytirah", "kuneitra"],                    controller: "Israël" },
+        { match: ["assuwayda", "suwayda", "suweida", "suwaydah"],           controller: "Druze" }
       ],
       cacheKeys: {
-        oblasts:   { key: "wardesk_syria_provinces", version: "v2" },
+        oblasts:   { key: "wardesk_syria_provinces", version: "v3" },
         deepState: { key: "wardesk_syria_ds",        version: "v1" },
         isw:       { key: "wardesk_syria_isw",       version: "v1" },
         snapshot:  { key: "wardesk_syria_snapshot",  version: "v1" }
@@ -154,15 +158,19 @@
   }
 
   /* ============================================================
-     v6.1: Fuzzy matcher voor manualOverrides (array van {match, controller})
+     v6.2: Robuuste fuzzy matcher — stript alle niet-alfanumerieke tekens
      ============================================================ */
   function findManualOverride(provinceName, overrides){
     if(!provinceName || !overrides || !overrides.length) return null;
-    var norm = String(provinceName).toLowerCase().replace(/[\s\-_',\.]/g, "");
+    var norm = String(provinceName).toLowerCase().replace(/[^a-z0-9]/g, "");
+    if(!norm) return null;
+
     for(var i = 0; i < overrides.length; i++){
       var entry = overrides[i];
+      if(!entry || !entry.match) continue;
       for(var j = 0; j < entry.match.length; j++){
-        var needle = String(entry.match[j]).toLowerCase().replace(/[\s\-_',\.]/g, "");
+        var needle = String(entry.match[j]).toLowerCase().replace(/[^a-z0-9]/g, "");
+        if(!needle) continue;
         if(norm.indexOf(needle) !== -1) return entry.controller;
       }
     }
@@ -506,7 +514,7 @@
   }
 
   /* ============================================================
-     Controller berekening — v6.1 met logging + fallback-fix
+     Controller berekening
      ============================================================ */
   function calculateControllers(conflictIso){
     var conflict = getConflict(conflictIso);
@@ -519,7 +527,6 @@
 
     LOG("[" + conflictIso + "] Controller berekening — DS: " + hasDS + ", ISW: " + hasISW + ", manual: " + hasManual);
 
-    /* v6.1: log alle GADM-namen zodat we kunnen zien hoe ze heten */
     if(hasManual){
       var allNames = geojson.features.map(function(f){ return f.properties.name; });
       LOG("[" + conflictIso + "] GADM provincie-namen: " + allNames.join(" | "));
@@ -551,7 +558,6 @@
           manualCount++;
           return;
         } else {
-          /* v6.1 FIX: geen match = onbekend, NIET automatisch toewijzen */
           props.controller = null;
           props.control_confidence = 0;
           props.control_source = "Onbekend";
@@ -1165,7 +1171,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
-    state: CA, _version: "v6.1",
+    state: CA, _version: "v6.2",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS
   };
@@ -1202,5 +1208,5 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v6.1 geladen (fuzzy matching + fallback fix)");
+  LOG("conflict-areas.js v6.2 geladen (robuste fuzzy matching)");
 })();
