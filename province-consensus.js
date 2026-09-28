@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.4
+   WAR DESK — province-consensus.js v1.5
+   - v1.5: non-physical events krijgen 0.3 weight (meer events)
    - v1.4: default-actor per land + skip niet-conflict landen
    - v1.3: actor-fallback
    - v1.2: retry-logica
@@ -22,7 +23,6 @@
   var MIN_ACTOR_SHARE = 0.35;
   var MIN_ACTOR_SOURCES = 2;
 
-  /* v1.4: default actor per land als niets anders werkt */
   var COUNTRY_DEFAULT_ACTOR = {
     "SYR": "Regering",
     "UKR": "Oekraïne",
@@ -36,7 +36,6 @@
     "IRN": "Iran"
   };
 
-  /* v1.4: skip events in deze landen (geen conflict) */
   var CONFLICT_ISO3 = ["SYR","UKR","RUS","YEM","ISR","LBN","PSE","SAU","IRQ","IRN"];
 
   var db = null;
@@ -174,13 +173,10 @@
     return false;
   }
 
-  /* v1.4: actor met 3-lagen fallback */
   function getActors(ev, prov){
-    /* 1. Raw */
     if(ev.actorCountries && ev.actorCountries.length > 0){
       return ev.actorCountries;
     }
-    /* 2. detectActorsInTitle */
     try {
       if(window.WorldMapData && window.WorldMapData.detectActorsInTitle){
         var text = (ev.title || "") + " " + (ev.description || "");
@@ -188,7 +184,6 @@
         if(detected && detected.length > 0) return detected;
       }
     } catch(e){}
-    /* 3. Default per land */
     if(prov && prov.iso3 && COUNTRY_DEFAULT_ACTOR[prov.iso3]){
       return [COUNTRY_DEFAULT_ACTOR[prov.iso3]];
     }
@@ -197,9 +192,13 @@
 
   function processEvent(ev, aggregator){
     if(!ev) return;
-    if(ev.countsForHeat === false) return;
 
-    /* v1.4: skip niet-conflict landen */
+    /* v1.5: niet-fysieke events krijgen lagere weight */
+    var physicalBoost = 1.0;
+    if(ev.countsForHeat === false){
+      physicalBoost = 0.3;
+    }
+
     if(CONFLICT_ISO3.indexOf(ev.countryISO3) === -1) return;
 
     var ts = new Date(ev.date).getTime();
@@ -209,10 +208,9 @@
 
     var tier = getTier(ev.source || "");
     var decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS);
-    var weight = tier * decay;
+    var weight = tier * decay * physicalBoost;
     if(weight < 0.01) return;
 
-    /* Bepaal provincie */
     var prov = null;
     if(typeof ev.lat === "number" && typeof ev.lng === "number"){
       prov = ProvinceMapper.getProvinceForPoint(ev.lat, ev.lng, ev.countryISO3);
@@ -230,7 +228,6 @@
     }
     if(!prov || !prov.iso3) return;
 
-    /* v1.4: actors met fallback */
     var actors = getActors(ev, prov);
     if(!actors || !actors.length) return;
 
@@ -434,8 +431,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.4"
+    _version: "v1.5"
   };
 
-  LOG("province-consensus.js v1.4 geladen (default-actor fallback)");
+  LOG("province-consensus.js v1.5 geladen (non-physical boost)");
 })();
