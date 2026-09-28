@@ -1,11 +1,10 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.7
-   - v1.7: OSINT events listener (GDELT integratie)
-   - v1.6: contested drempel versoepeld (25% share, 1 bron)
-   - v1.5: non-physical events krijgen 0.3 weight
-   - v1.4: default-actor per land + skip niet-conflict landen
-   - v1.3: actor-fallback
-   - v1.2: retry-logica
+   WAR DESK — province-consensus.js v1.9
+   - v1.9: Cluster-bronnen meenemen + politiek/protest boost
+   - v1.8: (niet uitgebracht)
+   - v1.7: OSINT events listener
+   - v1.6: contested drempel versoepeld
+   - v1.5: non-physical 0.3 weight
    ============================================================ */
 
 (function(){
@@ -19,24 +18,18 @@
   var DB_VERSION = 1;
   var STORE = "consensus";
   var META_STORE = "meta";
-  var THROTTLE_MS = 60 * 60 * 1000;      /* 1 uur voor MAP events */
-  var OSINT_THROTTLE_MS = 5 * 60 * 1000;  /* 5 min voor OSINT events (agressiever) */
+  var THROTTLE_MS = 60 * 60 * 1000;
+  var OSINT_THROTTLE_MS = 5 * 60 * 1000;
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
-  var MIN_ACTOR_SHARE = 0.25;    /* v1.6: was 0.35 */
-  var MIN_ACTOR_SOURCES = 1;     /* v1.6: was 2 */
+  var MIN_ACTOR_SHARE = 0.25;
+  var MIN_ACTOR_SOURCES = 1;
 
   var COUNTRY_DEFAULT_ACTOR = {
-    "SYR": "Regering",
-    "UKR": "Oekraïne",
-    "RUS": "Rusland",
-    "YEM": "Regering",
-    "ISR": "Israël",
-    "LBN": "Libanese staat",
-    "PSE": "Palestina",
-    "SAU": "Saoedi-Arabië",
-    "IRQ": "Regering",
-    "IRN": "Iran"
+    "SYR": "Regering", "UKR": "Oekraïne", "RUS": "Rusland",
+    "YEM": "Regering", "ISR": "Israël", "LBN": "Libanese staat",
+    "PSE": "Palestina", "SAU": "Saoedi-Arabië",
+    "IRQ": "Regering", "IRN": "Iran"
   };
 
   var CONFLICT_ISO3 = ["SYR","UKR","RUS","YEM","ISR","LBN","PSE","SAU","IRQ","IRN"];
@@ -149,14 +142,9 @@
     return null;
   }
 
-  /* ============================================================
-     v1.7: EVENTS VERZAMELEN — MAP + OSINT combineren
-     ============================================================ */
   function collectEvents(){
     var combined = [];
     var state = window.MAPAPI && window.MAPAPI.state;
-
-    /* 1. MAP events (ai-map output) */
     if(state){
       if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
         combined = combined.concat(state.militaryEvents);
@@ -164,17 +152,12 @@
         combined = combined.concat(state.events);
       }
     }
-
-    /* 2. Fallback: laatste bekende events */
     if(!combined.length && Array.isArray(lastEvents) && lastEvents.length > 0){
       combined = combined.concat(lastEvents);
     }
-
-    /* 3. v1.7: OSINT events toevoegen */
     if(Array.isArray(osintEvents) && osintEvents.length > 0){
       combined = combined.concat(osintEvents);
     }
-
     return combined;
   }
 
@@ -214,8 +197,33 @@
     return [];
   }
 
+  /* v1.9: categorie-boost per category */
+  function getCategoryBoost(category){
+    if(category === "militair" || category === "crime") return 1.0;
+    if(category === "politiek") return 0.4;
+    if(category === "protest") return 0.3;
+    if(category === "civiel") return 0.2;
+    return 0;  /* onbekend → skip */
+  }
+
+  /* v1.9: alle bronnen van een cluster/event ophalen */
+  function getAllSources(ev){
+    var all = [];
+    if(ev.source) all.push(ev.source);
+    if(ev.isCluster && Array.isArray(ev.sources)){
+      ev.sources.forEach(function(s){
+        if(s && s.name && all.indexOf(s.name) === -1) all.push(s.name);
+      });
+    }
+    return all;
+  }
+
   function processEvent(ev, aggregator){
     if(!ev) return;
+
+    /* v1.9: categorie-boost — politiek/protest ook meetellen */
+    var categoryBoost = getCategoryBoost(ev.category);
+    if(categoryBoost === 0) return;
 
     var physicalBoost = 1.0;
     if(ev.countsForHeat === false){
@@ -231,7 +239,7 @@
 
     var tier = getTier(ev.source || "");
     var decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS);
-    var weight = tier * decay * physicalBoost;
+    var weight = tier * decay * physicalBoost * categoryBoost;
     if(weight < 0.01) return;
 
     var prov = null;
@@ -277,9 +285,14 @@
       ab.score += weight;
       ab.count++;
       ab.lastClaim = Math.max(ab.lastClaim, ts);
-      if(ev.source) ab.sources[ev.source] = 1;
-      var origin = getOrigin(ev.source);
-      if(origin) ab.origins[origin] = 1;
+
+      /* v1.9: alle cluster-bronnen tellen mee voor confidence */
+      getAllSources(ev).forEach(function(src){
+        if(!src) return;
+        ab.sources[src] = 1;
+        var origin = getOrigin(src);
+        if(origin) ab.origins[origin] = 1;
+      });
     });
   }
 
@@ -433,27 +446,20 @@
       });
     }).then(function(){
       if(window.WarDesk && WarDesk.events && WarDesk.events.on){
-        /* v1.7: MAP events listener */
         WarDesk.events.on("map:military-events", function(events){
           lastEvents = Array.isArray(events) ? events : [];
           var sinceLast = Date.now() - lastRun;
           if(sinceLast > THROTTLE_MS) scheduleRun(3000);
           else LOG("Throttle — " + Math.round((THROTTLE_MS - sinceLast) / 60000) + " min");
         });
-
-        /* v1.7: OSINT events listener (agressiever, 5 min throttle) */
         WarDesk.events.on("osint:military-events", function(events){
           osintEvents = Array.isArray(events) ? events : [];
           LOG("OSINT events ontvangen: " + osintEvents.length);
           var sinceLast = Date.now() - lastRun;
-          if(sinceLast > OSINT_THROTTLE_MS){
-            scheduleRun(5000);
-          } else {
-            LOG("OSINT throttle — wacht " +
-                Math.round((OSINT_THROTTLE_MS - sinceLast) / 60000) + " min");
-          }
+          if(sinceLast > OSINT_THROTTLE_MS) scheduleRun(5000);
+          else LOG("OSINT throttle — wacht " +
+                   Math.round((OSINT_THROTTLE_MS - sinceLast) / 60000) + " min");
         });
-
         LOG("EventBus listeners actief (MAP + OSINT)");
       }
       setInterval(function(){
@@ -470,8 +476,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.7"
+    _version: "v1.9"
   };
 
-  LOG("province-consensus.js v1.7 geladen (MAP + OSINT listener)");
+  LOG("province-consensus.js v1.9 geladen (cluster-bronnen + politiek-boost)");
 })();
