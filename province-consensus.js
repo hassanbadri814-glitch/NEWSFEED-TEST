@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.6
+   WAR DESK — province-consensus.js v1.7
+   - v1.7: OSINT events listener (GDELT integratie)
    - v1.6: contested drempel versoepeld (25% share, 1 bron)
    - v1.5: non-physical events krijgen 0.3 weight
    - v1.4: default-actor per land + skip niet-conflict landen
@@ -18,7 +19,8 @@
   var DB_VERSION = 1;
   var STORE = "consensus";
   var META_STORE = "meta";
-  var THROTTLE_MS = 60 * 60 * 1000;
+  var THROTTLE_MS = 60 * 60 * 1000;      /* 1 uur voor MAP events */
+  var OSINT_THROTTLE_MS = 5 * 60 * 1000;  /* 5 min voor OSINT events (agressiever) */
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
   var MIN_ACTOR_SHARE = 0.25;    /* v1.6: was 0.35 */
@@ -42,6 +44,7 @@
   var db = null;
   var lastRun = 0;
   var lastEvents = [];
+  var osintEvents = [];
   var consensusByGid = {};
   var isRunning = false;
   var _runTimer = null;
@@ -146,13 +149,33 @@
     return null;
   }
 
+  /* ============================================================
+     v1.7: EVENTS VERZAMELEN — MAP + OSINT combineren
+     ============================================================ */
   function collectEvents(){
+    var combined = [];
     var state = window.MAPAPI && window.MAPAPI.state;
-    if(!state) return [];
-    if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) return state.militaryEvents;
-    if(Array.isArray(state.events) && state.events.length > 0) return state.events;
-    if(Array.isArray(lastEvents) && lastEvents.length > 0) return lastEvents;
-    return [];
+
+    /* 1. MAP events (ai-map output) */
+    if(state){
+      if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
+        combined = combined.concat(state.militaryEvents);
+      } else if(Array.isArray(state.events) && state.events.length > 0){
+        combined = combined.concat(state.events);
+      }
+    }
+
+    /* 2. Fallback: laatste bekende events */
+    if(!combined.length && Array.isArray(lastEvents) && lastEvents.length > 0){
+      combined = combined.concat(lastEvents);
+    }
+
+    /* 3. v1.7: OSINT events toevoegen */
+    if(Array.isArray(osintEvents) && osintEvents.length > 0){
+      combined = combined.concat(osintEvents);
+    }
+
+    return combined;
   }
 
   function ensureProvinceMapper(){
@@ -337,7 +360,7 @@
       return Promise.resolve(consensusByGid);
     }
 
-    LOG("Verwerken " + events.length + " events...");
+    LOG("Verwerken " + events.length + " events (MAP + OSINT)...");
 
     var aggregator = {};
     events.forEach(function(ev){
@@ -393,7 +416,8 @@
       avgConfidence: arr.length
         ? Math.round(arr.reduce(function(s, r){ return s + r.confidence; }, 0) / arr.length * 100)
         : 0,
-      lastRun: lastRun
+      lastRun: lastRun,
+      osintCount: osintEvents.length
     };
   }
 
@@ -409,13 +433,28 @@
       });
     }).then(function(){
       if(window.WarDesk && WarDesk.events && WarDesk.events.on){
+        /* v1.7: MAP events listener */
         WarDesk.events.on("map:military-events", function(events){
           lastEvents = Array.isArray(events) ? events : [];
           var sinceLast = Date.now() - lastRun;
           if(sinceLast > THROTTLE_MS) scheduleRun(3000);
           else LOG("Throttle — " + Math.round((THROTTLE_MS - sinceLast) / 60000) + " min");
         });
-        LOG("EventBus listener actief");
+
+        /* v1.7: OSINT events listener (agressiever, 5 min throttle) */
+        WarDesk.events.on("osint:military-events", function(events){
+          osintEvents = Array.isArray(events) ? events : [];
+          LOG("OSINT events ontvangen: " + osintEvents.length);
+          var sinceLast = Date.now() - lastRun;
+          if(sinceLast > OSINT_THROTTLE_MS){
+            scheduleRun(5000);
+          } else {
+            LOG("OSINT throttle — wacht " +
+                Math.round((OSINT_THROTTLE_MS - sinceLast) / 60000) + " min");
+          }
+        });
+
+        LOG("EventBus listeners actief (MAP + OSINT)");
       }
       setInterval(function(){
         if(document.hidden) return;
@@ -431,8 +470,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.6"
+    _version: "v1.7"
   };
 
-  LOG("province-consensus.js v1.6 geladen (contested 25%/1bron)");
+  LOG("province-consensus.js v1.7 geladen (MAP + OSINT listener)");
 })();
