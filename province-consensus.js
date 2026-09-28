@@ -1,7 +1,9 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.2
-   - v1.2: retry-logica voor PM init (8x, 2s tussen)
-   - v1.1: leest militaryEvents als events leeg is
+   WAR DESK — province-consensus.js v1.3
+   - v1.3: actor-fallback via WorldMapData.detectActorsInTitle
+           als event.actorCountries leeg is
+   - v1.2: retry-logica
+   - v1.1: militaryEvents fallback
    ============================================================ */
 
 (function(){
@@ -162,11 +164,30 @@
     return false;
   }
 
+  /* v1.3: actor-fallback via WorldMapData */
+  function getActors(ev){
+    if(ev.actorCountries && ev.actorCountries.length > 0){
+      return ev.actorCountries;
+    }
+    /* Fallback: gebruik detectActorsInTitle */
+    try {
+      if(window.WorldMapData && window.WorldMapData.detectActorsInTitle){
+        var text = (ev.title || "") + " " + (ev.description || "");
+        var detected = window.WorldMapData.detectActorsInTitle(text);
+        if(detected && detected.length > 0) return detected;
+      }
+    } catch(e){}
+    return [];
+  }
+
   function processEvent(ev, aggregator){
     if(!ev) return;
     if(ev.category !== "militair" && ev.category !== "crime") return;
     if(ev.countsForHeat === false) return;
-    if(!ev.actorCountries || !ev.actorCountries.length) return;
+
+    /* v1.3: actors met fallback */
+    var actors = getActors(ev);
+    if(!actors || !actors.length) return;
 
     var ts = new Date(ev.date).getTime();
     if(isNaN(ts)) return;
@@ -214,24 +235,27 @@
     var bucket = aggregator[gid];
     bucket.rawClaimCount++;
 
-    var actor = ProvinceMapper.resolveActor(ev.actorCountries[0]);
-    if(!actor || actor === "Onbekend") return;
+    /* v1.3: meerdere actoren per event */
+    actors.forEach(function(actorRaw){
+      var actor = ProvinceMapper.resolveActor(actorRaw);
+      if(!actor || actor === "Onbekend") return;
 
-    if(!bucket.actors[actor]){
-      bucket.actors[actor] = {
-        actor: actor, score: 0,
-        sources: {}, origins: {},
-        count: 0, lastClaim: 0
-      };
-    }
+      if(!bucket.actors[actor]){
+        bucket.actors[actor] = {
+          actor: actor, score: 0,
+          sources: {}, origins: {},
+          count: 0, lastClaim: 0
+        };
+      }
 
-    var ab = bucket.actors[actor];
-    ab.score += weight;
-    ab.count++;
-    ab.lastClaim = Math.max(ab.lastClaim, ts);
-    if(ev.source) ab.sources[ev.source] = 1;
-    var origin = getOrigin(ev.source);
-    if(origin) ab.origins[origin] = 1;
+      var ab = bucket.actors[actor];
+      ab.score += weight;
+      ab.count++;
+      ab.lastClaim = Math.max(ab.lastClaim, ts);
+      if(ev.source) ab.sources[ev.source] = 1;
+      var origin = getOrigin(ev.source);
+      if(origin) ab.origins[origin] = 1;
+    });
   }
 
   function computeConsensus(aggregator){
@@ -418,8 +442,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.2"
+    _version: "v1.3"
   };
 
-  LOG("province-consensus.js v1.2 geladen (retry-logica)");
+  LOG("province-consensus.js v1.3 geladen (actor-fallback + retry)");
 })();
