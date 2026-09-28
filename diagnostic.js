@@ -24,8 +24,15 @@
     log("   PC version: " + (window.ProvinceConsensus && ProvinceConsensus._version));
     log("   CA version: " + (window.ConflictAreas && ConflictAreas._version));
 
-    var events = (window.MAPAPI && window.MAPAPI.state && window.MAPAPI.state.events) || [];
-    log("2. Totaal events: " + events.length);
+    var state = window.MAPAPI && window.MAPAPI.state;
+var events = [];
+if(state){
+  if(Array.isArray(state.events) && state.events.length > 0) events = state.events;
+  else if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0) events = state.militaryEvents;
+}
+log("2. Totaal events: " + events.length);
+log("   (events=" + (state && state.events ? state.events.length : 0) + 
+    ", militaryEvents=" + (state && state.militaryEvents ? state.militaryEvents.length : 0) + ")");
 
     var withLatLng = events.filter(function(e){
       return typeof e.lat === "number" && typeof e.lng === "number";
