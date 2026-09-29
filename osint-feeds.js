@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v1.2
-   - v1.2: DIRECT fetch eerst (GDELT heeft CORS), proxy als fallback
-           Stagger 8s → 20s, minder queries (3 ipv 4)
+   WAR DESK — osint-feeds.js v1.3
+   - v1.3: Proxy fallback bij ELKE fetch-error (niet alleen 429)
+   - v1.2: Direct fetch eerst (GDELT CORS), proxy fallback
    - v1.1: Rate-limit fix
    - v1.0: GDELT integratie
    ============================================================ */
@@ -17,10 +17,9 @@
   var MAX_EVENTS = 200;
   var TIMESPAN = "24h";
   var MAX_PER_QUERY = 50;
-  var STAGGER_MS = 20000;            /* v1.2: was 8000 — langzamer */
+  var STAGGER_MS = 20000;
   var RETRY_429_MS = 30000;
 
-  /* v1.2: 3 queries ipv 4 */
   var QUERIES = [
     { q: "(ukraine OR kyiv OR kharkiv OR donetsk) (attack OR strike OR shell OR bomb)",
       hint: { country: "Oekraïne", region: "Oost-Europa" } },
@@ -106,7 +105,7 @@
   }
 
   /* ============================================================
-     v1.2: DIRECT fetch eerst, proxy als fallback
+     v1.3: Fetch met DIRECT-first + proxy fallback bij ELKE error
      ============================================================ */
   function fetchWithRetry(url, attempt){
     attempt = attempt || 0;
@@ -130,7 +129,7 @@
       var proxy = "https://newsfeed2.hassanbadri814.workers.dev/?url=";
       var fullUrl = proxy + encodeURIComponent(url);
       var ctrl = new AbortController();
-      var timer = setTimeout(function(){ ctrl.abort(); }, 40000);
+      var timer = setTimeout(function(){ ctrl.abort(); }, 45000);
       return fetch(fullUrl, { signal: ctrl.signal })
         .then(function(r){
           clearTimeout(timer);
@@ -145,7 +144,7 @@
     return tryDirect()
       .then(function(r){
         if (r.status === 429){
-          LOG("429 op direct — probeer via proxy");
+          LOG("429 op direct — probeer proxy");
           return tryProxy().then(function(r2){
             if (r2.status === 429) throw { code: 429, message: "429 proxy" };
             if (!r2.ok) throw new Error("HTTP " + r2.status);
@@ -155,12 +154,27 @@
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
       })
+      .catch(function(e){
+        /* v1.3: bij ELKE fetch-error (network, timeout, etc.) → probeer proxy */
+        if (e && e.code !== 429 && e.message !== "Geen JSON"){
+          LOG("Direct faalde (" + (e.message || "network") + ") — probeer proxy");
+          return tryProxy().then(function(r2){
+            if (r2.status === 429) throw { code: 429, message: "429 proxy" };
+            if (!r2.ok) throw new Error("HTTP " + r2.status);
+            return r2.text();
+          }).catch(function(e2){
+            throw { code: 429, message: "Proxy faalde ook: " + (e2.message || "?") };
+          });
+        }
+        throw e;
+      })
       .then(function(text){
         var trimmed = String(text).replace(/^\uFEFF/, "").trim();
         if (trimmed.charAt(0) !== "{") throw new Error("Geen JSON");
         return JSON.parse(trimmed);
       })
       .catch(function(e){
+        /* Retry bij 429 */
         if (e && e.code === 429 && attempt < MAX_ATTEMPTS){
           LOG("429 — retry " + (attempt+1) + "/" + MAX_ATTEMPTS + " over " + (RETRY_429_MS/1000) + "s");
           return new Promise(function(resolve){
@@ -326,7 +340,7 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v1.2",
+    _version: "v1.3",
     _queries: QUERIES
   };
 
@@ -336,5 +350,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v1.2 geladen (direct-first + proxy fallback)");
+  LOG("osint-feeds.js v1.3 geladen (proxy fallback bij elke error)");
 })();
