@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v1.3
-   - v1.3: Proxy fallback bij ELKE fetch-error (niet alleen 429)
+   WAR DESK — osint-feeds.js v1.4
+   - v1.4: Meerdere proxies (3 in sequence) + URL-encoding fix
+   - v1.3: Proxy fallback bij elke fetch-error
    - v1.2: Direct fetch eerst (GDELT CORS), proxy fallback
    - v1.1: Rate-limit fix
    - v1.0: GDELT integratie
@@ -19,6 +20,12 @@
   var MAX_PER_QUERY = 50;
   var STAGGER_MS = 20000;
   var RETRY_429_MS = 30000;
+
+  var PROXIES_LIST = [
+    "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
+    "https://api.allorigins.win/raw?url=",
+    "https://newsfeed2.hassanbadri814.workers.dev/?url="
+  ];
 
   var QUERIES = [
     { q: "(ukraine OR kyiv OR kharkiv OR donetsk) (attack OR strike OR shell OR bomb)",
@@ -44,8 +51,9 @@
     return Math.abs(h).toString(36);
   }
 
+  /* v1.4: geen + conversie, encodeURIComponent doet de rest */
   function buildGdeltUrl(query){
-    var encoded = query.trim().replace(/\s+/g, "+");
+    var encoded = query.trim();
     return "https://api.gdeltproject.org/api/v2/doc/doc"
       + "?query=" + encoded
       + "&mode=artlist"
@@ -105,15 +113,15 @@
   }
 
   /* ============================================================
-     v1.3: Fetch met DIRECT-first + proxy fallback bij ELKE error
+     v1.4: DIRECT + 3 proxies in sequence
      ============================================================ */
   function fetchWithRetry(url, attempt){
     attempt = attempt || 0;
-    var MAX_ATTEMPTS = 3;
+    var MAX_ATTEMPTS = 2;
 
     function tryDirect(){
       var ctrl = new AbortController();
-      var timer = setTimeout(function(){ ctrl.abort(); }, 25000);
+      var timer = setTimeout(function(){ ctrl.abort(); }, 20000);
       return fetch(url, { signal: ctrl.signal, mode: "cors" })
         .then(function(r){
           clearTimeout(timer);
@@ -126,45 +134,45 @@
     }
 
     function tryProxy(){
-      var proxy = "https://newsfeed2.hassanbadri814.workers.dev/?url=";
-      var fullUrl = proxy + encodeURIComponent(url);
-      var ctrl = new AbortController();
-      var timer = setTimeout(function(){ ctrl.abort(); }, 45000);
-      return fetch(fullUrl, { signal: ctrl.signal })
-        .then(function(r){
-          clearTimeout(timer);
-          return r;
-        })
-        .catch(function(e){
-          clearTimeout(timer);
-          throw e;
-        });
+      var idx = 0;
+      function tryNext(){
+        if (idx >= PROXIES_LIST.length){
+          return Promise.reject(new Error("Alle proxies faalden"));
+        }
+        var proxy = PROXIES_LIST[idx];
+        var fullUrl = proxy + encodeURIComponent(url);
+        idx++;
+        var ctrl = new AbortController();
+        var timer = setTimeout(function(){ ctrl.abort(); }, 25000);
+        return fetch(fullUrl, { signal: ctrl.signal })
+          .then(function(r){
+            clearTimeout(timer);
+            if (r.status === 429) throw new Error("429");
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r;
+          })
+          .catch(function(e){
+            clearTimeout(timer);
+            LOG("Proxy " + idx + " faalde: " + (e.message || "?"));
+            return tryNext();
+          });
+      }
+      return tryNext();
     }
 
     return tryDirect()
       .then(function(r){
         if (r.status === 429){
           LOG("429 op direct — probeer proxy");
-          return tryProxy().then(function(r2){
-            if (r2.status === 429) throw { code: 429, message: "429 proxy" };
-            if (!r2.ok) throw new Error("HTTP " + r2.status);
-            return r2.text();
-          });
+          return tryProxy().then(function(r2){ return r2.text(); });
         }
         if (!r.ok) throw new Error("HTTP " + r.status);
         return r.text();
       })
       .catch(function(e){
-        /* v1.3: bij ELKE fetch-error (network, timeout, etc.) → probeer proxy */
         if (e && e.code !== 429 && e.message !== "Geen JSON"){
-          LOG("Direct faalde (" + (e.message || "network") + ") — probeer proxy");
-          return tryProxy().then(function(r2){
-            if (r2.status === 429) throw { code: 429, message: "429 proxy" };
-            if (!r2.ok) throw new Error("HTTP " + r2.status);
-            return r2.text();
-          }).catch(function(e2){
-            throw { code: 429, message: "Proxy faalde ook: " + (e2.message || "?") };
-          });
+          LOG("Direct faalde (" + (e.message || "network") + ") — probeer proxies");
+          return tryProxy().then(function(r2){ return r2.text(); });
         }
         throw e;
       })
@@ -174,7 +182,6 @@
         return JSON.parse(trimmed);
       })
       .catch(function(e){
-        /* Retry bij 429 */
         if (e && e.code === 429 && attempt < MAX_ATTEMPTS){
           LOG("429 — retry " + (attempt+1) + "/" + MAX_ATTEMPTS + " over " + (RETRY_429_MS/1000) + "s");
           return new Promise(function(resolve){
@@ -266,7 +273,7 @@
     isRunning = true;
 
     var startTime = Date.now();
-    LOG("GDELT fetch gestart (" + QUERIES.length + " queries, " + (STAGGER_MS/1000) + "s stagger, direct-first)");
+    LOG("GDELT fetch gestart (" + QUERIES.length + " queries, " + (STAGGER_MS/1000) + "s stagger, direct + " + PROXIES_LIST.length + " proxies)");
 
     return fetchAllQueries().then(function(raw){
       var seen = {};
@@ -340,8 +347,9 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v1.3",
-    _queries: QUERIES
+    _version: "v1.4",
+    _queries: QUERIES,
+    _proxies: PROXIES_LIST
   };
 
   if (document.readyState === "loading"){
@@ -350,5 +358,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v1.3 geladen (proxy fallback bij elke error)");
+  LOG("osint-feeds.js v1.4 geladen (3 proxies in sequence)");
 })();
