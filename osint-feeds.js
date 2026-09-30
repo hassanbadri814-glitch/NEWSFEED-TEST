@@ -1,8 +1,10 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.2
-   - v2.2: OSINT bron-trust — Telegram/SOHR posts altijd militair
+   WAR DESK — osint-feeds.js v2.3
+   - v2.3: ARABISCHE TELEGRAM-KANALEN TOEGEVOEGD
+           * Syrië, Jemen, Irak, Libanon
+           * @HalabTodayTV, @damscuce, @NWSYEME, @naya_foriraq, @sadadahiechannel, @alshamii011
+   - v2.2: OSINT bron-trust
    - v2.1: Parallel fetch (2 tegelijk) + kortere stagger 6s
-   - v2.0: Telegram + SOHR
    ============================================================ */
 
 (function(){
@@ -13,7 +15,7 @@
   };
 
   var REFRESH_MS = 20 * 60 * 1000;
-  var MAX_EVENTS = 250;
+  var MAX_EVENTS = 300;
   var STAGGER_MS = 6000;
   var PARALLEL_BATCH = 2;
   var FETCH_TIMEOUT = 25000;
@@ -25,19 +27,31 @@
   ];
 
   var TELEGRAM_CHANNELS = [
+    /* === Bestaande OSINT kanalen === */
     { channel: "DeepStateUA",    region: "Oost-Europa",   country: "Oekraïne" },
     { channel: "sentdefender",   region: "Midden-Oosten", country: null },
     { channel: "rybar",          region: "Oost-Europa",   country: "Rusland" },
     { channel: "Faytuks",        region: "Midden-Oosten", country: null },
     { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
-    { channel: "OSINTtechnical", region: "Midden-Oosten", country: null }
+    { channel: "OSINTtechnical", region: "Midden-Oosten", country: null },
+
+    /* === v2.3: Arabische kanalen === */
+    { channel: "HalabTodayTV",   region: "Midden-Oosten", country: "Syrië" },
+    { channel: "damscuce",       region: "Midden-Oosten", country: "Syrië" },
+    { channel: "ya_topa",        region: "Midden-Oosten", country: "Syrië" },
+    { channel: "NWSYEME",        region: "Midden-Oosten", country: "Jemen" },
+    { channel: "naya_foriraq",   region: "Midden-Oosten", country: "Irak" },
+    { channel: "sadadahiechannel", region: "Midden-Oosten", country: "Libanon" },
+    { channel: "alshamii011",    region: "Midden-Oosten", country: null }
   ];
 
-  /* v2.2: OSINT bron-trust — deze worden altijd als militair behandeld */
+  /* v2.3: OSINT bron-trust — deze worden altijd als militair behandeld */
   var OSINT_MILITARY_SOURCES = [
     "DeepStateUA", "sentdefender", "rybar",
     "Faytuks", "GeoConfirmed", "OSINTtechnical",
-    "SOHR"
+    "SOHR",
+    "HalabTodayTV", "damscuce", "ya_topa",
+    "NWSYEME", "naya_foriraq", "sadadahiechannel", "alshamii011"
   ];
 
   var SOHR_RSS = "https://www.syriahr.com/en/feed/";
@@ -222,25 +236,19 @@
     return items;
   }
 
-  /* ============================================================
-     v2.2: itemToEvent — OSINT bron-trust
-     ============================================================ */
   function itemToEvent(item, hint){
     if (!item || !item.text) return null;
 
-    /* Check of bron een bekende OSINT-military bron is */
     var isOsintMilitary = OSINT_MILITARY_SOURCES.indexOf(item.channel) !== -1;
 
     var cls = classifyText(item.text);
     if (cls.category === "sport") return null;
 
     if (isOsintMilitary){
-      /* Vertrouw de bron — forceer militair als classifier iets anders zegt */
       if (cls.category !== "militair" && cls.category !== "crime"){
         cls = { category: "militair", subtype: cls.subtype || "Conflict" };
       }
     } else {
-      /* Reguliere filtering */
       if (cls.category !== "militair" && cls.category !== "crime") return null;
     }
 
@@ -424,7 +432,7 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.2",
+    _version: "v2.3",
     _channels: TELEGRAM_CHANNELS,
     _militarySources: OSINT_MILITARY_SOURCES
   };
@@ -435,5 +443,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.2 geladen (OSINT bron-trust)");
+  LOG("osint-feeds.js v2.3 geladen (Arabische kanalen)");
 })();
