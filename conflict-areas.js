@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.2
-   - v11.2: FIX terreinwinst/verlies visualisatie via
-            territory:changes events (pijlen + kleurmarkering)
+   WAR DESK — conflict-areas.js v11.3
+   - v11.3: SUDAN toegevoegd (SAF vs RSF) + neighbours uitgebreid
+   - v11.2: territory gain/loss visualisatie via events
    - v11.1: UI-SUBTIELER (gele randen weg, UNDOF weg)
    - v11.0: AI-consensus integratie
    ============================================================ */
@@ -18,6 +18,7 @@
     { label: "Tegenstander / bezetter", color: "#C62828" },
     { label: "Hezbollah", color: "#FBC02D" },
     { label: "Druze (Syrië)", color: "#9333EA" },
+    { label: "RSF (Soedan)", color: "#C62828" },
     { label: "Contested", color: "#a855f7" }
   ];
 
@@ -87,8 +88,7 @@
         { match: ["rifdimashq", "dimashq"],                             controller: "Regering" },
         { match: ["tartus"],                                            controller: "Regering" }
       ],
-      districtOverrides: [],
-      overlayPolygons: [],
+      districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
         oblasts:   { key: "wardesk_syria_adm2",      version: "v4" },
         country:   { key: "wardesk_syria_country",   version: "v1" },
@@ -171,6 +171,61 @@
         deepState: { key: "wardesk_yemen_ds",        version: "v1" },
         isw:       { key: "wardesk_yemen_isw",       version: "v1" },
         snapshot:  { key: "wardesk_yemen_snapshot",  version: "v1" }
+      }
+    },
+    /* ============================================================
+       v11.3: SUDAN — Regering (SAF) vs RSF
+       ============================================================ */
+    "SDN": {
+      name: "Soedan", level: "ADM1", center: [15.55, 32.53, 6],
+      parties: {
+        "Regering": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "RSF":      { color: "#C62828", fill: "#C62828" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SDN_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SDN_1.json"
+      ],
+      countrySources: adm0Sources("SDN"),
+      iswUrl: null, deepStateUrlFn: null,
+      provinceRules: [
+        /* Khartoum — RSF sinds april 2023 */
+        { match: ["khartoum"],                                 controller: "RSF" },
+
+        /* Darfur regio (alle 5 staten) — RSF */
+        { match: ["shamaldarfur", "northdarfur"],              controller: "RSF" },
+        { match: ["janubdarfur", "southdarfur"],               controller: "RSF" },
+        { match: ["gharbdarfur", "westdarfur"],                controller: "RSF" },
+        { match: ["sharqdarfur", "eastdarfur"],                controller: "RSF" },
+        { match: ["wasatdarfur", "centraldarfur"],             controller: "RSF" },
+
+        /* Kordofan — grotendeels RSF/mixed */
+        { match: ["shamalkurdufan", "northkordofan"],          controller: "RSF" },
+        { match: ["janubkurdufan", "southkordofan"],           controller: "Regering" },
+        { match: ["gharbkurdufan", "westkordofan"],            controller: "RSF" },
+
+        /* Al Jazirah — RSF sinds dec 2023 */
+        { match: ["aljazirah", "gezira"],                      controller: "RSF" },
+
+        /* Sennar — RSF sinds juli 2024 */
+        { match: ["sinnar", "sennar"],                         controller: "RSF" },
+
+        /* Regering-gecontroleerd (oost/noord) */
+        { match: ["annilalabyad", "whitenile"],                controller: "Regering" },
+        { match: ["annilalazraq", "bluenile"],                 controller: "Regering" },
+        { match: ["nahranil", "rivernile"],                    controller: "Regering" },
+        { match: ["albahralahmar", "redsea"],                  controller: "Regering" },
+        { match: ["kassala"],                                  controller: "Regering" },
+        { match: ["alqadarif", "gedaref"],                     controller: "Regering" },
+        { match: ["ashshamaliyah", "northern"],                controller: "Regering" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_sudan_adm1",      version: "v1" },
+        country:   { key: "wardesk_sudan_country",   version: "v1" },
+        deepState: { key: "wardesk_sudan_ds",        version: "v1" },
+        isw:       { key: "wardesk_sudan_isw",       version: "v1" },
+        snapshot:  { key: "wardesk_sudan_snapshot",  version: "v1" }
       }
     },
     "SAU": {
@@ -257,11 +312,15 @@
     }
   };
 
-  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SAU", "ISR", "PSE"];
+  /* v11.3: SDN toegevoegd aan active conflicts */
+  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SDN", "SAU", "ISR", "PSE"];
 
+  /* v11.3: Sudan's buren toegevoegd */
   var NEIGHBOR_COUNTRIES = [
     "TUR", "IRQ", "JOR", "EGY", "OMN", "ARE", "QAT", "KWT", "CYP",
-    "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA"
+    "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA",
+    /* Sudan buren */
+    "LBY", "TCD", "CAF", "SSD", "ETH", "ERI"
   ];
 
   var PROXIES = [
@@ -280,7 +339,6 @@
     countryShadow: { name: "caPaneCountryShadow", z: 430 },
     country:       { name: "caPaneCountry",       z: 440 },
     overlay:       { name: "caPaneOverlay",       z: 450 },
-    /* v11.2: nieuwe pane voor terreinwinst/verlies */
     territory:     { name: "caPaneTerritory",     z: 460 }
   };
 
@@ -289,9 +347,9 @@
     countryBorder:  "rgba(255,255,255,0.80)",
     countryShadow:  "rgba(0,0,0,0.60)",
     pulse:          "rgba(255,110,110,0.95)",
-    territoryGain:  "#22c55e",     /* groen */
-    territoryLoss:  "#ef4444",     /* rood */
-    territoryContested: "#a855f7", /* paars */
+    territoryGain:  "#22c55e",
+    territoryLoss:  "#ef4444",
+    territoryContested: "#a855f7",
     neighborFillDark:    "#2d3a52",
     neighborFillLight:   "#d0cbc0",
     neighborStrokeDark:  "rgba(255,255,255,0.28)",
@@ -1167,9 +1225,6 @@
     CA.overlayLayers[conflictIso] = overlayGroup;
   }
 
-  /* ============================================================
-     v11.2: TERRITORY GAIN/LOSS VISUALISATIE
-     ============================================================ */
   function renderTerritoryChanges(changes){
     if (!CA.map) return;
     if (!changes || typeof changes !== "object") return;
@@ -1344,7 +1399,7 @@
     var statsEl = panel.querySelector("#caPanelStats");
     var ctrlLabel = props.controller || "Onbekend";
     var ctrlClass = "conf-med";
-    if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's") ctrlClass = "conf-low";
+    if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's" || props.controller === "RSF") ctrlClass = "conf-low";
     else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina") ctrlClass = "conf-high";
 
     var events = getEventsForArea(area);
@@ -1371,7 +1426,6 @@
         consensus.originCount + ' landen</span></div>';
     }
 
-    /* v11.2: territory change info */
     var territoryLine = "";
     var change = CA._territoryChanges[conflictIso + "|" + (props.provinceName || props.name || "*")];
     if (change){
@@ -1533,7 +1587,6 @@
       html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + u.color + '"></span>' + escapeHtml(u.label) + '</div>';
     });
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
-    /* v11.2: territory legenda */
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryGain + '"></span>Winst (▲)</div>';
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryLoss + '"></span>Verlies (▼)</div>';
     html += '</div>';
@@ -1647,7 +1700,6 @@
               CA._consensus = data.byGid || {};
               applyConsensusToMap();
             });
-            /* v11.2: luister naar territory changes */
             WarDesk.events.on("territory:changes", function(data){
               if (data && data.changes){
                 CA._territoryChanges = data.changes;
@@ -1770,7 +1822,7 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.2",
+    state: CA, _version: "v11.3",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES
@@ -1815,5 +1867,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.2 geladen (territory gain/loss visualisatie)");
+  LOG("conflict-areas.js v11.3 geladen (Sudan toegevoegd)");
 })();
