@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — worldmap.js v3.4
-   ------------------------------------------------------------
+   WAR DESK — worldmap.js v3.5
+   - v3.5: COUNTRIES_WITH_AREA_LAYER uitgebreid (SYR, LBN, YEM, ISR, PSE, IRQ)
+           + kleur op basis van totale hitte (target + actor)
    - v3.4: legenda retry tot ConflictAreas klaar is
-   - v3.3: A1 — landen met oblast-laag worden transparant
    ============================================================ */
 
 (function(){
@@ -10,7 +10,8 @@
 
   var LOG = function(){ try{ wdLog.info.apply(null, ["[WM]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
-  var COUNTRIES_WITH_AREA_LAYER = ["UKR"];
+  /* v3.5: meerdere landen met sub-nationale lagen */
+  var COUNTRIES_WITH_AREA_LAYER = ["UKR", "SYR", "LBN", "YEM", "ISR", "PSE", "IRQ"];
 
   var GEOJSON_URLS = [
     "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
@@ -213,6 +214,9 @@
     return baseOpacity;
   }
 
+  /* ============================================================
+     v3.5: styleCountry gebruikt TOTALE hitte (target + actor)
+     ============================================================ */
   function styleCountry(feature){
     var iso3 = getISO3(feature);
     if (hasAreaLayer(iso3)){
@@ -227,7 +231,8 @@
     if (totalHeat < 0.1){
       return { fillColor: cc.cold || "#2f2f38", fillOpacity: 0.30, color: cc.border || "rgba(255,255,255,0.12)", weight: 0.5 };
     }
-    var level = getConflictLevel(targetHeat);
+    /* v3.5: niveau op basis van TOTALE hitte */
+    var level = getConflictLevel(totalHeat);
     var fillColor = getFillColor(level);
     var fillOpacity = getFillOpacity(level, confPct);
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
@@ -262,9 +267,7 @@
   }
 
   function buildTooltipHtml(iso3, name){
-    if (hasAreaLayer(iso3)){
-      return "<b>" + name + "</b><br>Zie oblast-laag voor details";
-    }
+    if (hasAreaLayer(iso3)) return "<b>" + name + "</b><br>Zie gebiedslaag voor details";
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var conf = WM.countryConfidence[iso3];
@@ -288,7 +291,8 @@
       mouseover: function(e){
         var l = e.target;
         var targetHeat = WM.targetHeatByCountry[iso3] || 0;
-        var level = getConflictLevel(targetHeat);
+        var actorHeat = WM.actorHeatByCountry[iso3] || 0;
+        var level = getConflictLevel(targetHeat + actorHeat);
         var conf = WM.countryConfidence[iso3];
         var confPct = conf ? conf.confidence : null;
         var currentOpacity = getFillOpacity(level, confPct);
@@ -554,9 +558,6 @@
     } catch(e){}
   }
 
-  /* ============================================================
-     Legenda — v3.4: retry tot ConflictAreas klaar is
-     ============================================================ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -579,18 +580,12 @@
   function refreshAreaLegend(){
     var el = document.getElementById("wmAreaLegend");
     if (!el) return false;
-
     if (!window.ConflictAreas || typeof window.ConflictAreas.getLegendHtml !== "function"){
       scheduleLegendRetry();
       return false;
     }
-
     var html = window.ConflictAreas.getLegendHtml();
-    if (!html || html.length < 10){
-      scheduleLegendRetry();
-      return false;
-    }
-
+    if (!html || html.length < 10){ scheduleLegendRetry(); return false; }
     el.innerHTML = html;
     LOG("Gebied-legenda bijgewerkt");
     if (_legendRetryTimer){ clearTimeout(_legendRetryTimer); _legendRetryTimer = null; }
@@ -733,7 +728,7 @@
     restoreLegendVisibility();
     restorePeriodFilter();
     WM.isLoaded = true;
-    LOG("Wereldkaart v3.4 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v3.5 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -784,6 +779,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v3.4 geladen (legenda retry)");
+  LOG("worldmap.js v3.5 geladen (meer area-layers + totale hitte)");
 
 })();
