@@ -1,23 +1,18 @@
 /* ============================================================
-   WAR DESK — classifier.js v5.0a
+   WAR DESK — classifier.js v5.0b
    ------------------------------------------------------------
-   Basis: v5.0 (die werkte)
-   Wijzigingen:
-   1. GEEN "overig" categorie meer — valt terug op winnaar
-   2. Prefix "Report:/Live:/X days before" reset militair harder
-   3. 2-landen + game/match/derby = sport
+   - v5.0b: FIX statement-mode reset militaire score niet meer
+            als hasRealMilitaryAction() true is.
+   - v5.0a: GEEN "overig" categorie meer + 2-landen sport regel
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var VERSION = "v5.0a";
+  var VERSION = "v5.0b";
   var CATS = ["militair", "crime", "politiek", "protest", "civiel"];
   var PRIORITY = { militair: 5, crime: 4, politiek: 3, protest: 2, civiel: 1 };
 
-  /* ============================================================
-     TAALDETECTIE
-     ============================================================ */
   function detectLanguage(text) {
     if (!text) return "unknown";
     if (/[\u0600-\u06FF]/.test(text)) return "ar";
@@ -35,9 +30,6 @@
     return "unknown";
   }
 
-  /* ============================================================
-     SPORT
-     ============================================================ */
   var SPORT_SOURCES = [
     "nos sport", "espn", "voetbalzone", "voetbalprimeur",
     "ad sportwereld", "telegraaf sport", "vi.nl", "voetbalnieuws",
@@ -99,7 +91,6 @@
     "supporters", "stadion", "seizoen",
     "oefeninterland", "oefenwedstrijd",
     "landenwedstrijd", "supercup",
-    /* v5.0a nieuw */
     "game", "match", "derby", "finale", "interland",
     "armbanden", "armbands", "shirt", "tenue"
   ];
@@ -132,7 +123,6 @@
     "al hilal", "al nassr", "al ahli"
   ];
 
-  /* Landen voor 2-landen sport regel */
   var SPORT_COUNTRIES = [
     "ireland", "israel", "england", "france", "germany", "spain", "italy",
     "netherlands", "belgium", "portugal", "denmark", "sweden", "norway",
@@ -143,15 +133,11 @@
     "usa", "canada", "australia", "new zealand", "nigeria", "senegal"
   ];
 
-  /* ============================================================
-     STATEMENT PREFIXES
-     ============================================================ */
   var STATEMENT_PREFIXES = [
     /^report\s*:/i, /^live\s*:/i, /^live\s*[-–]/i, /^live\s+updates?/i,
     /^en\s*direct/i, /^analysis\s*:/i, /^opinion\s*:/i, /^commentary\s*:/i,
     /^update\s*:/i, /^updates?\s*:/i, /^watch\s*:/i, /^video\s*:/i,
     /^interview\s*:/i, /^exclusive\s*:/i, /^breaking\s*:/i,
-    /* v5.0a nieuw */
     /^\d+\s+days?\s+before/i,
     /^\d+\s+days?\s+after/i,
     /^[A-Z][a-z]+\s+leader\s*:/i,
@@ -159,9 +145,6 @@
     /^[A-Z][a-z]+\s+says\s*:/i
   ];
 
-  /* ============================================================
-     WOORDENLIJSTEN
-     ============================================================ */
   var W_MILITAIR = {
     "raketaanval":3, "raketaanvallen":3, "raketinslag":3, "raketinslagen":3,
     "missile strike":3, "missile attack":3,
@@ -360,70 +343,39 @@
   };
 
   var W_ARABIC = [
-    { w:"حرب", cat:"militair", weight:3 },
-    { w:"غارة", cat:"militair", weight:3 },
-    { w:"غارات", cat:"militair", weight:3 },
-    { w:"قصف", cat:"militair", weight:3 },
-    { w:"قوات", cat:"militair", weight:2 },
-    { w:"جيش", cat:"militair", weight:2 },
-    { w:"صاروخ", cat:"militair", weight:3 },
-    { w:"صواريخ", cat:"militair", weight:3 },
-    { w:"مسيّرة", cat:"militair", weight:3 },
-    { w:"طائرة", cat:"militair", weight:2 },
-    { w:"قتال", cat:"militair", weight:3 },
-    { w:"معارك", cat:"militair", weight:3 },
-    { w:"هجوم", cat:"militair", weight:3 },
-    { w:"اعتداء", cat:"militair", weight:3 },
-    { w:"احتلال", cat:"militair", weight:2 },
-    { w:"فصائل", cat:"militair", weight:2 },
-    { w:"مقاومة", cat:"militair", weight:2 },
-    { w:"مسلح", cat:"militair", weight:2 },
-    { w:"مسلحون", cat:"militair", weight:2 },
-    { w:"حماس", cat:"militair", weight:2 },
-    { w:"حزب الله", cat:"militair", weight:2 },
-    { w:"الحوثي", cat:"militair", weight:2 },
-    { w:"طالبان", cat:"militair", weight:2 },
-    { w:"داعش", cat:"militair", weight:2 },
-    { w:"انفجار", cat:"crime", weight:2 },
-    { w:"مقتل", cat:"crime", weight:2 },
-    { w:"قتلى", cat:"crime", weight:2 },
-    { w:"قتل", cat:"crime", weight:2 },
-    { w:"جريمة", cat:"crime", weight:3 },
-    { w:"مخدرات", cat:"crime", weight:3 },
-    { w:"إرهاب", cat:"crime", weight:3 },
-    { w:"إرهابي", cat:"crime", weight:3 },
-    { w:"خطف", cat:"crime", weight:3 },
-    { w:"اختطاف", cat:"crime", weight:3 },
-    { w:"اعتقال", cat:"crime", weight:2 },
-    { w:"احتيال", cat:"crime", weight:3 },
-    { w:"انتخابات", cat:"politiek", weight:3 },
-    { w:"حكومة", cat:"politiek", weight:2 },
-    { w:"رئيس", cat:"politiek", weight:2 },
-    { w:"وزير", cat:"politiek", weight:2 },
-    { w:"الخارجية", cat:"politiek", weight:2 },
-    { w:"برلمان", cat:"politiek", weight:2 },
-    { w:"دبلوماسي", cat:"politiek", weight:3 },
-    { w:"دبلوماسية", cat:"politiek", weight:3 },
-    { w:"مفاوضات", cat:"politiek", weight:3 },
-    { w:"اتفاق", cat:"politiek", weight:2 },
-    { w:"اتفاقية", cat:"politiek", weight:2 },
-    { w:"وقف إطلاق النار", cat:"politiek", weight:3 },
-    { w:"عقوبات", cat:"politiek", weight:3 },
-    { w:"قمة", cat:"politiek", weight:2 },
+    { w:"حرب", cat:"militair", weight:3 }, { w:"غارة", cat:"militair", weight:3 },
+    { w:"غارات", cat:"militair", weight:3 }, { w:"قصف", cat:"militair", weight:3 },
+    { w:"قوات", cat:"militair", weight:2 }, { w:"جيش", cat:"militair", weight:2 },
+    { w:"صاروخ", cat:"militair", weight:3 }, { w:"صواريخ", cat:"militair", weight:3 },
+    { w:"مسيّرة", cat:"militair", weight:3 }, { w:"طائرة", cat:"militair", weight:2 },
+    { w:"قتال", cat:"militair", weight:3 }, { w:"معارك", cat:"militair", weight:3 },
+    { w:"هجوم", cat:"militair", weight:3 }, { w:"اعتداء", cat:"militair", weight:3 },
+    { w:"احتلال", cat:"militair", weight:2 }, { w:"فصائل", cat:"militair", weight:2 },
+    { w:"مقاومة", cat:"militair", weight:2 }, { w:"مسلح", cat:"militair", weight:2 },
+    { w:"مسلحون", cat:"militair", weight:2 }, { w:"حماس", cat:"militair", weight:2 },
+    { w:"حزب الله", cat:"militair", weight:2 }, { w:"الحوثي", cat:"militair", weight:2 },
+    { w:"طالبان", cat:"militair", weight:2 }, { w:"داعش", cat:"militair", weight:2 },
+    { w:"انفجار", cat:"crime", weight:2 }, { w:"مقتل", cat:"crime", weight:2 },
+    { w:"قتلى", cat:"crime", weight:2 }, { w:"قتل", cat:"crime", weight:2 },
+    { w:"جريمة", cat:"crime", weight:3 }, { w:"مخدرات", cat:"crime", weight:3 },
+    { w:"إرهاب", cat:"crime", weight:3 }, { w:"إرهابي", cat:"crime", weight:3 },
+    { w:"خطف", cat:"crime", weight:3 }, { w:"اختطاف", cat:"crime", weight:3 },
+    { w:"اعتقال", cat:"crime", weight:2 }, { w:"احتيال", cat:"crime", weight:3 },
+    { w:"انتخابات", cat:"politiek", weight:3 }, { w:"حكومة", cat:"politiek", weight:2 },
+    { w:"رئيس", cat:"politiek", weight:2 }, { w:"وزير", cat:"politiek", weight:2 },
+    { w:"الخارجية", cat:"politiek", weight:2 }, { w:"برلمان", cat:"politiek", weight:2 },
+    { w:"دبلوماسي", cat:"politiek", weight:3 }, { w:"دبلوماسية", cat:"politiek", weight:3 },
+    { w:"مفاوضات", cat:"politiek", weight:3 }, { w:"اتفاق", cat:"politiek", weight:2 },
+    { w:"اتفاقية", cat:"politiek", weight:2 }, { w:"وقف إطلاق النار", cat:"politiek", weight:3 },
+    { w:"عقوبات", cat:"politiek", weight:3 }, { w:"قمة", cat:"politiek", weight:2 },
     { w:"نتنياهو", cat:"politiek", weight:2 },
-    { w:"احتجاج", cat:"protest", weight:3 },
-    { w:"احتجاجات", cat:"protest", weight:3 },
-    { w:"مظاهرة", cat:"protest", weight:3 },
-    { w:"مظاهرات", cat:"protest", weight:3 },
-    { w:"إضراب", cat:"protest", weight:3 },
-    { w:"متظاهرون", cat:"protest", weight:3 },
+    { w:"احتجاج", cat:"protest", weight:3 }, { w:"احتجاجات", cat:"protest", weight:3 },
+    { w:"مظاهرة", cat:"protest", weight:3 }, { w:"مظاهرات", cat:"protest", weight:3 },
+    { w:"إضراب", cat:"protest", weight:3 }, { w:"متظاهرون", cat:"protest", weight:3 },
     { w:"معارضة", cat:"protest", weight:2 },
-    { w:"زلزال", cat:"civiel", weight:3 },
-    { w:"فيضان", cat:"civiel", weight:3 },
-    { w:"فيضانات", cat:"civiel", weight:3 },
-    { w:"حريق", cat:"civiel", weight:3 },
-    { w:"حرائق", cat:"civiel", weight:3 },
-    { w:"حادث", cat:"civiel", weight:2 }
+    { w:"زلزال", cat:"civiel", weight:3 }, { w:"فيضان", cat:"civiel", weight:3 },
+    { w:"فيضانات", cat:"civiel", weight:3 }, { w:"حريق", cat:"civiel", weight:3 },
+    { w:"حرائق", cat:"civiel", weight:3 }, { w:"حادث", cat:"civiel", weight:2 }
   ];
 
   var AR_LOCATIONS = [
@@ -439,45 +391,32 @@
   ];
 
   var CONFLICT_ZONES = [
-    "gaza", "israel", "israël", "israeli",
-    "palestijn", "palestina", "palestinian",
-    "westelijke jordaanoever", "west bank",
-    "libanon", "lebanon", "beiroet", "beirut",
-    "syrië", "syria", "damascus", "aleppo", "idlib",
-    "jemen", "yemen", "sanaa", "houthi",
-    "irak", "iraq", "bagdad", "baghdad", "mosul",
-    "iran", "iranian", "teheran", "tehran",
-    "saudi-arabië", "saudi", "riyad",
-    "emiraten", "uae", "qatar", "doha",
-    "bahrain", "kuwait", "jordanië", "jordan", "amman",
-    "egypte", "egypt", "cairo",
-    "turkije", "turkey", "turkish", "ankara",
-    "oekraïne", "ukraine", "ukrainian",
-    "kyiv", "kiev", "kharkiv", "odesa",
-    "donbas", "donetsk", "luhansk", "mariupol",
+    "gaza", "israel", "israël", "israeli", "palestijn", "palestina", "palestinian",
+    "westelijke jordaanoever", "west bank", "libanon", "lebanon", "beiroet", "beirut",
+    "syrië", "syria", "damascus", "aleppo", "idlib", "jemen", "yemen", "sanaa", "houthi",
+    "irak", "iraq", "bagdad", "baghdad", "mosul", "iran", "iranian", "teheran", "tehran",
+    "saudi-arabië", "saudi", "riyad", "emiraten", "uae", "qatar", "doha",
+    "bahrain", "kuwait", "jordanië", "jordan", "amman", "egypte", "egypt", "cairo",
+    "turkije", "turkey", "turkish", "ankara", "oekraïne", "ukraine", "ukrainian",
+    "kyiv", "kiev", "kharkiv", "odesa", "donbas", "donetsk", "luhansk", "mariupol",
     "bachmoet", "bakhmut", "zaporizhzhia", "cherson", "kherson",
     "rusland", "russia", "russian", "moskou", "moscow",
     "belgorod", "koersk", "kursk", "bryansk", "rostov",
-    "krim", "crimea",
-    "afghanistan", "afghan", "kabul",
+    "krim", "crimea", "afghanistan", "afghan", "kabul",
     "pakistan", "pakistani", "islamabad", "peshawar",
     "india", "indian", "kashmir", "kasjmir",
     "soedan", "sudan", "khartoum", "darfur",
     "libië", "libya", "libyan", "tripoli", "benghazi",
     "somalië", "somalia", "mogadishu",
-    "ethiopië", "ethiopia", "tigray",
-    "mali", "bamako", "burkina faso",
-    "niger", "niamey", "congo", "goma",
-    "mozambique", "nigeria", "nigerian", "chad",
-    "zuid-soedan", "south sudan", "juba",
-    "haïti", "haiti"
+    "ethiopië", "ethiopia", "tigray", "mali", "bamako", "burkina faso",
+    "niger", "niamey", "congo", "goma", "mozambique", "nigeria", "nigerian", "chad",
+    "zuid-soedan", "south sudan", "juba", "haïti", "haiti"
   ];
 
   var INSTABLE_ZONES = [
     "sahel", "venezuela", "colombia", "mexico", "mexican",
     "guatemala", "honduras", "peru", "ecuador", "bolivia",
-    "armenië", "azerbeidzjan", "georgië",
-    "kosovo", "servië", "moldavië"
+    "armenië", "azerbeidzjan", "georgië", "kosovo", "servië", "moldavië"
   ];
 
   var OSINT_SOURCES = [
@@ -487,9 +426,6 @@
     "jpost", "ynet", "saba yemen"
   ];
 
-  /* ============================================================
-     COMPILATIE
-     ============================================================ */
   function compileLatin(word) {
     var w = String(word).toLowerCase();
     var esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -497,13 +433,11 @@
     if (w.length < 4) return new RegExp('\\b' + esc + '\\b', 'i');
     return new RegExp('\\b' + esc + '\\w*', 'i');
   }
-
   function compileArabic(word) {
     var w = String(word);
     var esc = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp('(?:^|[\\s\\u0600-\\u06FF])' + esc + '(?=$|[\\s,.،؛:!?؟])', 'i');
   }
-
   function compileMap(map) {
     var out = [];
     for (var w in map) {
@@ -512,7 +446,6 @@
     }
     return out;
   }
-
   function compileList(list, isArabic) {
     return list.map(function(w){
       return { word: w, pattern: isArabic ? compileArabic(w) : compileLatin(w) };
@@ -541,9 +474,6 @@
   var P_SPORT_CLUBS = compileList(SPORT_CLUBS, false);
   var P_SPORT_COUNTRIES = compileList(SPORT_COUNTRIES, false);
 
-  /* ============================================================
-     HELPERS
-     ============================================================ */
   function countMatches(text, patterns) {
     var score = 0, hits = [];
     for (var i = 0; i < patterns.length; i++) {
@@ -554,7 +484,6 @@
     }
     return { score: score, hits: hits };
   }
-
   function findMatch(text, patterns) {
     for (var i = 0; i < patterns.length; i++) {
       if (patterns[i].pattern.test(text)) return patterns[i].word;
@@ -562,24 +491,15 @@
     return null;
   }
 
-  /* ============================================================
-     SPORT DETECTIE
-     ============================================================ */
   function detectSport(titleLower, text, sourceLower) {
     for (var i = 0; i < P_SPORT_SRC.length; i++) {
-      if (sourceLower.indexOf(P_SPORT_SRC[i]) !== -1) {
-        return { by: "source", word: P_SPORT_SRC[i] };
-      }
+      if (sourceLower.indexOf(P_SPORT_SRC[i]) !== -1) return { by: "source", word: P_SPORT_SRC[i] };
     }
     for (var i = 0; i < P_SPORT_STRONG.length; i++) {
-      if (P_SPORT_STRONG[i].pattern.test(titleLower)) {
-        return { by: "strong-title", word: P_SPORT_STRONG[i].word };
-      }
+      if (P_SPORT_STRONG[i].pattern.test(titleLower)) return { by: "strong-title", word: P_SPORT_STRONG[i].word };
     }
     for (var i = 0; i < P_SPORT_STRONG.length; i++) {
-      if (P_SPORT_STRONG[i].pattern.test(text)) {
-        return { by: "strong-text", word: P_SPORT_STRONG[i].word };
-      }
+      if (P_SPORT_STRONG[i].pattern.test(text)) return { by: "strong-text", word: P_SPORT_STRONG[i].word };
     }
     var club = null;
     for (var i = 0; i < P_SPORT_CLUBS.length; i++) {
@@ -587,12 +507,9 @@
     }
     if (club) {
       for (var i = 0; i < P_SPORT_WEAK.length; i++) {
-        if (P_SPORT_WEAK[i].pattern.test(text)) {
-          return { by: "club+weak", word: club + " + " + P_SPORT_WEAK[i].word };
-        }
+        if (P_SPORT_WEAK[i].pattern.test(text)) return { by: "club+weak", word: club + " + " + P_SPORT_WEAK[i].word };
       }
     }
-    /* v5.0a: 2-landen + game/match/derby */
     var countryHits = 0, countryWord = null;
     for (var i = 0; i < P_SPORT_COUNTRIES.length; i++) {
       if (P_SPORT_COUNTRIES[i].pattern.test(titleLower)) {
@@ -601,9 +518,7 @@
       }
     }
     var hasSportEvent = /\b(game|match|derby|wedstrijd|finale|toernooi|interland|duel)\b/i.test(titleLower);
-    if (countryHits >= 2 && hasSportEvent) {
-      return { by: "2countries+event", word: countryWord + " + " + countryHits + " landen" };
-    }
+    if (countryHits >= 2 && hasSportEvent) return { by: "2countries+event", word: countryWord + " + " + countryHits + " landen" };
     var weakCount = 0, weakWords = [];
     for (var i = 0; i < P_SPORT_WEAK.length; i++) {
       if (P_SPORT_WEAK[i].pattern.test(text)) {
@@ -611,15 +526,10 @@
         if (weakWords.length < 3) weakWords.push(P_SPORT_WEAK[i].word);
       }
     }
-    if (weakCount >= 3) {
-      return { by: "weak-3plus", word: weakWords.join(", ") };
-    }
+    if (weakCount >= 3) return { by: "weak-3plus", word: weakWords.join(", ") };
     return null;
   }
 
-  /* ============================================================
-     STATEMENT MODE
-     ============================================================ */
   function detectStatementMode(titleLower) {
     for (var i = 0; i < STATEMENT_PREFIXES.length; i++) {
       if (STATEMENT_PREFIXES[i].test(titleLower)) {
@@ -629,15 +539,10 @@
     return { isStatement: false };
   }
 
-  /* ============================================================
-     HAS REAL MILITARY ACTION
-     ============================================================ */
   function hasRealMilitaryAction(titleLower, text) {
-    /* Militair weight-3 in titel */
     for (var i = 0; i < P_MILITAIR.length; i++) {
       if (P_MILITAIR[i].weight >= 3 && P_MILITAIR[i].pattern.test(titleLower)) return true;
     }
-    /* Conflict zone + slachtoffers/actie in titel */
     var conflictInTitle = false;
     for (var i = 0; i < P_CONFLICT.length; i++) {
       if (P_CONFLICT[i].pattern.test(titleLower)) { conflictInTitle = true; break; }
@@ -648,16 +553,12 @@
       var milWord = countMatches(titleLower, P_MILITAIR);
       if (milWord.score >= 2) return true;
     }
-    /* Actor + actie in titel */
     var titleHasActor = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|iraqi|yemeni|lebanese|idf|hamas|hezbollah|houthi|taliban|isis|isil|al.qaeda|al.shabaab|boko.haram|armed.group|militants?|insurgents?|fighters?|troops?|forces?|soldiers?|army|navy|military|rebels?|jihadists?|militie|milities|militanten)\b/i.test(titleLower);
     var actionPattern = /\b(strikes|struck|fires|fired|bombs|bombed|attacks|attacked|invades|invaded|seizes|seized|captures|captured|shells|shelled|launched|launches|hit|hits)\b/i;
     if (titleHasActor && actionPattern.test(titleLower)) return true;
     return false;
   }
 
-  /* ============================================================
-     SUBTYPES
-     ============================================================ */
   function detectMilitairSubtype(text, isTerror) {
     if (isTerror) return "Terrorisme";
     if (/\braketaanval|raketinslag|missile|kruisraket|ballistische/.test(text)) return "Raketaanval";
@@ -675,7 +576,6 @@
     if (/\baanval|attack|assault|strike/.test(text)) return "Aanval";
     return "Conflict";
   }
-
   function detectCrimeSubtype(text, isTerror) {
     if (isTerror) return "Terrorisme";
     if (/maffia|mocromaffia/.test(text)) return "Maffia";
@@ -696,7 +596,6 @@
     if (/\bbom|explosief|explosive/.test(text)) return "Explosie";
     return "Misdaad";
   }
-
   function detectPolitiekSubtype(text) {
     if (/\bplot|plotting|plots/.test(text)) return "Samenzwering";
     if (/\bsanctions?\s+(against|on)|sanctie|sancties/.test(text)) return "Sanctie";
@@ -711,7 +610,6 @@
     if (/\bthreat|dreigt|waarschuwt/.test(text)) return "Dreiging";
     return "Politiek";
   }
-
   function detectProtestSubtype(text) {
     if (/\brellen|relschoppers|oproer/.test(text)) return "Rel";
     if (/\bstaking|stakers|general.strike/.test(text)) return "Staking";
@@ -722,7 +620,6 @@
     if (/\bdemonstratie|protest|betoging/.test(text)) return "Demonstratie";
     return "Protest";
   }
-
   function detectCivielSubtype(text) {
     if (/\bverkeersongeval|verkeersongeluk|botsing|aanrijding|\bfile\b/.test(text)) return "Verkeer";
     if (/\bhelikoptercrash|helicopter.crash/.test(text)) return "Helikopter";
@@ -743,19 +640,14 @@
     return "Overig";
   }
 
-  /* ============================================================
-     HOOFDFUNCTIE v5.0a
-     ============================================================ */
   function classify(title, desc, source, url) {
     var titleStr = String(title || "");
     var titleLower = titleStr.toLowerCase();
     var descLower = String(desc || "").toLowerCase();
     var text = titleLower + " " + descLower;
     var sourceLower = String(source || "").toLowerCase();
-
     var lang = detectLanguage(titleStr + " " + String(desc || ""));
 
-    /* SPORT */
     var sport = detectSport(titleLower, text, sourceLower);
     if (sport) {
       return {
@@ -766,10 +658,8 @@
       };
     }
 
-    /* STATEMENT */
     var mode = detectStatementMode(titleLower);
 
-    /* SCORES */
     var mRes  = countMatches(text, P_MILITAIR);
     var cRes  = countMatches(text, P_CRIME);
     var pRes  = countMatches(text, P_POLITIEK);
@@ -785,7 +675,6 @@
       protest: prRes.hits, civiel: ciRes.hits
     };
 
-    /* Arabisch */
     if (lang === "ar") {
       for (var i = 0; i < P_ARABIC.length; i++) {
         var pa = P_ARABIC[i];
@@ -796,7 +685,6 @@
       }
     }
 
-    /* Has militair */
     var hasMil = hasRealMilitaryAction(titleLower, text);
     if (!hasMil) scores.militair = 0;
     else {
@@ -809,7 +697,6 @@
       }
     }
 
-    /* Terrorisme */
     var terrorWord = findMatch(text, P_TERROR);
     if (terrorWord) {
       var conflictLoc2 = findMatch(text, P_CONFLICT);
@@ -818,16 +705,24 @@
       else scores.crime += 6;
     }
 
-    /* STATEMENT — v5.0a strenger */
+    /* ============================================================
+       v5.0b: FIX — Reset militair niet als er echte actie is
+       ============================================================ */
     if (mode.isStatement) {
-      scores.politiek += 7;
-      /* Prefix reset militair hard, tenzij echte actie in tekst */
       if (mode.reason === "prefix") {
-        scores.militair = 0;
+        if (!hasMil) {
+          // Geen echte militaire actie → prefix mag militair op 0 zetten
+          scores.militair = 0;
+          scores.politiek += 7;
+        } else {
+          // Er IS een echte militaire actie → demp alleen politiek
+          scores.politiek += 3;
+        }
+      } else {
+        scores.politiek += 7;
       }
     }
 
-    /* WINNAAR — NOOIT overig */
     var rank = CATS.map(function(c){ return { cat: c, score: scores[c] }; });
     rank.sort(function(a, b){
       if (b.score !== a.score) return b.score - a.score;
@@ -836,13 +731,11 @@
     var winner = rank[0];
     var runnerUp = rank[1];
 
-    /* Als alles 0 → civiel (default) */
     if (winner.score === 0) {
       winner = { cat: "civiel", score: 0 };
       runnerUp = { cat: "civiel", score: 0 };
     }
 
-    /* CONFIDENCE */
     var confidence = 0;
     if (winner.score === 0) confidence = 0;
     else if (runnerUp.score === 0) confidence = 100;
@@ -857,7 +750,6 @@
     if (winner.score < 2) confidence = Math.min(confidence, 40);
     var uncertain = (confidence > 0 && confidence < 65);
 
-    /* SUBTYPE */
     var subtype = "";
     if (winner.cat === "militair") subtype = detectMilitairSubtype(text, !!terrorWord);
     else if (winner.cat === "crime") subtype = detectCrimeSubtype(text, !!terrorWord);
@@ -902,6 +794,6 @@
     _locations: { conflict: CONFLICT_ZONES, instable: INSTABLE_ZONES }
   };
 
-  try { if (window.wdLog) wdLog.info("[WAR DESK] classifier.js " + VERSION + " geladen"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WAR DESK] classifier.js " + VERSION + " geladen (statement-fix)"); } catch(e){}
 
 })();
