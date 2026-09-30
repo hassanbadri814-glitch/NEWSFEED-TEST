@@ -1,11 +1,12 @@
 /* ============================================================
-   WAR DESK Service Worker v3.77
-   - v3.77: osint-feeds.js toegevoegd
-   - v3.76: worldmap-data.js v3.1
-   - v3.75: conflict-areas.js v11.1
+   WAR DESK Service Worker v3.92
+   - v3.92: consensus-history.js toegevoegd (territory gain/loss)
+   - v3.91: osint-feeds.js toegevoegd
+   - v3.90: worldmap-data.js v3.3
+   - v3.89: conflict-areas.js v11.2
    ============================================================ */
 
-const CACHE_VERSION = 'v3.91';
+const CACHE_VERSION = 'v3.92';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -20,6 +21,7 @@ const PRECACHE_ASSETS = [
   './event-dedup.js',
   './province-mapper.js',
   './province-consensus.js',
+  './consensus-history.js',
   './diagnostic.js',
   './osint-feeds.js',
   './conflict-areas.js'
