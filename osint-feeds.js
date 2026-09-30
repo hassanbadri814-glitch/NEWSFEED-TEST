@@ -1,6 +1,7 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.1
-   - v2.1: PARALLEL fetch (2 tegelijk) + kortere stagger 6s
+   WAR DESK — osint-feeds.js v2.2
+   - v2.2: OSINT bron-trust — Telegram/SOHR posts altijd militair
+   - v2.1: Parallel fetch (2 tegelijk) + kortere stagger 6s
    - v2.0: Telegram + SOHR
    ============================================================ */
 
@@ -13,8 +14,8 @@
 
   var REFRESH_MS = 20 * 60 * 1000;
   var MAX_EVENTS = 250;
-  var STAGGER_MS = 6000;              /* v2.1: was 15000 */
-  var PARALLEL_BATCH = 2;              /* v2.1: 2 tegelijk */
+  var STAGGER_MS = 6000;
+  var PARALLEL_BATCH = 2;
   var FETCH_TIMEOUT = 25000;
 
   var PROXIES = [
@@ -30,6 +31,13 @@
     { channel: "Faytuks",        region: "Midden-Oosten", country: null },
     { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
     { channel: "OSINTtechnical", region: "Midden-Oosten", country: null }
+  ];
+
+  /* v2.2: OSINT bron-trust — deze worden altijd als militair behandeld */
+  var OSINT_MILITARY_SOURCES = [
+    "DeepStateUA", "sentdefender", "rybar",
+    "Faytuks", "GeoConfirmed", "OSINTtechnical",
+    "SOHR"
   ];
 
   var SOHR_RSS = "https://www.syriahr.com/en/feed/";
@@ -214,11 +222,28 @@
     return items;
   }
 
+  /* ============================================================
+     v2.2: itemToEvent — OSINT bron-trust
+     ============================================================ */
   function itemToEvent(item, hint){
     if (!item || !item.text) return null;
+
+    /* Check of bron een bekende OSINT-military bron is */
+    var isOsintMilitary = OSINT_MILITARY_SOURCES.indexOf(item.channel) !== -1;
+
     var cls = classifyText(item.text);
     if (cls.category === "sport") return null;
-    if (cls.category !== "militair" && cls.category !== "crime") return null;
+
+    if (isOsintMilitary){
+      /* Vertrouw de bron — forceer militair als classifier iets anders zegt */
+      if (cls.category !== "militair" && cls.category !== "crime"){
+        cls = { category: "militair", subtype: cls.subtype || "Conflict" };
+      }
+    } else {
+      /* Reguliere filtering */
+      if (cls.category !== "militair" && cls.category !== "crime") return null;
+    }
+
     var phys = detectPhysical(item.text);
     var loc = extractLocationFromText(item.text, hint);
     if (!loc) return null;
@@ -253,7 +278,7 @@
       url: item.link || ("https://t.me/" + item.channel),
       source: sourceLabel,
       sourceDomain: item.channel === "SOHR" ? "syriahr.com" : "t.me",
-      countsForHeat: phys.isPhysicalEvent,
+      countsForHeat: phys.isPhysicalEvent || isOsintMilitary,
       actionTypes: phys.actionTypes || [],
       lang: item.lang || "unknown",
       _source: "osint"
@@ -299,13 +324,11 @@
     }
   }
 
-  /* v2.1: 2 kanalen parallel in batches van PARALLEL_BATCH */
   async function fetchAllSources(){
     var allItems = [];
     var okCount = 0;
     var failCount = 0;
 
-    /* TG batches */
     for (var i = 0; i < TELEGRAM_CHANNELS.length; i += PARALLEL_BATCH){
       var batch = TELEGRAM_CHANNELS.slice(i, i + PARALLEL_BATCH);
       var results = await Promise.all(batch.map(fetchOneChannel));
@@ -313,13 +336,11 @@
         if (r.ok){ okCount++; allItems = allItems.concat(r.items); }
         else failCount++;
       });
-      /* Korte pauze tussen batches */
       if (i + PARALLEL_BATCH < TELEGRAM_CHANNELS.length){
         await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
       }
     }
 
-    /* SOHR */
     await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
     var sohr = await fetchOneSohr();
     if (sohr.ok){ okCount++; allItems = allItems.concat(sohr.items); }
@@ -403,8 +424,9 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.1",
-    _channels: TELEGRAM_CHANNELS
+    _version: "v2.2",
+    _channels: TELEGRAM_CHANNELS,
+    _militarySources: OSINT_MILITARY_SOURCES
   };
 
   if (document.readyState === "loading"){
@@ -413,5 +435,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.1 geladen (parallel fetch)");
+  LOG("osint-feeds.js v2.2 geladen (OSINT bron-trust)");
 })();
