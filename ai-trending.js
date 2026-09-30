@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-trending.js v1.8
-   - v1.8: gebruikt AIShared voor STOP_WORDS, getTimestamp, jaccard
-           (fallback naar eigen implementatie als AIShared ontbreekt)
-   - v1.7: reset throttle bij news:reload:done
-   - v1.6: case-insensitive merge
+   WAR DESK — ai-trending.js v1.9
+   - v1.9: FIX filtert op conflict-relevante categorieën
+   - v1.8: gebruikt AIShared
    ============================================================ */
 
 (function(){
@@ -17,12 +15,15 @@
   var lastProducedTopics = 0;
   var lastArticleCount = 0;
 
-  /* ============================================================
-     v1.8: gebruik AIShared waar beschikbaar, anders eigen code
-     ============================================================ */
+  /* v1.9: alleen deze categorieën mogen meedoen aan trending */
+  var RELEVANT_CATS = {
+    war: 1, mideast: 1, ukraine: 1, gaza: 1, israel: 1, iran: 1,
+    iraq: 1, yemen: 1, syria: 1, libanon: 1, sudan: 1, europe: 1,
+    nl: 1, vs: 1, world: 1, crime: 1, terror: 1
+  };
+
   var AS = window.AIShared || null;
 
-  // STOP_WORDS — prefer shared
   var STOP_WORDS = AS ? AS.STOP_WORDS : (function(){
     var s = {};
     ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
@@ -52,7 +53,6 @@
     return s;
   })();
 
-  // getTimestamp — prefer shared
   var getTimestamp = AS ? AS.getTimestamp : function(a){
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
@@ -61,21 +61,15 @@
       var v = a[fields[i]];
       if (!v) continue;
       var t;
-      if (typeof v === "number") {
-        t = v < 100000000000 ? v * 1000 : v;
-      } else {
-        t = new Date(v).getTime();
-      }
-      if (!isNaN(t) && t > 946684800000 && t < Date.now() + 86400000) {
-        candidates.push(t);
-      }
+      if (typeof v === "number") t = v < 100000000000 ? v * 1000 : v;
+      else t = new Date(v).getTime();
+      if (!isNaN(t) && t > 946684800000 && t < Date.now() + 86400000) candidates.push(t);
     }
     if (!candidates.length) return 0;
     candidates.sort(function(x, y){ return y - x; });
     return candidates[0];
   };
 
-  // jaccard — prefer shared
   var jaccard = AS ? AS.jaccard : function(setA, setB){
     var inter = 0;
     for (var k in setA) if (setB[k]) inter++;
@@ -85,19 +79,12 @@
     return union === 0 ? 0 : inter / union;
   };
 
-  // containment — prefer shared
   var containment = AS ? AS.containment : function(small, big){
     var total = 0, found = 0;
-    for (var k in small) {
-      total++;
-      if (big[k]) found++;
-    }
+    for (var k in small) { total++; if (big[k]) found++; }
     return total === 0 ? 0 : found / total;
   };
 
-  /* ============================================================
-     Eigen helpers (niet in AIShared)
-     ============================================================ */
   function getBus() {
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
@@ -105,23 +92,29 @@
   function tokenize(title) {
     if (!title) return [];
     var t = title.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, " ");
-    return t.split(/\s+/).filter(function(w) {
-      return w.length > 3 && !STOP_WORDS[w];
-    });
+    return t.split(/\s+/).filter(function(w) { return w.length > 3 && !STOP_WORDS[w]; });
   }
 
   function bump(store, key, displayForm, weight, isProperNoun) {
-    if (!store[key]) {
-      store[key] = { topic: displayForm, score: 0, count: 0, proper: false };
-    }
+    if (!store[key]) store[key] = { topic: displayForm, score: 0, count: 0, proper: false };
     store[key].score += weight;
     store[key].count += 1;
-    if (isProperNoun && !store[key].proper) {
-      store[key].topic = displayForm;
-      store[key].proper = true;
-    } else if (!store[key].proper && displayForm.length > store[key].topic.length) {
-      store[key].topic = displayForm;
+    if (isProperNoun && !store[key].proper) { store[key].topic = displayForm; store[key].proper = true; }
+    else if (!store[key].proper && displayForm.length > store[key].topic.length) { store[key].topic = displayForm; }
+  }
+
+  /* ============================================================
+     v1.9: filter relevante artikelen voor trending
+     ============================================================ */
+  function isRelevantForTrending(article) {
+    if (!article) return false;
+    var tags = Array.isArray(article.tags) ? article.tags : [];
+    var cat = String(article.cat || "").toLowerCase();
+    for (var i = 0; i < tags.length; i++) {
+      if (RELEVANT_CATS[String(tags[i]).toLowerCase()]) return true;
     }
+    if (RELEVANT_CATS[cat]) return true;
+    return false;
   }
 
   function extractEntities(articles) {
@@ -137,6 +130,10 @@
     for (var i = 0; i < articles.length; i++) {
       var a = articles[i];
       if (!a) continue;
+
+      /* v1.9: skip niet-relevante artikelen */
+      if (!isRelevantForTrending(a)) continue;
+
       var ts = getTimestamp(a);
       if (ts === 0) ts = now;
       else if (ts < cutoff) continue;
@@ -165,9 +162,7 @@
       }
 
       var lowerText = text.toLowerCase().replace(/[^\w\s]/g, " ");
-      var words = lowerText.split(/\s+/).filter(function(w) {
-        return w.length > 3 && !STOP_WORDS[w];
-      });
+      var words = lowerText.split(/\s+/).filter(function(w) { return w.length > 3 && !STOP_WORDS[w]; });
 
       var seenBi = {};
       for (var k = 0; k < words.length - 1; k++) {
@@ -186,7 +181,7 @@
       }
     }
 
-    if (window.wdLog) wdLog.info("[Trending] Analyse: " + processed + "/" + articles.length + " artikelen");
+    if (window.wdLog) wdLog.info("[Trending] Analyse: " + processed + "/" + articles.length + " relevante artikelen");
 
     var merged = {};
 
@@ -194,15 +189,10 @@
       for (var k in store) {
         var e = store[k];
         if (e.count < minCount) continue;
-        if (!merged[k]) {
-          merged[k] = { topic: e.topic, score: 0, count: 0, proper: false };
-        }
+        if (!merged[k]) merged[k] = { topic: e.topic, score: 0, count: 0, proper: false };
         merged[k].score += e.score * multiplier;
         merged[k].count += e.count;
-        if (isProper) {
-          merged[k].topic = e.topic;
-          merged[k].proper = true;
-        }
+        if (isProper) { merged[k].topic = e.topic; merged[k].proper = true; }
       }
     }
 
@@ -212,11 +202,7 @@
 
     var pool = [];
     for (var mk in merged) {
-      pool.push({
-        topic: merged[mk].topic,
-        score: merged[mk].score,
-        count: merged[mk].count
-      });
+      pool.push({ topic: merged[mk].topic, score: merged[mk].score, count: merged[mk].count });
     }
     pool.sort(function(a, b){ return b.score - a.score; });
 
@@ -231,10 +217,7 @@
         if (usedWords[wordsArr[wi]]) overlap++;
       }
       if (overlap > 0 && overlap >= wordsArr.length / 2) continue;
-
-      for (var wi2 = 0; wi2 < wordsArr.length; wi2++) {
-        usedWords[wordsArr[wi2]] = true;
-      }
+      for (var wi2 = 0; wi2 < wordsArr.length; wi2++) usedWords[wordsArr[wi2]] = true;
       result.push(item);
     }
 
@@ -266,9 +249,7 @@
         var trends = extractEntities(articles);
         lastProducedTopics = trends.length;
         var bus = getBus();
-        if (bus && typeof bus.emit === "function") {
-          bus.emit("trending:update", trends);
-        }
+        if (bus && typeof bus.emit === "function") bus.emit("trending:update", trends);
         if (window.wdLog) {
           wdLog.info("[Trending] " + trends.length + " topics uit " + articles.length + " artikelen");
           if (trends.length > 0) {
@@ -285,11 +266,8 @@
   function forceRun(articles) {
     lastRun = 0;
     lastProducedTopics = 0;
-    if (articles && articles.length) {
-      run(articles);
-    } else if (window.State && window.State.items && window.State.items.length) {
-      run(window.State.items);
-    }
+    if (articles && articles.length) run(articles);
+    else if (window.State && window.State.items && window.State.items.length) run(window.State.items);
   }
 
   function init() {
@@ -307,13 +285,11 @@
     });
 
     setTimeout(function(){
-      if (window.State && window.State.items && window.State.items.length) {
-        run(window.State.items);
-      }
+      if (window.State && window.State.items && window.State.items.length) run(window.State.items);
     }, 2000);
 
     if (window.wdLog) {
-      wdLog.info("[WAR DESK] ai-trending.js v1.8 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
+      wdLog.info("[WAR DESK] ai-trending.js v1.9 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
     }
   }
 
