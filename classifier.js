@@ -1,15 +1,16 @@
 /* ============================================================
-   WAR DESK — classifier.js v5.0b
+   WAR DESK — classifier.js v5.0c
    ------------------------------------------------------------
-   - v5.0b: FIX statement-mode reset militaire score niet meer
-            als hasRealMilitaryAction() true is.
-   - v5.0a: GEEN "overig" categorie meer + 2-landen sport regel
+   - v5.0c: FIX hasRealMilitaryAction checkt nu ook werkwoorden
+            (strikes, attacks, killed, bombed, shelled, etc.)
+            in zowel titel ALS tekst.
+   - v5.0b: statement-mode reset niet als hasMil true
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var VERSION = "v5.0b";
+  var VERSION = "v5.0c";
   var CATS = ["militair", "crime", "politiek", "protest", "civiel"];
   var PRIORITY = { militair: 5, crime: 4, politiek: 3, protest: 2, civiel: 1 };
 
@@ -138,11 +139,65 @@
     /^en\s*direct/i, /^analysis\s*:/i, /^opinion\s*:/i, /^commentary\s*:/i,
     /^update\s*:/i, /^updates?\s*:/i, /^watch\s*:/i, /^video\s*:/i,
     /^interview\s*:/i, /^exclusive\s*:/i, /^breaking\s*:/i,
-    /^\d+\s+days?\s+before/i,
-    /^\d+\s+days?\s+after/i,
-    /^[A-Z][a-z]+\s+leader\s*:/i,
-    /^[A-Z][a-z]+\s+official\s*:/i,
-    /^[A-Z][a-z]+\s+says\s*:/i
+    /^\d+\s+days?\s+before/i, /^\d+\s+days?\s+after/i,
+    /^[A-Z][a-z]+\s+leader\s*:/i, /^[A-Z][a-z]+\s+official\s*:/i, /^[A-Z][a-z]+\s+says\s*:/i
+  ];
+
+  /* ============================================================
+     v5.0c: NIEUW — militaire actie-werkwoorden (titel + tekst)
+     ============================================================ */
+  var MILITARY_ACTION_VERBS = [
+    /* Engels */
+    /\b(strikes?|struck|striking)\b/i,
+    /\b(attacks?|attacked|attacking)\b/i,
+    /\b(bombs?|bombed|bombing|bombardment|bombardments)\b/i,
+    /\b(shells?|shelled|shelling)\b/i,
+    /\b(kills?|killed|killing|deaths?|dead)\b/i,
+    /\b(seizes?|seized|seizing|captures?|captured|capturing|overruns?|overran)\b/i,
+    /\b(invades?|invaded|invading|invasion|invasions)\b/i,
+    /\b(launches?|launched|launching)\b/i,
+    /\b(fires?|fired|firing)\b/i,
+    /\b(hits?|hit|hitting)\b/i,
+    /\b(downs?|downed|shoots?\s+down|shot\s+down)\b/i,
+    /\b(intercepts?|intercepted|intercepting)\b/i,
+    /\b(explodes?|exploded|exploding|explosion|explosions|blasts?)\b/i,
+    /\b(offensive|offensives|counteroffensive|counter-offensive)\b/i,
+    /\b(raids?|raided|raiding)\b/i,
+    /\b(combat|clashes|clashing|fighting|firefight|battle|battles)\b/i,
+    /\b(wounded|injured|casualties)\b/i,
+    /\b(airstrikes?|air\s+strikes?|missile\s+strikes?|drone\s+strikes?|rocket\s+attacks?)\b/i,
+    /* Nederlands */
+    /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i,
+    /\b(aanviel|aanvielen|aanvalt|aanvallen|aanval)\b/i,
+    /\b(bombardeerde|bombardeerden|gebombardeerd|bombardement|bombardementen)\b/i,
+    /\b(beschoot|beschoten|beschieting|beschietingen)\b/i,
+    /\b(doodde|doodden|gedood|doden|dodelijk)\b/i,
+    /\b(veroverde|veroverden|ingenomen|innam|innamen|heroverd|heroverde)\b/i,
+    /\b(viel\s+binnen|vielen\s+binnen|binnengevallen|invasie|invasies)\b/i,
+    /\b(neerschoot|neergeschoten|neergehaald|onderschept)\b/i,
+    /\b(ontplofte|ontploften|ontploffing|explosie|explosies)\b/i,
+    /\b(offensief|offensieven|tegenoffensief)\b/i,
+    /\b(gewond|gewonden|slachtoffers|slachtoffer)\b/i,
+    /\b(raketaanval|raketinslag|luchtaanval|droneaanval|mortieraanval|artillerievuur|granaatinslag)\b/i,
+    /* Frans */
+    /\b(frappé|frappe|frappes)\b/i,
+    /\b(attaqué|attaque|attaques)\b/i,
+    /\b(bombardé|bombardement|bombardements)\b/i,
+    /\b(tué|tués|mort|morts)\b/i,
+    /\b(invasion|envahi|envahie)\b/i,
+    /* Duits */
+    /\b(angegriffen|greift\s+an|getroffen|bombardiert)\b/i,
+    /\b(getötet|tote|tötet|tot)\b/i,
+    /\b(invasion|invadiert)\b/i,
+    /* Arabisch */
+    /قصف|غارة|غارات|ضربة|ضربات/,
+    /هجوم|هجمات|اعتداء/,
+    /قتل|قتلى|مقتل|مصرع/,
+    /جرح|جرحى|إصابات/,
+    /انفجار|انفجارات|تفجير/,
+    /صاروخ|صواريخ|قذيفة|قذائف/,
+    /معارك|قتال|اشتباكات/,
+    /سيطر|استولى|حرر/
   ];
 
   var W_MILITAIR = {
@@ -378,12 +433,6 @@
     { w:"حرائق", cat:"civiel", weight:3 }, { w:"حادث", cat:"civiel", weight:2 }
   ];
 
-  var AR_LOCATIONS = [
-    "غزة", "إسرائيل", "لبنان", "سوريا", "العراق", "اليمن", "إيران",
-    "روسيا", "أوكرانيا", "مصر", "السعودية", "تركيا", "فلسطين",
-    "باكستان", "أفغانستان", "ليبيا", "السودان"
-  ];
-
   var TERRORISM_WORDS = [
     "aanslag", "aanslagen", "terrorist", "terroristen", "terrorisme",
     "zelfmoordaanslag", "zelfmoordenaar", "bomaanslag",
@@ -446,9 +495,9 @@
     }
     return out;
   }
-  function compileList(list, isArabic) {
+  function compileList(list) {
     return list.map(function(w){
-      return { word: w, pattern: isArabic ? compileArabic(w) : compileLatin(w) };
+      return { word: w, pattern: compileLatin(w) };
     });
   }
 
@@ -461,18 +510,15 @@
   var P_ARABIC = W_ARABIC.map(function(a){
     return { word: a.w, cat: a.cat, weight: a.weight, pattern: compileArabic(a.w) };
   });
-  var P_AR_LOCATIONS = AR_LOCATIONS.map(function(w){
-    return { word: w, pattern: compileArabic(w) };
-  });
 
-  var P_TERROR    = compileList(TERRORISM_WORDS, false);
-  var P_CONFLICT  = compileList(CONFLICT_ZONES, false);
-  var P_INSTABLE  = compileList(INSTABLE_ZONES, false);
+  var P_TERROR    = compileList(TERRORISM_WORDS);
+  var P_CONFLICT  = compileList(CONFLICT_ZONES);
+  var P_INSTABLE  = compileList(INSTABLE_ZONES);
   var P_SPORT_SRC = SPORT_SOURCES.map(function(s){ return s.toLowerCase(); });
-  var P_SPORT_STRONG = compileList(SPORT_STRONG, false);
-  var P_SPORT_WEAK = compileList(SPORT_WEAK, false);
-  var P_SPORT_CLUBS = compileList(SPORT_CLUBS, false);
-  var P_SPORT_COUNTRIES = compileList(SPORT_COUNTRIES, false);
+  var P_SPORT_STRONG = compileList(SPORT_STRONG);
+  var P_SPORT_WEAK = compileList(SPORT_WEAK);
+  var P_SPORT_CLUBS = compileList(SPORT_CLUBS);
+  var P_SPORT_COUNTRIES = compileList(SPORT_COUNTRIES);
 
   function countMatches(text, patterns) {
     var score = 0, hits = [];
@@ -539,10 +585,26 @@
     return { isStatement: false };
   }
 
+  /* ============================================================
+     v5.0c: Uitgebreide militaire actie-detectie
+     ============================================================ */
+  function hasMilitaryActionVerb(text) {
+    for (var i = 0; i < MILITARY_ACTION_VERBS.length; i++) {
+      if (MILITARY_ACTION_VERBS[i].test(text)) return true;
+    }
+    return false;
+  }
+
   function hasRealMilitaryAction(titleLower, text) {
+    /* 1. Weight-3 militaire woorden in titel */
     for (var i = 0; i < P_MILITAIR.length; i++) {
       if (P_MILITAIR[i].weight >= 3 && P_MILITAIR[i].pattern.test(titleLower)) return true;
     }
+
+    /* 2. NIEUW: militaire actie-werkwoorden in titel */
+    if (hasMilitaryActionVerb(titleLower)) return true;
+
+    /* 3. Conflict zone + slachtoffers/actie in TITEL of TEKST */
     var conflictInTitle = false;
     for (var i = 0; i < P_CONFLICT.length; i++) {
       if (P_CONFLICT[i].pattern.test(titleLower)) { conflictInTitle = true; break; }
@@ -550,12 +612,22 @@
     if (conflictInTitle) {
       var deathPattern = /\b(doden|dode|gewonden|slachtoffers|dead|killed|wounded|injured|casualties|death.toll)\b/i;
       if (deathPattern.test(titleLower)) return true;
+      if (hasMilitaryActionVerb(text)) return true;
       var milWord = countMatches(titleLower, P_MILITAIR);
       if (milWord.score >= 2) return true;
     }
-    var titleHasActor = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|iraqi|yemeni|lebanese|idf|hamas|hezbollah|houthi|taliban|isis|isil|al.qaeda|al.shabaab|boko.haram|armed.group|militants?|insurgents?|fighters?|troops?|forces?|soldiers?|army|navy|military|rebels?|jihadists?|militie|milities|militanten)\b/i.test(titleLower);
-    var actionPattern = /\b(strikes|struck|fires|fired|bombs|bombed|attacks|attacked|invades|invaded|seizes|seized|captures|captured|shells|shelled|launched|launches|hit|hits)\b/i;
-    if (titleHasActor && actionPattern.test(titleLower)) return true;
+
+    /* 4. Actor + actie in titel of tekst */
+    var actorPattern = /\b(israeli|russian|ukrainian|iranian|palestinian|syrian|iraqi|yemeni|lebanese|idf|hamas|hezbollah|houthi|taliban|isis|isil|al.qaeda|al.shabaab|boko.haram|armed.group|militants?|insurgents?|fighters?|troops?|forces?|soldiers?|army|navy|military|rebels?|jihadists?|militie|milities|militanten)\b/i;
+    if (actorPattern.test(titleLower) && hasMilitaryActionVerb(text)) return true;
+
+    /* 5. NIEUW: military in title + action in text */
+    for (var i = 0; i < P_MILITAIR.length; i++) {
+      if (P_MILITAIR[i].weight >= 2 && P_MILITAIR[i].pattern.test(titleLower)) {
+        if (hasMilitaryActionVerb(text)) return true;
+      }
+    }
+
     return false;
   }
 
@@ -705,17 +777,13 @@
       else scores.crime += 6;
     }
 
-    /* ============================================================
-       v5.0b: FIX — Reset militair niet als er echte actie is
-       ============================================================ */
+    /* v5.0c: statement-mode reset militair NIET als hasMil true */
     if (mode.isStatement) {
       if (mode.reason === "prefix") {
         if (!hasMil) {
-          // Geen echte militaire actie → prefix mag militair op 0 zetten
           scores.militair = 0;
           scores.politiek += 7;
         } else {
-          // Er IS een echte militaire actie → demp alleen politiek
           scores.politiek += 3;
         }
       } else {
@@ -767,11 +835,7 @@
       isFiltered: false,
       scores: scores,
       signals: hits,
-      meta: {
-        mode: mode,
-        hasMilitaryAction: hasMil,
-        terrorWord: terrorWord
-      }
+      meta: { mode: mode, hasMilitaryAction: hasMil, terrorWord: terrorWord }
     };
   }
 
@@ -791,9 +855,10 @@
       militair: W_MILITAIR, crime: W_CRIME, politiek: W_POLITIEK,
       protest: W_PROTEST, civiel: W_CIVIEL, arabic: W_ARABIC
     },
-    _locations: { conflict: CONFLICT_ZONES, instable: INSTABLE_ZONES }
+    _locations: { conflict: CONFLICT_ZONES, instable: INSTABLE_ZONES },
+    _militaryVerbs: MILITARY_ACTION_VERBS
   };
 
-  try { if (window.wdLog) wdLog.info("[WAR DESK] classifier.js " + VERSION + " geladen (statement-fix)"); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WAR DESK] classifier.js " + VERSION + " geladen (uitgebreide military-actie detectie)"); } catch(e){}
 
 })();
