@@ -1,10 +1,9 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.3
-   - v2.3: ARABISCHE TELEGRAM-KANALEN TOEGEVOEGD
-           * Syrië, Jemen, Irak, Libanon
-           * @HalabTodayTV, @damscuce, @NWSYEME, @naya_foriraq, @sadadahiechannel, @alshamii011
+   WAR DESK — osint-feeds.js v2.4
+   - v2.4: Arabic-aware locatie-extractie (behoud Unicode)
+   - v2.3: Arabische Telegram-kanalen
    - v2.2: OSINT bron-trust
-   - v2.1: Parallel fetch (2 tegelijk) + kortere stagger 6s
+   - v2.1: Parallel fetch
    ============================================================ */
 
 (function(){
@@ -35,17 +34,16 @@
     { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
     { channel: "OSINTtechnical", region: "Midden-Oosten", country: null },
 
-    /* === v2.3: Arabische kanalen === */
-    { channel: "HalabTodayTV",   region: "Midden-Oosten", country: "Syrië" },
-    { channel: "damscuce",       region: "Midden-Oosten", country: "Syrië" },
-    { channel: "ya_topa",        region: "Midden-Oosten", country: "Syrië" },
-    { channel: "NWSYEME",        region: "Midden-Oosten", country: "Jemen" },
-    { channel: "naya_foriraq",   region: "Midden-Oosten", country: "Irak" },
+    /* === Arabische kanalen === */
+    { channel: "HalabTodayTV",    region: "Midden-Oosten", country: "Syrië" },
+    { channel: "damscuce",        region: "Midden-Oosten", country: "Syrië" },
+    { channel: "ya_topa",         region: "Midden-Oosten", country: "Syrië" },
+    { channel: "NWSYEME",         region: "Midden-Oosten", country: "Jemen" },
+    { channel: "naya_foriraq",    region: "Midden-Oosten", country: "Irak" },
     { channel: "sadadahiechannel", region: "Midden-Oosten", country: "Libanon" },
-    { channel: "alshamii011",    region: "Midden-Oosten", country: null }
+    { channel: "alshamii011",     region: "Midden-Oosten", country: null }
   ];
 
-  /* v2.3: OSINT bron-trust — deze worden altijd als militair behandeld */
   var OSINT_MILITARY_SOURCES = [
     "DeepStateUA", "sentdefender", "rybar",
     "Faytuks", "GeoConfirmed", "OSINTtechnical",
@@ -101,18 +99,36 @@
     return "en";
   }
 
+  /* ============================================================
+     v2.4: Arabic-aware locatie-extractie
+     ============================================================ */
   function extractLocationFromText(text, hint){
     if (!text) return null;
     if (!window.WorldMapData) return null;
     var locs = window.WorldMapData.LOCATIONS || {};
-    var lower = " " + String(text).toLowerCase().replace(/[^\w\sÀ-ÿ\u0400-\u04FF\u0600-\u06FF]/g, " ").replace(/\s+/g, " ").trim() + " ";
+
+    /* v2.4: behoud Unicode (Arabisch behouden), normaliseer whitespace */
+    var lower = " " + String(text).toLowerCase()
+      .replace(/[^\w\sÀ-ÿ\u0400-\u04FF\u0600-\u06FF\u0590-\u05FF]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() + " ";
+
     var bestCity = null, bestCityLen = 0;
     var bestCountry = null, bestCountryLen = 0;
 
     for (var key in locs){
       if (!Object.prototype.hasOwnProperty.call(locs, key)) continue;
       if (key.length < 4) continue;
-      if (lower.indexOf(" " + key + " ") === -1) continue;
+
+      /* Voor Arabisch/Hebreeuws: geen spaties aan begin/eind vereist */
+      var isArabicKey = /[\u0600-\u06FF\u0590-\u05FF]/.test(key);
+      var found = false;
+      if (isArabicKey){
+        if (lower.indexOf(key) !== -1) found = true;
+      } else {
+        if (lower.indexOf(" " + key + " ") !== -1) found = true;
+      }
+      if (!found) continue;
 
       var loc = locs[key];
       var isCountry = false;
@@ -432,7 +448,7 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.3",
+    _version: "v2.4",
     _channels: TELEGRAM_CHANNELS,
     _militarySources: OSINT_MILITARY_SOURCES
   };
@@ -443,5 +459,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.3 geladen (Arabische kanalen)");
+  LOG("osint-feeds.js v2.4 geladen (Arabic-aware)");
 })();
