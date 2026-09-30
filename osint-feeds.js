@@ -1,11 +1,7 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.0
-   - v2.0: TELEGRAM (6 kanalen) + SOHR RSS
-           * Telegram web previews via Cloudflare Worker
-           * HTML parser voor posts
-           * Taaldetectie uk/ru/ar/en
-           * SOHR RSS feed voor Syrië
-   - v1.4: (verwijderd) GDELT werkte niet
+   WAR DESK — osint-feeds.js v2.1
+   - v2.1: PARALLEL fetch (2 tegelijk) + kortere stagger 6s
+   - v2.0: Telegram + SOHR
    ============================================================ */
 
 (function(){
@@ -15,33 +11,29 @@
     try{ wdLog.info.apply(null, ["[OSINT]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  var REFRESH_MS = 20 * 60 * 1000;      /* 20 min cyclus (90s werk + pauze) */
+  var REFRESH_MS = 20 * 60 * 1000;
   var MAX_EVENTS = 250;
-  var STAGGER_MS = 15000;                /* 15s tussen fetches */
-  var TG_FETCH_TIMEOUT = 25000;
+  var STAGGER_MS = 6000;              /* v2.1: was 15000 */
+  var PARALLEL_BATCH = 2;              /* v2.1: 2 tegelijk */
+  var FETCH_TIMEOUT = 25000;
+
   var PROXIES = [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
     "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
     "https://api.allorigins.win/raw?url="
   ];
 
-  /* ============================================================
-     BRONNEN
-     ============================================================ */
   var TELEGRAM_CHANNELS = [
-    { channel: "DeepStateUA",    label: "DeepState UA",   region: "Oost-Europa",   country: "Oekraïne" },
-    { channel: "sentdefender",   label: "SentDefender",   region: "Midden-Oosten", country: null },
-    { channel: "rybar",          label: "Rybar",          region: "Oost-Europa",   country: "Rusland" },
-    { channel: "Faytuks",        label: "Faytuks",        region: "Midden-Oosten", country: null },
-    { channel: "GeoConfirmed",   label: "GeoConfirmed",   region: "Midden-Oosten", country: null },
-    { channel: "OSINTtechnical", label: "OSINTtechnical", region: "Midden-Oosten", country: null }
+    { channel: "DeepStateUA",    region: "Oost-Europa",   country: "Oekraïne" },
+    { channel: "sentdefender",   region: "Midden-Oosten", country: null },
+    { channel: "rybar",          region: "Oost-Europa",   country: "Rusland" },
+    { channel: "Faytuks",        region: "Midden-Oosten", country: null },
+    { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
+    { channel: "OSINTtechnical", region: "Midden-Oosten", country: null }
   ];
 
   var SOHR_RSS = "https://www.syriahr.com/en/feed/";
 
-  /* ============================================================
-     UTILITIES
-     ============================================================ */
   function hashCode(str){
     var h = 0;
     str = String(str || "");
@@ -78,28 +70,20 @@
       .trim();
   }
 
-  /* ============================================================
-     TAALDETECTIE
-     ============================================================ */
   function detectLang(text){
     if (!text) return "unknown";
-    if (/[\u0600-\u06FF]/.test(text)) return "ar";           /* Arabisch */
-    if (/[їєіґЇЄІҐ]/.test(text)) return "uk";                 /* Oekraïens */
-    if (/[\u0400-\u04FF]/.test(text)) return "ru";            /* Russisch */
-    if (/[\u0590-\u05FF]/.test(text)) return "he";            /* Hebreeuws */
+    if (/[\u0600-\u06FF]/.test(text)) return "ar";
+    if (/[їєіґЇЄІҐ]/.test(text)) return "uk";
+    if (/[\u0400-\u04FF]/.test(text)) return "ru";
+    if (/[\u0590-\u05FF]/.test(text)) return "he";
     return "en";
   }
 
-  /* ============================================================
-     LOCATIE EXTRACTOR (zelfde logica als province-mapper)
-     ============================================================ */
   function extractLocationFromText(text, hint){
     if (!text) return null;
     if (!window.WorldMapData) return null;
     var locs = window.WorldMapData.LOCATIONS || {};
     var lower = " " + String(text).toLowerCase().replace(/[^\w\sÀ-ÿ\u0400-\u04FF\u0600-\u06FF]/g, " ").replace(/\s+/g, " ").trim() + " ";
-
-    /* Probeer specifieke steden eerst (langste match) */
     var bestCity = null, bestCityLen = 0;
     var bestCountry = null, bestCountryLen = 0;
 
@@ -126,17 +110,10 @@
 
     if (bestCity) return bestCity;
     if (bestCountry) return bestCountry;
-
-    /* Fallback hint */
-    if (hint && hint.country && locs[hint.country.toLowerCase()]){
-      return locs[hint.country.toLowerCase()];
-    }
+    if (hint && hint.country && locs[hint.country.toLowerCase()]) return locs[hint.country.toLowerCase()];
     return null;
   }
 
-  /* ============================================================
-     ACTOR DETECTION
-     ============================================================ */
   function detectActors(text){
     try {
       if (window.WorldMapData && window.WorldMapData.detectActorsInTitle){
@@ -146,9 +123,6 @@
     return [];
   }
 
-  /* ============================================================
-     CLASSIFICATIE
-     ============================================================ */
   function classifyText(text){
     try {
       if (window.WDClassifier && window.WDClassifier.classify){
@@ -168,32 +142,23 @@
     return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reason: "no-detector" };
   }
 
-  /* ============================================================
-     FETCH VIA PROXIES (sequentiële fallback)
-     ============================================================ */
-  async function fetchViaProxies(targetUrl, timeoutMs){
-    timeoutMs = timeoutMs || TG_FETCH_TIMEOUT;
+  async function fetchViaProxies(targetUrl){
     for (var i = 0; i < PROXIES.length; i++){
       var fullUrl = PROXIES[i] + encodeURIComponent(targetUrl);
       try {
         var ctrl = new AbortController();
-        var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs);
+        var timer = setTimeout(function(){ ctrl.abort(); }, FETCH_TIMEOUT);
         var r = await fetch(fullUrl, { signal: ctrl.signal });
         clearTimeout(timer);
         if (!r.ok) throw new Error("HTTP " + r.status);
         var text = await r.text();
         if (!text || text.length < 100) throw new Error("Te kort");
         return { ok: true, text: text, proxy: i };
-      } catch(e){
-        /* stil falen, probeer volgende */
-      }
+      } catch(e){}
     }
     return { ok: false };
   }
 
-  /* ============================================================
-     TELEGRAM PARSER
-     ============================================================ */
   function parseTelegramHtml(html, channel){
     var posts = [];
     var wrappers = html.split('tgme_widget_message_wrap');
@@ -204,20 +169,14 @@
 
     for (var i = 1; i < wrappers.length; i++){
       var w = wrappers[i];
-
-      /* Extract text block */
       var textMatch = w.match(textRegex);
       if (!textMatch) continue;
-
       var raw = textMatch[1];
       var decoded = decodeHtmlEntities(raw);
       var text = stripHtmlTags(decoded);
       if (!text || text.length < 20) continue;
-
-      /* Extract date */
       var dateMatch = w.match(dateRegex);
       var date = dateMatch ? dateMatch[1] : new Date().toISOString();
-
       posts.push({
         channel: channel,
         text: text,
@@ -225,13 +184,9 @@
         lang: detectLang(text)
       });
     }
-
     return posts;
   }
 
-  /* ============================================================
-     SOHR RSS PARSER
-     ============================================================ */
   function parseSohrRss(xmlText){
     var items = [];
     try {
@@ -259,28 +214,15 @@
     return items;
   }
 
-  /* ============================================================
-     ITEM → EVENT
-     ============================================================ */
   function itemToEvent(item, hint){
     if (!item || !item.text) return null;
-
-    /* Classificatie */
     var cls = classifyText(item.text);
     if (cls.category === "sport") return null;
     if (cls.category !== "militair" && cls.category !== "crime") return null;
-
-    /* Fysiek? */
     var phys = detectPhysical(item.text);
-
-    /* Locatie */
     var loc = extractLocationFromText(item.text, hint);
     if (!loc) return null;
-
-    /* Actors */
     var actors = detectActors(item.text);
-
-    /* ISO3 */
     var iso3 = null;
     try {
       if (window.WorldMapData && window.WorldMapData.getISO3){
@@ -288,7 +230,6 @@
       }
     } catch(e){}
 
-    /* Source label */
     var sourceLabel = item.channel === "SOHR" ? "SOHR" : "@" + item.channel;
 
     return {
@@ -319,77 +260,87 @@
     };
   }
 
-  /* ============================================================
-     STATE
-     ============================================================ */
   var lastRun = 0;
   var osintEvents = [];
   var isRunning = false;
   var _timer = null;
-  var _abortControllers = [];
 
-  /* ============================================================
-     RUN
-     ============================================================ */
+  async function fetchOneChannel(ch){
+    try {
+      var res = await fetchViaProxies("https://t.me/s/" + ch.channel);
+      if (!res.ok){
+        LOG("@" + ch.channel + " — alle proxies faalden");
+        return { ok: false, items: [] };
+      }
+      var posts = parseTelegramHtml(res.text, ch.channel);
+      posts.forEach(function(p){ p.hint = ch; });
+      LOG("@" + ch.channel + " — " + posts.length + " posts");
+      return { ok: true, items: posts };
+    } catch(e){
+      LOG("@" + ch.channel + " faalde: " + (e.message || "?"));
+      return { ok: false, items: [] };
+    }
+  }
+
+  async function fetchOneSohr(){
+    try {
+      var res = await fetchViaProxies(SOHR_RSS);
+      if (!res.ok){
+        LOG("SOHR — alle proxies faalden");
+        return { ok: false, items: [] };
+      }
+      var items = parseSohrRss(res.text);
+      items.forEach(function(p){ p.hint = { country: "Syrië", region: "Midden-Oosten" }; });
+      LOG("SOHR — " + items.length + " items");
+      return { ok: true, items: items };
+    } catch(e){
+      LOG("SOHR faalde: " + (e.message || "?"));
+      return { ok: false, items: [] };
+    }
+  }
+
+  /* v2.1: 2 kanalen parallel in batches van PARALLEL_BATCH */
+  async function fetchAllSources(){
+    var allItems = [];
+    var okCount = 0;
+    var failCount = 0;
+
+    /* TG batches */
+    for (var i = 0; i < TELEGRAM_CHANNELS.length; i += PARALLEL_BATCH){
+      var batch = TELEGRAM_CHANNELS.slice(i, i + PARALLEL_BATCH);
+      var results = await Promise.all(batch.map(fetchOneChannel));
+      results.forEach(function(r){
+        if (r.ok){ okCount++; allItems = allItems.concat(r.items); }
+        else failCount++;
+      });
+      /* Korte pauze tussen batches */
+      if (i + PARALLEL_BATCH < TELEGRAM_CHANNELS.length){
+        await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
+      }
+    }
+
+    /* SOHR */
+    await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
+    var sohr = await fetchOneSohr();
+    if (sohr.ok){ okCount++; allItems = allItems.concat(sohr.items); }
+    else failCount++;
+
+    return { allItems: allItems, okCount: okCount, failCount: failCount };
+  }
+
   async function runNow(opts){
     opts = opts || {};
     if (isRunning && !opts.force) return osintEvents;
     isRunning = true;
 
     var startTime = Date.now();
-    LOG("Run start — " + TELEGRAM_CHANNELS.length + " TG + SOHR");
+    LOG("Run start — " + TELEGRAM_CHANNELS.length + " TG + SOHR (parallel " + PARALLEL_BATCH + ")");
 
-    var allItems = [];
-    var successCount = 0;
-    var failCount = 0;
+    var result = await fetchAllSources();
 
-    /* ==== Telegram kanalen ==== */
-    for (var i = 0; i < TELEGRAM_CHANNELS.length; i++){
-      var ch = TELEGRAM_CHANNELS[i];
-      if (i > 0){
-        await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
-      }
-      try {
-        var res = await fetchViaProxies("https://t.me/s/" + ch.channel);
-        if (!res.ok){
-          LOG("@" + ch.channel + " — alle proxies faalden");
-          failCount++;
-          continue;
-        }
-        var posts = parseTelegramHtml(res.text, ch.channel);
-        posts.forEach(function(p){ p.hint = ch; });
-        allItems = allItems.concat(posts);
-        successCount++;
-        LOG("@" + ch.channel + " — " + posts.length + " posts");
-      } catch(e){
-        LOG("@" + ch.channel + " faalde: " + (e.message || "?"));
-        failCount++;
-      }
-    }
-
-    /* ==== SOHR RSS ==== */
-    try {
-      await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
-      var sohrRes = await fetchViaProxies(SOHR_RSS);
-      if (sohrRes.ok){
-        var sohrItems = parseSohrRss(sohrRes.text);
-        sohrItems.forEach(function(p){ p.hint = { country: "Syrië", region: "Midden-Oosten" }; });
-        allItems = allItems.concat(sohrItems);
-        successCount++;
-        LOG("SOHR — " + sohrItems.length + " items");
-      } else {
-        LOG("SOHR — alle proxies faalden");
-        failCount++;
-      }
-    } catch(e){
-      LOG("SOHR faalde: " + (e.message || "?"));
-      failCount++;
-    }
-
-    /* ==== Omzetten naar events ==== */
     var seen = {};
     var events = [];
-    allItems.forEach(function(item){
+    result.allItems.forEach(function(item){
       var ev = itemToEvent(item, item.hint);
       if (!ev) return;
       if (seen[ev.id]) return;
@@ -407,17 +358,15 @@
     isRunning = false;
 
     var elapsed = Date.now() - startTime;
-    LOG("Klaar — " + events.length + " events uit " + allItems.length +
-        " raw items | " + successCount + " bronnen OK, " + failCount + " faalden | " + elapsed + "ms");
+    LOG("Klaar — " + events.length + " events uit " + result.allItems.length +
+        " raw items | " + result.okCount + " bronnen OK, " + result.failCount + " faalden | " + elapsed + "ms");
 
-    /* Emit */
     try {
       if (window.WarDesk && WarDesk.events){
         WarDesk.events.emit("osint:military-events", osintEvents);
       }
     } catch(e){}
 
-    /* Persist meta */
     try {
       localStorage.setItem("wardesk_osint_lastRun", String(lastRun));
       localStorage.setItem("wardesk_osint_count", String(events.length));
@@ -441,13 +390,12 @@
       if (saved) lastRun = saved;
     } catch(e){}
 
-    /* Start na 15 sec (laat andere modules laden) */
     setTimeout(function(){
       runNow();
       scheduleNext();
-    }, 15000);
+    }, 8000);
 
-    LOG("Init klaar — " + TELEGRAM_CHANNELS.length + " TG kanalen + SOHR, refresh elke " + (REFRESH_MS/60000) + " min");
+    LOG("Init klaar — refresh elke " + (REFRESH_MS/60000) + " min, parallel " + PARALLEL_BATCH);
   }
 
   window.OSINTFeeds = {
@@ -455,9 +403,8 @@
     runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.0",
-    _channels: TELEGRAM_CHANNELS,
-    _sohr: SOHR_RSS
+    _version: "v2.1",
+    _channels: TELEGRAM_CHANNELS
   };
 
   if (document.readyState === "loading"){
@@ -466,5 +413,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.0 geladen (Telegram + SOHR)");
+  LOG("osint-feeds.js v2.1 geladen (parallel fetch)");
 })();
