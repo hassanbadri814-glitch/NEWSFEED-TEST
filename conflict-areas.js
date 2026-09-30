@@ -1,16 +1,10 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.8
-   - v11.8: YEM + SDN province-matching robuuster
-            (Hodeidah, West Kurdufan, en 40+ extra varianten)
-            + cache-versies YEM v2, SDN v3
-   - v11.7: +7 nieuwe conflicten: ETH, MMR, MLI, BFA, NER, COD, PAK
+   WAR DESK — conflict-areas.js v11.9
+   - v11.9: Slimmere matching (word-split) + fix BFA/NER/COD/ETH
+   - v11.8: YEM + SDN robuuster
+   - v11.7: +7 nieuwe conflicten
    - v11.6: MAP-LEVEL CLICK FALLBACK
-   - v11.5: Panel robuuster + fallback CSS
-   - v11.4: Sudan robuuste matching
-   - v11.3: Sudan toegevoegd (SAF vs RSF)
-   - v11.2: territory gain/loss visualisatie
-   - v11.1: UI-subtieler
-   - v11.0: AI-consensus integratie
+   - v11.5: Panel robuuster
    ============================================================ */
 
 (function(){
@@ -41,9 +35,6 @@
   }
 
   var CONFLICTS = {
-    /* ============================================================
-       BESTAANDE CONFLICTEN
-       ============================================================ */
     "UKR": {
       name: "Oekraïne", level: "ADM1", center: [49.0, 32.0, 6],
       parties: {
@@ -143,9 +134,6 @@
         snapshot:  { key: "wardesk_lebanon_snapshot",  version: "v1" }
       }
     },
-    /* ============================================================
-       v11.8: YEMEN — uitgebreide matching
-       ============================================================ */
     "YEM": {
       name: "Jemen", level: "ADM1", center: [15.55, 48.52, 6],
       parties: {
@@ -160,25 +148,25 @@
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
         { match: ["sa'dah", "sadah", "saadah", "saada"],         controller: "Houthi's" },
-        { match: ["san'a'", "sanaa", "sana", "amant alasimah", "amanat al asimah", "amanatalasimah"], controller: "Houthi's" },
+        { match: ["san'a'", "sanaa", "sana", "amantalasimah", "amanatalasimah"], controller: "Houthi's" },
         { match: ["amran"],                                       controller: "Houthi's" },
         { match: ["dhamar"],                                      controller: "Houthi's" },
-        { match: ["almahwit", "al mahwit", "mahwit"],             controller: "Houthi's" },
-        { match: ["raymah", "ray mah"],                           controller: "Houthi's" },
-        { match: ["alhaduyadah", "hodeidah", "al hudaydah", "alhudaydah", "hudaydah", "hudaidah"], controller: "Houthi's" },
+        { match: ["almahwit", "mahwit"],                          controller: "Houthi's" },
+        { match: ["raymah"],                                      controller: "Houthi's" },
+        { match: ["alhaduyadah", "hodeidah", "alhudaydah", "hudaydah", "hudaidah"], controller: "Houthi's" },
         { match: ["hajjah", "hajah"],                             controller: "Houthi's" },
         { match: ["ibb", "ib"],                                   controller: "Houthi's" },
         { match: ["ta'izz", "taizz", "taiz"],                     controller: "Houthi's" },
-        { match: ["albayda", "al bayda", "bayda"],                controller: "Houthi's" },
+        { match: ["albayda", "bayda"],                            controller: "Houthi's" },
         { match: ["ma'rib", "marib", "mareb"],                    controller: "Houthi's" },
-        { match: ["aljawf", "al jawf", "jawf", "aljauf"],         controller: "Houthi's" },
-        { match: ["aldali", "dhale", "ad dali", "addali", "dali"], controller: "Houthi's" },
+        { match: ["aljawf", "jawf", "aljauf"],                    controller: "Houthi's" },
+        { match: ["aldali", "dhale", "addali", "dali"],           controller: "Houthi's" },
         { match: ["'adan", "adan", "aden"],                       controller: "Regering" },
         { match: ["abyan"],                                       controller: "Regering" },
         { match: ["lahij", "lahj"],                               controller: "Regering" },
         { match: ["shabwah", "shabwa"],                           controller: "Regering" },
         { match: ["hadramawt", "hadramout", "hadhramaut"],        controller: "Regering" },
-        { match: ["almahrah", "mahra", "al mahrah"],              controller: "Regering" }
+        { match: ["almahrah", "mahra"],                           controller: "Regering" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
@@ -189,9 +177,6 @@
         snapshot:  { key: "wardesk_yemen_snapshot",  version: "v1" }
       }
     },
-    /* ============================================================
-       v11.8: SUDAN — uitgebreide matching
-       ============================================================ */
     "SDN": {
       name: "Soedan", level: "ADM1", center: [15.55, 32.53, 6],
       parties: {
@@ -205,32 +190,24 @@
       countrySources: adm0Sources("SDN"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["khartoum", "al khartum", "alkhartum", "khartum"],       controller: "RSF" },
-
-        /* Darfur */
-        { match: ["shamal darfur", "shamaldarfur", "north darfur", "northdarfur"],    controller: "RSF" },
-        { match: ["janub darfur", "janubdarfur", "south darfur", "southdarfur"],       controller: "RSF" },
-        { match: ["gharb darfur", "gharbdarfur", "west darfur", "westdarfur"],         controller: "RSF" },
-        { match: ["sharq darfur", "sharqdarfur", "east darfur", "eastdarfur"],         controller: "RSF" },
-        { match: ["wasat darfur", "wasatdarfur", "central darfur", "centraldarfur"],   controller: "RSF" },
-
-        /* Kordofan — alle varianten */
-        { match: ["shamal kurdufan", "shamalkurdufan", "shamal kordofan", "shamalkordofan", "north kurdufan", "northkordofan", "northkurdufan", "north kordofan"], controller: "RSF" },
-        { match: ["janub kurdufan", "janubkurdufan", "janub kordofan", "janubkordofan", "south kurdufan", "southkordofan", "southkurdufan", "south kordofan"], controller: "Regering" },
-        { match: ["gharb kurdufan", "gharbkurdufan", "gharb kordofan", "gharbkordofan", "west kurdufan", "westkurdufan", "west kordofan", "westkordofan"], controller: "RSF" },
-
-        /* Centraal */
-        { match: ["al jazirah", "aljazirah", "gezira", "al gezira", "algezira", "aljazeera sudan", "wad madani", "wadmadani"], controller: "RSF" },
-        { match: ["sinnar", "sennar", "sannar", "sennar state", "sinnar state"],                                       controller: "RSF" },
-
-        /* Oost / Noord — Regering */
-        { match: ["an nil al abyad", "annilalabyad", "white nile", "whitenile", "whitenile state"],       controller: "Regering" },
-        { match: ["an nil al azraq", "annilalazraq", "blue nile", "bluenile", "bluenile state"],         controller: "Regering" },
-        { match: ["nahr an nil", "nahranil", "river nile", "rivernile", "rivernile state"],               controller: "Regering" },
-        { match: ["al bahr al ahmar", "albahralahmar", "red sea", "redsea", "redsea state"],             controller: "Regering" },
-        { match: ["kassala", "kassala state"],                                                           controller: "Regering" },
-        { match: ["al qadarif", "alqadarif", "gedaref", "qadarif", "alqadarif state", "gedaref state"],  controller: "Regering" },
-        { match: ["ash shamaliyah", "ashshamaliyah", "northern", "northern state"],                      controller: "Regering" }
+        { match: ["khartoum", "khartum"],       controller: "RSF" },
+        { match: ["shamaldarfur", "northdarfur", "shamal darfur", "north darfur"],    controller: "RSF" },
+        { match: ["janubdarfur", "southdarfur", "janub darfur", "south darfur"],       controller: "RSF" },
+        { match: ["gharbdarfur", "westdarfur", "gharb darfur", "west darfur"],         controller: "RSF" },
+        { match: ["sharqdarfur", "eastdarfur", "sharq darfur", "east darfur"],         controller: "RSF" },
+        { match: ["wasatdarfur", "centraldarfur", "wasat darfur", "central darfur"],   controller: "RSF" },
+        { match: ["shamalkurdufan", "shamalkordofan", "northkurdufan", "northkordofan", "shamal kurdufan", "shamal kordofan", "north kurdufan", "north kordofan"], controller: "RSF" },
+        { match: ["janubkurdufan", "janubkordofan", "southkurdufan", "southkordofan", "janub kurdufan", "janub kordofan", "south kurdufan", "south kordofan"], controller: "Regering" },
+        { match: ["gharbkurdufan", "gharbkordofan", "westkurdufan", "westkordofan", "gharb kurdufan", "gharb kordofan", "west kurdufan", "west kordofan"], controller: "RSF" },
+        { match: ["aljazirah", "gezira", "algezira", "al jazirah", "al gezira", "wadmadani"], controller: "RSF" },
+        { match: ["sinnar", "sennar", "sannar"],                                       controller: "RSF" },
+        { match: ["annilalabyad", "whitenile", "an nil al abyad", "white nile"],       controller: "Regering" },
+        { match: ["annilalazraq", "bluenile", "an nil al azraq", "blue nile"],         controller: "Regering" },
+        { match: ["nahranil", "rivernile", "nahr an nil", "river nile"],               controller: "Regering" },
+        { match: ["albahralahmar", "redsea", "al bahr al ahmar", "red sea"],           controller: "Regering" },
+        { match: ["kassala"],                                                         controller: "Regering" },
+        { match: ["alqadarif", "gedaref", "qadarif", "al qadarif"],                    controller: "Regering" },
+        { match: ["ashshamaliyah", "northern", "ash shamaliyah", "northern state"],    controller: "Regering" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
@@ -323,6 +300,9 @@
         snapshot:  { key: "wardesk_palestine_snapshot", version: "v1" }
       }
     },
+    /* ============================================================
+       v11.9 — ETHIOPIË met nieuwe regio's (2023+)
+       ============================================================ */
     "ETH": {
       name: "Ethiopië", level: "ADM1", center: [11.0, 39.0, 6],
       parties: {
@@ -342,11 +322,21 @@
         { match: ["amhara"],                 controller: "Fano (Amhara)" },
         { match: ["afar"],                   controller: "TPLF (Tigray)" },
         { match: ["oromia"],                 controller: "OLA (Oromia)" },
-        { match: ["benishangul", "gumuz"],   controller: "Federale regering" }
+        { match: ["benishangul", "gumuz"],   controller: "Federale regering" },
+        { match: ["gambela"],                controller: "Federale regering" },
+        { match: ["somali"],                 controller: "Federale regering" },
+        { match: ["sidama"],                 controller: "Federale regering" },
+        { match: ["southwest", "south west"],controller: "Federale regering" },
+        { match: ["central ethiopia"],       controller: "Federale regering" },
+        { match: ["south ethiopia"],         controller: "Federale regering" },
+        { match: ["snnpr", "southern nations"], controller: "Federale regering" },
+        { match: ["addis ababa", "addisababa"], controller: "Federale regering" },
+        { match: ["dire dawa", "diredawa"],  controller: "Federale regering" },
+        { match: ["harari"],                 controller: "Federale regering" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_ethiopia_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_ethiopia_adm1",   version: "v2" },
         country:   { key: "wardesk_ethiopia_country", version: "v1" },
         deepState: { key: "wardesk_ethiopia_ds",     version: "v1" },
         isw:       { key: "wardesk_ethiopia_isw",    version: "v1" },
@@ -378,15 +368,16 @@
         { match: ["shan"],                       controller: "Militaire junta" },
         { match: ["chin"],                       controller: "NUG (verzet)" },
         { match: ["bago"],                       controller: "NUG (verzet)" },
-        { match: ["ayeyarwady"],                 controller: "Militaire junta" },
-        { match: ["yangon"],                     controller: "Militaire junta" },
-        { match: ["naypyidaw"],                  controller: "Militaire junta" },
+        { match: ["ayeyarwady", "irrawaddy"],    controller: "Militaire junta" },
+        { match: ["yangon", "rangoon"],          controller: "Militaire junta" },
+        { match: ["naypyidaw", "naypyitaw"],     controller: "Militaire junta" },
         { match: ["mon"],                        controller: "Militaire junta" },
-        { match: ["kayah"],                      controller: "Militaire junta" }
+        { match: ["kayah", "karenni"],           controller: "Militaire junta" },
+        { match: ["tanintharyi", "tenasserim"],  controller: "Militaire junta" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_myanmar_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_myanmar_adm1",   version: "v2" },
         country:   { key: "wardesk_myanmar_country", version: "v1" },
         deepState: { key: "wardesk_myanmar_ds",     version: "v1" },
         isw:       { key: "wardesk_myanmar_isw",    version: "v1" },
@@ -415,17 +406,21 @@
         { match: ["segou"],      controller: "Junta (Regering)" },
         { match: ["koulikoro"],  controller: "Junta (Regering)" },
         { match: ["sikasso"],    controller: "Junta (Regering)" },
-        { match: ["kayes"],      controller: "Junta (Regering)" }
+        { match: ["kayes"],      controller: "Junta (Regering)" },
+        { match: ["bamako"],     controller: "Junta (Regering)" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_mali_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_mali_adm1",   version: "v2" },
         country:   { key: "wardesk_mali_country", version: "v1" },
         deepState: { key: "wardesk_mali_ds",     version: "v1" },
         isw:       { key: "wardesk_mali_isw",    version: "v1" },
         snapshot:  { key: "wardesk_mali_snapshot", version: "v1" }
       }
     },
+    /* ============================================================
+       v11.9 — BURKINA FASO met alle varianten
+       ============================================================ */
     "BFA": {
       name: "Burkina Faso", level: "ADM1", center: [12.3, -1.6, 7],
       parties: {
@@ -440,23 +435,24 @@
       countrySources: adm0Sources("BFA"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["sahel"],          controller: "JNIM (Jihadisten)" },
-        { match: ["east", "est"],    controller: "JNIM (Jihadisten)" },
-        { match: ["boucle du mouhoun", "boucledumouhoun"], controller: "JNIM (Jihadisten)" },
-        { match: ["nord", "north"],  controller: "JNIM (Jihadisten)" },
-        { match: ["centre-nord", "centrenord"], controller: "JNIM (Jihadisten)" },
-        { match: ["centre-est", "centreest"], controller: "JNIM (Jihadisten)" },
-        { match: ["cascades"],       controller: "Junta (Regering)" },
-        { match: ["hauts-bassins", "hautsbassins"], controller: "Junta (Regering)" },
-        { match: ["sud-ouest", "sudouest"], controller: "Junta (Regering)" },
-        { match: ["centre-sud", "centresud"], controller: "Junta (Regering)" },
-        { match: ["plateau-central", "plateaucentral"], controller: "Junta (Regering)" },
-        { match: ["centre-ouest", "centreouest"], controller: "Junta (Regering)" },
-        { match: ["centre", "kadiogo"], controller: "Junta (Regering)" }
+        { match: ["sahel"],                              controller: "JNIM (Jihadisten)" },
+        { match: ["est", "east"],                        controller: "JNIM (Jihadisten)" },
+        { match: ["boucledumouhoun", "boucle"],          controller: "JNIM (Jihadisten)" },
+        { match: ["nord", "north"],                      controller: "JNIM (Jihadisten)" },
+        { match: ["centrenord"],                         controller: "JNIM (Jihadisten)" },
+        { match: ["centreest"],                          controller: "JNIM (Jihadisten)" },
+        { match: ["cascades"],                           controller: "Junta (Regering)" },
+        { match: ["hautsbassins", "hauts"],              controller: "Junta (Regering)" },
+        { match: ["sudouest"],                           controller: "Junta (Regering)" },
+        { match: ["centresud"],                          controller: "Junta (Regering)" },
+        { match: ["plateaucentral", "plateau"],          controller: "Junta (Regering)" },
+        { match: ["centreouest"],                        controller: "Junta (Regering)" },
+        { match: ["centre"],                             controller: "Junta (Regering)" },
+        { match: ["kadiogo", "ouagadougou"],             controller: "Junta (Regering)" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_burkina_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_burkina_adm1",   version: "v2" },
         country:   { key: "wardesk_burkina_country", version: "v1" },
         deepState: { key: "wardesk_burkina_ds",     version: "v1" },
         isw:       { key: "wardesk_burkina_isw",    version: "v1" },
@@ -478,24 +474,27 @@
       countrySources: adm0Sources("NER"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["tillaberi"],     controller: "JNIM (Jihadisten)" },
-        { match: ["tahoua"],        controller: "IS Sahel" },
-        { match: ["diffa"],         controller: "Boko Haram/ISWAP" },
-        { match: ["maradi"],        controller: "IS Sahel" },
-        { match: ["dosso"],         controller: "IS Sahel" },
-        { match: ["agadez"],        controller: "Junta (Regering)" },
-        { match: ["zinder"],        controller: "Boko Haram/ISWAP" },
-        { match: ["niamey"],        controller: "Junta (Regering)" }
+        { match: ["tillaberi", "tillabery"],        controller: "JNIM (Jihadisten)" },
+        { match: ["tahoua"],                        controller: "IS Sahel" },
+        { match: ["diffa"],                         controller: "Boko Haram/ISWAP" },
+        { match: ["maradi"],                        controller: "IS Sahel" },
+        { match: ["dosso"],                         controller: "IS Sahel" },
+        { match: ["agadez"],                        controller: "Junta (Regering)" },
+        { match: ["zinder"],                        controller: "Boko Haram/ISWAP" },
+        { match: ["niamey"],                        controller: "Junta (Regering)" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_niger_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_niger_adm1",   version: "v2" },
         country:   { key: "wardesk_niger_country", version: "v1" },
         deepState: { key: "wardesk_niger_ds",     version: "v1" },
         isw:       { key: "wardesk_niger_isw",    version: "v1" },
         snapshot:  { key: "wardesk_niger_snapshot", version: "v1" }
       }
     },
+    /* ============================================================
+       v11.9 — DR CONGO met alle 26 provincies
+       ============================================================ */
     "COD": {
       name: "DR Congo", level: "ADM1", center: [-2.5, 26.0, 6],
       parties: {
@@ -510,22 +509,38 @@
       countrySources: adm0Sources("COD"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["nord-kivu", "northkivu"], controller: "M23/AFC" },
-        { match: ["sud-kivu", "southkivu"],  controller: "M23/AFC" },
-        { match: ["tanganyika"],             controller: "M23/AFC" },
-        { match: ["maniema"],                controller: "Regering (FARDC)" },
-        { match: ["kasaï", "kasai"],         controller: "Regering (FARDC)" },
-        { match: ["katanga", "haut-katanga", "lualaba", "haut-lomami", "tanganika"], controller: "Regering (FARDC)" },
-        { match: ["kinshasa"],               controller: "Regering (FARDC)" },
-        { match: ["équateur", "equateur"],   controller: "Regering (FARDC)" },
-        { match: ["orientale", "bas-uele", "haut-uele", "ituri", "tshopo"], controller: "M23/AFC" },
-        { match: ["kongo central", "kongocentral"], controller: "Regering (FARDC)" },
-        { match: ["kwilu", "kwango", "mai-ndombe"], controller: "Regering (FARDC)" },
-        { match: ["lomami", "sankuru", "maniema"], controller: "Regering (FARDC)" }
+        /* Oost — M23/AFC actief */
+        { match: ["nordkivu"],          controller: "M23/AFC" },
+        { match: ["sudkivu"],           controller: "M23/AFC" },
+        { match: ["tanganyika"],        controller: "M23/AFC" },
+        { match: ["ituri"],             controller: "M23/AFC" },
+        { match: ["tshopo"],            controller: "M23/AFC" },
+        { match: ["hautuele"],          controller: "M23/AFC" },
+        { match: ["basuele"],           controller: "M23/AFC" },
+        { match: ["maniema"],           controller: "M23/AFC" },
+        /* Centraal / west — Regering */
+        { match: ["kinshasa"],          controller: "Regering (FARDC)" },
+        { match: ["kongocentral"],      controller: "Regering (FARDC)" },
+        { match: ["kwango"],            controller: "Regering (FARDC)" },
+        { match: ["kwilu"],             controller: "Regering (FARDC)" },
+        { match: ["maindombe"],         controller: "Regering (FARDC)" },
+        { match: ["equateur"],          controller: "Regering (FARDC)" },
+        { match: ["mongala"],           controller: "Regering (FARDC)" },
+        { match: ["nordubangi"],        controller: "Regering (FARDC)" },
+        { match: ["sudubangi"],         controller: "Regering (FARDC)" },
+        { match: ["tshuapa"],           controller: "Regering (FARDC)" },
+        { match: ["kasai"],             controller: "Regering (FARDC)" },
+        { match: ["kasaicentral"],      controller: "Regering (FARDC)" },
+        { match: ["kasaioriental"],     controller: "Regering (FARDC)" },
+        { match: ["lomami"],            controller: "Regering (FARDC)" },
+        { match: ["sankuru"],           controller: "Regering (FARDC)" },
+        { match: ["hautkatanga"],       controller: "Regering (FARDC)" },
+        { match: ["hautlomami"],        controller: "Regering (FARDC)" },
+        { match: ["lualaba"],           controller: "Regering (FARDC)" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_drc_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_drc_adm1",   version: "v2" },
         country:   { key: "wardesk_drc_country", version: "v1" },
         deepState: { key: "wardesk_drc_ds",     version: "v1" },
         isw:       { key: "wardesk_drc_isw",    version: "v1" },
@@ -546,17 +561,17 @@
       countrySources: adm0Sources("PAK"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        { match: ["khyber pakhtunkhwa", "khyberpakhtunkhwa", "kp"], controller: "Afghanistan (Taliban)" },
-        { match: ["balochistan"],                                    controller: "Afghanistan (Taliban)" },
-        { match: ["gilgit-baltistan", "gilgitbaltistan"],            controller: "India (grens)" },
-        { match: ["punjab"],                                         controller: "India (grens)" },
-        { match: ["sindh"],                                          controller: "India (grens)" },
-        { match: ["islamabad"],                                      controller: "Pakistan (Regering)" },
-        { match: ["azad kashmir", "azadkashmir"],                    controller: "India (grens)" }
+        { match: ["khyberpakhtunkhwa", "khyber"],   controller: "Afghanistan (Taliban)" },
+        { match: ["balochistan"],                    controller: "Afghanistan (Taliban)" },
+        { match: ["gilgitbaltistan", "gilgit"],      controller: "India (grens)" },
+        { match: ["punjab"],                         controller: "India (grens)" },
+        { match: ["sindh"],                          controller: "India (grens)" },
+        { match: ["islamabad"],                      controller: "Pakistan (Regering)" },
+        { match: ["azadkashmir", "kashmir"],         controller: "India (grens)" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_pakistan_adm1",   version: "v1" },
+        oblasts:   { key: "wardesk_pakistan_adm1",   version: "v2" },
         country:   { key: "wardesk_pakistan_country", version: "v1" },
         deepState: { key: "wardesk_pakistan_ds",     version: "v1" },
         isw:       { key: "wardesk_pakistan_isw",    version: "v1" },
@@ -701,17 +716,34 @@
       .replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
   }
 
+  /* ============================================================
+     v11.9: SLIMMERE MATCHING — check per woord + substring
+     ============================================================ */
   function findProvinceRule(nameOrProvince, rules){
     if(!nameOrProvince || !rules || !rules.length) return null;
     var norm = normalize(nameOrProvince);
     if(!norm) return null;
+
     for(var i = 0; i < rules.length; i++){
       var entry = rules[i];
       if(!entry || !entry.match) continue;
       for(var j = 0; j < entry.match.length; j++){
         var needle = normalize(entry.match[j]);
         if(!needle) continue;
+
+        /* Exacte match */
+        if(norm === needle) return entry;
+
+        /* Substring match */
         if(norm.indexOf(needle) !== -1) return entry;
+
+        /* Lengte-check om valse positieven te voorkomen */
+        if(needle.length >= 5 && norm.length >= 5){
+          /* Fuzzy: kijk of begin van naam overeenkomt */
+          if(norm.substring(0, needle.length) === needle) return entry;
+          /* Of needle in norm */
+          if(needle.indexOf(norm) !== -1) return entry;
+        }
       }
     }
     return null;
@@ -1146,6 +1178,7 @@
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
     stats.total = 0; stats.unknown = 0;
+    var unmatchedNames = [];
 
     geojson.features.forEach(function(feature){
       if(!feature || !feature.properties) return;
@@ -1175,6 +1208,7 @@
         props.controller = null;
         props.control_source = "Onbekend";
         stats.unknown++;
+        if (unmatchedNames.length < 50) unmatchedNames.push(props.name);
         return;
       }
 
@@ -1207,6 +1241,11 @@
     });
 
     CA.stats[conflictIso] = stats;
+
+    /* Log unmatched provinces voor debugging */
+    if (unmatchedNames.length > 0 && window.WD_DEBUG) {
+      LOG("[" + conflictIso + "] " + stats.unknown + " unmatched: " + unmatchedNames.slice(0, 10).join(", "));
+    }
   }
 
   function calculateAttackIntensity(conflictIso){
@@ -2194,7 +2233,7 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.8",
+    state: CA, _version: "v11.9",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2203,6 +2242,24 @@
       var areas = CA.areas[iso] || [];
       if (areas.length) openPanel(areas[0], iso);
       else LOG("Geen areas om te testen");
+    },
+    /* v11.9: DEBUG — dump alle unmatched provincies */
+    dumpUnmatched: function(){
+      var out = {};
+      ACTIVE_CONFLICTS.forEach(function(iso){
+        var g = CA.geojsons[iso];
+        if (!g || !g.features) return;
+        var unmatched = [];
+        g.features.forEach(function(f){
+          if (f.properties && !f.properties.controller){
+            unmatched.push(f.properties.name);
+          }
+        });
+        if (unmatched.length) out[iso] = unmatched;
+      });
+      console.log("=== UNMATCHED PROVINCES ===");
+      console.log(JSON.stringify(out, null, 2));
+      return out;
     }
   };
 
@@ -2245,5 +2302,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.8 geladen (" + ACTIVE_CONFLICTS.length + " conflicten)");
+  LOG("conflict-areas.js v11.9 geladen (" + ACTIVE_CONFLICTS.length + " conflicten)");
 })();
