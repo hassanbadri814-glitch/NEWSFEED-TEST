@@ -1,11 +1,13 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.5
-   - v11.5: FIX panel visibility robuust
-            + inline CSS fallback
-            + debug logging
-            + z-index verhoogd
+   WAR DESK — conflict-areas.js v11.6
+   - v11.6: MAP-LEVEL CLICK FALLBACK — paneel werkt altijd,
+            ongeacht of de SVG-path klikbaar is
+   - v11.5: Panel robuuster + inline fallback CSS
    - v11.4: Sudan robuuste matching
-   - v11.3: Sudan toegevoegd
+   - v11.3: Sudan toegevoegd (SAF vs RSF)
+   - v11.2: territory gain/loss visualisatie
+   - v11.1: UI-subtieler
+   - v11.0: AI-consensus integratie
    ============================================================ */
 
 (function(){
@@ -404,6 +406,8 @@
     pulsePhase: 0,
     isMapActive: true,
     _zoomBound: false,
+    _mapClickBound: false,
+    _lastOpenPanelTime: 0,
     _snapshotSavedFor: {},
     _currentConflictIso: null,
     _currentConflict: null,
@@ -1323,7 +1327,7 @@
   }
 
   /* ============================================================
-     v11.5: PANEL — robuuster met inline fallback CSS
+     v11.5: Panel styles — robuust met !important
      ============================================================ */
   function injectPanelStyles(){
     if(document.getElementById("caPanelFallbackStyles")) return;
@@ -1331,100 +1335,39 @@
     s.id = "caPanelFallbackStyles";
     s.textContent =
       "#caAreaPanel.wm-country-panel{" +
-        "position:fixed!important;" +
-        "left:0!important;" +
-        "right:0!important;" +
-        "bottom:0!important;" +
-        "background:#111b2d!important;" +
-        "color:#e6ebf5!important;" +
+        "position:fixed!important;left:0!important;right:0!important;bottom:0!important;" +
+        "background:#111b2d!important;color:#e6ebf5!important;" +
         "border-top:1px solid rgba(224,168,87,.4)!important;" +
-        "border-top-left-radius:18px!important;" +
-        "border-top-right-radius:18px!important;" +
-        "max-height:75vh!important;" +
-        "overflow-y:auto!important;" +
-        "z-index:99999!important;" +
+        "border-top-left-radius:18px!important;border-top-right-radius:18px!important;" +
+        "max-height:75vh!important;overflow-y:auto!important;z-index:99999!important;" +
         "transform:translateY(100%)!important;" +
         "transition:transform .3s cubic-bezier(.2,.9,.3,1)!important;" +
         "box-shadow:0 -10px 40px rgba(0,0,0,.7)!important;" +
         "padding-bottom:env(safe-area-inset-bottom,0)!important;" +
-        "display:block!important;" +
-        "visibility:visible!important;" +
-        "pointer-events:auto!important;" +
+        "display:block!important;visibility:visible!important;pointer-events:auto!important;" +
       "}" +
-      "#caAreaPanel.wm-country-panel.show{" +
-        "transform:translateY(0)!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-head{" +
-        "display:flex!important;align-items:center!important;justify-content:space-between!important;" +
-        "padding:.9rem 1rem .7rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;" +
-        "position:sticky!important;top:0!important;background:#111b2d!important;z-index:2!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-title{" +
-        "font-family:'Playfair Display',serif!important;font-size:1.1rem!important;" +
-        "font-weight:700!important;color:#e6ebf5!important;margin:0!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-close{" +
-        "width:32px!important;height:32px!important;border-radius:50%!important;" +
-        "background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.12)!important;" +
-        "color:#8a94a8!important;font-size:.9rem!important;display:grid!important;place-items:center!important;" +
-        "cursor:pointer!important;font-family:inherit!important;padding:0!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-stats{" +
-        "display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:.5rem!important;" +
-        "padding:.75rem 1rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-stat{" +
-        "text-align:center!important;padding:.5rem .3rem!important;" +
-        "background:rgba(255,255,255,.04)!important;border-radius:8px!important;" +
-        "border:1px solid rgba(255,255,255,.06)!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-stat-val{" +
-        "font-size:1.2rem!important;font-weight:800!important;color:#e0a857!important;line-height:1!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-stat-lbl{" +
-        "font-size:.6rem!important;text-transform:uppercase!important;letter-spacing:.05em!important;" +
-        "color:#6b7a93!important;margin-top:.2rem!important;font-weight:700!important;" +
-      "}" +
+      "#caAreaPanel.wm-country-panel.show{transform:translateY(0)!important;}" +
+      "#caAreaPanel .wm-panel-head{display:flex!important;align-items:center!important;justify-content:space-between!important;padding:.9rem 1rem .7rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;position:sticky!important;top:0!important;background:#111b2d!important;z-index:2!important;}" +
+      "#caAreaPanel .wm-panel-title{font-family:'Playfair Display',serif!important;font-size:1.1rem!important;font-weight:700!important;color:#e6ebf5!important;margin:0!important;}" +
+      "#caAreaPanel .wm-panel-close{width:32px!important;height:32px!important;border-radius:50%!important;background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.12)!important;color:#8a94a8!important;font-size:.9rem!important;display:grid!important;place-items:center!important;cursor:pointer!important;font-family:inherit!important;padding:0!important;}" +
+      "#caAreaPanel .wm-panel-stats{display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:.5rem!important;padding:.75rem 1rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;}" +
+      "#caAreaPanel .wm-panel-stat{text-align:center!important;padding:.5rem .3rem!important;background:rgba(255,255,255,.04)!important;border-radius:8px!important;border:1px solid rgba(255,255,255,.06)!important;}" +
+      "#caAreaPanel .wm-panel-stat-val{font-size:1.2rem!important;font-weight:800!important;color:#e0a857!important;line-height:1!important;}" +
+      "#caAreaPanel .wm-panel-stat-lbl{font-size:.6rem!important;text-transform:uppercase!important;letter-spacing:.05em!important;color:#6b7a93!important;margin-top:.2rem!important;font-weight:700!important;}" +
       "#caAreaPanel .wm-panel-stat.conf-high .wm-panel-stat-val{color:#10b981!important;}" +
       "#caAreaPanel .wm-panel-stat.conf-med .wm-panel-stat-val{color:#f59e0b!important;}" +
       "#caAreaPanel .wm-panel-stat.conf-low .wm-panel-stat-val{color:#f87171!important;}" +
-      "#caAreaPanel .wm-panel-conf-detail{" +
-        "grid-column:1/-1!important;font-size:.7rem!important;color:#6b7a93!important;" +
-        "text-align:center!important;padding:.2rem 0 .1rem!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-events{max-height:none!important;}" +
-      "#caAreaPanel .wm-panel-event{" +
-        "padding:.7rem 1rem!important;border-bottom:1px solid rgba(255,255,255,.05)!important;" +
-        "cursor:pointer!important;transition:background .15s!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-event:hover{background:rgba(255,255,255,.03)!important;}" +
+      "#caAreaPanel .wm-panel-conf-detail{grid-column:1/-1!important;font-size:.7rem!important;color:#6b7a93!important;text-align:center!important;padding:.2rem 0 .1rem!important;}" +
+      "#caAreaPanel .wm-panel-event{padding:.7rem 1rem!important;border-bottom:1px solid rgba(255,255,255,.05)!important;cursor:pointer!important;}" +
       "#caAreaPanel .wm-panel-event:last-child{border-bottom:none!important;}" +
-      "#caAreaPanel .wm-panel-event-title{" +
-        "font-size:.78rem!important;font-weight:600!important;line-height:1.3!important;" +
-        "color:#e6ebf5!important;margin-bottom:.25rem!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-event-meta{" +
-        "display:flex!important;gap:.4rem!important;align-items:center!important;" +
-        "font-size:.62rem!important;color:#6b7a93!important;flex-wrap:wrap!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-event-src{" +
-        "color:#e0a857!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:.03em!important;" +
-      "}" +
+      "#caAreaPanel .wm-panel-event-title{font-size:.78rem!important;font-weight:600!important;line-height:1.3!important;color:#e6ebf5!important;margin-bottom:.25rem!important;}" +
+      "#caAreaPanel .wm-panel-event-meta{display:flex!important;gap:.4rem!important;align-items:center!important;font-size:.62rem!important;color:#6b7a93!important;flex-wrap:wrap!important;}" +
+      "#caAreaPanel .wm-panel-event-src{color:#e0a857!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
       "#caAreaPanel .wm-panel-event-dot{opacity:.4!important;}" +
       "#caAreaPanel .wm-panel-event-sub{color:#6b7a93!important;opacity:.8!important;}" +
-      "#caAreaPanel .wm-ev-physical{" +
-        "background:rgba(230,57,80,.15)!important;color:#ff8090!important;" +
-        "padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;" +
-        "font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;" +
-      "}" +
-      "#caAreaPanel .wm-ev-political{" +
-        "background:rgba(107,122,147,.15)!important;color:#a3adc0!important;" +
-        "padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;" +
-        "font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;" +
-      "}" +
-      "#caAreaPanel .wm-panel-empty{" +
-        "padding:1.5rem 1rem!important;text-align:center!important;color:#6b7a93!important;font-size:.78rem!important;" +
-      "}";
+      "#caAreaPanel .wm-ev-physical{background:rgba(230,57,80,.15)!important;color:#ff8090!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
+      "#caAreaPanel .wm-ev-political{background:rgba(107,122,147,.15)!important;color:#a3adc0!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
+      "#caAreaPanel .wm-panel-empty{padding:1.5rem 1rem!important;text-align:center!important;color:#6b7a93!important;font-size:.78rem!important;}";
     document.head.appendChild(s);
   }
 
@@ -1484,7 +1427,13 @@
     return Math.floor(diff / 86400) + "d";
   }
 
+  /* ============================================================
+     v11.6: openPanel met dubbele-open preventie
+     ============================================================ */
   function openPanel(area, conflictIso){
+    if (CA._lastOpenPanelTime && Date.now() - CA._lastOpenPanelTime < 500) return;
+    CA._lastOpenPanelTime = Date.now();
+
     LOG("openPanel aangeroepen voor: " + (area && area.feature && area.feature.properties && area.feature.properties.name));
     try {
       var panel = ensurePanel();
@@ -1572,6 +1521,62 @@
   function closePanel(){
     if(CA.panel) CA.panel.classList.remove("show");
     CA.selectedId = null;
+  }
+
+  /* ============================================================
+     v11.6: MAP-LEVEL CLICK FALLBACK
+     Werkt altijd, ongeacht of de SVG-path clickbaar is
+     ============================================================ */
+  function bindMapClickFallback(){
+    if (!CA.map) return;
+    if (CA._mapClickBound) return;
+    CA._mapClickBound = true;
+
+    CA.map.on("click", function(e){
+      try {
+        // Skip als het paneel net is geopend
+        if (CA._lastOpenPanelTime && Date.now() - CA._lastOpenPanelTime < 800) return;
+
+        var zoom = CA.map.getZoom();
+        if (zoom < 4) return; // te ver uitgezoomd
+
+        var lat = e.latlng.lat;
+        var lng = e.latlng.lng;
+
+        // Skip als er een marker-popup open is
+        try {
+          if (CA.map._popup && CA.map._popup.isOpen && CA.map._popup.isOpen()) return;
+        } catch(err){}
+
+        // Loop door alle conflictgebieden en vind de provincie
+        for (var i = 0; i < ACTIVE_CONFLICTS.length; i++){
+          var iso = ACTIVE_CONFLICTS[i];
+          var geojson = CA.geojsons[iso];
+          if (!geojson || !geojson.features) continue;
+
+          for (var j = 0; j < geojson.features.length; j++){
+            var f = geojson.features[j];
+            if (!f || !f.geometry) continue;
+            if (featureContainsPoint(f, lng, lat)){
+              var area = {
+                id: f.properties.id,
+                name: f.properties.name,
+                provinceName: f.properties.provinceName,
+                controller: f.properties.controller,
+                feature: f
+              };
+              LOG("Map-click fallback → " + iso + " · " + (f.properties.name || "?"));
+              openPanel(area, iso);
+              return;
+            }
+          }
+        }
+      } catch(err){
+        LOG("Map-click fallback fout: " + (err.message || "?"));
+      }
+    });
+
+    LOG("Map-level click fallback gebonden");
   }
 
   function onEachAreaFor(conflictIso){
@@ -1828,6 +1833,7 @@
       CA.isLoaded = true;
       ensurePanes(CA.map);
       bindZoomListener();
+      bindMapClickFallback();   /* v11.6 */
       injectAreaStyles();
       injectPanelStyles();
       hookLegendRefresh();
@@ -1937,11 +1943,10 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.5",
+    state: CA, _version: "v11.6",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
-    /* Debug helper */
     testPanel: function(){
       var iso = ACTIVE_CONFLICTS[0];
       var areas = CA.areas[iso] || [];
@@ -1989,5 +1994,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.5 geladen (panel fix + fallback CSS)");
+  LOG("conflict-areas.js v11.6 geladen (map-click fallback)");
 })();
