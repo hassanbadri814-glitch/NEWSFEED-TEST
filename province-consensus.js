@@ -1,10 +1,9 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.9
-   - v1.9: Cluster-bronnen meenemen + politiek/protest boost
-   - v1.8: (niet uitgebracht)
+   WAR DESK — province-consensus.js v1.10
+   - v1.10: OSINT events triggeren vertaling (uk/ru/ar)
+   - v1.9: cluster-bronnen + politiek-boost
    - v1.7: OSINT events listener
    - v1.6: contested drempel versoepeld
-   - v1.5: non-physical 0.3 weight
    ============================================================ */
 
 (function(){
@@ -142,9 +141,13 @@
     return null;
   }
 
+  /* ============================================================
+     v1.10: OSINT events verzamelen + vertaling triggeren
+     ============================================================ */
   function collectEvents(){
     var combined = [];
     var state = window.MAPAPI && window.MAPAPI.state;
+
     if(state){
       if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
         combined = combined.concat(state.militaryEvents);
@@ -152,11 +155,25 @@
         combined = combined.concat(state.events);
       }
     }
+
     if(!combined.length && Array.isArray(lastEvents) && lastEvents.length > 0){
       combined = combined.concat(lastEvents);
     }
+
     if(Array.isArray(osintEvents) && osintEvents.length > 0){
       combined = combined.concat(osintEvents);
+
+      /* v1.10: trigger vertaling voor OSINT events met uk/ru/ar */
+      try {
+        if(window.NewsAPI && window.NewsAPI.ensureTranslations){
+          var toTranslate = osintEvents.filter(function(ev){
+            return ev.lang && ev.lang !== "en" && ev.lang !== "unknown";
+          }).slice(0, 20);
+          if(toTranslate.length > 0){
+            window.NewsAPI.ensureTranslations(toTranslate);
+          }
+        }
+      } catch(e){}
     }
     return combined;
   }
@@ -197,16 +214,14 @@
     return [];
   }
 
-  /* v1.9: categorie-boost per category */
   function getCategoryBoost(category){
     if(category === "militair" || category === "crime") return 1.0;
     if(category === "politiek") return 0.4;
     if(category === "protest") return 0.3;
     if(category === "civiel") return 0.2;
-    return 0;  /* onbekend → skip */
+    return 0;
   }
 
-  /* v1.9: alle bronnen van een cluster/event ophalen */
   function getAllSources(ev){
     var all = [];
     if(ev.source) all.push(ev.source);
@@ -221,7 +236,6 @@
   function processEvent(ev, aggregator){
     if(!ev) return;
 
-    /* v1.9: categorie-boost — politiek/protest ook meetellen */
     var categoryBoost = getCategoryBoost(ev.category);
     if(categoryBoost === 0) return;
 
@@ -286,7 +300,6 @@
       ab.count++;
       ab.lastClaim = Math.max(ab.lastClaim, ts);
 
-      /* v1.9: alle cluster-bronnen tellen mee voor confidence */
       getAllSources(ev).forEach(function(src){
         if(!src) return;
         ab.sources[src] = 1;
@@ -476,8 +489,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.9"
+    _version: "v1.10"
   };
 
-  LOG("province-consensus.js v1.9 geladen (cluster-bronnen + politiek-boost)");
+  LOG("province-consensus.js v1.10 geladen (OSINT vertaling trigger)");
 })();
