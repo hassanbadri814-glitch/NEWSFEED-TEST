@@ -1,5 +1,7 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.3
+   WAR DESK — conflict-areas.js v11.4
+   - v11.4: Sudan province-matching robuuster (West Kurdufan fix)
+            + cache-versie SDN v2 om GADM te forceren herladen
    - v11.3: SUDAN toegevoegd (SAF vs RSF) + neighbours uitgebreid
    - v11.2: territory gain/loss visualisatie via events
    - v11.1: UI-SUBTIELER (gele randen weg, UNDOF weg)
@@ -174,7 +176,9 @@
       }
     },
     /* ============================================================
-       v11.3: SUDAN — Regering (SAF) vs RSF
+       v11.4: SUDAN — Regering (SAF) vs RSF
+       - Robuustere matching: Engelse + Arabische benamingen
+       - Cache-versie v2 om GADM opnieuw te laden
        ============================================================ */
     "SDN": {
       name: "Soedan", level: "ADM1", center: [15.55, 32.53, 6],
@@ -190,38 +194,38 @@
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
         /* Khartoum — RSF sinds april 2023 */
-        { match: ["khartoum"],                                 controller: "RSF" },
+        { match: ["khartoum", "al khartum", "alkhartum"],       controller: "RSF" },
 
-        /* Darfur regio (alle 5 staten) — RSF */
-        { match: ["shamaldarfur", "northdarfur"],              controller: "RSF" },
-        { match: ["janubdarfur", "southdarfur"],               controller: "RSF" },
-        { match: ["gharbdarfur", "westdarfur"],                controller: "RSF" },
-        { match: ["sharqdarfur", "eastdarfur"],                controller: "RSF" },
-        { match: ["wasatdarfur", "centraldarfur"],             controller: "RSF" },
+        /* Darfur regio — alle 5 staten — RSF */
+        { match: ["shamal darfur", "shamaldarfur", "north darfur", "northdarfur"],    controller: "RSF" },
+        { match: ["janub darfur", "janubdarfur", "south darfur", "southdarfur"],       controller: "RSF" },
+        { match: ["gharb darfur", "gharbdarfur", "west darfur", "westdarfur"],         controller: "RSF" },
+        { match: ["sharq darfur", "sharqdarfur", "east darfur", "eastdarfur"],         controller: "RSF" },
+        { match: ["wasat darfur", "wasatdarfur", "central darfur", "centraldarfur"],   controller: "RSF" },
 
-        /* Kordofan — grotendeels RSF/mixed */
-        { match: ["shamalkurdufan", "northkordofan"],          controller: "RSF" },
-        { match: ["janubkurdufan", "southkordofan"],           controller: "Regering" },
-        { match: ["gharbkurdufan", "westkordofan"],            controller: "RSF" },
+        /* Kordofan — gemengd */
+        { match: ["shamal kurdufan", "shamalkurdufan", "shamal kordofan", "shamalkordofan", "north kurdufan", "northkordofan", "northkurdufan"], controller: "RSF" },
+        { match: ["janub kurdufan", "janubkurdufan", "janub kordofan", "janubkordofan", "south kurdufan", "southkordofan", "southkurdufan"],     controller: "Regering" },
+        { match: ["gharb kurdufan", "gharbkurdufan", "gharb kordofan", "gharbkordofan", "west kurdufan", "westkurdufan", "west kordofan", "westkordofan"], controller: "RSF" },
 
         /* Al Jazirah — RSF sinds dec 2023 */
-        { match: ["aljazirah", "gezira"],                      controller: "RSF" },
+        { match: ["al jazirah", "aljazirah", "gezira", "al gezira", "algezira"],       controller: "RSF" },
 
         /* Sennar — RSF sinds juli 2024 */
-        { match: ["sinnar", "sennar"],                         controller: "RSF" },
+        { match: ["sinnar", "sennar", "sannar"],                                       controller: "RSF" },
 
         /* Regering-gecontroleerd (oost/noord) */
-        { match: ["annilalabyad", "whitenile"],                controller: "Regering" },
-        { match: ["annilalazraq", "bluenile"],                 controller: "Regering" },
-        { match: ["nahranil", "rivernile"],                    controller: "Regering" },
-        { match: ["albahralahmar", "redsea"],                  controller: "Regering" },
-        { match: ["kassala"],                                  controller: "Regering" },
-        { match: ["alqadarif", "gedaref"],                     controller: "Regering" },
-        { match: ["ashshamaliyah", "northern"],                controller: "Regering" }
+        { match: ["an nil al abyad", "annilalabyad", "white nile", "whitenile"],       controller: "Regering" },
+        { match: ["an nil al azraq", "annilalazraq", "blue nile", "bluenile"],         controller: "Regering" },
+        { match: ["nahr an nil", "nahranil", "river nile", "rivernile"],               controller: "Regering" },
+        { match: ["al bahr al ahmar", "albahralahmar", "red sea", "redsea"],           controller: "Regering" },
+        { match: ["kassala", "kassala state"],                                         controller: "Regering" },
+        { match: ["al qadarif", "alqadarif", "gedaref", "qadarif"],                    controller: "Regering" },
+        { match: ["ash shamaliyah", "ashshamaliyah", "northern", "northern state"],    controller: "Regering" }
       ],
       districtOverrides: [], overlayPolygons: [],
       cacheKeys: {
-        oblasts:   { key: "wardesk_sudan_adm1",      version: "v1" },
+        oblasts:   { key: "wardesk_sudan_adm1",      version: "v2" },
         country:   { key: "wardesk_sudan_country",   version: "v1" },
         deepState: { key: "wardesk_sudan_ds",        version: "v1" },
         isw:       { key: "wardesk_sudan_isw",       version: "v1" },
@@ -312,10 +316,8 @@
     }
   };
 
-  /* v11.3: SDN toegevoegd aan active conflicts */
   var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SDN", "SAU", "ISR", "PSE"];
 
-  /* v11.3: Sudan's buren toegevoegd */
   var NEIGHBOR_COUNTRIES = [
     "TUR", "IRQ", "JOR", "EGY", "OMN", "ARE", "QAT", "KWT", "CYP",
     "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA",
@@ -1822,7 +1824,7 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.3",
+    state: CA, _version: "v11.4",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES
@@ -1867,5 +1869,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.3 geladen (Sudan toegevoegd)");
+  LOG("conflict-areas.js v11.4 geladen (Sudan robuuste matching)");
 })();
