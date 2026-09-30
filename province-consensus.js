@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.10
-   - v1.10: OSINT events triggeren vertaling (uk/ru/ar)
-   - v1.9: cluster-bronnen + politiek-boost
-   - v1.7: OSINT events listener
-   - v1.6: contested drempel versoepeld
+   WAR DESK — province-consensus.js v1.11
+   - v1.11: OSINT throttle 5min → 30s + log OSINT timing
+   - v1.10: OSINT events triggeren vertaling
    ============================================================ */
 
 (function(){
@@ -18,7 +16,7 @@
   var STORE = "consensus";
   var META_STORE = "meta";
   var THROTTLE_MS = 60 * 60 * 1000;
-  var OSINT_THROTTLE_MS = 5 * 60 * 1000;
+  var OSINT_THROTTLE_MS = 30 * 1000;   /* v1.11: was 5 min → 30s */
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
   var MIN_ACTOR_SHARE = 0.25;
@@ -141,9 +139,6 @@
     return null;
   }
 
-  /* ============================================================
-     v1.10: OSINT events verzamelen + vertaling triggeren
-     ============================================================ */
   function collectEvents(){
     var combined = [];
     var state = window.MAPAPI && window.MAPAPI.state;
@@ -163,7 +158,6 @@
     if(Array.isArray(osintEvents) && osintEvents.length > 0){
       combined = combined.concat(osintEvents);
 
-      /* v1.10: trigger vertaling voor OSINT events met uk/ru/ar */
       try {
         if(window.NewsAPI && window.NewsAPI.ensureTranslations){
           var toTranslate = osintEvents.filter(function(ev){
@@ -469,9 +463,13 @@
           osintEvents = Array.isArray(events) ? events : [];
           LOG("OSINT events ontvangen: " + osintEvents.length);
           var sinceLast = Date.now() - lastRun;
-          if(sinceLast > OSINT_THROTTLE_MS) scheduleRun(5000);
-          else LOG("OSINT throttle — wacht " +
-                   Math.round((OSINT_THROTTLE_MS - sinceLast) / 60000) + " min");
+          if(sinceLast > OSINT_THROTTLE_MS){
+            LOG("OSINT run direct (throttle OK)");
+            scheduleRun(2000);
+          } else {
+            LOG("OSINT throttle — wacht " +
+                Math.round((OSINT_THROTTLE_MS - sinceLast) / 1000) + " sec");
+          }
         });
         LOG("EventBus listeners actief (MAP + OSINT)");
       }
@@ -489,8 +487,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.10"
+    _version: "v1.11"
   };
 
-  LOG("province-consensus.js v1.10 geladen (OSINT vertaling trigger)");
+  LOG("province-consensus.js v1.11 geladen (OSINT 30s throttle)");
 })();
