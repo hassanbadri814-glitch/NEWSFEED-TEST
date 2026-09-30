@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.4
-   - v11.4: Sudan province-matching robuuster (West Kurdufan fix)
-            + cache-versie SDN v2 om GADM te forceren herladen
-   - v11.3: SUDAN toegevoegd (SAF vs RSF) + neighbours uitgebreid
-   - v11.2: territory gain/loss visualisatie via events
-   - v11.1: UI-SUBTIELER (gele randen weg, UNDOF weg)
-   - v11.0: AI-consensus integratie
+   WAR DESK — conflict-areas.js v11.5
+   - v11.5: FIX panel visibility robuust
+            + inline CSS fallback
+            + debug logging
+            + z-index verhoogd
+   - v11.4: Sudan robuuste matching
+   - v11.3: Sudan toegevoegd
    ============================================================ */
 
 (function(){
@@ -175,11 +175,6 @@
         snapshot:  { key: "wardesk_yemen_snapshot",  version: "v1" }
       }
     },
-    /* ============================================================
-       v11.4: SUDAN — Regering (SAF) vs RSF
-       - Robuustere matching: Engelse + Arabische benamingen
-       - Cache-versie v2 om GADM opnieuw te laden
-       ============================================================ */
     "SDN": {
       name: "Soedan", level: "ADM1", center: [15.55, 32.53, 6],
       parties: {
@@ -193,28 +188,17 @@
       countrySources: adm0Sources("SDN"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        /* Khartoum — RSF sinds april 2023 */
         { match: ["khartoum", "al khartum", "alkhartum"],       controller: "RSF" },
-
-        /* Darfur regio — alle 5 staten — RSF */
         { match: ["shamal darfur", "shamaldarfur", "north darfur", "northdarfur"],    controller: "RSF" },
         { match: ["janub darfur", "janubdarfur", "south darfur", "southdarfur"],       controller: "RSF" },
         { match: ["gharb darfur", "gharbdarfur", "west darfur", "westdarfur"],         controller: "RSF" },
         { match: ["sharq darfur", "sharqdarfur", "east darfur", "eastdarfur"],         controller: "RSF" },
         { match: ["wasat darfur", "wasatdarfur", "central darfur", "centraldarfur"],   controller: "RSF" },
-
-        /* Kordofan — gemengd */
         { match: ["shamal kurdufan", "shamalkurdufan", "shamal kordofan", "shamalkordofan", "north kurdufan", "northkordofan", "northkurdufan"], controller: "RSF" },
         { match: ["janub kurdufan", "janubkurdufan", "janub kordofan", "janubkordofan", "south kurdufan", "southkordofan", "southkurdufan"],     controller: "Regering" },
         { match: ["gharb kurdufan", "gharbkurdufan", "gharb kordofan", "gharbkordofan", "west kurdufan", "westkurdufan", "west kordofan", "westkordofan"], controller: "RSF" },
-
-        /* Al Jazirah — RSF sinds dec 2023 */
         { match: ["al jazirah", "aljazirah", "gezira", "al gezira", "algezira"],       controller: "RSF" },
-
-        /* Sennar — RSF sinds juli 2024 */
         { match: ["sinnar", "sennar", "sannar"],                                       controller: "RSF" },
-
-        /* Regering-gecontroleerd (oost/noord) */
         { match: ["an nil al abyad", "annilalabyad", "white nile", "whitenile"],       controller: "Regering" },
         { match: ["an nil al azraq", "annilalazraq", "blue nile", "bluenile"],         controller: "Regering" },
         { match: ["nahr an nil", "nahranil", "river nile", "rivernile"],               controller: "Regering" },
@@ -321,7 +305,6 @@
   var NEIGHBOR_COUNTRIES = [
     "TUR", "IRQ", "JOR", "EGY", "OMN", "ARE", "QAT", "KWT", "CYP",
     "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA",
-    /* Sudan buren */
     "LBY", "TCD", "CAF", "SSD", "ETH", "ERI"
   ];
 
@@ -1339,8 +1322,115 @@
     if(_pulseRetryTimer){ clearTimeout(_pulseRetryTimer); _pulseRetryTimer = null; }
   }
 
+  /* ============================================================
+     v11.5: PANEL — robuuster met inline fallback CSS
+     ============================================================ */
+  function injectPanelStyles(){
+    if(document.getElementById("caPanelFallbackStyles")) return;
+    var s = document.createElement("style");
+    s.id = "caPanelFallbackStyles";
+    s.textContent =
+      "#caAreaPanel.wm-country-panel{" +
+        "position:fixed!important;" +
+        "left:0!important;" +
+        "right:0!important;" +
+        "bottom:0!important;" +
+        "background:#111b2d!important;" +
+        "color:#e6ebf5!important;" +
+        "border-top:1px solid rgba(224,168,87,.4)!important;" +
+        "border-top-left-radius:18px!important;" +
+        "border-top-right-radius:18px!important;" +
+        "max-height:75vh!important;" +
+        "overflow-y:auto!important;" +
+        "z-index:99999!important;" +
+        "transform:translateY(100%)!important;" +
+        "transition:transform .3s cubic-bezier(.2,.9,.3,1)!important;" +
+        "box-shadow:0 -10px 40px rgba(0,0,0,.7)!important;" +
+        "padding-bottom:env(safe-area-inset-bottom,0)!important;" +
+        "display:block!important;" +
+        "visibility:visible!important;" +
+        "pointer-events:auto!important;" +
+      "}" +
+      "#caAreaPanel.wm-country-panel.show{" +
+        "transform:translateY(0)!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-head{" +
+        "display:flex!important;align-items:center!important;justify-content:space-between!important;" +
+        "padding:.9rem 1rem .7rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;" +
+        "position:sticky!important;top:0!important;background:#111b2d!important;z-index:2!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-title{" +
+        "font-family:'Playfair Display',serif!important;font-size:1.1rem!important;" +
+        "font-weight:700!important;color:#e6ebf5!important;margin:0!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-close{" +
+        "width:32px!important;height:32px!important;border-radius:50%!important;" +
+        "background:rgba(255,255,255,.06)!important;border:1px solid rgba(255,255,255,.12)!important;" +
+        "color:#8a94a8!important;font-size:.9rem!important;display:grid!important;place-items:center!important;" +
+        "cursor:pointer!important;font-family:inherit!important;padding:0!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-stats{" +
+        "display:grid!important;grid-template-columns:repeat(3,1fr)!important;gap:.5rem!important;" +
+        "padding:.75rem 1rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-stat{" +
+        "text-align:center!important;padding:.5rem .3rem!important;" +
+        "background:rgba(255,255,255,.04)!important;border-radius:8px!important;" +
+        "border:1px solid rgba(255,255,255,.06)!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-stat-val{" +
+        "font-size:1.2rem!important;font-weight:800!important;color:#e0a857!important;line-height:1!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-stat-lbl{" +
+        "font-size:.6rem!important;text-transform:uppercase!important;letter-spacing:.05em!important;" +
+        "color:#6b7a93!important;margin-top:.2rem!important;font-weight:700!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-stat.conf-high .wm-panel-stat-val{color:#10b981!important;}" +
+      "#caAreaPanel .wm-panel-stat.conf-med .wm-panel-stat-val{color:#f59e0b!important;}" +
+      "#caAreaPanel .wm-panel-stat.conf-low .wm-panel-stat-val{color:#f87171!important;}" +
+      "#caAreaPanel .wm-panel-conf-detail{" +
+        "grid-column:1/-1!important;font-size:.7rem!important;color:#6b7a93!important;" +
+        "text-align:center!important;padding:.2rem 0 .1rem!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-events{max-height:none!important;}" +
+      "#caAreaPanel .wm-panel-event{" +
+        "padding:.7rem 1rem!important;border-bottom:1px solid rgba(255,255,255,.05)!important;" +
+        "cursor:pointer!important;transition:background .15s!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-event:hover{background:rgba(255,255,255,.03)!important;}" +
+      "#caAreaPanel .wm-panel-event:last-child{border-bottom:none!important;}" +
+      "#caAreaPanel .wm-panel-event-title{" +
+        "font-size:.78rem!important;font-weight:600!important;line-height:1.3!important;" +
+        "color:#e6ebf5!important;margin-bottom:.25rem!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-event-meta{" +
+        "display:flex!important;gap:.4rem!important;align-items:center!important;" +
+        "font-size:.62rem!important;color:#6b7a93!important;flex-wrap:wrap!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-event-src{" +
+        "color:#e0a857!important;font-weight:700!important;text-transform:uppercase!important;letter-spacing:.03em!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-event-dot{opacity:.4!important;}" +
+      "#caAreaPanel .wm-panel-event-sub{color:#6b7a93!important;opacity:.8!important;}" +
+      "#caAreaPanel .wm-ev-physical{" +
+        "background:rgba(230,57,80,.15)!important;color:#ff8090!important;" +
+        "padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;" +
+        "font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;" +
+      "}" +
+      "#caAreaPanel .wm-ev-political{" +
+        "background:rgba(107,122,147,.15)!important;color:#a3adc0!important;" +
+        "padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;" +
+        "font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;" +
+      "}" +
+      "#caAreaPanel .wm-panel-empty{" +
+        "padding:1.5rem 1rem!important;text-align:center!important;color:#6b7a93!important;font-size:.78rem!important;" +
+      "}";
+    document.head.appendChild(s);
+  }
+
   function ensurePanel(){
     if(CA.panel) return CA.panel;
+    injectPanelStyles();
     var panel = document.createElement("div");
     panel.id = "caAreaPanel";
     panel.className = "wm-country-panel";
@@ -1353,6 +1443,7 @@
     CA.panel = panel;
     panel.querySelector("#caPanelClose").addEventListener("click", closePanel);
     panel.addEventListener("click", function(e){ if(e.target === panel) closePanel(); });
+    LOG("Panel aangemaakt");
     return panel;
   }
 
@@ -1394,81 +1485,88 @@
   }
 
   function openPanel(area, conflictIso){
-    var panel = ensurePanel();
-    var props = area.feature.properties;
-    panel.querySelector("#caPanelTitle").textContent = props.name || "?";
+    LOG("openPanel aangeroepen voor: " + (area && area.feature && area.feature.properties && area.feature.properties.name));
+    try {
+      var panel = ensurePanel();
+      var props = area.feature.properties;
+      panel.querySelector("#caPanelTitle").textContent = props.name || "?";
 
-    var statsEl = panel.querySelector("#caPanelStats");
-    var ctrlLabel = props.controller || "Onbekend";
-    var ctrlClass = "conf-med";
-    if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's" || props.controller === "RSF") ctrlClass = "conf-low";
-    else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina") ctrlClass = "conf-high";
+      var statsEl = panel.querySelector("#caPanelStats");
+      var ctrlLabel = props.controller || "Onbekend";
+      var ctrlClass = "conf-med";
+      if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's" || props.controller === "RSF") ctrlClass = "conf-low";
+      else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina") ctrlClass = "conf-high";
 
-    var events = getEventsForArea(area);
-    var physicalCount = 0;
-    for(var i = 0; i < events.length; i++){
-      if(events[i].countsForHeat !== false) physicalCount++;
+      var events = getEventsForArea(area);
+      var physicalCount = 0;
+      for(var i = 0; i < events.length; i++){
+        if(events[i].countsForHeat !== false) physicalCount++;
+      }
+
+      var provinceLine = "";
+      if(props.provinceName){
+        provinceLine = '<div class="wm-panel-conf-detail">Provincie: ' + escapeHtml(props.provinceName) + '</div>';
+      }
+
+      var consensusLine = "";
+      var consensus = getConsensusForFeature(area.feature, conflictIso);
+      if(consensus){
+        var pct = Math.round((consensus.consensusStrength || 0) * 100);
+        var conf = Math.round((consensus.confidence || 0) * 100);
+        var contested = consensus.contested ? " · ⚔️ CONTESTED" : "";
+        consensusLine = '<div class="wm-panel-conf-detail" style="color:#a855f7;font-weight:700">' +
+          '🤖 AI: ' + escapeHtml(consensus.dominantActor) + ' (' + pct + '%' + contested + ')' +
+          '<br><span style="font-weight:400;opacity:.8">' +
+          conf + '% confidence · ' + consensus.sourceCount + ' bronnen · ' +
+          consensus.originCount + ' landen</span></div>';
+      }
+
+      var territoryLine = "";
+      var change = CA._territoryChanges[conflictIso + "|" + (props.provinceName || props.name || "*")];
+      if (change){
+        var icon = change.type === "control-change" ? (change.gainFor ? "🟢" : "🔴") :
+                   change.type === "became-contested" ? "🟣" :
+                   change.type === "resolved" ? "✅" : "🔵";
+        territoryLine = '<div class="wm-panel-conf-detail" style="color:#e0a857;font-weight:700">' + icon + ' ' + escapeHtml(change.label || change.type) + '</div>';
+      }
+
+      statsEl.innerHTML =
+        '<div class="wm-panel-stat ' + ctrlClass + '"><div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div><div class="wm-panel-stat-lbl">Controller</div></div>' +
+        '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + events.length + '</div><div class="wm-panel-stat-lbl">Events (7d)</div></div>' +
+        '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + physicalCount + '</div><div class="wm-panel-stat-lbl">Fysiek</div></div>' +
+        consensusLine + territoryLine +
+        '<div class="wm-panel-conf-detail">Bron: ' + escapeHtml(props.control_source || "—") +
+          ' · Confidence: ' + Math.round((props.control_confidence || 0) * 100) + '%</div>' +
+        provinceLine;
+
+      var evEl = panel.querySelector("#caPanelEvents");
+      if(!events.length){
+        evEl.innerHTML = '<div class="wm-panel-empty">Geen militaire events in dit gebied</div>';
+      } else {
+        evEl.innerHTML = events.map(function(ev){
+          var physical = ev.countsForHeat !== false;
+          var actionTag = physical ? "Fysiek" : "Niet-fysiek";
+          var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
+          return '<div class="wm-panel-event">' +
+            '<div class="wm-panel-event-title">' + escapeHtml(ev.title || "?") + '</div>' +
+            '<div class="wm-panel-event-meta">' +
+              '<span class="wm-panel-event-src">' + escapeHtml(ev.source || "?") + '</span>' +
+              '<span class="wm-panel-event-dot">·</span>' +
+              '<span>' + timeAgoShort(ev.date) + '</span>' +
+              '<span class="' + actionClass + '">' + actionTag + '</span>' +
+              '<span class="wm-panel-event-sub">' + escapeHtml(ev.subtype || "—") + '</span>' +
+            '</div>' +
+          '</div>';
+        }).join("");
+      }
+
+      CA.selectedId = props.id;
+      requestAnimationFrame(function(){ panel.classList.add("show"); });
+      LOG("Panel getoond voor " + (props.name || "?"));
+    } catch(err) {
+      LOG("FOUT in openPanel: " + (err.message || "?"));
+      try { console.error("[openPanel]", err); } catch(e){}
     }
-
-    var provinceLine = "";
-    if(props.provinceName){
-      provinceLine = '<div class="wm-panel-conf-detail">Provincie: ' + escapeHtml(props.provinceName) + '</div>';
-    }
-
-    var consensusLine = "";
-    var consensus = getConsensusForFeature(area.feature, conflictIso);
-    if(consensus){
-      var pct = Math.round((consensus.consensusStrength || 0) * 100);
-      var conf = Math.round((consensus.confidence || 0) * 100);
-      var contested = consensus.contested ? " · ⚔️ CONTESTED" : "";
-      consensusLine = '<div class="wm-panel-conf-detail" style="color:#a855f7;font-weight:700">' +
-        '🤖 AI: ' + escapeHtml(consensus.dominantActor) + ' (' + pct + '%' + contested + ')' +
-        '<br><span style="font-weight:400;opacity:.8">' +
-        conf + '% confidence · ' + consensus.sourceCount + ' bronnen · ' +
-        consensus.originCount + ' landen</span></div>';
-    }
-
-    var territoryLine = "";
-    var change = CA._territoryChanges[conflictIso + "|" + (props.provinceName || props.name || "*")];
-    if (change){
-      var icon = change.type === "control-change" ? (change.gainFor ? "🟢" : "🔴") :
-                 change.type === "became-contested" ? "🟣" :
-                 change.type === "resolved" ? "✅" : "🔵";
-      territoryLine = '<div class="wm-panel-conf-detail" style="color:#e0a857;font-weight:700">' + icon + ' ' + escapeHtml(change.label || change.type) + '</div>';
-    }
-
-    statsEl.innerHTML =
-      '<div class="wm-panel-stat ' + ctrlClass + '"><div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div><div class="wm-panel-stat-lbl">Controller</div></div>' +
-      '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + events.length + '</div><div class="wm-panel-stat-lbl">Events (7d)</div></div>' +
-      '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + physicalCount + '</div><div class="wm-panel-stat-lbl">Fysiek</div></div>' +
-      consensusLine + territoryLine +
-      '<div class="wm-panel-conf-detail">Bron: ' + escapeHtml(props.control_source || "—") +
-        ' · Confidence: ' + Math.round((props.control_confidence || 0) * 100) + '%</div>' +
-      provinceLine;
-
-    var evEl = panel.querySelector("#caPanelEvents");
-    if(!events.length){
-      evEl.innerHTML = '<div class="wm-panel-empty">Geen militaire events in dit gebied</div>';
-    } else {
-      evEl.innerHTML = events.map(function(ev){
-        var physical = ev.countsForHeat !== false;
-        var actionTag = physical ? "Fysiek" : "Niet-fysiek";
-        var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
-        return '<div class="wm-panel-event">' +
-          '<div class="wm-panel-event-title">' + escapeHtml(ev.title || "?") + '</div>' +
-          '<div class="wm-panel-event-meta">' +
-            '<span class="wm-panel-event-src">' + escapeHtml(ev.source || "?") + '</span>' +
-            '<span class="wm-panel-event-dot">·</span>' +
-            '<span>' + timeAgoShort(ev.date) + '</span>' +
-            '<span class="' + actionClass + '">' + actionTag + '</span>' +
-            '<span class="wm-panel-event-sub">' + escapeHtml(ev.subtype || "—") + '</span>' +
-          '</div>' +
-        '</div>';
-      }).join("");
-    }
-
-    CA.selectedId = props.id;
-    requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
   function closePanel(){
@@ -1500,13 +1598,27 @@
           if(cons && cons.contested) applyContestedPatternToLayer(l, cons, conflictIso);
         },
         click: function(e){
-          if(L.DomEvent) L.DomEvent.stopPropagation(e);
-          var areasArr = CA.areas[conflictIso] || [];
-          var area = null;
-          for(var i = 0; i < areasArr.length; i++){
-            if(areasArr[i].layer === e.target){ area = areasArr[i]; break; }
+          try {
+            if(L.DomEvent) L.DomEvent.stopPropagation(e);
+            var areasArr = CA.areas[conflictIso] || [];
+            var area = null;
+            for(var i = 0; i < areasArr.length; i++){
+              if(areasArr[i].layer === e.target){ area = areasArr[i]; break; }
+            }
+            if(!area && feature && feature.properties) {
+              area = {
+                id: feature.properties.id,
+                name: feature.properties.name,
+                provinceName: feature.properties.provinceName,
+                controller: feature.properties.controller,
+                layer: e.target,
+                feature: feature
+              };
+            }
+            if(area) openPanel(area, conflictIso);
+          } catch(err) {
+            LOG("FOUT in click handler: " + (err.message || "?"));
           }
-          if(area) openPanel(area, conflictIso);
         },
         add: function(e){
           var l = e.target;
@@ -1523,7 +1635,7 @@
     if(document.getElementById("caAreaStyles")) return;
     var s = document.createElement("style");
     s.id = "caAreaStyles";
-    s.textContent = ".leaflet-container .ca-pane-province path{transition:stroke .15s, stroke-width .15s;}";
+    s.textContent = ".leaflet-container .ca-pane-province path{transition:stroke .15s, stroke-width .15s;cursor:pointer!important;}";
     document.head.appendChild(s);
   }
 
@@ -1717,6 +1829,7 @@
       ensurePanes(CA.map);
       bindZoomListener();
       injectAreaStyles();
+      injectPanelStyles();
       hookLegendRefresh();
       try { if(window.WorldMap && window.WorldMap.refreshLegend) window.WorldMap.refreshLegend(); } catch(e){}
       refreshLegend();
@@ -1824,10 +1937,17 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.4",
+    state: CA, _version: "v11.5",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
-    _neighborCountries: NEIGHBOR_COUNTRIES
+    _neighborCountries: NEIGHBOR_COUNTRIES,
+    /* Debug helper */
+    testPanel: function(){
+      var iso = ACTIVE_CONFLICTS[0];
+      var areas = CA.areas[iso] || [];
+      if (areas.length) openPanel(areas[0], iso);
+      else LOG("Geen areas om te testen");
+    }
   };
 
   var tries = 0, MAX = 60;
@@ -1869,5 +1989,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.4 geladen (Sudan robuuste matching)");
+  LOG("conflict-areas.js v11.5 geladen (panel fix + fallback CSS)");
 })();
