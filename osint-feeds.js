@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.4
-   - v2.4: Arabic-aware locatie-extractie (behoud Unicode)
+   WAR DESK — osint-feeds.js v2.5
+   - v2.5: countsForHeat fix (alleen echte fysieke events)
+           + Arabische locatie-minimumlengte 3
+   - v2.4: Arabic-aware locatie-extractie
    - v2.3: Arabische Telegram-kanalen
    - v2.2: OSINT bron-trust
-   - v2.1: Parallel fetch
    ============================================================ */
 
 (function(){
@@ -26,15 +27,12 @@
   ];
 
   var TELEGRAM_CHANNELS = [
-    /* === Bestaande OSINT kanalen === */
     { channel: "DeepStateUA",    region: "Oost-Europa",   country: "Oekraïne" },
     { channel: "sentdefender",   region: "Midden-Oosten", country: null },
     { channel: "rybar",          region: "Oost-Europa",   country: "Rusland" },
     { channel: "Faytuks",        region: "Midden-Oosten", country: null },
     { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
     { channel: "OSINTtechnical", region: "Midden-Oosten", country: null },
-
-    /* === Arabische kanalen === */
     { channel: "HalabTodayTV",    region: "Midden-Oosten", country: "Syrië" },
     { channel: "damscuce",        region: "Midden-Oosten", country: "Syrië" },
     { channel: "ya_topa",         region: "Midden-Oosten", country: "Syrië" },
@@ -67,15 +65,9 @@
   function decodeHtmlEntities(s){
     if (!s) return "";
     return String(s)
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .replace(/&apos;/g, "'")
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&mdash;/g, '\u2014')
-      .replace(/&ndash;/g, '\u2013')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ').replace(/&mdash;/g, '\u2014').replace(/&ndash;/g, '\u2013')
       .replace(/&hellip;/g, '\u2026')
       .replace(/&#(\d+);/g, function(m, n){ return String.fromCharCode(parseInt(n, 10)); });
   }
@@ -83,11 +75,8 @@
   function stripHtmlTags(html){
     if (!html) return "";
     return String(html)
-      .replace(/<br\s*\/?>/gi, " ")
-      .replace(/<\/p>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+      .replace(/<br\s*\/?>/gi, " ").replace(/<\/p>/gi, " ")
+      .replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   }
 
   function detectLang(text){
@@ -100,14 +89,13 @@
   }
 
   /* ============================================================
-     v2.4: Arabic-aware locatie-extractie
+     v2.5: Arabic-aware locatie-extractie (min lengte 3 voor Arabisch)
      ============================================================ */
   function extractLocationFromText(text, hint){
     if (!text) return null;
     if (!window.WorldMapData) return null;
     var locs = window.WorldMapData.LOCATIONS || {};
 
-    /* v2.4: behoud Unicode (Arabisch behouden), normaliseer whitespace */
     var lower = " " + String(text).toLowerCase()
       .replace(/[^\w\sÀ-ÿ\u0400-\u04FF\u0600-\u06FF\u0590-\u05FF]/g, " ")
       .replace(/\s+/g, " ")
@@ -118,10 +106,13 @@
 
     for (var key in locs){
       if (!Object.prototype.hasOwnProperty.call(locs, key)) continue;
-      if (key.length < 4) continue;
 
-      /* Voor Arabisch/Hebreeuws: geen spaties aan begin/eind vereist */
       var isArabicKey = /[\u0600-\u06FF\u0590-\u05FF]/.test(key);
+
+      /* v2.5: Arabisch min 3, Latijns min 4 */
+      var minLen = isArabicKey ? 3 : 4;
+      if (key.length < minLen) continue;
+
       var found = false;
       if (isArabicKey){
         if (lower.indexOf(key) !== -1) found = true;
@@ -215,12 +206,7 @@
       if (!text || text.length < 20) continue;
       var dateMatch = w.match(dateRegex);
       var date = dateMatch ? dateMatch[1] : new Date().toISOString();
-      posts.push({
-        channel: channel,
-        text: text,
-        date: date,
-        lang: detectLang(text)
-      });
+      posts.push({ channel: channel, text: text, date: date, lang: detectLang(text) });
     }
     return posts;
   }
@@ -240,18 +226,19 @@
         if (!title) continue;
         var fullText = decodeHtmlEntities(stripHtmlTags(title + " " + desc));
         items.push({
-          channel: "SOHR",
-          text: fullText,
+          channel: "SOHR", text: fullText,
           title: decodeHtmlEntities(title),
           date: date ? new Date(date).toISOString() : new Date().toISOString(),
-          link: link,
-          lang: "en"
+          link: link, lang: "en"
         });
       }
     } catch(e){}
     return items;
   }
 
+  /* ============================================================
+     v2.5: countsForHeat = alleen echte fysieke events
+     ============================================================ */
   function itemToEvent(item, hint){
     if (!item || !item.text) return null;
 
@@ -281,28 +268,28 @@
 
     var sourceLabel = item.channel === "SOHR" ? "SOHR" : "@" + item.channel;
 
+    /* ============================================================
+       v2.5 FIX: countsForHeat ALLEEN bij fysieke events
+       ============================================================ */
+    var countsForHeat = !!phys.isPhysicalEvent;
+
     return {
       id: "osint-" + item.channel + "-" + hashCode(item.text.slice(0, 200)),
-      lat: loc.lat,
-      lng: loc.lng,
+      lat: loc.lat, lng: loc.lng,
       title: item.title || item.text.slice(0, 120),
       originalTitle: item.text.slice(0, 500),
       isTranslated: false,
       description: item.text.slice(0, 500),
       fullDescription: loc.country + " · " + loc.region + "\n\n" + item.text,
-      category: cls.category,
-      subtype: cls.subtype,
-      type: cls.category,
+      category: cls.category, subtype: cls.subtype, type: cls.category,
       confidence: 55,
-      country: loc.country,
-      countryISO3: iso3,
-      actorCountries: actors,
-      region: loc.region,
+      country: loc.country, countryISO3: iso3,
+      actorCountries: actors, region: loc.region,
       date: item.date || new Date().toISOString(),
       url: item.link || ("https://t.me/" + item.channel),
       source: sourceLabel,
       sourceDomain: item.channel === "SOHR" ? "syriahr.com" : "t.me",
-      countsForHeat: phys.isPhysicalEvent || isOsintMilitary,
+      countsForHeat: countsForHeat,
       actionTypes: phys.actionTypes || [],
       lang: item.lang || "unknown",
       _source: "osint"
@@ -317,10 +304,7 @@
   async function fetchOneChannel(ch){
     try {
       var res = await fetchViaProxies("https://t.me/s/" + ch.channel);
-      if (!res.ok){
-        LOG("@" + ch.channel + " — alle proxies faalden");
-        return { ok: false, items: [] };
-      }
+      if (!res.ok){ LOG("@" + ch.channel + " — alle proxies faalden"); return { ok: false, items: [] }; }
       var posts = parseTelegramHtml(res.text, ch.channel);
       posts.forEach(function(p){ p.hint = ch; });
       LOG("@" + ch.channel + " — " + posts.length + " posts");
@@ -334,10 +318,7 @@
   async function fetchOneSohr(){
     try {
       var res = await fetchViaProxies(SOHR_RSS);
-      if (!res.ok){
-        LOG("SOHR — alle proxies faalden");
-        return { ok: false, items: [] };
-      }
+      if (!res.ok){ LOG("SOHR — alle proxies faalden"); return { ok: false, items: [] }; }
       var items = parseSohrRss(res.text);
       items.forEach(function(p){ p.hint = { country: "Syrië", region: "Midden-Oosten" }; });
       LOG("SOHR — " + items.length + " items");
@@ -393,9 +374,7 @@
       events.push(ev);
     });
 
-    events.sort(function(a, b){
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    });
+    events.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
 
     osintEvents = events;
@@ -444,11 +423,10 @@
   }
 
   window.OSINTFeeds = {
-    init: init,
-    runNow: runNow,
+    init: init, runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.4",
+    _version: "v2.5",
     _channels: TELEGRAM_CHANNELS,
     _militarySources: OSINT_MILITARY_SOURCES
   };
@@ -459,5 +437,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.4 geladen (Arabic-aware)");
+  LOG("osint-feeds.js v2.5 geladen (countsForHeat fix + Arabic min-3)");
 })();
