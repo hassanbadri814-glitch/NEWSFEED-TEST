@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Telegram PoC — WAR DESK</title>
+<style>
+  body { font-family: monospace; background: #070c16; color: #e6ebf5; padding: 1rem; margin: 0; }
+  h1 { color: #e0a857; font-size: 1.1rem; }
+  button { background: #e0a857; color: #070c16; border: 0; padding: .6rem 1rem; border-radius: 6px; font-weight: 700; margin: .3rem; cursor: pointer; font-size: .85rem; }
+  button:disabled { opacity: .5; }
+  .log { background: #0d1522; border: 1px solid #1a2540; border-radius: 6px; padding: .75rem; margin-top: .75rem; font-size: .78rem; white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: 80vh; overflow-y: auto; }
+  .ok { color: #10b981; }
+  .err { color: #f87171; }
+  .warn { color: #f59e0b; }
+  .info { color: #93c5fd; }
+  .post { background: #131e30; border-left: 3px solid #e0a857; padding: .6rem; margin: .4rem 0; border-radius: 4px; }
+  .post-title { color: #e0a857; font-weight: 700; font-size: .8rem; margin-bottom: .3rem; }
+  .post-meta { color: #6b7a93; font-size: .7rem; margin-bottom: .4rem; }
+  .post-text { color: #e6ebf5; font-size: .78rem; line-height: 1.4; }
+  .stats { color: #a855f7; margin: 1rem 0; font-weight: 700; }
+</style>
+</head>
+<body>
+
+<h1>🧪 Telegram Web Preview — Proof of Concept</h1>
+<p style="color:#6b7a93;font-size:.8rem">Test of we Telegram OSINT-kanalen via Cloudflare Worker kunnen fetchen en parsen.</p>
+
+<div>
+  <button id="btn-1">Test 1: DeepStateUA</button>
+  <button id="btn-2">Test 2: sentdefender</button>
+  <button id="btn-3">Test 3: rybar</button>
+  <button id="btn-all">Run Alle 3</button>
+</div>
+
+<div class="log" id="log">Klaar om te testen. Klik een knop.</div>
+
+<script>
+"use strict";
+
+var LOG = document.getElementById("log");
+var lines = [];
+
+function log(msg, type){
+  var cls = type || "info";
+  var time = new Date().toTimeString().slice(0,8);
+  lines.push('<span class="' + cls + '">[' + time + '] ' + escapeHtml(String(msg)) + '</span>');
+  LOG.innerHTML = lines.join('\n');
+  LOG.scrollTop = LOG.scrollHeight;
+}
+
+function escapeHtml(s){
+  return s.replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+var PROXIES = [
+  "https://newsfeed2.hassanbadri814.workers.dev/?url=",
+  "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
+  "https://api.allorigins.win/raw?url="
+];
+
+async function fetchWithProxies(targetUrl){
+  for (var i = 0; i < PROXIES.length; i++){
+    var url = PROXIES[i] + encodeURIComponent(targetUrl);
+    log("Probeer proxy " + (i+1) + "...", "info");
+    try {
+      var ctrl = new AbortController();
+      var timer = setTimeout(function(){ ctrl.abort(); }, 20000);
+      var r = await fetch(url, { signal: ctrl.signal });
+      clearTimeout(timer);
+      log("  → Status: " + r.status, r.ok ? "ok" : "warn");
+      if (r.ok){
+        var text = await r.text();
+        log("  → Lengte: " + text.length + " chars", "ok");
+        return { ok: true, text: text, proxy: i };
+      }
+    } catch(e){
+      log("  → Faalde: " + (e.message || "?"), "err");
+    }
+  }
+  return { ok: false };
+}
+
+/* ============================================================
+   HTML PARSER voor Telegram web preview
+   Structuur per post:
+   <div class="tgme_widget_message_wrap js-widget_message_wrap">
+     <div class="tgme_widget_message ..." data-post="channelname/1234">
+       <div class="tgme_widget_message_text ...">...</div>
+       <time datetime="2025-09-30T12:34:56+00:00">
+   ============================================================ */
+function parseTelegramHtml(html, channel){
+  var posts = [];
+
+  /* Split op message wrappers */
+  var wrappers = html.split('tgme_widget_message_wrap');
+  log("  → " + (wrappers.length - 1) + " raw message blokken gevonden", "info");
+
+  var textRegex = /<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>\s*(?:<div|<a|<\/div>)/;
+  var dateRegex = /<time[^>]*datetime="([^"]+)"/;
+
+  for (var i = 1; i < wrappers.length; i++){
+    var w = wrappers[i];
+
+    /* Extract text */
+    var textMatch = w.match(textRegex);
+    if (!textMatch) continue;
+    var rawText = textMatch[1];
+    var text = rawText
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    if (!text || text.length < 20) continue;
+
+    /* Extract date */
+    var dateMatch = w.match(dateRegex);
+    var date = dateMatch ? dateMatch[1] : new Date().toISOString();
+
+    posts.push({
+      channel: channel,
+      text: text,
+      date: date,
+      title: text.slice(0, 100)
+    });
+  }
+
+  return posts;
+}
+
+async function testChannel(channel){
+  log("═══════════════════════════════════", "info");
+  log("🎯 TEST: @" + channel, "info");
+
+  var targetUrl = "https://t.me/s/" + channel;
+  log("URL: " + targetUrl, "info");
+
+  var res = await fetchWithProxies(targetUrl);
+  if (!res.ok){
+    log("❌ ALLE PROXIES FAALDEN voor @" + channel, "err");
+    return [];
+  }
+
+  log("✅ Fetch gelukt via proxy " + (res.proxy + 1), "ok");
+
+  /* Check of het HTML is */
+  if (res.text.indexOf("<html") === -1 && res.text.indexOf("<!DOCTYPE") === -1){
+    log("⚠️ Response is geen HTML — waarschijnlijk JSON error", "warn");
+    log("Eerste 200 chars: " + res.text.slice(0, 200), "warn");
+    return [];
+  }
+
+  /* Check of het niet een "channel not found" pagina is */
+  if (res.text.indexOf("tgme_page_title") === -1){
+    log("⚠️ Geen Telegram-pagina structuur gevonden", "warn");
+  }
+
+  var posts = parseTelegramHtml(res.text, channel);
+  log("📊 " + posts.length + " posts geparsed", posts.length > 0 ? "ok" : "warn");
+
+  return posts;
+}
+
+function renderPosts(posts){
+  if (!posts.length) return;
+  var html = '<div class="stats">📈 ' + posts.length + ' posts totaal</div>';
+  posts.slice(0, 5).forEach(function(p){
+    html += '<div class="post">';
+    html += '<div class="post-title">@' + escapeHtml(p.channel) + '</div>';
+    html += '<div class="post-meta">' + escapeHtml(p.date) + '</div>';
+    html += '<div class="post-text">' + escapeHtml(p.text.slice(0, 400)) + '</div>';
+    html += '</div>';
+  });
+  if (posts.length > 5){
+    html += '<div class="post-meta">... + ' + (posts.length - 5) + ' meer posts</div>';
+  }
+  LOG.innerHTML += html;
+  LOG.scrollTop = LOG.scrollHeight;
+}
+
+document.getElementById("btn-1").onclick = async function(){
+  LOG.innerHTML = "";
+  lines = [];
+  var posts = await testChannel("DeepStateUA");
+  renderPosts(posts);
+};
+
+document.getElementById("btn-2").onclick = async function(){
+  LOG.innerHTML = "";
+  lines = [];
+  var posts = await testChannel("sentdefender");
+  renderPosts(posts);
+};
+
+document.getElementById("btn-3").onclick = async function(){
+  LOG.innerHTML = "";
+  lines = [];
+  var posts = await testChannel("rybar");
+  renderPosts(posts);
+};
+
+document.getElementById("btn-all").onclick = async function(){
+  LOG.innerHTML = "";
+  lines = [];
+  var channels = ["DeepStateUA", "sentdefender", "rybar"];
+  var allPosts = [];
+  for (var i = 0; i < channels.length; i++){
+    var posts = await testChannel(channels[i]);
+    allPosts = allPosts.concat(posts);
+    await new Promise(function(r){ setTimeout(r, 3000); });
+  }
+  log("═══════════════════════════════════", "info");
+  log("🏁 TOTAAL: " + allPosts.length + " posts uit " + channels.length + " kanalen",
+      allPosts.length > 20 ? "ok" : "warn");
+  renderPosts(allPosts);
+};
+</script>
+
+</body>
+</html>
