@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.11
-   - v1.11: OSINT throttle 5min → 30s + log OSINT timing
-   - v1.10: OSINT events triggeren vertaling
+   WAR DESK — province-consensus.js v1.12
+   - v1.12: FIX onbekende actors → generieke fallback
+   - v1.11: OSINT throttle 5min → 30s
    ============================================================ */
 
 (function(){
@@ -16,7 +16,7 @@
   var STORE = "consensus";
   var META_STORE = "meta";
   var THROTTLE_MS = 60 * 60 * 1000;
-  var OSINT_THROTTLE_MS = 30 * 1000;   /* v1.11: was 5 min → 30s */
+  var OSINT_THROTTLE_MS = 30 * 1000;
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
   var MIN_ACTOR_SHARE = 0.25;
@@ -46,12 +46,8 @@
         var req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = function(e){
           var d = e.target.result;
-          if(!d.objectStoreNames.contains(STORE)){
-            d.createObjectStore(STORE, { keyPath: "gid" });
-          }
-          if(!d.objectStoreNames.contains(META_STORE)){
-            d.createObjectStore(META_STORE, { keyPath: "k" });
-          }
+          if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: "gid" });
+          if(!d.objectStoreNames.contains(META_STORE)) d.createObjectStore(META_STORE, { keyPath: "k" });
         };
         req.onsuccess = function(e){ db = e.target.result; resolve(db); };
         req.onerror = function(){ resolve(null); };
@@ -157,15 +153,12 @@
 
     if(Array.isArray(osintEvents) && osintEvents.length > 0){
       combined = combined.concat(osintEvents);
-
       try {
         if(window.NewsAPI && window.NewsAPI.ensureTranslations){
           var toTranslate = osintEvents.filter(function(ev){
             return ev.lang && ev.lang !== "en" && ev.lang !== "unknown";
           }).slice(0, 20);
-          if(toTranslate.length > 0){
-            window.NewsAPI.ensureTranslations(toTranslate);
-          }
+          if(toTranslate.length > 0) window.NewsAPI.ensureTranslations(toTranslate);
         }
       } catch(e){}
     }
@@ -192,9 +185,7 @@
   }
 
   function getActors(ev, prov){
-    if(ev.actorCountries && ev.actorCountries.length > 0){
-      return ev.actorCountries;
-    }
+    if(ev.actorCountries && ev.actorCountries.length > 0) return ev.actorCountries;
     try {
       if(window.WorldMapData && window.WorldMapData.detectActorsInTitle){
         var text = (ev.title || "") + " " + (ev.description || "");
@@ -227,6 +218,19 @@
     return all;
   }
 
+  /* ============================================================
+     v1.12: fallback-label voor onbekende actor
+     ============================================================ */
+  function getFallbackActor(ev, prov){
+    if(ev.actorCountries && ev.actorCountries.length > 0){
+      return "Onbekende " + ev.actorCountries[0];
+    }
+    if(prov && prov.iso3 && COUNTRY_DEFAULT_ACTOR[prov.iso3]){
+      return "Onbekende " + COUNTRY_DEFAULT_ACTOR[prov.iso3];
+    }
+    return "Onbekende actor";
+  }
+
   function processEvent(ev, aggregator){
     if(!ev) return;
 
@@ -234,9 +238,7 @@
     if(categoryBoost === 0) return;
 
     var physicalBoost = 1.0;
-    if(ev.countsForHeat === false){
-      physicalBoost = 0.3;
-    }
+    if(ev.countsForHeat === false) physicalBoost = 0.3;
 
     if(CONFLICT_ISO3.indexOf(ev.countryISO3) === -1) return;
 
@@ -268,7 +270,10 @@
     if(!prov || !prov.iso3) return;
 
     var actors = getActors(ev, prov);
-    if(!actors || !actors.length) return;
+    if(!actors || !actors.length){
+      /* v1.12: fallback in plaats van skip */
+      actors = [getFallbackActor(ev, prov)];
+    }
 
     var gid = prov.iso3 + "|" + (prov.admin1 || "*");
     if(!aggregator[gid]){
@@ -282,7 +287,13 @@
 
     actors.forEach(function(actorRaw){
       var actor = ProvinceMapper.resolveActor(actorRaw);
-      if(!actor || actor === "Onbekend") return;
+
+      /* v1.12: als "Onbekend" → gebruik fallback-label */
+      if(!actor || actor === "Onbekend"){
+        actor = getFallbackActor(ev, prov);
+      }
+      if(!actor) return;
+
       if(!bucket.actors[actor]){
         bucket.actors[actor] = {
           actor: actor, score: 0,
@@ -467,8 +478,7 @@
             LOG("OSINT run direct (throttle OK)");
             scheduleRun(2000);
           } else {
-            LOG("OSINT throttle — wacht " +
-                Math.round((OSINT_THROTTLE_MS - sinceLast) / 1000) + " sec");
+            LOG("OSINT throttle — wacht " + Math.round((OSINT_THROTTLE_MS - sinceLast) / 1000) + " sec");
           }
         });
         LOG("EventBus listeners actief (MAP + OSINT)");
@@ -487,8 +497,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.11"
+    _version: "v1.12"
   };
 
-  LOG("province-consensus.js v1.11 geladen (OSINT 30s throttle)");
+  LOG("province-consensus.js v1.12 geladen (fallback onbekende actors)");
 })();
