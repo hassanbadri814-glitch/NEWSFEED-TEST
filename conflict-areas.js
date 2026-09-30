@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.6
-   - v11.6: MAP-LEVEL CLICK FALLBACK — paneel werkt altijd,
-            ongeacht of de SVG-path klikbaar is
-   - v11.5: Panel robuuster + inline fallback CSS
+   WAR DESK — conflict-areas.js v11.7
+   - v11.7: +7 nieuwe conflicten: ETH, MMR, MLI, BFA, NER, COD, PAK
+   - v11.6: MAP-LEVEL CLICK FALLBACK
+   - v11.5: Panel robuuster + fallback CSS
    - v11.4: Sudan robuuste matching
    - v11.3: Sudan toegevoegd (SAF vs RSF)
    - v11.2: territory gain/loss visualisatie
@@ -23,6 +23,10 @@
     { label: "Hezbollah", color: "#FBC02D" },
     { label: "Druze (Syrië)", color: "#9333EA" },
     { label: "RSF (Soedan)", color: "#C62828" },
+    { label: "Jihadisten (Sahel)", color: "#16A34A" },
+    { label: "TPLF (Ethiopië)", color: "#F59E0B" },
+    { label: "Arakan Army (Myanmar)", color: "#F59E0B" },
+    { label: "M23 (DRC)", color: "#C62828" },
     { label: "Contested", color: "#a855f7" }
   ];
 
@@ -34,6 +38,9 @@
   }
 
   var CONFLICTS = {
+    /* ============================================================
+       BESTAANDE CONFLICTEN (v11.6)
+       ============================================================ */
     "UKR": {
       name: "Oekraïne", level: "ADM1", center: [49.0, 32.0, 6],
       parties: {
@@ -299,15 +306,310 @@
         isw:       { key: "wardesk_palestine_isw",      version: "v1" },
         snapshot:  { key: "wardesk_palestine_snapshot", version: "v1" }
       }
+    },
+
+    /* ============================================================
+       v11.7 — NIEUWE CONFLICTEN
+       ============================================================ */
+
+    /* ETHIOPIË — TPLF + alliantie vs federale regering */
+    "ETH": {
+      name: "Ethiopië", level: "ADM1", center: [11.0, 39.0, 6],
+      parties: {
+        "Federale regering": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "TPLF (Tigray)":     { color: "#F59E0B", fill: "#F59E0B" },
+        "Fano (Amhara)":     { color: "#C62828", fill: "#C62828" },
+        "OLA (Oromia)":      { color: "#9333EA", fill: "#9333EA" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_ETH_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_ETH_1.json"
+      ],
+      countrySources: adm0Sources("ETH"),
+      iswUrl: null, deepStateUrlFn: null,
+      /* Regio's waar gevechten plaatsvinden (september 2026) */
+      provinceRules: [
+        { match: ["tigray"],                 controller: "TPLF (Tigray)" },
+        { match: ["amhara"],                 controller: "Fano (Amhara)" },
+        { match: ["afar"],                   controller: "TPLF (Tigray)" },
+        { match: ["oromia"],                 controller: "OLA (Oromia)" },
+        { match: ["benishangul", "gumuz"],   controller: "Federale regering" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_ethiopia_adm1",   version: "v1" },
+        country:   { key: "wardesk_ethiopia_country", version: "v1" },
+        deepState: { key: "wardesk_ethiopia_ds",     version: "v1" },
+        isw:       { key: "wardesk_ethiopia_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_ethiopia_snapshot", version: "v1" }
+      }
+    },
+
+    /* MYANMAR — Junta vs verzet + etnische legers */
+    "MMR": {
+      name: "Myanmar", level: "ADM1", center: [21.9, 95.9, 6],
+      parties: {
+        "Militaire junta": { color: "#C62828", fill: "#C62828" },
+        "Arakan Army":     { color: "#F59E0B", fill: "#F59E0B" },
+        "KIA (Kachin)":    { color: "#9333EA", fill: "#9333EA" },
+        "KNU (Karen)":     { color: "#3B82F6", fill: "#3B82F6" },
+        "NUG (verzet)":    { color: "#2A6FDB", fill: "#2A6FDB" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_MMR_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_MMR_1.json"
+      ],
+      countrySources: adm0Sources("MMR"),
+      iswUrl: null, deepStateUrlFn: null,
+      /* Regio's op basis van september 2026 rapporten */
+      provinceRules: [
+        { match: ["rakhine", "arakan"],          controller: "Arakan Army" },
+        { match: ["kachin"],                     controller: "KIA (Kachin)" },
+        { match: ["kayin", "karen"],             controller: "KNU (Karen)" },
+        { match: ["sagaing"],                    controller: "NUG (verzet)" },
+        { match: ["magway"],                     controller: "NUG (verzet)" },
+        { match: ["mandalay"],                   controller: "Militaire junta" },
+        { match: ["shan"],                       controller: "Militaire junta" },
+        { match: ["chin"],                       controller: "NUG (verzet)" },
+        { match: ["bago"],                       controller: "NUG (verzet)" },
+        { match: ["ayeyarwady"],                 controller: "Militaire junta" },
+        { match: ["yangon"],                     controller: "Militaire junta" },
+        { match: ["naypyidaw"],                  controller: "Militaire junta" },
+        { match: ["mon"],                        controller: "Militaire junta" },
+        { match: ["kayah"],                      controller: "Militaire junta" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_myanmar_adm1",   version: "v1" },
+        country:   { key: "wardesk_myanmar_country", version: "v1" },
+        deepState: { key: "wardesk_myanmar_ds",     version: "v1" },
+        isw:       { key: "wardesk_myanmar_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_myanmar_snapshot", version: "v1" }
+      }
+    },
+
+    /* MALI — JNIM + FLA vs junta */
+    "MLI": {
+      name: "Mali", level: "ADM1", center: [17.6, -4.0, 6],
+      parties: {
+        "Junta (Regering)": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "JNIM (Jihadisten)": { color: "#16A34A", fill: "#16A34A" },
+        "FLA (Toeareg)":     { color: "#F59E0B", fill: "#F59E0B" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_MLI_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_MLI_1.json"
+      ],
+      countrySources: adm0Sources("MLI"),
+      iswUrl: null, deepStateUrlFn: null,
+      provinceRules: [
+        { match: ["kidal"],      controller: "FLA (Toeareg)" },
+        { match: ["gao"],        controller: "JNIM (Jihadisten)" },
+        { match: ["timbuktu", "tombouctou"], controller: "JNIM (Jihadisten)" },
+        { match: ["menaka"],     controller: "JNIM (Jihadisten)" },
+        { match: ["mopti"],      controller: "JNIM (Jihadisten)" },
+        { match: ["segou"],      controller: "Junta (Regering)" },
+        { match: ["koulikoro"],  controller: "Junta (Regering)" },
+        { match: ["sikasso"],    controller: "Junta (Regering)" },
+        { match: ["kayes"],      controller: "Junta (Regering)" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_mali_adm1",   version: "v1" },
+        country:   { key: "wardesk_mali_country", version: "v1" },
+        deepState: { key: "wardesk_mali_ds",     version: "v1" },
+        isw:       { key: "wardesk_mali_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_mali_snapshot", version: "v1" }
+      }
+    },
+
+    /* BURKINA FASO — JNIM + IS Sahel vs junta */
+    "BFA": {
+      name: "Burkina Faso", level: "ADM1", center: [12.3, -1.6, 7],
+      parties: {
+        "Junta (Regering)": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "JNIM (Jihadisten)": { color: "#16A34A", fill: "#16A34A" },
+        "IS Sahel":          { color: "#9333EA", fill: "#9333EA" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_BFA_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_BFA_1.json"
+      ],
+      countrySources: adm0Sources("BFA"),
+      iswUrl: null, deepStateUrlFn: null,
+      provinceRules: [
+        { match: ["sahel"],          controller: "JNIM (Jihadisten)" },
+        { match: ["east", "est"],    controller: "JNIM (Jihadisten)" },
+        { match: ["boucle du mouhoun", "boucledumouhoun"], controller: "JNIM (Jihadisten)" },
+        { match: ["nord", "north"],  controller: "JNIM (Jihadisten)" },
+        { match: ["centre-nord", "centrenord"], controller: "JNIM (Jihadisten)" },
+        { match: ["centre-est", "centreest"], controller: "JNIM (Jihadisten)" },
+        { match: ["cascades"],       controller: "Junta (Regering)" },
+        { match: ["hauts-bassins", "hautsbassins"], controller: "Junta (Regering)" },
+        { match: ["sud-ouest", "sudouest"], controller: "Junta (Regering)" },
+        { match: ["centre-sud", "centresud"], controller: "Junta (Regering)" },
+        { match: ["plateau-central", "plateaucentral"], controller: "Junta (Regering)" },
+        { match: ["centre-ouest", "centreouest"], controller: "Junta (Regering)" },
+        { match: ["centre", "kadiogo"], controller: "Junta (Regering)" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_burkina_adm1",   version: "v1" },
+        country:   { key: "wardesk_burkina_country", version: "v1" },
+        deepState: { key: "wardesk_burkina_ds",     version: "v1" },
+        isw:       { key: "wardesk_burkina_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_burkina_snapshot", version: "v1" }
+      }
+    },
+
+    /* NIGER — JNIM + IS Sahel + Boko Haram/ISWAP vs junta */
+    "NER": {
+      name: "Niger", level: "ADM1", center: [17.6, 8.1, 6],
+      parties: {
+        "Junta (Regering)": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "JNIM (Jihadisten)": { color: "#16A34A", fill: "#16A34A" },
+        "IS Sahel":          { color: "#9333EA", fill: "#9333EA" },
+        "Boko Haram/ISWAP":  { color: "#F59E0B", fill: "#F59E0B" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_NER_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_NER_1.json"
+      ],
+      countrySources: adm0Sources("NER"),
+      iswUrl: null, deepStateUrlFn: null,
+      provinceRules: [
+        { match: ["tillaberi"],     controller: "JNIM (Jihadisten)" },
+        { match: ["tahoua"],        controller: "IS Sahel" },
+        { match: ["diffa"],         controller: "Boko Haram/ISWAP" },
+        { match: ["maradi"],        controller: "IS Sahel" },
+        { match: ["dosso"],         controller: "IS Sahel" },
+        { match: ["agadez"],        controller: "Junta (Regering)" },
+        { match: ["zinder"],        controller: "Boko Haram/ISWAP" },
+        { match: ["niamey"],        controller: "Junta (Regering)" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_niger_adm1",   version: "v1" },
+        country:   { key: "wardesk_niger_country", version: "v1" },
+        deepState: { key: "wardesk_niger_ds",     version: "v1" },
+        isw:       { key: "wardesk_niger_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_niger_snapshot", version: "v1" }
+      }
+    },
+
+    /* DR CONGO — M23/AFC + Rwanda vs regering */
+    "COD": {
+      name: "DR Congo", level: "ADM1", center: [-2.5, 26.0, 6],
+      parties: {
+        "Regering (FARDC)": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "M23/AFC":          { color: "#C62828", fill: "#C62828" },
+        "FDLR (Rwanda)":    { color: "#9333EA", fill: "#9333EA" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_COD_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_COD_1.json"
+      ],
+      countrySources: adm0Sources("COD"),
+      iswUrl: null, deepStateUrlFn: null,
+      provinceRules: [
+        { match: ["nord-kivu", "northkivu"], controller: "M23/AFC" },
+        { match: ["sud-kivu", "southkivu"],  controller: "M23/AFC" },
+        { match: ["tanganyika"],             controller: "M23/AFC" },
+        { match: ["maniema"],                controller: "Regering (FARDC)" },
+        { match: ["kasaï", "kasai"],         controller: "Regering (FARDC)" },
+        { match: ["katanga", "haut-katanga", "lualaba", "haut-lomami", "tanganika"], controller: "Regering (FARDC)" },
+        { match: ["kinshasa"],               controller: "Regering (FARDC)" },
+        { match: ["équateur", "equateur"],   controller: "Regering (FARDC)" },
+        { match: ["orientale", "bas-uele", "haut-uele", "ituri", "tshopo"], controller: "M23/AFC" },
+        { match: ["kongo central", "kongocentral"], controller: "Regering (FARDC)" },
+        { match: ["kwilu", "kwango", "mai-ndombe"], controller: "Regering (FARDC)" },
+        { match: ["lomami", "sankuru", "maniema"], controller: "Regering (FARDC)" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_drc_adm1",   version: "v1" },
+        country:   { key: "wardesk_drc_country", version: "v1" },
+        deepState: { key: "wardesk_drc_ds",     version: "v1" },
+        isw:       { key: "wardesk_drc_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_drc_snapshot", version: "v1" }
+      }
+    },
+
+    /* PAKISTAN — grensconflicten met Afghanistan + India */
+    "PAK": {
+      name: "Pakistan", level: "ADM1", center: [30.4, 69.3, 6],
+      parties: {
+        "Pakistan (Regering)": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "Afghanistan (Taliban)": { color: "#C62828", fill: "#C62828" },
+        "India (grens)":         { color: "#F59E0B", fill: "#F59E0B" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_PAK_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_PAK_1.json"
+      ],
+      countrySources: adm0Sources("PAK"),
+      iswUrl: null, deepStateUrlFn: null,
+      provinceRules: [
+        /* Grensprovincies met Afghanistan */
+        { match: ["khyber pakhtunkhwa", "khyberpakhtunkhwa", "kp"], controller: "Afghanistan (Taliban)" },
+        { match: ["balochistan"],                                    controller: "Afghanistan (Taliban)" },
+        { match: ["gilgit-baltistan", "gilgitbaltistan"],            controller: "India (grens)" },
+        /* Provincies met Indiase grens */
+        { match: ["punjab"],                                         controller: "India (grens)" },
+        { match: ["sindh"],                                          controller: "India (grens)" },
+        /* Binnenland */
+        { match: ["islamabad"],                                      controller: "Pakistan (Regering)" },
+        { match: ["azad kashmir", "azadkashmir"],                    controller: "India (grens)" }
+      ],
+      districtOverrides: [], overlayPolygons: [],
+      cacheKeys: {
+        oblasts:   { key: "wardesk_pakistan_adm1",   version: "v1" },
+        country:   { key: "wardesk_pakistan_country", version: "v1" },
+        deepState: { key: "wardesk_pakistan_ds",     version: "v1" },
+        isw:       { key: "wardesk_pakistan_isw",    version: "v1" },
+        snapshot:  { key: "wardesk_pakistan_snapshot", version: "v1" }
+      }
     }
   };
 
-  var ACTIVE_CONFLICTS = ["UKR", "SYR", "LBN", "YEM", "SDN", "SAU", "ISR", "PSE"];
+  /* ============================================================
+     v11.7: ACTIVE_CONFLICTS — uitgebreid naar 15 landen
+     ============================================================ */
+  var ACTIVE_CONFLICTS = [
+    /* Midden-Oosten */
+    "SYR", "LBN", "YEM", "ISR", "PSE", "SAU",
+    /* Oost-Europa */
+    "UKR",
+    /* Afrika — Hoorn */
+    "SDN", "ETH",
+    /* Afrika — Sahel */
+    "MLI", "BFA", "NER",
+    /* Afrika — Centraal */
+    "COD",
+    /* Azië */
+    "MMR", "PAK"
+  ];
 
+  /* ============================================================
+     v11.7: NEIGHBOR_COUNTRIES — uitgebreid
+     ============================================================ */
   var NEIGHBOR_COUNTRIES = [
+    /* Midden-Oosten buren */
     "TUR", "IRQ", "JOR", "EGY", "OMN", "ARE", "QAT", "KWT", "CYP",
+    /* Oost-Europa buren */
     "RUS", "BLR", "POL", "ROU", "HUN", "SVK", "MDA",
-    "LBY", "TCD", "CAF", "SSD", "ETH", "ERI"
+    /* Sudan buren */
+    "LBY", "TCD", "CAF", "SSD", "ERI",
+    /* Ethiopië buren */
+    "DJI", "SOM", "KEN",
+    /* Sahel buren */
+    "DZA", "MRT", "GIN", "CIV", "GHA", "TGO", "BEN", "SEN", "GMB", "GNB", "SLE", "LBR",
+    /* DRC buren */
+    "RWA", "BDI", "UGA", "TZA", "ZMB", "AGO", "COG", "CMR",
+    /* Myanmar buren */
+    "THA", "LAO", "CHN", "IND", "BGD",
+    /* Pakistan buren */
+    "IRN", "AFG", "CHN", "IND"
   ];
 
   var PROXIES = [
@@ -1326,26 +1628,12 @@
     if(_pulseRetryTimer){ clearTimeout(_pulseRetryTimer); _pulseRetryTimer = null; }
   }
 
-  /* ============================================================
-     v11.5: Panel styles — robuust met !important
-     ============================================================ */
   function injectPanelStyles(){
     if(document.getElementById("caPanelFallbackStyles")) return;
     var s = document.createElement("style");
     s.id = "caPanelFallbackStyles";
     s.textContent =
-      "#caAreaPanel.wm-country-panel{" +
-        "position:fixed!important;left:0!important;right:0!important;bottom:0!important;" +
-        "background:#111b2d!important;color:#e6ebf5!important;" +
-        "border-top:1px solid rgba(224,168,87,.4)!important;" +
-        "border-top-left-radius:18px!important;border-top-right-radius:18px!important;" +
-        "max-height:75vh!important;overflow-y:auto!important;z-index:99999!important;" +
-        "transform:translateY(100%)!important;" +
-        "transition:transform .3s cubic-bezier(.2,.9,.3,1)!important;" +
-        "box-shadow:0 -10px 40px rgba(0,0,0,.7)!important;" +
-        "padding-bottom:env(safe-area-inset-bottom,0)!important;" +
-        "display:block!important;visibility:visible!important;pointer-events:auto!important;" +
-      "}" +
+      "#caAreaPanel.wm-country-panel{position:fixed!important;left:0!important;right:0!important;bottom:0!important;background:#111b2d!important;color:#e6ebf5!important;border-top:1px solid rgba(224,168,87,.4)!important;border-top-left-radius:18px!important;border-top-right-radius:18px!important;max-height:75vh!important;overflow-y:auto!important;z-index:99999!important;transform:translateY(100%)!important;transition:transform .3s cubic-bezier(.2,.9,.3,1)!important;box-shadow:0 -10px 40px rgba(0,0,0,.7)!important;padding-bottom:env(safe-area-inset-bottom,0)!important;display:block!important;visibility:visible!important;pointer-events:auto!important;}" +
       "#caAreaPanel.wm-country-panel.show{transform:translateY(0)!important;}" +
       "#caAreaPanel .wm-panel-head{display:flex!important;align-items:center!important;justify-content:space-between!important;padding:.9rem 1rem .7rem!important;border-bottom:1px solid rgba(255,255,255,.08)!important;position:sticky!important;top:0!important;background:#111b2d!important;z-index:2!important;}" +
       "#caAreaPanel .wm-panel-title{font-family:'Playfair Display',serif!important;font-size:1.1rem!important;font-weight:700!important;color:#e6ebf5!important;margin:0!important;}" +
@@ -1427,9 +1715,6 @@
     return Math.floor(diff / 86400) + "d";
   }
 
-  /* ============================================================
-     v11.6: openPanel met dubbele-open preventie
-     ============================================================ */
   function openPanel(area, conflictIso){
     if (CA._lastOpenPanelTime && Date.now() - CA._lastOpenPanelTime < 500) return;
     CA._lastOpenPanelTime = Date.now();
@@ -1443,8 +1728,8 @@
       var statsEl = panel.querySelector("#caPanelStats");
       var ctrlLabel = props.controller || "Onbekend";
       var ctrlClass = "conf-med";
-      if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's" || props.controller === "RSF") ctrlClass = "conf-low";
-      else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina") ctrlClass = "conf-high";
+      if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's" || props.controller === "RSF" || props.controller === "JNIM (Jihadisten)" || props.controller === "M23/AFC") ctrlClass = "conf-low";
+      else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina" || props.controller === "Federale regering" || props.controller === "Junta (Regering)" || props.controller === "Pakistan (Regering)") ctrlClass = "conf-high";
 
       var events = getEventsForArea(area);
       var physicalCount = 0;
@@ -1523,10 +1808,6 @@
     CA.selectedId = null;
   }
 
-  /* ============================================================
-     v11.6: MAP-LEVEL CLICK FALLBACK
-     Werkt altijd, ongeacht of de SVG-path clickbaar is
-     ============================================================ */
   function bindMapClickFallback(){
     if (!CA.map) return;
     if (CA._mapClickBound) return;
@@ -1534,21 +1815,18 @@
 
     CA.map.on("click", function(e){
       try {
-        // Skip als het paneel net is geopend
         if (CA._lastOpenPanelTime && Date.now() - CA._lastOpenPanelTime < 800) return;
 
         var zoom = CA.map.getZoom();
-        if (zoom < 4) return; // te ver uitgezoomd
+        if (zoom < 4) return;
 
         var lat = e.latlng.lat;
         var lng = e.latlng.lng;
 
-        // Skip als er een marker-popup open is
         try {
           if (CA.map._popup && CA.map._popup.isOpen && CA.map._popup.isOpen()) return;
         } catch(err){}
 
-        // Loop door alle conflictgebieden en vind de provincie
         for (var i = 0; i < ACTIVE_CONFLICTS.length; i++){
           var iso = ACTIVE_CONFLICTS[i];
           var geojson = CA.geojsons[iso];
@@ -1833,7 +2111,7 @@
       CA.isLoaded = true;
       ensurePanes(CA.map);
       bindZoomListener();
-      bindMapClickFallback();   /* v11.6 */
+      bindMapClickFallback();
       injectAreaStyles();
       injectPanelStyles();
       hookLegendRefresh();
@@ -1943,7 +2221,7 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.6",
+    state: CA, _version: "v11.7",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -1994,5 +2272,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.6 geladen (map-click fallback)");
+  LOG("conflict-areas.js v11.7 geladen (" + ACTIVE_CONFLICTS.length + " conflicten)");
 })();
