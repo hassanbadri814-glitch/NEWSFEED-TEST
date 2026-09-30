@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.15.1
+   WAR DESK — ai-map.js v3.15.2
+   - v3.15.2: FIX filter zwakke politiek (alleen conflict-gerelateerd)
    - v3.15.1: zwak-civiel versoepeld + city-hits teller fix
    - v3.15: CITY > COUNTRY preference in locatie-extractie
    - v3.14: LOCATIONS gecentraliseerd naar worldmap-data.js
@@ -14,8 +15,11 @@
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
-  /* v3.15.1: war-context voor ruimere civiel-check */
+  /* v3.15.2: oorlogs-/conflictcontext voor politiek + civiel filter */
   var WAR_CONTEXT_PATTERN = /\b(war|oorlog|conflict|attack|strike|military|troops|army|soldier|weapon|missile|drone|bomb|border|front|offensive|invasion|ceasefire|sanction|refugee|evacuation|shelling|artillery|airstrike|casualties|killed|wounded|strike|strikes|troepen|leger|soldaten|wapen|raketten|drone|bommen|grens|front|offensief|invasie|staakt-het-vuren|sanctie|vluchtelingen|beschieting|artillerie|luchtaanval|slachtoffers|gedood|gewond)\b/i;
+
+  /* v3.15.2: specifieke politieke onderwerpen die conflict-relevant zijn */
+  var POLITIEK_CONFLICT_PATTERN = /\b(sanctions?|sancties|ceasefire|staakt-het-vuren|wapenstilstand|nuclear|nucleair|invasion|invasie|troops|troepen|missile|raket|drone|airstrike|luchtaanval|casualties|slachtoffers|killed|gedood|wounded|gewond|declared war|oorlogsverklaring|mobilization|mobilisatie|military aid|militaire hulp|arms deal|wapendeal|weapons|wapens|peace plan|vredesplan|peace talks|vredesoverleg|negotiations|onderhandelingen|hostage|gijzelaar|prisoner|gevangene|genocide|war crime|oorlogsmisdaad)\b/i;
 
   var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen|program|programma|nuclear|nucleair)\b/i;
 
@@ -42,9 +46,6 @@
 
   try { window.__wm_locations = LOCATIONS; } catch(e){}
 
-  /* ============================================================
-     v3.15: STEDEN vs LANDEN — aparte sets
-     ============================================================ */
   var _countryKeyCache = null;
 
   function isCountryKey(key){
@@ -161,7 +162,6 @@
       }
     }
 
-    /* v3.15.1: markeer of het een stad is voor de teller */
     if (bestCity) { bestCity._isCity = true; return bestCity; }
     if (bestCountry) { bestCountry._isCity = false; return bestCountry; }
     return null;
@@ -198,7 +198,6 @@
       }
     }
 
-    /* v3.15.1: markeer of het een stad is */
     if (bestCity) { bestCity._isCity = true; return bestCity; }
     if (bestCountry) { bestCountry._isCity = false; return bestCountry; }
     return null;
@@ -303,7 +302,7 @@
 
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
     var events = [];
-    var skippedOld = 0, skippedSport = 0, skippedWeakCiviel = 0;
+    var skippedOld = 0, skippedSport = 0, skippedWeakCiviel = 0, skippedWeakPolitiek = 0;
     var skippedNoLocation = 0, skippedNonPhysical = 0;
     var controlCount = 0, attackCount = 0;
     var positionHits = 0, contextHits = 0;
@@ -318,11 +317,25 @@
       var cls = classifyItem(article);
       if (cls.category === "sport") { skippedSport++; continue; }
 
-      /* v3.15.1: ruimere civiel-check */
+      var titleStr = String(article.title || "");
+
+      /* v3.15.2: civiel filter */
       if (cls.category === "civiel") {
-        var titleStr = String(article.title || "");
         if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
           if (!WAR_CONTEXT_PATTERN.test(titleStr)) { skippedWeakCiviel++; continue; }
+        }
+      }
+
+      /* ============================================================
+         v3.15.2: NIEUW — politiek filter
+         Alleen politieke events met duidelijke conflictcontext doorlaten
+         ============================================================ */
+      if (cls.category === "politiek") {
+        var hasPolitiekConflictContext = POLITIEK_CONFLICT_PATTERN.test(titleStr) ||
+                                         WAR_CONTEXT_PATTERN.test(titleStr);
+        if (!hasPolitiekConflictContext) {
+          skippedWeakPolitiek++;
+          continue;
         }
       }
 
@@ -336,7 +349,6 @@
       if (targetResult.method === "position") positionHits++;
       else if (targetResult.method === "context") contextHits++;
 
-      /* v3.15.1: correcte city-hits teller */
       if (loc && loc._isCity) cityHits++;
 
       if (!loc) loc = extractRegionFallback(article, skipForLoc);
@@ -432,11 +444,12 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.15.1] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.15.2] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
         " | skip sport:" + skippedSport + " zwak-civiel:" + skippedWeakCiviel +
+        " zwak-pol:" + skippedWeakPolitiek +
         " niet-fysiek:" + skippedNonPhysical +
         " control:" + controlCount + " attack:" + attackCount +
         " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
@@ -512,7 +525,7 @@
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15.1 geladen (city-preference + zwak-civiel versoepeld)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15.2 geladen (politiek-filter + conflictcontext)");
   }
 
   function getCountries(){
