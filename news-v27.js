@@ -1,18 +1,16 @@
 /* ============================================================
-   WAR DESK v27.19 — Nieuws Logica + EventBus
+   WAR DESK v27.20 — Nieuws Logica + EventBus
+   - v27.20: he toegevoegd + Arabic-priority translation queue (80 items)
    - v27.19: uk + ru toegevoegd aan vertaalbare talen
    - v27.18: __setTranslate directe visuele update + CustomEvent
-   - v27.17: NewsAPI.getTranslatedTitle + ensureTranslations voor events
+   - v27.17: NewsAPI.getTranslatedTitle + ensureTranslations
    - v27.16: Voetbal/Oranje correct in Sport-categorie
-   - v27.15: Beschrijving (desc) ook vertalen voor AR/FR
-   - v27.14: Sport is exclusieve categorie
-   - v27.13: Alleen Arabisch + Frans vertalen
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.19";
+  window.__newsVersion = "v27.20";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -524,12 +522,12 @@
   };
 
   /* ============================================================
-     v27.19: uk + ru toegevoegd aan vertaalbare talen
+     v27.20: isTranslatableLang — he toegevoegd
      ============================================================ */
   function isTranslatableLang(lang){
     if(!lang) return false;
     var L = String(lang).toLowerCase();
-    return L === "ar" || L === "fr" || L === "uk" || L === "ru";
+    return L === "ar" || L === "fr" || L === "uk" || L === "ru" || L === "he";
   }
 
   async function fetchTranslation(text, sourceLang) {
@@ -695,9 +693,6 @@
     return result;
   };
 
-  /* ============================================================
-     TOGGLE FIX
-     ============================================================ */
   window.__setTranslate = (enabled) => {
     state.translateEnabled = !!enabled;
     if(window.WDStorage) WDStorage.set("translate", enabled ? "1" : "0");
@@ -1379,14 +1374,11 @@
     setView: (v) => { state.viewMode = v; renderNews(); },
     render: renderNews,
 
-    /* ============================================================
-       v27.19: uk + ru toegevoegd
-       ============================================================ */
     getTranslatedTitle: function(item){
       if (!state.translateEnabled) return null;
       if (!item || !item.lang) return null;
       var L = String(item.lang).toLowerCase();
-      if (L !== "ar" && L !== "fr" && L !== "uk" && L !== "ru") return null;
+      if (L !== "ar" && L !== "fr" && L !== "uk" && L !== "ru" && L !== "he") return null;
       var key = titleHashKey(item.lang, item.title);
       return state.translations[key] || null;
     },
@@ -1395,7 +1387,7 @@
       if (!state.translateEnabled) return null;
       if (!item || !item.lang) return null;
       var L = String(item.lang).toLowerCase();
-      if (L !== "ar" && L !== "fr" && L !== "uk" && L !== "ru") return null;
+      if (L !== "ar" && L !== "fr" && L !== "uk" && L !== "ru" && L !== "he") return null;
       var key = "desc_" + titleHashKey(item.lang, item.title);
       return state.translations[key] || null;
     },
@@ -1410,10 +1402,16 @@
       var toTranslate = items.filter(function(it){
         if (!it || !it.lang) return false;
         var L = String(it.lang).toLowerCase();
-        if (L !== "ar" && L !== "fr" && L !== "uk" && L !== "ru") return false;
+        if (L !== "ar" && L !== "fr" && L !== "uk" && L !== "ru" && L !== "he") return false;
         var key = titleHashKey(it.lang, it.title);
         return !state.translations[key];
-      }).slice(0, 30);
+      })
+      .sort(function(a, b){
+        var aAr = String(a.lang).toLowerCase() === "ar" ? 1 : 0;
+        var bAr = String(b.lang).toLowerCase() === "ar" ? 1 : 0;
+        return bAr - aAr;
+      })
+      .slice(0, 80);
       toTranslate.forEach(function(it){
         translateItem(it).then(function(translated){
           if (translated){
