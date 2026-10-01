@@ -57,7 +57,7 @@ window.wdLog = {
 
 window.CONFIG = {
   perFeed: 12,
-  autoRefreshMs: 5 * 60 * 1000,
+  autoRefreshMs: 15 * 60 * 1000,
   pauseOnScrollMs: 15000,
   failThreshold: 5,
   retryAfterMs: 3600000,
