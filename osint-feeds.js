@@ -14,7 +14,7 @@
 
   var REFRESH_MS = 20 * 60 * 1000;
   var MAX_EVENTS = 300;
-  var STAGGER_MS = 3000;
+  var STAGGER_MS = 4000;
   var PARALLEL_BATCH = 3;
   var FETCH_TIMEOUT = 25000;
 
