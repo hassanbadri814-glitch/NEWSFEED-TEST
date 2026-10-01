@@ -1,5 +1,7 @@
 /* ============================================================
-   WAR DESK v14.4 — Conflictkaart + Wereldkaart-integratie
+   WAR DESK v14.5 — Conflictkaart + Wereldkaart-integratie
+   - v14.5: Zoekveld in live-list + tijdfilter (24u/7d/30d)
+           + toast-notificatie bij AI-confirmed overrides
    - v14.4: WorldMap init + refresh + toggle
    - v14.3: "Alles"-filter
    - v14.2: rerender bij translation:added
@@ -14,7 +16,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.4 geladen — wereldkaart-integratie");
+  LOG("v14.5 geladen — wereldkaart + live-filters");
 
   var CATEGORIES = {
     all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
@@ -26,6 +28,13 @@
   };
 
   var FILTER_ORDER = ["all", "militair", "crime", "politiek", "protest", "civiel"];
+
+  var TIME_FILTERS = [
+    { key: "24h", label: "24u", hours: 24 },
+    { key: "7d",  label: "7d",  hours: 168 },
+    { key: "30d", label: "30d", hours: 720 },
+    { key: "all", label: "Alles", hours: 0 }
+  ];
 
   function resolveColor(event){
     if(!event) return CATEGORIES.civiel.color;
@@ -65,7 +74,10 @@
     _lastRenderTime: 0,
     _lastZoomHash: "",
     _counters: { militair:0, crime:0, politiek:0, protest:0, civiel:0 },
-    _worldMapEnabled: true /* v14.4 */
+    _worldMapEnabled: true,
+    /* v14.5 */
+    liveSearchQuery: "",
+    liveTimeFilter: "7d"
   };
 
   var TILES = {
@@ -184,11 +196,25 @@
       ".live-filter[data-cat='all'].active{background:rgba(224,168,87,.15);color:#e0a857;border-color:#e0a857}" +
       ".pop-sources-list{margin-top:.4rem;font-size:.72rem;color:var(--ink-3);line-height:1.5}" +
       ".pop-sources-list strong{color:var(--ink);font-weight:700}" +
-      /* v14.4: wereldkaart toggle */
       ".wm-toggle{position:absolute;top:.7rem;left:.7rem;z-index:500;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(226,168,87,.4);color:#e0a857;font-size:.72rem;font-weight:700;padding:.5rem .75rem;border-radius:9px;cursor:pointer;display:inline-flex;align-items:center;gap:.4rem;box-shadow:0 4px 14px rgba(0,0,0,.45);font-family:inherit;transition:all .18s}" +
       ".wm-toggle:hover{background:rgba(226,168,87,.2);box-shadow:0 0 14px rgba(224,168,87,.4)}" +
       ".wm-toggle.off{opacity:.55;color:#8a94a8;border-color:rgba(255,255,255,.15)}" +
-      ".wm-toggle svg{width:14px;height:14px}";
+      ".wm-toggle svg{width:14px;height:14px}" +
+      /* v14.5: live-search + time filter */
+      ".live-search-row{display:flex;gap:.4rem;padding:.4rem .6rem;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap;}" +
+      ".live-search-wrap{flex:1;min-width:140px;position:relative;}" +
+      ".live-search-wrap input{width:100%;padding:.4rem .7rem .4rem 1.9rem;background:var(--bg-3);border:1px solid var(--line-2);color:var(--ink);border-radius:7px;font-size:.72rem;outline:none;font-family:inherit;}" +
+      ".live-search-wrap input:focus{border-color:var(--amber);box-shadow:0 0 0 2px var(--accent-glow);}" +
+      ".live-search-wrap .live-search-icon{position:absolute;left:.5rem;top:50%;transform:translateY(-50%);width:12px;height:12px;color:var(--ink-3);pointer-events:none;}" +
+      ".live-search-clear{position:absolute;right:.3rem;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--ink-3);font-size:.9rem;cursor:pointer;padding:.2rem .4rem;border-radius:5px;font-family:inherit;line-height:1;display:none;}" +
+      ".live-search-wrap.has-value .live-search-clear{display:block;}" +
+      ".live-search-clear:hover{color:#f87171;}" +
+      ".live-time-filter{display:inline-flex;background:var(--bg-3);border:1px solid var(--line-2);border-radius:7px;padding:1px;gap:1px;}" +
+      ".live-time-filter button{background:transparent;border:none;color:var(--ink-2);font-size:.65rem;font-weight:700;padding:.32rem .55rem;border-radius:5px;cursor:pointer;font-family:inherit;transition:all .15s;letter-spacing:.02em;}" +
+      ".live-time-filter button:hover{color:var(--amber);}" +
+      ".live-time-filter button.active{background:rgba(224,168,87,.25);color:var(--amber);}" +
+      ".live-empty-filter{padding:1rem;text-align:center;color:var(--ink-3);font-size:.75rem;}" +
+      ".live-empty-filter button{background:var(--bg-3);border:1px solid var(--line-2);color:var(--amber);padding:.35rem .75rem;border-radius:6px;font-size:.7rem;font-weight:700;cursor:pointer;font-family:inherit;margin-top:.5rem;}";
     document.head.appendChild(s);
   }
 
@@ -217,9 +243,6 @@
     wrap.appendChild(btn);
   }
 
-  /* ============================================================
-     v14.4: WERELDKAART TOGGLE KNOP
-     ============================================================ */
   function ensureWorldMapToggle(){
     var wrap = document.querySelector(".map-wrap");
     if(!wrap || wrap.querySelector(".wm-toggle")) return;
@@ -437,11 +460,39 @@
     }catch(e){}
   }
 
+  /* ============================================================
+     v14.5: getFilteredEvents met search + time filter
+     ============================================================ */
   function getFilteredEvents(){
-    if(MAP.currentFilter === "all") return MAP.events.slice();
-    return MAP.events.filter(function(e){
-      return (e.category || "civiel") === MAP.currentFilter;
-    });
+    var list = MAP.events.slice();
+
+    /* Categorie filter */
+    if(MAP.currentFilter !== "all"){
+      list = list.filter(function(e){
+        return (e.category || "civiel") === MAP.currentFilter;
+      });
+    }
+
+    /* Tijdfilter */
+    var tf = TIME_FILTERS.find(function(t){ return t.key === MAP.liveTimeFilter; });
+    if(tf && tf.hours > 0){
+      var cutoff = Date.now() - tf.hours * 60 * 60 * 1000;
+      list = list.filter(function(e){
+        var t = new Date(e.date).getTime();
+        return !isNaN(t) && t >= cutoff;
+      });
+    }
+
+    /* Zoekfilter */
+    var q = (MAP.liveSearchQuery || "").toLowerCase().trim();
+    if(q.length >= 2){
+      list = list.filter(function(e){
+        var hay = ((e.title || "") + " " + (e.country || "") + " " + (e.source || "") + " " + (e.subtype || "")).toLowerCase();
+        return hay.indexOf(q) !== -1;
+      });
+    }
+
+    return list;
   }
 
   function fitToMarkers(){
@@ -483,7 +534,6 @@
     renderLiveList();
     updateCounters();
 
-    /* v14.4: refresh wereldkaart-hitte met de nieuwe events */
     try {
       if (window.WorldMap && window.WorldMap.refresh && MAP._worldMapEnabled){
         window.WorldMap.refresh(events);
@@ -549,6 +599,9 @@
     LOG("Markers gerenderd: " + markers.length + " (filter: " + MAP.currentFilter + ")");
   }
 
+  /* ============================================================
+     v14.5: renderLiveList met filter-info
+     ============================================================ */
   function renderLiveList(){
     var list = $("liveList");
     var countEl = $("liveCount");
@@ -557,8 +610,31 @@
     if(countEl) countEl.textContent = filtered.length;
 
     if(!filtered.length){
-      var catLabel = (CATEGORIES[MAP.currentFilter] || {}).label || "deze";
-      list.innerHTML = '<div class="live-empty">Geen ' + catLabel + ' events op dit moment</div>';
+      var hasFilters = MAP.currentFilter !== "all" || MAP.liveSearchQuery || (MAP.liveTimeFilter && MAP.liveTimeFilter !== "30d" && MAP.liveTimeFilter !== "all");
+      if(hasFilters){
+        list.innerHTML = '<div class="live-empty-filter">' +
+          'Geen events met deze filters.<br>' +
+          '<button type="button" id="liveResetFilters">Wis alle filters</button>' +
+        '</div>';
+        var resetBtn = $("liveResetFilters");
+        if(resetBtn){
+          resetBtn.addEventListener("click", function(){
+            MAP.currentFilter = "all";
+            MAP.liveSearchQuery = "";
+            MAP.liveTimeFilter = "7d";
+            var inp = $("liveSearch");
+            if(inp){ inp.value = ""; }
+            renderLiveFilters();
+            updateTimeFilterUI();
+            updateSearchClear();
+            renderMarkers();
+            renderLiveList();
+          });
+        }
+      } else {
+        var catLabel = (CATEGORIES[MAP.currentFilter] || {}).label || "deze";
+        list.innerHTML = '<div class="live-empty">Geen ' + catLabel + ' events op dit moment</div>';
+      }
       return;
     }
 
@@ -618,6 +694,116 @@
     return Math.floor(diff / 86400) + " d";
   }
 
+  /* ============================================================
+     v14.5: live-search + time filter UI
+     ============================================================ */
+  function ensureLiveSearch(){
+    var feed = document.querySelector(".live-feed");
+    if(!feed) return;
+    if(feed.querySelector(".live-search-row")) return;
+
+    var head = feed.querySelector(".live-head");
+    var filters = feed.querySelector(".live-filters");
+    if(!filters) return;
+
+    var row = document.createElement("div");
+    row.className = "live-search-row";
+    row.innerHTML =
+      '<div class="live-search-wrap" id="liveSearchWrap">' +
+        '<svg class="live-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>' +
+        '<input type="search" id="liveSearch" placeholder="Zoek land, bron, subtype..." autocomplete="off" />' +
+        '<button type="button" class="live-search-clear" id="liveSearchClear" aria-label="Wissen">✕</button>' +
+      '</div>' +
+      '<div class="live-time-filter" id="liveTimeFilter">' +
+        TIME_FILTERS.map(function(t){
+          var active = (MAP.liveTimeFilter === t.key) ? " active" : "";
+          return '<button type="button" data-key="' + t.key + '" class="' + (active ? 'active' : '') + '">' + t.label + '</button>';
+        }).join("") +
+      '</div>';
+
+    filters.parentNode.insertBefore(row, filters);
+
+    /* Bind events */
+    var input = document.getElementById("liveSearch");
+    var clear = document.getElementById("liveSearchClear");
+    var wrap = document.getElementById("liveSearchWrap");
+    var searchTimer = null;
+
+    function updateClearVisibility(){
+      if(!wrap || !input) return;
+      if(input.value.length > 0) wrap.classList.add("has-value");
+      else wrap.classList.remove("has-value");
+    }
+
+    if(input){
+      input.addEventListener("input", function(){
+        updateClearVisibility();
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(function(){
+          MAP.liveSearchQuery = input.value;
+          renderMarkers();
+          renderLiveList();
+        }, 220);
+      });
+    }
+
+    if(clear){
+      clear.addEventListener("click", function(){
+        if(input){ input.value = ""; }
+        updateClearVisibility();
+        MAP.liveSearchQuery = "";
+        renderMarkers();
+        renderLiveList();
+        if(input) input.focus();
+      });
+    }
+
+    var tf = document.getElementById("liveTimeFilter");
+    if(tf){
+      Array.prototype.forEach.call(tf.querySelectorAll("button"), function(btn){
+        btn.addEventListener("click", function(){
+          var key = btn.dataset.key;
+          if(!key || key === MAP.liveTimeFilter) return;
+          MAP.liveTimeFilter = key;
+          updateTimeFilterUI();
+          try {
+            if(window.WDStorage) WDStorage.set("map_live_timefilter", key);
+          } catch(e){}
+          renderMarkers();
+          renderLiveList();
+          setTimeout(fitToMarkers, 200);
+        });
+      });
+    }
+
+    /* Restore opgeslagen tijd-filter */
+    try {
+      var savedTf = window.WDStorage ? WDStorage.get("map_live_timefilter") : null;
+      if(savedTf && TIME_FILTERS.some(function(t){ return t.key === savedTf; })){
+        MAP.liveTimeFilter = savedTf;
+        updateTimeFilterUI();
+      }
+    } catch(e){}
+
+    updateClearVisibility();
+  }
+
+  function updateTimeFilterUI(){
+    var tf = document.getElementById("liveTimeFilter");
+    if(!tf) return;
+    Array.prototype.forEach.call(tf.querySelectorAll("button"), function(btn){
+      btn.classList.toggle("active", btn.dataset.key === MAP.liveTimeFilter);
+    });
+  }
+
+  function updateSearchClear(){
+    var wrap = document.getElementById("liveSearchWrap");
+    var inp = document.getElementById("liveSearch");
+    if(!wrap) return;
+    if(inp && inp.value.length > 0) wrap.classList.add("has-value");
+    else wrap.classList.remove("has-value");
+  }
+
   function initMap(){
     if(MAP.instance || typeof L === "undefined") return;
     var mapEl = $("map");
@@ -643,7 +829,6 @@
     observeThemeChanges();
     LOG("Map klaar");
 
-    /* v14.4: init wereldkaart */
     try {
       if (window.WorldMap && window.WorldMap.init){
         var initResult = window.WorldMap.init(MAP.instance);
@@ -682,6 +867,9 @@
     });
   }
 
+  /* ============================================================
+     v14.5: + territory:confirmed toast notificatie
+     ============================================================ */
   function bindEventBus(){
     if(MAP._busBound) return;
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
@@ -715,7 +903,6 @@
           renderMarkers();
           renderLiveList();
           updateCounters();
-          LOG("Rerender na translation:added");
         }
       }, 400);
     });
@@ -726,6 +913,29 @@
         if (window.MapAI && window.MapAI.forceRun) window.MapAI.forceRun();
         else if (window.MapAI && window.MapAI.run) window.MapAI.run();
       }, 300);
+    });
+
+    /* v14.5: toast bij nieuwe AI-confirmed overrides */
+    WarDesk.events.on("territory:confirmed", function(data){
+      if (!data) return;
+      if (data.fromCache) return;
+      var confirmed = data.confirmed || [];
+      var expired = data.expired || [];
+
+      if (confirmed.length > 0 && window.showToast){
+        var lines = confirmed.slice(0, 2).map(function(c){
+          var label = c.admin1 || c.iso3;
+          return label + " → " + c.actor;
+        });
+        var extra = confirmed.length > 2 ? " +" + (confirmed.length - 2) + " meer" : "";
+        window.showToast("✅ AI-bevestigd: " + lines.join(", ") + extra);
+        LOG("Territory toast: " + confirmed.length + " confirmations");
+      }
+
+      if (expired.length > 0 && window.showToast && confirmed.length === 0){
+        window.showToast("⏳ " + expired.length + " override(s) verlopen");
+        LOG("Territory toast: " + expired.length + " expired");
+      }
     });
 
     LOG("EventBus listeners actief");
@@ -749,7 +959,8 @@
   function activateMapView(){
     initMap();
     ensureFullscreenClose();
-    ensureWorldMapToggle(); /* v14.4 */
+    ensureWorldMapToggle();
+    ensureLiveSearch();
     if(MAP.instance) setTimeout(function(){ if(MAP.instance) MAP.instance.invalidateSize(); }, 350);
     if(window.State && State.items && State.items.length) refreshFromNews();
   }
@@ -770,7 +981,7 @@
     bindControls();
     hookViewSwitch();
     restoreFilter();
-    restoreWorldMapToggle(); /* v14.4 */
+    restoreWorldMapToggle();
     renderLiveFilters();
     bindEventBus();
 
@@ -809,5 +1020,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.4 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.5 geladen");
 })();
