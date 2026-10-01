@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK v1.18 — AI Chat Module
-   - v1.18: Voice input (Web Speech API) + Dagoverzicht (lazy, cached)
-   - v1.17: Cache warming (3 populaire vragen bij AI-tab open)
+   WAR DESK v1.19 — AI Chat Module
+   - v1.19: getMilitaryEvents fallback verbeterd (MAPAPI → MapAI)
+   - v1.18: Voice input (Web Speech API) + Dagoverzicht
+   - v1.17: Cache warming
    - v1.16: Retry met exponentiële backoff
    - v1.15: SSE streaming + stop-knop + JSON fallback
    ============================================================ */
@@ -9,20 +10,16 @@
 (function(){
   "use strict";
 
-  /* ===== v1.15+v1.18: CSS auto-inject ===== */
   (function injectStreamCss(){
     if (document.getElementById("wd-ai-stream-css")) return;
     var style = document.createElement("style");
     style.id = "wd-ai-stream-css";
     style.textContent = [
-      /* Streaming cursor */
       ".ai-cursor{display:inline-block;margin-left:2px;color:var(--amber,#e0a857);",
       "animation:wdBlink 1s steps(2,start) infinite;font-weight:400;font-size:.9em}",
       "@keyframes wdBlink{0%,50%{opacity:1}51%,100%{opacity:0}}",
       ".ai-send-btn.ai-stop-mode{background:#e57373!important;color:#fff!important}",
       ".ai-streaming .ai-msg-text{white-space:pre-wrap;word-break:break-word}",
-
-      /* v1.18: Voice button */
       ".ai-voice-btn{width:36px;height:36px;flex-shrink:0;border:0;border-radius:50%;",
       "background:var(--bg-3,#1a2332);color:var(--ink-2,#8899aa);cursor:pointer;",
       "display:flex;align-items:center;justify-content:center;font-size:16px;",
@@ -34,8 +31,6 @@
       "50%{box-shadow:0 0 0 10px rgba(229,115,115,0)}}",
       ".ai-voice-btn.hidden{display:none}",
       ".ai-input-wrap.has-voice{padding-left:6px}",
-
-      /* v1.18: Dagoverzicht button + card */
       ".ai-day-btn{font-size:16px}",
       ".ai-day-btn.loading{opacity:.5;pointer-events:none}",
       ".ai-day-card{margin:0 12px 12px;padding:14px 16px;border-radius:14px;",
@@ -67,7 +62,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.18 geladen (voice + dagoverzicht)");
+  LOG("v1.19 geladen (getMilitaryEvents fallback)");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
@@ -95,9 +90,8 @@
     "Wat gebeurt er in Oekraïne?"
   ];
 
-  /* v1.18: Dagoverzicht config */
   var DAYOVERVIEW_CACHE_PREFIX = "__dayoverview__";
-  var DAYOVERVIEW_RESET_HOUR = 6; // 06:00 lokale tijd = nieuwe dag
+  var DAYOVERVIEW_RESET_HOUR = 6;
   var DAYOVERVIEW_MAX_CHARS = 1200;
 
   var AI = {
@@ -124,15 +118,13 @@
   };
 
   var dayState = {
-    cached: null,      // { text, date, t }
+    cached: null,
     loading: false,
     requestAbort: null
   };
 
   var lastRequestTime = 0;
   var responseCache = {};
-
-  /* ===== HULPFUNCTIES (ongewijzigd) ===== */
 
   function esc(s){
     return String(s == null ? "" : s).replace(/[&<>"']/g, function(c){
@@ -209,7 +201,6 @@
     if (keys.length <= CACHE_MAX_ITEMS) return;
     keys.sort(function(a, b){ return responseCache[b].t - responseCache[a].t; });
     for (var i = CACHE_MAX_ITEMS; i < keys.length; i++){
-      /* Dagoverzicht nooit verwijderen */
       if (keys[i].indexOf(DAYOVERVIEW_CACHE_PREFIX) === 0) continue;
       delete responseCache[keys[i]];
     }
@@ -424,19 +415,35 @@
     return { isMilitary: isMilitary, country: country, subtype: subtype };
   }
 
+  /* ============================================================
+     v1.19: getMilitaryEvents — robuustere fallback
+     ============================================================ */
   function getMilitaryEvents(){
     try {
-      if (window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events) && window.MAPAPI.state.events.length) {
-        var mil = window.MAPAPI.state.events.filter(function(e){ return e && e.isMilitary; });
-        if (mil.length) return mil;
-      }
-      if (window.MapAI && typeof window.MapAI.getEventsSync === "function") {
-        var events = window.MapAI.getEventsSync();
-        if (Array.isArray(events)) {
-          return events.filter(function(e){ return e && e.isMilitary; });
+      if (window.MAPAPI && window.MAPAPI.state) {
+        var s = window.MAPAPI.state;
+        if (Array.isArray(s.militaryEvents) && s.militaryEvents.length > 0) {
+          var m1 = s.militaryEvents.filter(function(e){ return e && e.isMilitary; });
+          if (m1.length) return m1;
+        }
+        if (Array.isArray(s.events) && s.events.length > 0) {
+          var m2 = s.events.filter(function(e){ return e && e.isMilitary; });
+          if (m2.length) return m2;
         }
       }
     } catch(e){}
+    try {
+      if (window.MapAI && typeof window.MapAI.getEventsSync === "function") {
+        var events = window.MapAI.getEventsSync();
+        if (Array.isArray(events) && events.length > 0) {
+          var m3 = events.filter(function(e){ return e && e.isMilitary; });
+          if (m3.length) {
+            LOG("getMilitaryEvents: " + m3.length + " via MapAI.getEventsSync()");
+            return m3;
+          }
+        }
+      }
+    } catch(e){ LOG("MapAI.getEventsSync faalde: " + e.message); }
     return [];
   }
 
@@ -601,8 +608,6 @@
     return { text: lines.join("\n").trim(), sources: sources };
   }
 
-  /* ===== STREAMING RENDERER ===== */
-
   function renderStreamingMsg(){
     if (!AI.streaming) return "";
     var text = AI.streaming.text || "";
@@ -642,13 +647,10 @@
     }
   }
 
-  /* ===== RENDER ===== */
-
   function renderMessages(){
     var container = $("aiMessages");
     if (!container) return;
 
-    /* v1.18: Dagoverzicht kaart altijd bovenaan tonen als die er is */
     var dayHtml = "";
     if (dayState.cached){
       dayHtml = renderDayCard(dayState.cached);
@@ -722,7 +724,6 @@
     scrollToBottom();
   }
 
-  /* v1.18: Dagoverzicht kaart renderer */
   function renderDayCard(data){
     var d = new Date(data.date);
     var dateStr = d.toLocaleDateString("nl-NL", { weekday: "long", day: "numeric", month: "long" });
@@ -896,8 +897,6 @@
     try { localStorage.removeItem(STORAGE_KEY); }catch(e){}
   }
 
-  /* ===== SSE STREAMING ===== */
-
   function extractTokenFromEvent(evt){
     if (evt == null) return null;
     if (typeof evt === "string") return evt;
@@ -1029,10 +1028,6 @@
     throw lastError || new Error("Onbekende fout");
   }
 
-  /* ============================================================
-     v1.18: VOICE INPUT (Web Speech API)
-     ============================================================ */
-
   function initVoiceInput(){
     var SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition){
@@ -1045,7 +1040,6 @@
     var inputWrap = document.querySelector(".ai-input-wrap");
     if (!inputWrap) return false;
 
-    /* Voorkom dubbele injectie */
     if (document.getElementById("aiVoiceBtn")) return true;
 
     var btn = document.createElement("button");
@@ -1112,7 +1106,6 @@
       else startVoice();
     });
 
-    /* v1.18: Verberg knop bij offline */
     window.addEventListener("online", updateVoiceVisibility);
     window.addEventListener("offline", updateVoiceVisibility);
     updateVoiceVisibility();
@@ -1147,12 +1140,7 @@
     if (btn){ btn.classList.remove("recording"); btn.innerHTML = "🎤"; }
   }
 
-  /* ============================================================
-     v1.18: DAGOVERZICHT
-     ============================================================ */
-
   function getDayKey(){
-    /* Reset om DAYOVERVIEW_RESET_HOUR lokale tijd */
     var now = new Date();
     var adjusted = new Date(now.getTime());
     if (now.getHours() < DAYOVERVIEW_RESET_HOUR){
@@ -1168,7 +1156,6 @@
     var key = getDayKey();
     var entry = responseCache[key];
     if (entry && entry.text){
-      /* Dagoverzicht verloopt NIET na 10 min — blijft 24u geldig tot nieuwe dag */
       dayState.cached = {
         text: entry.text,
         date: entry.t || Date.now(),
@@ -1180,7 +1167,6 @@
   }
 
   function initDayOverview(){
-    /* Kijk of we al een dagoverzicht hebben voor vandaag */
     if (loadDayOverviewFromCache()){
       LOG("Dagoverzicht uit cache (" + (dayState.cached.text.length) + " chars)");
       renderMessages();
@@ -1271,7 +1257,6 @@
 
       var result = fullText.trim().slice(0, DAYOVERVIEW_MAX_CHARS);
 
-      /* Bewaar in cache met dagoverzicht-key */
       responseCache[getDayKey()] = {
         text: result,
         provider: provider,
@@ -1303,7 +1288,6 @@
     dayBtn.addEventListener("click", function(){
       if (dayState.loading) return;
       if (dayState.cached){
-        /* Al zichtbaar — toggle weg */
         dayState.cached = null;
         renderMessages();
         return;
@@ -1316,10 +1300,6 @@
       refreshDayOverview();
     });
   }
-
-  /* ============================================================
-     CACHE WARMING (v1.17, ongewijzigd)
-     ============================================================ */
 
   function scheduleWarmup(){
     if (warmupState.scheduled) return;
@@ -1463,13 +1443,10 @@
     }
   }
 
-  /* ===== SEND (ongewijzigd t.o.v. v1.17) ===== */
-
   async function sendMessage(text){
     if (AI.sending) return;
     if (!text || !text.trim()) return;
 
-    /* v1.18: stop voice opname als die loopt */
     if (voiceState.active && voiceState.recognition){
       try { voiceState.recognition.stop(); } catch(e){}
     }
@@ -1679,7 +1656,6 @@
 
     if (clearBtn) clearBtn.addEventListener("click", clearChat);
 
-    /* v1.18: Voice + Dagoverzicht buttons */
     initVoiceInput();
     bindDayButton();
   }
@@ -1691,7 +1667,7 @@
     loadHistory();
     loadCache();
     getMilitaryCountries();
-    initDayOverview();  /* Toon dagoverzicht uit cache als die er is */
+    initDayOverview();
     bindUI();
     renderMessages();
     scheduleWarmup();
@@ -1742,5 +1718,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.18 geladen (voice + dagoverzicht)");
+  wdLog.info("[WAR DESK] ai-chat.js v1.19 geladen");
 })();
