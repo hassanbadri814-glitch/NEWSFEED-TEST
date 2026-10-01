@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK v27.20 — Nieuws Logica + EventBus
+   WAR DESK v27.21 — Nieuws Logica + EventBus
+   - v27.21: refreshAllScores on-demand (was elke 10 min)
    - v27.20: he toegevoegd + Arabic-priority translation queue (80 items)
    - v27.19: uk + ru toegevoegd aan vertaalbare talen
    - v27.18: __setTranslate directe visuele update + CustomEvent
@@ -10,7 +11,7 @@
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.20";
+  window.__newsVersion = "v27.21";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -521,9 +522,6 @@
     else { TRANSLATION_SEM.active--; }
   };
 
-  /* ============================================================
-     v27.20: isTranslatableLang — he toegevoegd
-     ============================================================ */
   function isTranslatableLang(lang){
     if(!lang) return false;
     var L = String(lang).toLowerCase();
@@ -1081,6 +1079,7 @@
       list = list.filter(it => (it.title + " " + it.desc + " " + it.source).toLowerCase().includes(q));
     }
     if(state.currentSort === "importance"){
+      /* v27.21: lazy score-berekening — alleen als ontbrekend */
       list.forEach(it => { if(it._score === undefined) it._score = scoreArticle(it); });
       list.sort((a, b) => b._score - a._score);
     } else {
@@ -1355,21 +1354,25 @@
     }
   };
 
-  setInterval(() => {
-    if(document.hidden) return;
-    pruneTranslations();
-  }, 600000);
+  /* v27.21: refreshAllScores interval verwijderd — on-demand nu */
 
   setInterval(() => {
     if(document.hidden) return;
-    refreshAllScores();
+    pruneTranslations();
   }, 600000);
 
   window.NewsAPI = {
     init: initNews,
     reload: loadAllFeeds,
     setCat: (cat) => { state.currentCat = cat; renderNews(); },
-    setSort: (s) => { state.currentSort = s; renderNews(); },
+    setSort: (s) => {
+      /* v27.21: score alleen herberekenen als sortering op importantie */
+      if (s === "importance") {
+        try { refreshAllScores(); } catch(e){}
+      }
+      state.currentSort = s;
+      renderNews();
+    },
     setSearch: (s) => { state.currentSearch = s.toLowerCase().trim(); renderNews(); },
     setView: (v) => { state.viewMode = v; renderNews(); },
     render: renderNews,
