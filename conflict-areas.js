@@ -1,11 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.14
-   - v11.14: AI-confirmed overrides (3-dagen stabiliteit voor
-             landen zonder DeepState/ISW). Fill = controller OF
-             confirmed override. UKR blijft DeepState-leidend.
+   WAR DESK — conflict-areas.js v11.15
+   - v11.15: Pulse pauzeert bij scroll/zoom + document.hidden
+   - v11.14: AI-confirmed overrides (3-dagen stabiliteit)
    - v11.13: styleProvince — fill = controller, rand = consensus
    - v11.12: openPanel sluit eerst #wmCountryPanel
-   - v11.11: FIX init timeout (30s → 120s) + parallel batching
    ============================================================ */
 
 (function(){
@@ -635,7 +633,6 @@
     territoryGain:  "#22c55e",
     territoryLoss:  "#ef4444",
     territoryContested: "#a855f7",
-    confirmedRing: "#22c55e",
     neighborFillDark:    "#2d3a52",
     neighborFillLight:   "#d0cbc0",
     neighborStrokeDark:  "rgba(255,255,255,0.28)",
@@ -1347,7 +1344,6 @@
     return null;
   }
 
-  /* v11.14: check confirmed override voor een feature */
   function getConfirmedOverrideFor(feature, iso3){
     if(!feature || !feature.properties) return null;
     var props = feature.properties;
@@ -1397,9 +1393,6 @@
     } catch(e){}
   }
 
-  /* ============================================================
-     v11.14: styleProvince — fill = controller OF confirmed override
-     ============================================================ */
   function styleProvince(feature){
     var props = (feature && feature.properties) || {};
     var conflict = CA._currentConflict;
@@ -1407,9 +1400,6 @@
     var baseWeight = provinceWeight(z);
     var baseOpacity = provinceOpacity(z);
 
-    /* v11.14: confirmed override (AI, 3 dagen) heeft voorrang op
-       provinceRules, maar niet op DeepState/ISW (die gebruiken geen
-       provinceRules en hebben sowieso props.controller uit centroid) */
     var override = getConfirmedOverrideFor(feature, CA._currentConflictIso);
 
     var fillActor = props.controller;
@@ -1434,13 +1424,11 @@
       interactive: true
     };
 
-    /* v11.14: override actief → dikkere rand (toon dat dit AI-bevestigd is) */
     if(override){
       result.weight = Math.max(baseWeight, 1.3);
       result.opacity = Math.max(baseOpacity, 0.5);
     }
 
-    /* Rand = consensus-activiteit (overlay, altijd) */
     var consensus = getConsensusForFeature(feature, CA._currentConflictIso);
     if(consensus && consensus.dominantActor && conflict && conflict.parties){
       var actorColor = conflict.parties[consensus.dominantActor]
@@ -1495,10 +1483,25 @@
     });
   }
 
+  /* ============================================================
+     v11.15: bindZoomListener met pulse-pause hooks
+     ============================================================ */
   function bindZoomListener(){
     if(!CA.map || CA._zoomBound) return;
     CA._zoomBound = true;
     CA.map.on("zoomend", updateBorderWeights);
+
+    /* v11.15: pauzeer pulse tijdens scroll/zoom */
+    CA.map.on("movestart", function(){ pausePulseFor(5000); });
+    CA.map.on("zoomstart", function(){ pausePulseFor(5000); });
+    CA.map.on("moveend", function(){ pausePulseFor(1500); });
+    CA.map.on("zoomend", function(){ pausePulseFor(1500); });
+
+    document.addEventListener("visibilitychange", function(){
+      if(!document.hidden && CA.isMapActive){
+        pausePulseFor(500);
+      }
+    });
   }
   function unbindZoomListener(){
     if(!CA.map || !CA._zoomBound) return;
@@ -1622,6 +1625,19 @@
   var _pulseRetryTimer = null;
   var _pulseEmptyChecks = 0;
 
+  /* v11.15: pulse-pause state */
+  var _pulsePaused = false;
+  var _pulsePauseTimer = null;
+
+  function pausePulseFor(ms){
+    _pulsePaused = true;
+    if(_pulsePauseTimer) clearTimeout(_pulsePauseTimer);
+    _pulsePauseTimer = setTimeout(function(){
+      _pulsePauseTimer = null;
+      _pulsePaused = false;
+    }, ms || 1500);
+  }
+
   function startPulse(){
     stopPulse();
     if(!CA.isMapActive) return;
@@ -1637,6 +1653,8 @@
     _pulseEmptyChecks = 0;
     CA.pulseTimer = setInterval(function(){
       if(!CA.isMapActive) return;
+      if(document.hidden) return;
+      if(_pulsePaused) return;
       CA.pulsePhase = (CA.pulsePhase + 1) % 2;
       var growing = CA.pulsePhase === 0;
       ACTIVE_CONFLICTS.forEach(function(iso){
@@ -1770,7 +1788,6 @@
       var statsEl = panel.querySelector("#caPanelStats");
       var ctrlLabel = props.controller || "Onbekend";
 
-      /* v11.14: override heeft voorrang op weergave controller-label */
       var override = getConfirmedOverrideFor(area.feature, conflictIso);
       if(override) ctrlLabel = override;
 
@@ -1789,7 +1806,6 @@
         provinceLine = '<div class="wm-panel-conf-detail">Provincie: ' + escapeHtml(props.provinceName) + '</div>';
       }
 
-      /* v11.14: override-regel */
       var overrideLine = "";
       if(override){
         overrideLine = '<div class="wm-panel-conf-detail" style="color:#22c55e;font-weight:700">' +
@@ -1797,7 +1813,6 @@
         '</div>';
       }
 
-      /* Consensus-rand info (alleen bij voldoende bewijs) */
       var consensusLine = "";
       var consensus = getConsensusForFeature(area.feature, conflictIso);
       if(consensus){
@@ -2180,7 +2195,6 @@
                 renderTerritoryChanges(data.changes);
               }
             });
-            /* v11.14: 3-dagen-confirmed overrides */
             WarDesk.events.on("territory:confirmed", function(data){
               if (!data || !data.overrides) return;
               CA._confirmedOverrides = data.overrides;
@@ -2223,8 +2237,6 @@
     if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
     CA.map = mapInstance;
 
-    /* v11.14: laad bestaande confirmed-overrides uit consensus-history
-       vóór de init van GADM-lagen, zodat de eerste render meteen klopt */
     try {
       if (window.ConsensusHistory && window.ConsensusHistory.getConfirmedOverrides) {
         var existing = window.ConsensusHistory.getConfirmedOverrides();
@@ -2319,6 +2331,7 @@
     init: init, refresh: refresh, updateIntensity: updateIntensity,
     destroy: destroy, clearCache: clearCache, getStats: getStats,
     getLegendHtml: getLegendHtml,
+    pausePulse: pausePulseFor,
     applyConsensus: function(byGid){
       CA._consensus = byGid || {};
       applyConsensusToMap();
@@ -2333,7 +2346,7 @@
     },
     getConfirmedOverrides: function(){ return CA._confirmedOverrides; },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.14",
+    state: CA, _version: "v11.15",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2398,5 +2411,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.14 geladen (fill=controle + AI-confirmed override)");
+  LOG("conflict-areas.js v11.15 geladen (pulse-pause)");
 })();
