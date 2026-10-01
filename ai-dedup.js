@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — ai-dedup.js v2.3
+   WAR DESK — ai-dedup.js v2.4
+   - v2.4: MAX_ARTICLES 250 → 150 (CPU-reductie, feed toont max 100)
    - v2.3: gebruikt AIShared voor STOP_WORDS, similarity, getTimestamp
    - v2.2: artikelen zonder id → getRef() fallback
    - v2.1: DEBOUNCE — wacht 3s tot feed stabiel is
@@ -11,13 +12,11 @@
   var SIMILARITY_THRESHOLD = 0.55;
   var CONTAINMENT_THRESHOLD = 0.85;
   var MIN_WORDS_FOR_MATCH = 3;
-  var MAX_ARTICLES = 250;
+  var MAX_ARTICLES = 150;
   var DEBOUNCE_MS = 3000;
 
-  /* v2.3: gebruik AIShared waar beschikbaar */
   var AS = window.AIShared || null;
 
-  // STOP_WORDS — prefer shared
   var STOP_WORDS = AS ? AS.STOP_WORDS : (function(){
     var s = {};
     ["de","het","een","van","en","in","is","op","dat","voor","met","zijn","er","aan","om",
@@ -33,7 +32,6 @@
     return s;
   })();
 
-  // getTimestamp — prefer shared
   var getTimestamp = AS ? AS.getTimestamp : function(a){
     if (!a) return 0;
     var fields = ["pubDate","published","isoDate","date","timestamp","time","created","updated"];
@@ -56,9 +54,6 @@
     return candidates[0];
   };
 
-  /* ============================================================
-     Eigen helpers (niet in AIShared)
-     ============================================================ */
   function getBus() {
     return (window.WarDesk && window.WarDesk.events) ? window.WarDesk.events : null;
   }
@@ -256,7 +251,7 @@
   };
 
   if (window.wdLog) {
-    wdLog.info("[WAR DESK] ai-dedup.js v2.3 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
+    wdLog.info("[WAR DESK] ai-dedup.js v2.4 geladen" + (AS ? " (met AIShared)" : " (standalone)"));
   }
 
 })();
