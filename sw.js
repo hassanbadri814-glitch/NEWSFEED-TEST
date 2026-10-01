@@ -5,7 +5,7 @@
    - v4.31: MEDIA_CACHE cache-first
    ============================================================ */
 
-const CACHE_VERSION = 'v4.37';
+const CACHE_VERSION = 'v4.38';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 const TILE_CACHE    = 'wardesk-tiles-v1';
