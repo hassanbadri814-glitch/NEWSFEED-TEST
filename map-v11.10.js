@@ -1,7 +1,9 @@
 /* ============================================================
-   WAR DESK v14.5 — Conflictkaart + Wereldkaart-integratie
-   - v14.5: Zoekveld in live-list + tijdfilter (24u/7d/30d)
-           + toast-notificatie bij AI-confirmed overrides
+   WAR DESK v14.5.1 — Conflictkaart + Wereldkaart-integratie
+   - v14.5.1: Zoeken + tijd-filter triggeren nu ook inzoomen
+             (flyTo / flyToBounds ipv setView)
+   - v14.5: Zoekveld + tijdfilter (24u/7d/30d) + toast bij
+            AI-confirmed override
    - v14.4: WorldMap init + refresh + toggle
    - v14.3: "Alles"-filter
    - v14.2: rerender bij translation:added
@@ -16,7 +18,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.5 geladen — wereldkaart + live-filters");
+  LOG("v14.5.1 geladen — wereldkaart + live-filters");
 
   var CATEGORIES = {
     all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
@@ -75,7 +77,6 @@
     _lastZoomHash: "",
     _counters: { militair:0, crime:0, politiek:0, protest:0, civiel:0 },
     _worldMapEnabled: true,
-    /* v14.5 */
     liveSearchQuery: "",
     liveTimeFilter: "7d"
   };
@@ -200,7 +201,6 @@
       ".wm-toggle:hover{background:rgba(226,168,87,.2);box-shadow:0 0 14px rgba(224,168,87,.4)}" +
       ".wm-toggle.off{opacity:.55;color:#8a94a8;border-color:rgba(255,255,255,.15)}" +
       ".wm-toggle svg{width:14px;height:14px}" +
-      /* v14.5: live-search + time filter */
       ".live-search-row{display:flex;gap:.4rem;padding:.4rem .6rem;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap;}" +
       ".live-search-wrap{flex:1;min-width:140px;position:relative;}" +
       ".live-search-wrap input{width:100%;padding:.4rem .7rem .4rem 1.9rem;background:var(--bg-3);border:1px solid var(--line-2);color:var(--ink);border-radius:7px;font-size:.72rem;outline:none;font-family:inherit;}" +
@@ -404,7 +404,7 @@
     closeDetail();
     if(MAP.isFullscreen) exitFullscreen();
     setTimeout(function(){
-      if(MAP.instance) MAP.instance.setView([event.lat, event.lng], 7);
+      if(MAP.instance) MAP.instance.flyTo([event.lat, event.lng], 9, { duration: 0.8 });
     }, 300);
   }
 
@@ -460,20 +460,15 @@
     }catch(e){}
   }
 
-  /* ============================================================
-     v14.5: getFilteredEvents met search + time filter
-     ============================================================ */
   function getFilteredEvents(){
     var list = MAP.events.slice();
 
-    /* Categorie filter */
     if(MAP.currentFilter !== "all"){
       list = list.filter(function(e){
         return (e.category || "civiel") === MAP.currentFilter;
       });
     }
 
-    /* Tijdfilter */
     var tf = TIME_FILTERS.find(function(t){ return t.key === MAP.liveTimeFilter; });
     if(tf && tf.hours > 0){
       var cutoff = Date.now() - tf.hours * 60 * 60 * 1000;
@@ -483,7 +478,6 @@
       });
     }
 
-    /* Zoekfilter */
     var q = (MAP.liveSearchQuery || "").toLowerCase().trim();
     if(q.length >= 2){
       list = list.filter(function(e){
@@ -495,14 +489,36 @@
     return list;
   }
 
+  /* ============================================================
+     v14.5.1: fitToMarkers met flyTo/flyToBounds + hoge maxZoom
+     ============================================================ */
   function fitToMarkers(){
     if(!MAP.instance) return;
     var visible = getFilteredEvents();
-    if (!visible.length) { MAP.instance.setView([29.5, 42.0], 3); return; }
-    if (visible.length === 1) { MAP.instance.setView([visible[0].lat, visible[0].lng], 6); return; }
+    if (!visible.length) {
+      MAP.instance.flyTo([29.5, 42.0], 3, { duration: 0.6 });
+      return;
+    }
+
+    /* 1 event → zoom naar stadsniveau */
+    if (visible.length === 1) {
+      MAP.instance.flyTo([visible[0].lat, visible[0].lng], 9, { duration: 0.6 });
+      return;
+    }
+
+    /* 2 events → flyToBounds met hoge maxZoom */
+    if (visible.length === 2) {
+      try {
+        var b2 = L.latLngBounds(visible.map(function(e){ return [e.lat, e.lng]; }));
+        MAP.instance.flyToBounds(b2, { padding: [80, 80], maxZoom: 8, duration: 0.6 });
+      } catch(e){}
+      return;
+    }
+
+    /* Meerdere events → fitBounds met maxZoom 7 */
     try {
       var bounds = L.latLngBounds(visible.map(function(e){ return [e.lat, e.lng]; }));
-      MAP.instance.fitBounds(bounds, { padding: [40, 40], maxZoom: 6 });
+      MAP.instance.flyToBounds(bounds, { padding: [40, 40], maxZoom: 7, duration: 0.6 });
     } catch(e){}
   }
 
@@ -599,9 +615,6 @@
     LOG("Markers gerenderd: " + markers.length + " (filter: " + MAP.currentFilter + ")");
   }
 
-  /* ============================================================
-     v14.5: renderLiveList met filter-info
-     ============================================================ */
   function renderLiveList(){
     var list = $("liveList");
     var countEl = $("liveCount");
@@ -629,6 +642,7 @@
             updateSearchClear();
             renderMarkers();
             renderLiveList();
+            setTimeout(fitToMarkers, 200);
           });
         }
       } else {
@@ -695,7 +709,7 @@
   }
 
   /* ============================================================
-     v14.5: live-search + time filter UI
+     v14.5.1: live-search + time filter UI + zoom bij zoeken
      ============================================================ */
   function ensureLiveSearch(){
     var feed = document.querySelector(".live-feed");
@@ -723,7 +737,6 @@
 
     filters.parentNode.insertBefore(row, filters);
 
-    /* Bind events */
     var input = document.getElementById("liveSearch");
     var clear = document.getElementById("liveSearchClear");
     var wrap = document.getElementById("liveSearchWrap");
@@ -743,6 +756,8 @@
           MAP.liveSearchQuery = input.value;
           renderMarkers();
           renderLiveList();
+          /* v14.5.1: zoom naar resultaten als er ≥2 tekens zijn */
+          if(MAP.liveSearchQuery.length >= 2) setTimeout(fitToMarkers, 180);
         }, 220);
       });
     }
@@ -754,6 +769,7 @@
         MAP.liveSearchQuery = "";
         renderMarkers();
         renderLiveList();
+        setTimeout(fitToMarkers, 180);
         if(input) input.focus();
       });
     }
@@ -771,12 +787,12 @@
           } catch(e){}
           renderMarkers();
           renderLiveList();
+          /* v14.5.1: zoom naar resultaten na tijdfilter-wijziging */
           setTimeout(fitToMarkers, 200);
         });
       });
     }
 
-    /* Restore opgeslagen tijd-filter */
     try {
       var savedTf = window.WDStorage ? WDStorage.get("map_live_timefilter") : null;
       if(savedTf && TIME_FILTERS.some(function(t){ return t.key === savedTf; })){
@@ -867,9 +883,6 @@
     });
   }
 
-  /* ============================================================
-     v14.5: + territory:confirmed toast notificatie
-     ============================================================ */
   function bindEventBus(){
     if(MAP._busBound) return;
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
@@ -915,7 +928,6 @@
       }, 300);
     });
 
-    /* v14.5: toast bij nieuwe AI-confirmed overrides */
     WarDesk.events.on("territory:confirmed", function(data){
       if (!data) return;
       if (data.fromCache) return;
@@ -1020,5 +1032,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.5 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.5.1 geladen");
 })();
