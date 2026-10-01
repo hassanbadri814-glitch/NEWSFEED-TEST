@@ -1,6 +1,8 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.12
-   - v1.12: FIX onbekende actors → generieke fallback
+   WAR DESK — province-consensus.js v1.13
+   - v1.13: CONFLICT_ISO3 uitgebreid naar 18 landen
+            + COUNTRY_DEFAULT_ACTOR voor alle nieuwe landen
+   - v1.12: onbekende actors → generieke fallback
    - v1.11: OSINT throttle 5min → 30s
    ============================================================ */
 
@@ -23,13 +25,23 @@
   var MIN_ACTOR_SOURCES = 1;
 
   var COUNTRY_DEFAULT_ACTOR = {
+    /* Midden-Oosten */
     "SYR": "Regering", "UKR": "Oekraïne", "RUS": "Rusland",
     "YEM": "Regering", "ISR": "Israël", "LBN": "Libanese staat",
     "PSE": "Palestina", "SAU": "Saoedi-Arabië",
-    "IRQ": "Regering", "IRN": "Iran"
+    "IRQ": "Regering", "IRN": "Iran",
+    /* Afrika */
+    "SDN": "Regering", "ETH": "Federale regering",
+    "MLI": "Junta (Regering)", "BFA": "Junta (Regering)",
+    "NER": "Junta (Regering)", "COD": "Regering (FARDC)",
+    /* Azië */
+    "MMR": "Militaire junta", "PAK": "Pakistan (Regering)"
   };
 
-  var CONFLICT_ISO3 = ["SYR","UKR","RUS","YEM","ISR","LBN","PSE","SAU","IRQ","IRN"];
+  var CONFLICT_ISO3 = [
+    "SYR", "UKR", "RUS", "YEM", "ISR", "LBN", "PSE", "SAU", "IRQ", "IRN",
+    "SDN", "ETH", "MLI", "BFA", "NER", "COD", "MMR", "PAK"
+  ];
 
   var db = null;
   var lastRun = 0;
@@ -218,9 +230,6 @@
     return all;
   }
 
-  /* ============================================================
-     v1.12: fallback-label voor onbekende actor
-     ============================================================ */
   function getFallbackActor(ev, prov){
     if(ev.actorCountries && ev.actorCountries.length > 0){
       return "Onbekende " + ev.actorCountries[0];
@@ -271,7 +280,6 @@
 
     var actors = getActors(ev, prov);
     if(!actors || !actors.length){
-      /* v1.12: fallback in plaats van skip */
       actors = [getFallbackActor(ev, prov)];
     }
 
@@ -287,8 +295,6 @@
 
     actors.forEach(function(actorRaw){
       var actor = ProvinceMapper.resolveActor(actorRaw);
-
-      /* v1.12: als "Onbekend" → gebruik fallback-label */
       if(!actor || actor === "Onbekend"){
         actor = getFallbackActor(ev, prov);
       }
@@ -497,8 +503,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.12"
+    _version: "v1.13"
   };
 
-  LOG("province-consensus.js v1.12 geladen (fallback onbekende actors)");
+  LOG("province-consensus.js v1.13 geladen (18 landen)");
 })();
