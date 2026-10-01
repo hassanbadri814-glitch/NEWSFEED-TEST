@@ -431,5 +431,4 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.6 geladen (" + TELEGRAM_CHANNELS.length + " kanalen)");
-})();
+  LOG("osint-feeds.js v2.6.2 geladen (" + TELEGRAM_CHANNELS.length + " kanalen)");
