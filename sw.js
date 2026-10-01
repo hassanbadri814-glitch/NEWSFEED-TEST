@@ -5,7 +5,7 @@
    - v4.30: SW cache-bump
    ============================================================ */
 
-const CACHE_VERSION = 'v4.31';
+const CACHE_VERSION = 'v4.32';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
