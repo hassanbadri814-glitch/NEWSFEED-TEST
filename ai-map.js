@@ -1,13 +1,11 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.15.3
+   WAR DESK — ai-map.js v3.16
+   - v3.16: FIX locatie-fallback — "war"/"world" uit CAT_TO_REGION
+            gehaald, GENERIC_TAGS filter ingebouwd,
+            skipCountries doorgegeven aan findTargetByPosition,
+            _isCity niet meer op LOCATIONS gemuteerd.
    - v3.15.3: OSINT-events samengevoegd met MAP-events
-              (leest window.OSINTFeeds.getEvents() + luistert
-               naar osint:military-events voor late updates)
-   - v3.15.2: FIX filter zwakke politiek (alleen conflict-gerelateerd)
-   - v3.15.1: zwak-civiel versoepeld + city-hits teller fix
-   - v3.15: CITY > COUNTRY preference in locatie-extractie
-   - v3.14: LOCATIONS gecentraliseerd naar worldmap-data.js
-   - v3.13: CityStatus v2.0 integratie
+   - v3.15.2: FIX filter zwakke politiek
    ============================================================ */
 
 (function(){
@@ -75,17 +73,25 @@
     "Latijns-Amerika":{ lat: 0.0, lng: -70.0,  country: "Latijns-Amerika", region: "Latijns-Amerika" }
   };
 
+  /* v3.16: "war" en "world" zijn VERWIJDERD — die gaven valse locaties */
   var CAT_TO_REGION = {
     "nl": "West-Europa", "be": "West-Europa", "de": "West-Europa", "fr": "West-Europa",
     "uk": "West-Europa", "europe": "West-Europa", "it": "West-Europa",
-    "ua": "Oost-Europa", "ukraine": "Oost-Europa", "war": "Oost-Europa",
+    "ua": "Oost-Europa", "ukraine": "Oost-Europa",
     "ru": "Oost-Europa", "russia": "Oost-Europa",
     "il": "Midden-Oosten", "gaza": "Midden-Oosten", "mideast": "Midden-Oosten",
     "qa": "Midden-Oosten", "sa": "Midden-Oosten", "ae": "Midden-Oosten",
     "eg": "Midden-Oosten", "iran": "Midden-Oosten", "iraq": "Midden-Oosten",
     "yemen": "Midden-Oosten",
     "sudan": "Afrika", "maroc": "Afrika",
-    "us": "Noord-Amerika", "vs": "Noord-Amerika", "world": "Azië"
+    "us": "Noord-Amerika", "vs": "Noord-Amerika"
+  };
+
+  /* v3.16: generieke tags die NIET naar een regio mogen leiden */
+  var GENERIC_TAGS = {
+    "war": 1, "world": 1, "news": 1, "mideast": 1,
+    "conflict": 1, "crisis": 1, "attack": 1, "middleeast": 1,
+    "defense": 1, "military": 1
   };
 
   function getBus(){
@@ -124,10 +130,17 @@
     return firstPos;
   }
 
-  function findTargetByPosition(title, actorCountries){
+  /* v3.16: skipCountries nu doorgegeven */
+  function findTargetByPosition(title, actorCountries, skipCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
     if (actionPos < 0) return null;
+
+    var skip = [];
+    if (skipCountries){
+      if (Array.isArray(skipCountries)) skip = skipCountries;
+      else skip = [skipCountries];
+    }
 
     var afterVerb = " " + title.slice(actionPos).toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
     if (afterVerb.length < 3) return null;
@@ -147,27 +160,36 @@
       var idx = m.index;
       var loc = LOCATIONS[key];
       if (actorCountries && loc.country && actorCountries.indexOf(loc.country) !== -1) continue;
+      if (skip.indexOf(loc.country) !== -1) continue;
 
       var afterIdx = idx + m[0].length;
       var nextChunk = afterVerb.slice(afterIdx, afterIdx + 20);
       if (CONTEXT_SUFFIX.test(nextChunk)) continue;
 
+      /* v3.16: return een KOPIE, muteer LOCATIONS niet */
+      var locCopy = {
+        lat: loc.lat, lng: loc.lng,
+        country: loc.country, region: loc.region,
+        _isCity: isCountryKey(key) ? false : true
+      };
+
       if (isCountryKey(key)){
         if (bestCountryPos === -1 || idx < bestCountryPos){
-          bestCountry = loc; bestCountryPos = idx;
+          bestCountry = locCopy; bestCountryPos = idx;
         }
       } else {
         if (bestCityPos === -1 || idx < bestCityPos){
-          bestCity = loc; bestCityPos = idx;
+          bestCity = locCopy; bestCityPos = idx;
         }
       }
     }
 
-    if (bestCity) { bestCity._isCity = true; return bestCity; }
-    if (bestCountry) { bestCountry._isCity = false; return bestCountry; }
+    if (bestCity) return bestCity;
+    if (bestCountry) return bestCountry;
     return null;
   }
 
+  /* v3.16: geeft KOPIE terug, muteert LOCATIONS niet */
   function extractLocation(text, skipCountries){
     if (!text) return null;
     var skip = [];
@@ -192,26 +214,33 @@
       if (CONTEXT_AFTER.test(after)) continue;
       if (CONTEXT_SUFFIX.test(after)) continue;
 
+      var locCopy = {
+        lat: loc.lat, lng: loc.lng,
+        country: loc.country, region: loc.region,
+        _isCity: isCountryKey(key) ? false : true
+      };
+
       if (isCountryKey(key)){
-        if (key.length > bestCountryLen){ bestCountry = loc; bestCountryLen = key.length; }
+        if (key.length > bestCountryLen){ bestCountry = locCopy; bestCountryLen = key.length; }
       } else {
-        if (key.length > bestCityLen){ bestCity = loc; bestCityLen = key.length; }
+        if (key.length > bestCityLen){ bestCity = locCopy; bestCityLen = key.length; }
       }
     }
 
-    if (bestCity) { bestCity._isCity = true; return bestCity; }
-    if (bestCountry) { bestCountry._isCity = false; return bestCountry; }
+    if (bestCity) return bestCity;
+    if (bestCountry) return bestCountry;
     return null;
   }
 
   function extractTargetLocation(title, actorCountries, skipCountries){
-    var byPos = findTargetByPosition(title, actorCountries);
+    var byPos = findTargetByPosition(title, actorCountries, skipCountries);
     if (byPos) return { loc: byPos, method: "position" };
     var byContext = extractLocation(title, skipCountries);
     if (byContext) return { loc: byContext, method: "context" };
     return { loc: null, method: "none" };
   }
 
+  /* v3.16: GENERIC_TAGS filter — "war"/"world" leiden niet meer naar regio */
   function extractRegionFallback(article, skipCountries){
     if (!article) return null;
     var skip = [];
@@ -223,7 +252,9 @@
     var tags = Array.isArray(article.tags) ? article.tags.map(function(t){ return String(t).toLowerCase(); }) : [];
     var all = [cat].concat(tags);
     for (var i = 0; i < all.length; i++) {
-      var r = CAT_TO_REGION[all[i]];
+      var tag = all[i];
+      if (GENERIC_TAGS[tag]) continue;
+      var r = CAT_TO_REGION[tag];
       if (r && REGION_LOCATIONS[r]){
         var reg = REGION_LOCATIONS[r];
         if (reg.country && skip.indexOf(reg.country) !== -1) continue;
@@ -440,7 +471,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.15.3] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -457,9 +488,6 @@
     return grouped;
   }
 
-  /* ============================================================
-     v3.15.3: OSINT-events ophalen en samenvoegen
-     ============================================================ */
   function getOsintEvents(){
     try {
       if (window.OSINTFeeds && typeof window.OSINTFeeds.getEvents === "function"){
@@ -534,7 +562,6 @@
     if (events === null) return;
     if (!Array.isArray(events)) events = [];
 
-    /* v3.15.3: OSINT-events toevoegen */
     mergeOsintEvents(events);
 
     if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
@@ -559,20 +586,15 @@
     bus.on("translation:toggle", function(){
       try { var mapTab = document.querySelector('.tab[data-view="map"]'); if (mapTab && mapTab.classList.contains("active")) forceRun(); } catch(e){}
     });
-
-    /* v3.15.3: OSINT-events triggeren een herrun */
     bus.on("osint:military-events", function(osintList){
       if (!Array.isArray(osintList) || !osintList.length) return;
       if (window.wdLog) wdLog.info("[Map-AI] OSINT update: " + osintList.length + " events → herrun");
       var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
       idle(function(){ forceRun(); }, { timeout: 2000 });
     });
-
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-
-    /* v3.15.3: extra poll — als OSINT later binnenkomt dan init */
     setTimeout(function(){
       var osint = getOsintEvents();
       if (osint.length > 0) {
@@ -580,8 +602,7 @@
         forceRun();
       }
     }, 15000);
-
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15.3 geladen (OSINT-integratie)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16 geladen (locatie-fallback fix)");
   }
 
   function getCountries(){
