@@ -46,7 +46,6 @@
 
     /* Oekraïne */
     { channel: "dniproofficial",  region: "Oost-Europa",   country: "Oekraïne" },
-    { channel: "Militarylandnet", region: "Oost-Europa",   country: "Oekraïne" },
 
     /* Syrië */
     { channel: "Suriyakmaps",     region: "Midden-Oosten", country: "Syrië" },
@@ -60,8 +59,6 @@
     /* Soedan */
     { channel: "RSFSudan",        region: "Afrika",        country: "Sudan" },
 
-    /* DR Congo + Pakistan */
-    { channel: "WarNoir",         region: "Afrika",        country: "DR Congo" },
 
     /* Myanmar */
     { channel: "bni_mmpeacemonitor", region: "Azië",       country: "Myanmar" },
@@ -69,8 +66,6 @@
     /* Jemen + Saoedi-Arabië */
     { channel: "global_observers", region: "Midden-Oosten", country: "Jemen" },
 
-    /* Palestina */
-    { channel: "qassam1brigades", region: "Midden-Oosten", country: "Palestina" },
 
     /* Pakistan + Afghanistan */
     { channel: "ResonantNews",    region: "Azië",          country: "Pakistan" }
