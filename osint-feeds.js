@@ -1,8 +1,10 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.6
+   WAR DESK — osint-feeds.js v2.6.2
+   - v2.6.2: 3 lege kanalen verwijderd (Militarylandnet, WarNoir,
+             qassam1brigades) + syntax fix
+   - v2.6.1: STAGGER_MS 5000, PARALLEL_BATCH 2
    - v2.6: +10 nieuwe kanalen voor Afrika/Azië/Oekraïne
    - v2.5: countsForHeat fix + Arabic min-3
-   - v2.4: Arabic-aware locatie-extractie
    ============================================================ */
 
 (function(){
@@ -34,41 +36,23 @@
     { channel: "OSINTtechnical", region: "Midden-Oosten", country: null },
 
     /* === Bestaande Arabische kanalen === */
-    { channel: "HalabTodayTV",    region: "Midden-Oosten", country: "Syrië" },
-    { channel: "damscuce",        region: "Midden-Oosten", country: "Syrië" },
-    { channel: "ya_topa",         region: "Midden-Oosten", country: "Syrië" },
-    { channel: "NWSYEME",         region: "Midden-Oosten", country: "Jemen" },
-    { channel: "naya_foriraq",    region: "Midden-Oosten", country: "Irak" },
+    { channel: "HalabTodayTV",     region: "Midden-Oosten", country: "Syrië" },
+    { channel: "damscuce",         region: "Midden-Oosten", country: "Syrië" },
+    { channel: "ya_topa",          region: "Midden-Oosten", country: "Syrië" },
+    { channel: "NWSYEME",          region: "Midden-Oosten", country: "Jemen" },
+    { channel: "naya_foriraq",     region: "Midden-Oosten", country: "Irak" },
     { channel: "sadadahiechannel", region: "Midden-Oosten", country: "Libanon" },
-    { channel: "alshamii011",     region: "Midden-Oosten", country: null },
+    { channel: "alshamii011",      region: "Midden-Oosten", country: null },
 
-    /* === v2.6: NIEUWE KANALEN === */
-
-    /* Oekraïne */
-    { channel: "dniproofficial",  region: "Oost-Europa",   country: "Oekraïne" },
-
-    /* Syrië */
-    { channel: "Suriyakmaps",     region: "Midden-Oosten", country: "Syrië" },
-
-    /* Ethiopië */
-    { channel: "ASCENTIG",        region: "Afrika",        country: "Ethiopië" },
-
-    /* Sahel */
-    { channel: "aesinfos",        region: "Afrika",        country: "Mali" },
-
-    /* Soedan */
-    { channel: "RSFSudan",        region: "Afrika",        country: "Sudan" },
-
-
-    /* Myanmar */
-    { channel: "bni_mmpeacemonitor", region: "Azië",       country: "Myanmar" },
-
-    /* Jemen + Saoedi-Arabië */
-    { channel: "global_observers", region: "Midden-Oosten", country: "Jemen" },
-
-
-    /* Pakistan + Afghanistan */
-    { channel: "ResonantNews",    region: "Azië",          country: "Pakistan" }
+    /* === v2.6: nieuwe kanalen === */
+    { channel: "dniproofficial",     region: "Oost-Europa",   country: "Oekraïne" },
+    { channel: "Suriyakmaps",        region: "Midden-Oosten", country: "Syrië" },
+    { channel: "ASCENTIG",           region: "Afrika",        country: "Ethiopië" },
+    { channel: "aesinfos",           region: "Afrika",        country: "Mali" },
+    { channel: "RSFSudan",           region: "Afrika",        country: "Sudan" },
+    { channel: "bni_mmpeacemonitor", region: "Azië",          country: "Myanmar" },
+    { channel: "global_observers",   region: "Midden-Oosten", country: "Jemen" },
+    { channel: "ResonantNews",       region: "Azië",          country: "Pakistan" }
   ];
 
   var OSINT_MILITARY_SOURCES = [
@@ -77,13 +61,11 @@
     "Faytuks", "GeoConfirmed", "OSINTtechnical",
     "SOHR",
     "HalabTodayTV", "damscuce", "ya_topa",
-    "NWSYEME", "naya_foriraq", "sadadahiechannel", "alshamii011",
-
+    "NWSYEME", "naya_foriraq", "sadahiechannel", "alshamii011",
     /* v2.6 — nieuwe kanalen */
-    "dniproofficial", "Militarylandnet", "Suriyakmaps",
-    "ASCENTIG", "aesinfos", "RSFSudan", "WarNoir",
-    "bni_mmpeacemonitor", "global_observers",
-    "qassam1brigades", "ResonantNews"
+    "dniproofficial", "Suriyakmaps",
+    "ASCENTIG", "aesinfos", "RSFSudan",
+    "bni_mmpeacemonitor", "global_observers", "ResonantNews"
   ];
 
   var SOHR_RSS = "https://www.syriahr.com/en/feed/";
@@ -420,7 +402,7 @@
     init: init, runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.6",
+    _version: "v2.6.2",
     _channels: TELEGRAM_CHANNELS,
     _militarySources: OSINT_MILITARY_SOURCES
   };
@@ -432,3 +414,4 @@
   }
 
   LOG("osint-feeds.js v2.6.2 geladen (" + TELEGRAM_CHANNELS.length + " kanalen)");
+})();
