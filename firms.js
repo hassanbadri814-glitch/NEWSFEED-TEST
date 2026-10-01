@@ -1,11 +1,6 @@
 /* ============================================================
-   WAR DESK — firms.js v1.0
-   NASA FIRMS satelliet-detectie van explosies en branden
-   - Rendert eigen laag op de kaart (los van militaire events)
-   - Toggle knop in map-controls
-   - Ververs elke 15 minuten
-   - 8 regio's: Oekraïne, Midden-Oosten, Jemen, Sahel, Soedan,
-     DR Congo, Myanmar, Pakistan
+   WAR DESK — firms.js v1.0d (DEBUG)
+   Voegt uitgebreide logging toe om te zien wat de proxy retourneert
    ============================================================ */
 
 (function(){
@@ -77,11 +72,25 @@
     return line.split(",");
   }
 
-  function parseFirmsCsv(text, regionConfig){
-    if(!text || text.length < 50) return [];
+  function parseFirmsCsv(text, regionConfig, debugInfo){
+    if(!text || text.length < 50){
+      debugInfo.reason = "text te kort (" + (text ? text.length : 0) + " chars)";
+      return [];
+    }
+
+    /* DEBUG: log eerste 300 chars */
+    var preview = text.substring(0, 300).replace(/\n/g, " | ");
+    LOG(regionConfig.name + " RAW: " + preview);
+
     var lines = text.trim().split("\n");
-    if(lines.length < 2) return [];
+    if(lines.length < 2){
+      debugInfo.reason = "minder dan 2 regels (" + lines.length + ")";
+      return [];
+    }
+
     var header = parseCsvLine(lines[0].trim());
+    LOG(regionConfig.name + " HEADER (" + header.length + " cols): " + header.join(" / "));
+
     var latIdx = header.indexOf("latitude");
     var lngIdx = header.indexOf("longitude");
     var brightIdx = header.indexOf("bright_ti4");
@@ -89,12 +98,33 @@
     var timeIdx = header.indexOf("acq_time");
     var confIdx = header.indexOf("confidence");
     var frpIdx = header.indexOf("frp");
-    if(latIdx < 0 || lngIdx < 0) return [];
+
+    debugInfo.header = header;
+    debugInfo.latIdx = latIdx;
+    debugInfo.lngIdx = lngIdx;
+    debugInfo.brightIdx = brightIdx;
+    debugInfo.dateIdx = dateIdx;
+    debugInfo.timeIdx = timeIdx;
+    debugInfo.confIdx = confIdx;
+    debugInfo.frpIdx = frpIdx;
+    debugInfo.totalLines = lines.length;
+
+    if(latIdx < 0 || lngIdx < 0){
+      debugInfo.reason = "lat/lng kolommen niet gevonden";
+      return [];
+    }
+
     var detections = [];
     var cutoff = Date.now() - MAX_AGE_HOURS * 60 * 60 * 1000;
+    var skippedBright = 0;
+    var skippedFrp = 0;
+    var skippedConf = 0;
+    var skippedOld = 0;
+    var skippedParse = 0;
+
     for(var i = 1; i < lines.length; i++){
       var parts = parseCsvLine(lines[i].trim());
-      if(parts.length < 5) continue;
+      if(parts.length < 5){ skippedParse++; continue; }
       var lat = parseFloat(parts[latIdx]);
       var lng = parseFloat(parts[lngIdx]);
       var bright = parseFloat(parts[brightIdx]) || 0;
@@ -102,10 +132,10 @@
       var time = parts[timeIdx] || "0";
       var conf = parts[confIdx] || "";
       var frp = parseFloat(parts[frpIdx]) || 0;
-      if(isNaN(lat) || isNaN(lng)) continue;
-      if(bright < BRIGHTNESS_MIN) continue;
-      if(frp < FRP_MIN) continue;
-      if(conf === "l") continue;
+      if(isNaN(lat) || isNaN(lng)){ skippedParse++; continue; }
+      if(bright < BRIGHTNESS_MIN){ skippedBright++; continue; }
+      if(frp < FRP_MIN){ skippedFrp++; continue; }
+      if(conf === "l"){ skippedConf++; continue; }
       var timestamp = null;
       try {
         var year = parseInt(date.substring(0,4), 10);
@@ -115,8 +145,8 @@
         var hour = Math.floor(timeInt / 100);
         var min = timeInt % 100;
         timestamp = new Date(Date.UTC(year, month, day, hour, min)).getTime();
-      } catch(e){ continue; }
-      if(timestamp < cutoff) continue;
+      } catch(e){ skippedParse++; continue; }
+      if(timestamp < cutoff){ skippedOld++; continue; }
       detections.push({
         id: "firms-" + lat.toFixed(4) + "-" + lng.toFixed(4) + "-" + timestamp,
         lat: lat, lng: lng,
@@ -128,6 +158,14 @@
         _source: "firms"
       });
     }
+
+    debugInfo.skippedBright = skippedBright;
+    debugInfo.skippedFrp = skippedFrp;
+    debugInfo.skippedConf = skippedConf;
+    debugInfo.skippedOld = skippedOld;
+    debugInfo.skippedParse = skippedParse;
+    debugInfo.kept = detections.length;
+
     return detections;
   }
 
@@ -139,15 +177,26 @@
     var allDetections = [];
     var okCount = 0;
     var failCount = 0;
+
     for(var i = 0; i < REGIONS.length; i++){
       var region = REGIONS[i];
+      var debugInfo = { region: region.name };
       try {
         var url = buildFirmsUrl(region.bbox);
+        LOG(region.name + " URL: " + url);
         var text = await fetchViaProxy(url);
-        var detections = parseFirmsCsv(text, region);
+        var detections = parseFirmsCsv(text, region, debugInfo);
         allDetections = allDetections.concat(detections);
         okCount++;
-        LOG(region.name + ": " + detections.length + " detecties");
+        LOG(region.name + " → " + detections.length + " kept | " +
+            "skip bright:" + (debugInfo.skippedBright||0) +
+            " frp:" + (debugInfo.skippedFrp||0) +
+            " conf:" + (debugInfo.skippedConf||0) +
+            " old:" + (debugInfo.skippedOld||0) +
+            " parse:" + (debugInfo.skippedParse||0));
+        if(debugInfo.reason){
+          LOG(region.name + " REASON: " + debugInfo.reason);
+        }
       } catch(e){
         failCount++;
         LOG(region.name + " faalde: " + e.message);
@@ -156,6 +205,7 @@
         await new Promise(function(r){ setTimeout(r, 500); });
       }
     }
+
     var seen = {};
     var unique = [];
     allDetections.forEach(function(d){
@@ -176,11 +226,6 @@
       if(window.WarDesk && WarDesk.events){
         WarDesk.events.emit("firms:detections", unique);
       }
-    } catch(e){}
-
-    try {
-      localStorage.setItem("wardesk_firms_lastRun", String(FIRMS.lastRun));
-      localStorage.setItem("wardesk_firms_count", String(unique.length));
     } catch(e){}
 
     return unique;
@@ -273,10 +318,6 @@
   }
 
   function init(){
-    try {
-      var saved = parseInt(localStorage.getItem("wardesk_firms_lastRun") || "0", 10);
-      if(saved) FIRMS.lastRun = saved;
-    } catch(e){}
     var waitCount = 0;
     var waitTimer = setInterval(function(){
       waitCount++;
@@ -296,7 +337,7 @@
     runNow: runNow,
     getDetections: function(){ return FIRMS.detections; },
     getLastRun: function(){ return FIRMS.lastRun; },
-    _version: "v1.0"
+    _version: "v1.0d"
   };
 
   if(document.readyState === "loading"){
@@ -305,5 +346,5 @@
     init();
   }
 
-  LOG("firms.js v1.0 geladen");
+  LOG("firms.js v1.0d geladen (DEBUG)");
 })();
