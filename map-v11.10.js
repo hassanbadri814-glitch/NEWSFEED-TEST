@@ -1,13 +1,13 @@
 /* ============================================================
-   WAR DESK v14.5.2 — Conflictkaart + Wereldkaart-integratie
-   - v14.5.2: Live-list en detail-paneel halen vertaling op bij
-             render-tijd (was: snapshot → geen NL bij OSINT)
-   - v14.5.1: Zoeken + tijd-filter triggeren nu ook inzoomen
-   - v14.5:   Zoekveld + tijdfilter (24u/7d/30d)
-   - v14.4:   WorldMap init + refresh + toggle
-   - v14.3:   "Alles"-filter
-   - v14.2:   rerender bij translation:added
-   - v14.1:   dedup-badge voor cluster-events
+   WAR DESK v14.5.3 — Conflictkaart + Wereldkaart-integratie
+   - v14.5.3: PERFORMANCE-FIX
+              * translation:added debounce 3s (ipv direct re-render)
+              * renderMarkers vertaalt niet meer bij render
+              * renderLiveList cachet vertaling per event-id
+              * Vertaling in popup gebeurt pas bij popup-open
+   - v14.5.2: Live-list + detail halen vertaling bij render-tijd
+   - v14.5.1: Zoek + tijd-filter triggeren flyTo
+   - v14.5:   Zoekveld + tijdfilter + toast override
    ============================================================ */
 
 (function(){
@@ -18,7 +18,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.5.2 geladen — wereldkaart + live-filters + vertaling");
+  LOG("v14.5.3 geladen — wereldkaart + live-filters + vertaling");
 
   var CATEGORIES = {
     all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
@@ -78,7 +78,8 @@
     _counters: { militair:0, crime:0, politiek:0, protest:0, civiel:0 },
     _worldMapEnabled: true,
     liveSearchQuery: "",
-    liveTimeFilter: "7d"
+    liveTimeFilter: "7d",
+    _translationCache: {}
   };
 
   var TILES = {
@@ -336,9 +337,6 @@
     return "";
   }
 
-  /* ============================================================
-     v14.5.2: openDetail — vertaling bij render-tijd
-     ============================================================ */
   function openDetail(event){
     ensureDetailModal();
     MAP.currentDetailEvent = event;
@@ -358,7 +356,6 @@
     }
     $("wdDetailMeta").textContent = metaParts.join(" · ");
 
-    /* v14.5.2: haal vertaalde titel + desc op bij openen */
     var detailText = event.fullDescription || event.title || "(geen beschrijving)";
     var translatedTitle = null;
     var translatedDesc = null;
@@ -589,7 +586,7 @@
   }
 
   /* ============================================================
-     v14.5.2: renderMarkers haalt vertaling op bij render-tijd
+     v14.5.3: renderMarkers zonder vertaal-lookup (alleen bij popup-open)
      ============================================================ */
   function renderMarkers(){
     if(!MAP.cluster) return;
@@ -610,16 +607,7 @@
       var marker = L.marker([e.lat, e.lng], {icon: icon});
 
       var catCfg = CATEGORIES[cat] || CATEGORIES.civiel;
-
-      /* v14.5.2: vertaling bij popup-render */
       var popupTitle = e.title;
-      try {
-        if (window.NewsAPI && window.NewsAPI.getTranslatedTitle){
-          var tt = window.NewsAPI.getTranslatedTitle(e);
-          if (tt) popupTitle = tt;
-        }
-      } catch(err){}
-
       var sourceLine = e.source ? '<div class="pop-meta">' + escapeHtml(e.source) + '</div>' : '';
       var clusterLine = (e.isCluster && e.sources && e.sources.length > 1)
         ? '<div class="pop-meta" style="color:#93c5fd">📰 ' + e.sources.length + ' bronnen</div>'
@@ -630,14 +618,26 @@
 
       var popupHtml =
         '<div class="pop-cat" style="--cat-color:' + color + '">' + escapeHtml(catCfg.label) + ' · ' + escapeHtml(e.subtype || "") + '</div>' +
-        '<div class="pop-title">' + escapeHtml(popupTitle) + '</div>' +
+        '<div class="pop-title" data-event-id="' + escapeHtml(String(e.id)) + '">' + escapeHtml(popupTitle) + '</div>' +
         originalLine +
         '<div class="pop-meta">' + escapeHtml(e.country || "?") + (e.region ? " · " + escapeHtml(e.region) : "") + '</div>' +
         sourceLine +
         clusterLine +
         '<button class="pop-more" data-id="' + escapeHtml(String(e.id)) + '">Details →</button>';
       marker.bindPopup(popupHtml);
+
       marker.on("popupopen", function(){
+        /* v14.5.3: vertaal pas bij openen van de popup */
+        try {
+          if (window.NewsAPI && window.NewsAPI.getTranslatedTitle){
+            var tt = window.NewsAPI.getTranslatedTitle(e);
+            if (tt){
+              var popupTitleEl = document.querySelector('.leaflet-popup-content .pop-title[data-event-id="' + String(e.id) + '"]');
+              if (popupTitleEl) popupTitleEl.textContent = tt;
+            }
+          }
+        } catch(err){}
+
         setTimeout(function(){
           var btn = document.querySelector('.pop-more[data-id="' + e.id + '"]');
           if(btn) btn.onclick = function(ev){ ev.preventDefault(); ev.stopPropagation(); openDetail(e); };
@@ -650,7 +650,7 @@
   }
 
   /* ============================================================
-     v14.5.2: renderLiveList haalt vertaling op bij render-tijd
+     v14.5.3: renderLiveList met vertaling-cache
      ============================================================ */
   function renderLiveList(){
     var list = $("liveList");
@@ -701,18 +701,33 @@
         ? '<span class="live-event-multi">+' + (e.sources.length - 1) + ' bron' + (e.sources.length > 2 ? 'nen' : '') + '</span>'
         : '';
 
-      /* v14.5.2: vertaling ophalen bij render-tijd (niet uit snapshot) */
+      /* v14.5.3: cache vertaling per event-id */
       var displayTitle = e.title;
       var displayOriginal = null;
-      try {
-        if (window.NewsAPI && window.NewsAPI.getTranslatedTitle){
-          var t = window.NewsAPI.getTranslatedTitle(e);
-          if (t){
-            displayTitle = t;
-            displayOriginal = e.title;
-          }
+
+      var cacheKey = String(e.id || "") + "|" + (e.title || "").slice(0, 60);
+      if (MAP._translationCache[cacheKey] !== undefined){
+        var cached = MAP._translationCache[cacheKey];
+        if (cached){
+          displayTitle = cached;
+          displayOriginal = e.title;
         }
-      } catch(err){}
+      } else {
+        try {
+          if (window.NewsAPI && window.NewsAPI.getTranslatedTitle){
+            var t = window.NewsAPI.getTranslatedTitle(e);
+            MAP._translationCache[cacheKey] = t || null;
+            if (t){
+              displayTitle = t;
+              displayOriginal = e.title;
+            }
+          } else {
+            MAP._translationCache[cacheKey] = null;
+          }
+        } catch(err){
+          MAP._translationCache[cacheKey] = null;
+        }
+      }
 
       var originalLine = displayOriginal
         ? '<div class="live-event-original" dir="rtl">' + escapeHtml(displayOriginal) + '</div>'
@@ -929,6 +944,9 @@
     });
   }
 
+  /* ============================================================
+     v14.5.3: translation:added debounce 3s
+     ============================================================ */
   function bindEventBus(){
     if(MAP._busBound) return;
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
@@ -954,20 +972,27 @@
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
 
+    /* v14.5.3: debounce — wacht 3s stilte voor één re-render */
+    var _translationRenderTimer = null;
     WarDesk.events.on("translation:added", function(){
       if (!isMapActive()) return;
-      setTimeout(function(){
+      if (_translationRenderTimer) clearTimeout(_translationRenderTimer);
+      _translationRenderTimer = setTimeout(function(){
+        _translationRenderTimer = null;
+        /* wis de translation-cache voor deze items die net zijn toegevoegd */
+        MAP._translationCache = {};
         if (MAP.militaryEvents && MAP.militaryEvents.length) {
           MAP.events = MAP.militaryEvents.slice();
           renderMarkers();
           renderLiveList();
           updateCounters();
         }
-      }, 400);
+      }, 3000);
     });
 
     WarDesk.events.on("translation:toggle", function(){
       if (!isMapActive()) return;
+      MAP._translationCache = {};
       setTimeout(function(){
         if (window.MapAI && window.MapAI.forceRun) window.MapAI.forceRun();
         else if (window.MapAI && window.MapAI.run) window.MapAI.run();
@@ -1007,6 +1032,7 @@
   window.__mapRefresh = function(){
     MAP._lastNewsCount = 0;
     MAP._lastZoomHash = "";
+    MAP._translationCache = {};
     if (window.MapAI) {
       if (window.MapAI.forceRun) window.MapAI.forceRun();
       else window.MapAI.run();
@@ -1078,5 +1104,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.5.2 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.5.3 geladen");
 })();
