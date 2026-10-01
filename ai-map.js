@@ -1,11 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16.1
-   - v3.16.1: PERFORMANCE — vertaalwachtrij 40→25, geen OSINT
-              erin (te veel vertalingen per refresh)
-   - v3.16: FIX locatie-fallback ("war"/"world" weg uit
-            CAT_TO_REGION + GENERIC_TAGS filter + skipCountries
-            doorgeven + _isCity niet muteren)
-   - v3.15.3: OSINT-events samengevoegd met MAP-events
+   WAR DESK — ai-map.js v3.16.2
+   - v3.16.2: Vertaal-throttle 30 min (voorkomt herhaalde
+              MyMemory calls bij elke news:loaded)
+   - v3.16.1: Vertaalwachtrij 40→25, geen OSINT
+   - v3.16: locatie-fallback fix
    ============================================================ */
 
 (function(){
@@ -14,6 +12,7 @@
   var MAX_EVENTS = 800;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var MAX_TRANSLATIONS_PER_RUN = 25;
+  var TRANSLATE_THROTTLE_MS = 30 * 60 * 1000; /* v3.16.2 */
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
@@ -317,6 +316,7 @@
   }
 
   var lastHash = "";
+  var _lastTranslateRun = 0; /* v3.16.2 */
 
   function buildEvents(){
     if (!window.State || !Array.isArray(window.State.items)) return [];
@@ -447,9 +447,12 @@
     grouped.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
-    /* v3.16.1: vertaalwachtrij 25 ipv 40, geen OSINT */
+    /* v3.16.2: vertaal-throttle 30 min */
     try {
-      if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
+      var now = Date.now();
+      if (window.NewsAPI && window.NewsAPI.ensureTranslations &&
+          (now - _lastTranslateRun) > TRANSLATE_THROTTLE_MS) {
+        _lastTranslateRun = now;
         var TRANSLATABLE = { "ar": 1, "fr": 1, "ru": 1, "uk": 1, "he": 1 };
         var toTranslate = [];
         for (var k = 0; k < items.length; k++) {
@@ -468,7 +471,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16.1] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16.2] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -599,7 +602,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.1 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.2 geladen");
   }
 
   function getCountries(){
