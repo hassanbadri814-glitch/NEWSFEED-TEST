@@ -1,10 +1,7 @@
 /* ============================================================
-   WAR DESK — firms-v3.js v1.0
-   NASA FIRMS via publieke 24u CSV (geen API key nodig)
-   - Download 6.9MB CSV één keer per 15 min
-   - Filter lokaal op 8 conflictregio's
-   - Brightness > 330K, FRP > 10 MW
-   - Cache in IndexedDB om herhaald downloaden te voorkomen
+   WAR DESK — firms-v3.js v1.1
+   - v1.1: FIRMS standaard UIT, duidelijk toggle, strengere filters
+   - v3.0: publieke 24u CSV (geen API key nodig)
    ============================================================ */
 
 (function(){
@@ -17,10 +14,12 @@
   var CSV_URL = "https://firms.modaps.eosdis.nasa.gov/data/active_fire/suomi-npp-viirs-c2/csv/SUOMI_VIIRS_C2_Global_24h.csv";
   var REFRESH_MS = 15 * 60 * 1000;
   var CACHE_MAX_AGE_MS = 10 * 60 * 1000;
-  var BRIGHTNESS_MIN = 330;
-  var FRP_MIN = 10;
 
-  /* Regio's als [minLng, minLat, maxLng, maxLat] */
+  /* Strengere filters v1.1 */
+  var BRIGHTNESS_MIN = 340;
+  var FRP_MIN = 30;
+  var PREFER_NIGHT = false; /* true = alleen 's nachts (filtert industrie) */
+
   var REGIONS = [
     { name: "Oekraïne",      bbox: [22, 44, 40, 53] },
     { name: "Midden-Oosten", bbox: [34, 29, 60, 38] },
@@ -38,14 +37,26 @@
     isRunning: false,
     _timer: null,
     layer: null,
-    enabled: true,
+    enabled: false,
     _csvCache: null,
     _csvCacheTime: 0
   };
 
-  function getCacheKey(){
-    return "wardesk_firms_csv_v1";
+  var ENABLED_KEY = "wardesk_firms_enabled";
+
+  function loadEnabledState(){
+    try {
+      var saved = localStorage.getItem(ENABLED_KEY);
+      if(saved === "1") FIRMS.enabled = true;
+      else if(saved === "0") FIRMS.enabled = false;
+    } catch(e){}
   }
+
+  function saveEnabledState(){
+    try { localStorage.setItem(ENABLED_KEY, FIRMS.enabled ? "1" : "0"); } catch(e){}
+  }
+
+  function getCacheKey(){ return "wardesk_firms_csv_v1"; }
 
   function openDB(){
     return new Promise(function(resolve){
@@ -126,38 +137,29 @@
   }
 
   async function getCsv(){
-    /* Stap 1: memory cache (binnen 10 min) */
     if(FIRMS._csvCache && (Date.now() - FIRMS._csvCacheTime) < CACHE_MAX_AGE_MS){
       LOG("CSV uit memory cache");
       return FIRMS._csvCache;
     }
-
-    /* Stap 2: IndexedDB cache */
     var db = await openDB();
     if(db){
       var cached = await dbGet(db, getCacheKey());
       if(cached && cached.v && (Date.now() - cached.t) < CACHE_MAX_AGE_MS){
-        LOG("CSV uit IndexedDB cache (" + Math.round(cached.v.length / 1024) + " KB)");
+        LOG("CSV uit IndexedDB cache");
         FIRMS._csvCache = cached.v;
         FIRMS._csvCacheTime = cached.t;
         return cached.v;
       }
     }
-
-    /* Stap 3: netwerk — direct eerst, dan proxy */
-    LOG("CSV downloaden (kan 5-10s duren)...");
+    LOG("CSV downloaden (5-10s)...");
     var text;
     try {
       text = await fetchCsvDirect();
     } catch(e){
-      LOG("Direct faalde: " + e.message + " — probeer proxy");
+      LOG("Direct faalde — proxy");
       text = await fetchCsvViaProxy();
     }
-
-    if(!text || text.length < 100){
-      throw new Error("CSV te kort (" + (text ? text.length : 0) + " chars)");
-    }
-
+    if(!text || text.length < 100) throw new Error("CSV te kort");
     FIRMS._csvCache = text;
     FIRMS._csvCacheTime = Date.now();
     if(db) dbPut(db, getCacheKey(), text);
@@ -179,7 +181,6 @@
   function parseAndFilter(csvText){
     var lines = csvText.split("\n");
     if(lines.length < 2) return [];
-
     var header = lines[0].trim().split(",");
     var latIdx = header.indexOf("latitude");
     var lngIdx = header.indexOf("longitude");
@@ -188,41 +189,31 @@
     var timeIdx = header.indexOf("acq_time");
     var confIdx = header.indexOf("confidence");
     var frpIdx = header.indexOf("frp");
-
-    LOG("Header kolommen: lat=" + latIdx + " lng=" + lngIdx + " bright=" + brightIdx + " frp=" + frpIdx);
-
-    if(latIdx < 0 || lngIdx < 0 || brightIdx < 0){
-      LOG("Vereiste kolommen niet gevonden");
-      return [];
-    }
+    var daynightIdx = header.indexOf("daynight");
+    if(latIdx < 0 || lngIdx < 0 || brightIdx < 0) return [];
 
     var detections = [];
-    var totalRows = lines.length - 1;
-    var skippedRegion = 0;
-    var skippedBright = 0;
-    var skippedFrp = 0;
-    var skippedConf = 0;
+    var skippedRegion = 0, skippedBright = 0, skippedFrp = 0, skippedConf = 0, skippedDay = 0;
     var regionCounts = {};
 
     for(var i = 1; i < lines.length; i++){
       var parts = lines[i].trim().split(",");
       if(parts.length < 10) continue;
-
       var lat = parseFloat(parts[latIdx]);
       var lng = parseFloat(parts[lngIdx]);
       if(isNaN(lat) || isNaN(lng)) continue;
-
       var region = findRegion(lat, lng);
       if(!region){ skippedRegion++; continue; }
-
       var bright = parseFloat(parts[brightIdx]) || 0;
       if(bright < BRIGHTNESS_MIN){ skippedBright++; continue; }
-
       var frp = parseFloat(parts[frpIdx]) || 0;
       if(frp < FRP_MIN){ skippedFrp++; continue; }
-
       var conf = parts[confIdx] || "";
       if(conf === "l" || conf === "low"){ skippedConf++; continue; }
+      if(PREFER_NIGHT && daynightIdx >= 0){
+        var dn = parts[daynightIdx] || "";
+        if(dn === "D"){ skippedDay++; continue; }
+      }
 
       var dateStr = parts[dateIdx] || "";
       var timeStr = parts[timeIdx] || "0";
@@ -238,7 +229,6 @@
       } catch(e){ continue; }
 
       regionCounts[region] = (regionCounts[region] || 0) + 1;
-
       detections.push({
         id: "firms-" + lat.toFixed(4) + "-" + lng.toFixed(4) + "-" + timestamp,
         lat: lat, lng: lng,
@@ -251,50 +241,37 @@
       });
     }
 
-    LOG("CSV analyse: " + totalRows + " rijen | regio-skip:" + skippedRegion +
-        " bright:" + skippedBright + " frp:" + skippedFrp + " conf:" + skippedConf +
-        " → " + detections.length + " detecties");
-
-    var keys = Object.keys(regionCounts);
-    if(keys.length > 0){
-      LOG("Verdeling: " + keys.map(function(k){ return k + ":" + regionCounts[k]; }).join(" · "));
-    }
-
+    LOG("Analyse: regio-skip:" + skippedRegion + " bright:" + skippedBright +
+        " frp:" + skippedFrp + " conf:" + skippedConf +
+        (PREFER_NIGHT ? " day:" + skippedDay : "") +
+        " → " + detections.length + " kept");
     return detections;
   }
 
   async function runNow(){
+    if(!FIRMS.enabled){
+      LOG("FIRMS uitgeschakeld — skip");
+      return [];
+    }
     if(FIRMS.isRunning) return FIRMS.detections;
     FIRMS.isRunning = true;
     var startTime = Date.now();
-    LOG("Start — publieke CSV ophalen");
-
+    LOG("Start");
     try {
       var csvText = await getCsv();
       var detections = parseAndFilter(csvText);
-
       detections.sort(function(a, b){
         return new Date(b.date).getTime() - new Date(a.date).getTime();
       });
-
       FIRMS.detections = detections;
       FIRMS.lastRun = Date.now();
-      var elapsed = Date.now() - startTime;
-      LOG("Klaar — " + detections.length + " detecties | " + elapsed + "ms");
-
+      LOG("Klaar — " + detections.length + " detecties | " + (Date.now() - startTime) + "ms");
       renderDetections();
-
       try {
         if(window.WarDesk && WarDesk.events){
           WarDesk.events.emit("firms:detections", detections);
         }
       } catch(e){}
-
-      try {
-        localStorage.setItem("wardesk_firms_lastRun", String(FIRMS.lastRun));
-        localStorage.setItem("wardesk_firms_count", String(detections.length));
-      } catch(e){}
-
       return detections;
     } catch(e){
       LOG("FOUT: " + e.message);
@@ -313,16 +290,18 @@
 
   function renderDetections(){
     var mapInstance = getMapInstance();
-    if(!mapInstance){
-      setTimeout(renderDetections, 3000);
-      return;
-    }
+    if(!mapInstance) return;
     if(!FIRMS.layer) FIRMS.layer = L.layerGroup();
     FIRMS.layer.clearLayers();
 
+    if(!FIRMS.enabled){
+      if(mapInstance.hasLayer(FIRMS.layer)) mapInstance.removeLayer(FIRMS.layer);
+      return;
+    }
+
     FIRMS.detections.forEach(function(d){
-      var size = d.frp > 100 ? 14 : (d.frp > 30 ? 12 : 10);
-      var color = d.frp > 100 ? "#ff2200" : (d.frp > 30 ? "#ff6a00" : "#ffaa00");
+      var size = d.frp > 100 ? 14 : (d.frp > 50 ? 12 : 10);
+      var color = d.frp > 100 ? "#ff2200" : (d.frp > 50 ? "#ff6a00" : "#ffaa00");
       var icon = L.divIcon({
         className: "firms-marker",
         html: '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + color + ';box-shadow:0 0 10px ' + color + ';border:1px solid rgba(255,255,255,0.9);"></div>',
@@ -344,62 +323,96 @@
       FIRMS.layer.addLayer(marker);
     });
 
-    if(FIRMS.enabled && !mapInstance.hasLayer(FIRMS.layer)){
+    if(!mapInstance.hasLayer(FIRMS.layer)){
       FIRMS.layer.addTo(mapInstance);
     }
-    LOG("FIRMS: " + FIRMS.detections.length + " markers op kaart");
+    LOG("Render: " + FIRMS.detections.length + " markers");
     ensureToggleButton();
   }
 
   function ensureToggleButton(){
     var controls = document.querySelector(".map-controls");
     if(!controls) return;
-    if(document.getElementById("mapFirmsToggle")) return;
+    if(document.getElementById("mapFirmsToggle")){
+      updateToggleAppearance();
+      return;
+    }
     var btn = document.createElement("button");
     btn.className = "map-ctrl";
     btn.id = "mapFirmsToggle";
-    btn.setAttribute("aria-label", "Satelliet-detectie");
-    btn.style.color = "#ff6a00";
-    btn.style.borderColor = "rgba(255,106,0,0.6)";
+    btn.setAttribute("aria-label", "Satelliet-detectie aan/uit");
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="2.5" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2"/></svg>';
-    btn.addEventListener("click", function(){
-      FIRMS.enabled = !FIRMS.enabled;
-      var mapInstance = getMapInstance();
-      if(!mapInstance) return;
-      if(FIRMS.enabled){
-        if(FIRMS.layer && !mapInstance.hasLayer(FIRMS.layer)) FIRMS.layer.addTo(mapInstance);
-        btn.style.color = "#ff6a00";
-        btn.style.borderColor = "rgba(255,106,0,0.6)";
-        if(window.showToast) window.showToast("Satelliet-detectie aan");
-      } else {
-        if(FIRMS.layer && mapInstance.hasLayer(FIRMS.layer)) mapInstance.removeLayer(FIRMS.layer);
-        btn.style.color = "rgba(255,255,255,0.35)";
-        btn.style.borderColor = "rgba(255,255,255,0.15)";
-        if(window.showToast) window.showToast("Satelliet-detectie uit");
-      }
-    });
+    btn.addEventListener("click", toggleFirms);
     controls.appendChild(btn);
+    updateToggleAppearance();
+  }
+
+  function updateToggleAppearance(){
+    var btn = document.getElementById("mapFirmsToggle");
+    if(!btn) return;
+    if(FIRMS.enabled){
+      btn.style.color = "#ff6a00";
+      btn.style.borderColor = "rgba(255,106,0,0.8)";
+      btn.style.boxShadow = "0 0 14px rgba(255,106,0,0.5)";
+      btn.style.opacity = "1";
+    } else {
+      btn.style.color = "rgba(255,255,255,0.35)";
+      btn.style.borderColor = "rgba(255,255,255,0.15)";
+      btn.style.boxShadow = "none";
+      btn.style.opacity = "0.6";
+    }
+  }
+
+  function toggleFirms(){
+    FIRMS.enabled = !FIRMS.enabled;
+    saveEnabledState();
+    updateToggleAppearance();
+
+    if(FIRMS.enabled){
+      if(window.showToast) window.showToast("🔥 Satelliet-detectie AAN");
+      if(FIRMS.detections.length === 0){
+        runNow();
+      } else {
+        renderDetections();
+      }
+    } else {
+      if(window.showToast) window.showToast("Satelliet-detectie UIT");
+      var mapInstance = getMapInstance();
+      if(mapInstance && FIRMS.layer && mapInstance.hasLayer(FIRMS.layer)){
+        mapInstance.removeLayer(FIRMS.layer);
+      }
+    }
   }
 
   function scheduleNext(){
     if(FIRMS._timer) clearTimeout(FIRMS._timer);
     FIRMS._timer = setTimeout(function(){
       FIRMS._timer = null;
-      runNow().then(scheduleNext);
+      if(FIRMS.enabled){
+        runNow().then(scheduleNext);
+      } else {
+        scheduleNext();
+      }
     }, REFRESH_MS);
   }
 
   function init(){
+    loadEnabledState();
+    LOG("Init — enabled: " + FIRMS.enabled);
     var waitCount = 0;
     var waitTimer = setInterval(function(){
       waitCount++;
       if(getMapInstance()){
         clearInterval(waitTimer);
-        runNow();
+        ensureToggleButton();
+        if(FIRMS.enabled){
+          runNow();
+        } else {
+          LOG("FIRMS uit — wacht op toggle");
+        }
         scheduleNext();
       } else if(waitCount > 30){
         clearInterval(waitTimer);
-        LOG("Geen map instance — FIRMS start niet");
       }
     }, 1000);
   }
@@ -407,9 +420,20 @@
   window.FIRMSDetect = {
     init: init,
     runNow: runNow,
+    toggle: toggleFirms,
+    isEnabled: function(){ return FIRMS.enabled; },
+    setEnabled: function(v){
+      FIRMS.enabled = !!v;
+      saveEnabledState();
+      updateToggleAppearance();
+      if(FIRMS.enabled) runNow(); else {
+        var m = getMapInstance();
+        if(m && FIRMS.layer && m.hasLayer(FIRMS.layer)) m.removeLayer(FIRMS.layer);
+      }
+    },
     getDetections: function(){ return FIRMS.detections; },
     getLastRun: function(){ return FIRMS.lastRun; },
-    _version: "v3.0"
+    _version: "v1.1"
   };
 
   if(document.readyState === "loading"){
@@ -418,5 +442,5 @@
     init();
   }
 
-  LOG("firms-v3.js v1.0 geladen (publieke CSV, geen key)");
+  LOG("firms-v3.js v1.1 geladen (default OFF)");
 })();
