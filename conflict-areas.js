@@ -1,15 +1,13 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.12
-   - v11.12: openPanel sluit eerst #wmCountryPanel (voorkomt
-             dubbele bottom-sheets met worldmap.js)
+   WAR DESK — conflict-areas.js v11.13
+   - v11.13: styleProvince — fill = controller, rand = consensus
+             (voorkomt dat een gebied van kleur wisselt puur op
+             basis van AI-consensus zonder controle-wijziging)
+             openPanel — AI-info alleen bij confidence >= 0.5
+             én sourceCount >= 2
+             Events met countsForHeat === false visueel gedempt
+   - v11.12: openPanel sluit eerst #wmCountryPanel
    - v11.11: FIX init timeout (30s → 120s) + parallel batching
-             + betere logging van init-progress
-   - v11.10: BFA/ETH/NER/COD robuustere matching
-   - v11.9: Slimmere matching
-   - v11.8: YEM + SDN robuuster
-   - v11.7: +7 nieuwe conflicten
-   - v11.6: MAP-LEVEL CLICK FALLBACK
-   - v11.5: Panel robuuster + fallback CSS
    ============================================================ */
 
 (function(){
@@ -1382,52 +1380,51 @@
     } catch(e){}
   }
 
+  /* ============================================================
+     v11.13: styleProvince — fill = controller, rand = consensus
+     ============================================================ */
   function styleProvince(feature){
     var props = (feature && feature.properties) || {};
     var conflict = CA._currentConflict;
+    var z = CA.map ? CA.map.getZoom() : 6;
+    var baseWeight = provinceWeight(z);
+    var baseOpacity = provinceOpacity(z);
+
+    /* Fill = CONTROLLER (altijd) */
     var fillColor = "transparent";
     if(props.controller && conflict && conflict.parties[props.controller]){
       fillColor = conflict.parties[props.controller].fill;
     }
 
+    var result = {
+      fillColor: fillColor,
+      fillOpacity: props.controller ? FILL_OPACITY : 0,
+      color: COLORS.provinceBorder,
+      weight: baseWeight,
+      opacity: baseOpacity,
+      dashArray: null,
+      lineCap: "round",
+      lineJoin: "round",
+      interactive: true
+    };
+
+    /* Rand = consensus-activiteit (overlay, geen fill-override) */
     var consensus = getConsensusForFeature(feature, CA._currentConflictIso);
     if(consensus && consensus.dominantActor && conflict && conflict.parties){
       var actorColor = conflict.parties[consensus.dominantActor]
         ? conflict.parties[consensus.dominantActor].fill : null;
       if(actorColor){
-        var zz = CA.map ? CA.map.getZoom() : 6;
-        var ww = provinceWeight(zz);
-
+        result.color = actorColor;
+        result.weight = Math.max(baseWeight, 1.5);
+        result.opacity = 0.9;
         if(consensus.contested){
-          return {
-            fillColor: actorColor, fillOpacity: 0.55,
-            color: "rgba(255,255,255,0.65)", weight: Math.max(ww, 1.0),
-            opacity: 0.9, dashArray: null,
-            lineCap: "round", lineJoin: "round", interactive: true
-          };
+          result.dashArray = "4 2";
+          result.weight = Math.max(baseWeight, 2.0);
         }
-
-        var confOp = consensus.confidence >= 0.7 ? 1.0
-                    : consensus.confidence >= 0.5 ? 0.75 : 0.55;
-        return {
-          fillColor: actorColor, fillOpacity: FILL_OPACITY * confOp,
-          color: COLORS.provinceBorder, weight: ww,
-          opacity: provinceOpacity(zz), dashArray: null,
-          lineCap: "round", lineJoin: "round", interactive: true
-        };
       }
     }
 
-    var z = CA.map ? CA.map.getZoom() : 6;
-    return {
-      fillColor: fillColor,
-      fillOpacity: props.controller ? FILL_OPACITY : 0,
-      color: COLORS.provinceBorder,
-      weight: provinceWeight(z),
-      opacity: provinceOpacity(z),
-      interactive: true,
-      lineCap: "round", lineJoin: "round"
-    };
+    return result;
   }
 
   function styleCountryShadow(){
@@ -1660,7 +1657,8 @@
       "#caAreaPanel .wm-panel-event-sub{color:#6b7a93!important;opacity:.8!important;}" +
       "#caAreaPanel .wm-ev-physical{background:rgba(230,57,80,.15)!important;color:#ff8090!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
       "#caAreaPanel .wm-ev-political{background:rgba(107,122,147,.15)!important;color:#a3adc0!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
-      "#caAreaPanel .wm-panel-empty{padding:1.5rem 1rem!important;text-align:center!important;color:#6b7a93!important;font-size:.78rem!important;}";
+      "#caAreaPanel .wm-panel-empty{padding:1.5rem 1rem!important;text-align:center!important;color:#6b7a93!important;font-size:.78rem!important;}" +
+      "#caAreaPanel .ca-event-dim{opacity:.55!important;font-style:italic!important;}";
     document.head.appendChild(s);
   }
 
@@ -1720,14 +1718,10 @@
     return Math.floor(diff / 86400) + "d";
   }
 
-  /* ============================================================
-     v11.12: openPanel — sluit eerst wereldkaart-paneel
-     ============================================================ */
   function openPanel(area, conflictIso){
     if (CA._lastOpenPanelTime && Date.now() - CA._lastOpenPanelTime < 500) return;
     CA._lastOpenPanelTime = Date.now();
 
-    /* v11.12: sluit #wmCountryPanel (worldmap.js) om dubbele sheets te voorkomen */
     try {
       var wmPanel = document.getElementById("wmCountryPanel");
       if (wmPanel && wmPanel.classList.contains("show")){
@@ -1758,17 +1752,27 @@
         provinceLine = '<div class="wm-panel-conf-detail">Provincie: ' + escapeHtml(props.provinceName) + '</div>';
       }
 
+      /* v11.13: consensus alleen tonen bij voldoende bewijs */
       var consensusLine = "";
       var consensus = getConsensusForFeature(area.feature, conflictIso);
       if(consensus){
-        var pct = Math.round((consensus.consensusStrength || 0) * 100);
-        var conf = Math.round((consensus.confidence || 0) * 100);
-        var contested = consensus.contested ? " · ⚔️ CONTESTED" : "";
-        consensusLine = '<div class="wm-panel-conf-detail" style="color:#a855f7;font-weight:700">' +
-          '🤖 AI: ' + escapeHtml(consensus.dominantActor) + ' (' + pct + '%' + contested + ')' +
-          '<br><span style="font-weight:400;opacity:.8">' +
-          conf + '% confidence · ' + consensus.sourceCount + ' bronnen · ' +
-          consensus.originCount + ' landen</span></div>';
+        var conf = consensus.confidence || 0;
+        var srcCount = consensus.sourceCount || 0;
+
+        if(conf >= 0.5 && srcCount >= 2){
+          var pct = Math.round((consensus.consensusStrength || 0) * 100);
+          var confPct = Math.round(conf * 100);
+          var contested = consensus.contested ? " · ⚔️ CONTESTED" : "";
+          consensusLine = '<div class="wm-panel-conf-detail" style="color:#a855f7;font-weight:700">' +
+            '🤖 AI: ' + escapeHtml(consensus.dominantActor) + ' (' + pct + '%' + contested + ')' +
+            '<br><span style="font-weight:400;opacity:.8">' +
+            confPct + '% confidence · ' + srcCount + ' bronnen · ' +
+            (consensus.originCount || 0) + ' landen</span></div>';
+        } else {
+          consensusLine = '<div class="wm-panel-conf-detail" style="color:#6b7a93;font-style:italic">' +
+            '🤖 Onvoldoende AI-bewijs (' + srcCount + ' bron' + (srcCount === 1 ? '' : 'nen') + ', ' +
+            Math.round(conf * 100) + '% confidence)</div>';
+        }
       }
 
       var territoryLine = "";
@@ -1797,7 +1801,9 @@
           var physical = ev.countsForHeat !== false;
           var actionTag = physical ? "Fysiek" : "Niet-fysiek";
           var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
-          return '<div class="wm-panel-event">' +
+          /* v11.13: niet-fysieke events visueel dempen */
+          var dimClass = physical ? "" : " ca-event-dim";
+          return '<div class="wm-panel-event' + dimClass + '">' +
             '<div class="wm-panel-event-title">' + escapeHtml(ev.title || "?") + '</div>' +
             '<div class="wm-panel-event-meta">' +
               '<span class="wm-panel-event-src">' + escapeHtml(ev.source || "?") + '</span>' +
@@ -2002,6 +2008,7 @@
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryGain + '"></span>Winst (▲)</div>';
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryLoss + '"></span>Verlies (▼)</div>';
+    html += '<div class="wm-legend-row" style="opacity:.7;font-style:italic">Fill = controle · Rand = activiteit</div>';
     html += '</div>';
 
     html += '<div class="wm-legend-block wm-legend-details">';
@@ -2246,7 +2253,7 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.12",
+    state: CA, _version: "v11.13",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2311,5 +2318,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.12 geladen (" + ACTIVE_CONFLICTS.length + " conflicten)");
+  LOG("conflict-areas.js v11.13 geladen (fill=controle, rand=consensus)");
 })();
