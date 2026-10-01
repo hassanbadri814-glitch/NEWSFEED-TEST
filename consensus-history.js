@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — consensus-history.js v2.2
-   - v2.2: Batch-write voor stability records (1 transactie
-           ipv 27 per run)
+   WAR DESK — consensus-history.js v2.3
+   - v2.3: Interval pauzeert bij document.hidden en hervat bij
+           terugkeer (batterij-besparing op achtergrond)
+   - v2.2: Batch-write voor stability records
    - v2.1: Override vervalt na 7 dagen
    - v2.0: Stability-tracking voor landen zonder DeepState
    ============================================================ */
@@ -59,7 +60,6 @@
     });
   }
 
-  /* v2.2: batch-write van N records in 1 transactie */
   function putMany(storeName, records){
     if (!db || !records || !records.length) return Promise.resolve(false);
     return new Promise(function(res){
@@ -147,9 +147,6 @@
     return iso3 === "UKR";
   }
 
-  /* ============================================================
-     v2.2: processStability met batch-write
-     ============================================================ */
   function processStability(byGid){
     if (!byGid || typeof byGid !== "object") return Promise.resolve({});
 
@@ -248,7 +245,6 @@
         toWrite.push(rec);
       });
 
-      /* v2.2: alles in 1 transactie */
       return putMany(STORE_STABILITY, toWrite).then(function(){
         return getAll(STORE_STABILITY).then(function(allRecords){
           confirmedOverrides = {};
@@ -426,9 +422,20 @@
     });
   }
 
+  /* ============================================================
+     v2.3: helper voor het interval
+     ============================================================ */
+  function startRecalcInterval(){
+    var iv = setInterval(function(){
+      if(document.hidden) return;
+      if(Date.now() - lastRun > 65 * 60 * 1000) scheduleRun(1000);
+    }, 5 * 60 * 1000);
+    return iv;
+  }
+
   function init(){
     return openDB().then(function(){
-      LOG("Init klaar (v2.2, stabiliteit " + CONFIRMED_DAYS + " dagen, override-verval " + MAX_STABILITY_DAYS + " dagen)");
+      LOG("Init klaar (v2.3, stabiliteit " + CONFIRMED_DAYS + " dagen, override-verval " + MAX_STABILITY_DAYS + " dagen)");
 
       return getAll(STORE_STABILITY).then(function(records){
         confirmedOverrides = {};
@@ -471,6 +478,17 @@
         });
         LOG("EventBus listener actief");
       }
+
+      /* v2.3: interval pauzeren bij verbergen */
+      var _histInterval = startRecalcInterval();
+
+      document.addEventListener("visibilitychange", function(){
+        if(document.hidden){
+          if(_histInterval){ clearInterval(_histInterval); _histInterval = null; }
+        } else {
+          if(!_histInterval) _histInterval = startRecalcInterval();
+        }
+      });
     });
   }
 
@@ -484,7 +502,7 @@
     getConfirmedOverrides: getConfirmedOverrides,
     resetStability: resetStability,
     cleanup: cleanupOldSnapshots,
-    _version: "v2.2"
+    _version: "v2.3"
   };
 
   if (document.readyState === "loading"){
@@ -493,6 +511,6 @@
     setTimeout(init, 2500);
   }
 
-  LOG("consensus-history.js v2.2 geladen (batch-writes)");
+  LOG("consensus-history.js v2.3 geladen (interval-pauze)");
 
 })();
