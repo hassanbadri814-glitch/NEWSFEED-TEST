@@ -1,11 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.13
+   WAR DESK — conflict-areas.js v11.14
+   - v11.14: AI-confirmed overrides (3-dagen stabiliteit voor
+             landen zonder DeepState/ISW). Fill = controller OF
+             confirmed override. UKR blijft DeepState-leidend.
    - v11.13: styleProvince — fill = controller, rand = consensus
-             (voorkomt dat een gebied van kleur wisselt puur op
-             basis van AI-consensus zonder controle-wijziging)
-             openPanel — AI-info alleen bij confidence >= 0.5
-             én sourceCount >= 2
-             Events met countsForHeat === false visueel gedempt
    - v11.12: openPanel sluit eerst #wmCountryPanel
    - v11.11: FIX init timeout (30s → 120s) + parallel batching
    ============================================================ */
@@ -637,6 +635,7 @@
     territoryGain:  "#22c55e",
     territoryLoss:  "#ef4444",
     territoryContested: "#a855f7",
+    confirmedRing: "#22c55e",
     neighborFillDark:    "#2d3a52",
     neighborFillLight:   "#d0cbc0",
     neighborStrokeDark:  "rgba(255,255,255,0.28)",
@@ -713,7 +712,8 @@
     _currentConflict: null,
     _consensus: {},
     _consensusBound: false,
-    _territoryChanges: {}
+    _territoryChanges: {},
+    _confirmedOverrides: {}
   };
 
   var db = null;
@@ -1347,6 +1347,23 @@
     return null;
   }
 
+  /* v11.14: check confirmed override voor een feature */
+  function getConfirmedOverrideFor(feature, iso3){
+    if(!feature || !feature.properties) return null;
+    var props = feature.properties;
+    if(props.provinceName){
+      var key1 = iso3 + "|" + props.provinceName;
+      if(CA._confirmedOverrides[key1]) return CA._confirmedOverrides[key1];
+    }
+    if(props.name){
+      var key2 = iso3 + "|" + props.name;
+      if(CA._confirmedOverrides[key2]) return CA._confirmedOverrides[key2];
+    }
+    var key3 = iso3 + "|*";
+    if(CA._confirmedOverrides[key3]) return CA._confirmedOverrides[key3];
+    return null;
+  }
+
   function applyConsensusToMap(){
     if(!CA.map || !CA._consensus) return;
     ACTIVE_CONFLICTS.forEach(function(iso){
@@ -1381,7 +1398,7 @@
   }
 
   /* ============================================================
-     v11.13: styleProvince — fill = controller, rand = consensus
+     v11.14: styleProvince — fill = controller OF confirmed override
      ============================================================ */
   function styleProvince(feature){
     var props = (feature && feature.properties) || {};
@@ -1390,15 +1407,24 @@
     var baseWeight = provinceWeight(z);
     var baseOpacity = provinceOpacity(z);
 
-    /* Fill = CONTROLLER (altijd) */
+    /* v11.14: confirmed override (AI, 3 dagen) heeft voorrang op
+       provinceRules, maar niet op DeepState/ISW (die gebruiken geen
+       provinceRules en hebben sowieso props.controller uit centroid) */
+    var override = getConfirmedOverrideFor(feature, CA._currentConflictIso);
+
+    var fillActor = props.controller;
     var fillColor = "transparent";
-    if(props.controller && conflict && conflict.parties[props.controller]){
+
+    if(override && conflict && conflict.parties[override]){
+      fillActor = override;
+      fillColor = conflict.parties[override].fill;
+    } else if(props.controller && conflict && conflict.parties[props.controller]){
       fillColor = conflict.parties[props.controller].fill;
     }
 
     var result = {
       fillColor: fillColor,
-      fillOpacity: props.controller ? FILL_OPACITY : 0,
+      fillOpacity: fillActor ? FILL_OPACITY : 0,
       color: COLORS.provinceBorder,
       weight: baseWeight,
       opacity: baseOpacity,
@@ -1408,7 +1434,13 @@
       interactive: true
     };
 
-    /* Rand = consensus-activiteit (overlay, geen fill-override) */
+    /* v11.14: override actief → dikkere rand (toon dat dit AI-bevestigd is) */
+    if(override){
+      result.weight = Math.max(baseWeight, 1.3);
+      result.opacity = Math.max(baseOpacity, 0.5);
+    }
+
+    /* Rand = consensus-activiteit (overlay, altijd) */
     var consensus = getConsensusForFeature(feature, CA._currentConflictIso);
     if(consensus && consensus.dominantActor && conflict && conflict.parties){
       var actorColor = conflict.parties[consensus.dominantActor]
@@ -1737,9 +1769,14 @@
 
       var statsEl = panel.querySelector("#caPanelStats");
       var ctrlLabel = props.controller || "Onbekend";
+
+      /* v11.14: override heeft voorrang op weergave controller-label */
+      var override = getConfirmedOverrideFor(area.feature, conflictIso);
+      if(override) ctrlLabel = override;
+
       var ctrlClass = "conf-med";
-      if(props.controller === "Rusland" || props.controller === "Israël" || props.controller === "Houthi's" || props.controller === "RSF" || props.controller === "JNIM (Jihadisten)" || props.controller === "M23/AFC") ctrlClass = "conf-low";
-      else if(props.controller === "Oekraïne" || props.controller === "Regering" || props.controller === "Libanese staat" || props.controller === "Saoedi-Arabië" || props.controller === "Palestina" || props.controller === "Federale regering" || props.controller === "Junta (Regering)" || props.controller === "Pakistan (Regering)") ctrlClass = "conf-high";
+      if(ctrlLabel === "Rusland" || ctrlLabel === "Israël" || ctrlLabel === "Houthi's" || ctrlLabel === "RSF" || ctrlLabel === "JNIM (Jihadisten)" || ctrlLabel === "M23/AFC") ctrlClass = "conf-low";
+      else if(ctrlLabel === "Oekraïne" || ctrlLabel === "Regering" || ctrlLabel === "Libanese staat" || ctrlLabel === "Saoedi-Arabië" || ctrlLabel === "Palestina" || ctrlLabel === "Federale regering" || ctrlLabel === "Junta (Regering)" || ctrlLabel === "Pakistan (Regering)") ctrlClass = "conf-high";
 
       var events = getEventsForArea(area);
       var physicalCount = 0;
@@ -1752,7 +1789,15 @@
         provinceLine = '<div class="wm-panel-conf-detail">Provincie: ' + escapeHtml(props.provinceName) + '</div>';
       }
 
-      /* v11.13: consensus alleen tonen bij voldoende bewijs */
+      /* v11.14: override-regel */
+      var overrideLine = "";
+      if(override){
+        overrideLine = '<div class="wm-panel-conf-detail" style="color:#22c55e;font-weight:700">' +
+          '✅ AI-bevestigd: <b>' + escapeHtml(override) + '</b> (3 dagen stabiel)' +
+        '</div>';
+      }
+
+      /* Consensus-rand info (alleen bij voldoende bewijs) */
       var consensusLine = "";
       var consensus = getConsensusForFeature(area.feature, conflictIso);
       if(consensus){
@@ -1764,7 +1809,7 @@
           var confPct = Math.round(conf * 100);
           var contested = consensus.contested ? " · ⚔️ CONTESTED" : "";
           consensusLine = '<div class="wm-panel-conf-detail" style="color:#a855f7;font-weight:700">' +
-            '🤖 AI: ' + escapeHtml(consensus.dominantActor) + ' (' + pct + '%' + contested + ')' +
+            '🤖 AI-signaal: ' + escapeHtml(consensus.dominantActor) + ' (' + pct + '%' + contested + ')' +
             '<br><span style="font-weight:400;opacity:.8">' +
             confPct + '% confidence · ' + srcCount + ' bronnen · ' +
             (consensus.originCount || 0) + ' landen</span></div>';
@@ -1788,7 +1833,7 @@
         '<div class="wm-panel-stat ' + ctrlClass + '"><div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div><div class="wm-panel-stat-lbl">Controller</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + events.length + '</div><div class="wm-panel-stat-lbl">Events (7d)</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + physicalCount + '</div><div class="wm-panel-stat-lbl">Fysiek</div></div>' +
-        consensusLine + territoryLine +
+        overrideLine + consensusLine + territoryLine +
         '<div class="wm-panel-conf-detail">Bron: ' + escapeHtml(props.control_source || "—") +
           ' · Confidence: ' + Math.round((props.control_confidence || 0) * 100) + '%</div>' +
         provinceLine;
@@ -1801,7 +1846,6 @@
           var physical = ev.countsForHeat !== false;
           var actionTag = physical ? "Fysiek" : "Niet-fysiek";
           var actionClass = physical ? "wm-ev-physical" : "wm-ev-political";
-          /* v11.13: niet-fysieke events visueel dempen */
           var dimClass = physical ? "" : " ca-event-dim";
           return '<div class="wm-panel-event' + dimClass + '">' +
             '<div class="wm-panel-event-title">' + escapeHtml(ev.title || "?") + '</div>' +
@@ -1818,7 +1862,7 @@
 
       CA.selectedId = props.id;
       requestAnimationFrame(function(){ panel.classList.add("show"); });
-      LOG("Panel getoond voor " + (props.name || "?"));
+      LOG("Panel getoond voor " + (props.name || "?") + (override ? " (override: " + override + ")" : ""));
     } catch(err) {
       LOG("FOUT in openPanel: " + (err.message || "?"));
       try { console.error("[openPanel]", err); } catch(e){}
@@ -2009,6 +2053,7 @@
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryGain + '"></span>Winst (▲)</div>';
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryLoss + '"></span>Verlies (▼)</div>';
     html += '<div class="wm-legend-row" style="opacity:.7;font-style:italic">Fill = controle · Rand = activiteit</div>';
+    html += '<div class="wm-legend-row" style="opacity:.7;font-style:italic">✅ = AI-bevestigd (3 dagen)</div>';
     html += '</div>';
 
     html += '<div class="wm-legend-block wm-legend-details">';
@@ -2135,6 +2180,22 @@
                 renderTerritoryChanges(data.changes);
               }
             });
+            /* v11.14: 3-dagen-confirmed overrides */
+            WarDesk.events.on("territory:confirmed", function(data){
+              if (!data || !data.overrides) return;
+              CA._confirmedOverrides = data.overrides;
+              var count = Object.keys(data.overrides).length;
+              LOG("Territory confirmed: " + count + " overrides actief" +
+                  (data.fromCache ? " (uit cache)" : ""));
+              if(data.confirmed && data.confirmed.length){
+                data.confirmed.forEach(function(c){
+                  LOG("  ✅ " + c.gid + " → " + c.actor +
+                      " (" + c.consecutiveDays + "d" +
+                      (c.previousActor ? ", was " + c.previousActor : "") + ")");
+                });
+              }
+              applyConsensusToMap();
+            });
           }
         }).catch(function(){});
       }
@@ -2150,7 +2211,8 @@
       try { if(window.WorldMap && window.WorldMap.refreshLegend) window.WorldMap.refreshLegend(); } catch(e){}
       refreshLegend();
       startPulse();
-      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten actief");
+      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten actief" +
+          (Object.keys(CA._confirmedOverrides).length ? ", " + Object.keys(CA._confirmedOverrides).length + " overrides" : ""));
       return true;
     });
   }
@@ -2160,6 +2222,19 @@
     if(_initPromise){ return _initPromise; }
     if(!mapInstance) return Promise.reject(new Error("Geen map instance"));
     CA.map = mapInstance;
+
+    /* v11.14: laad bestaande confirmed-overrides uit consensus-history
+       vóór de init van GADM-lagen, zodat de eerste render meteen klopt */
+    try {
+      if (window.ConsensusHistory && window.ConsensusHistory.getConfirmedOverrides) {
+        var existing = window.ConsensusHistory.getConfirmedOverrides();
+        if (existing && Object.keys(existing).length) {
+          CA._confirmedOverrides = existing;
+          LOG("Confirmed overrides geladen bij init: " + Object.keys(existing).length);
+        }
+      }
+    } catch(e){}
+
     _initPromise = _doInit();
     return _initPromise;
   }
@@ -2252,8 +2327,13 @@
       CA._territoryChanges = changes || {};
       renderTerritoryChanges(changes);
     },
+    applyConfirmedOverrides: function(overrides){
+      CA._confirmedOverrides = overrides || {};
+      applyConsensusToMap();
+    },
+    getConfirmedOverrides: function(){ return CA._confirmedOverrides; },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.13",
+    state: CA, _version: "v11.14",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2318,5 +2398,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.13 geladen (fill=controle, rand=consensus)");
+  LOG("conflict-areas.js v11.14 geladen (fill=controle + AI-confirmed override)");
 })();
