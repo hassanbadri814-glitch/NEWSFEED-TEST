@@ -1,5 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-ui.js v2.1
+   WAR DESK — ai-ui.js v2.2
+   - v2.2: MutationObserver van #viewNews naar .section-head-actions
+           (voorkomt callback-bursts tijdens feed-rendering)
    - v2.1: MutationObserver ipv setInterval voor summary-knop
    - v2.0: Extractive samenvattingen
    - v1.9: Dedup visuele main
@@ -669,18 +671,21 @@
     }
   }
 
-  // v2.1: MutationObserver ipv setInterval
+  /* ============================================================
+     v2.2: MutationObserver op section-head-actions ipv viewNews
+     ============================================================ */
   var summaryObserver = null;
   var summaryObserverTimer = null;
 
   function setupSummaryObserver() {
     if (summaryObserver) return;
-    var target = document.getElementById("viewNews");
+
+    var target = document.querySelector("#viewNews .section-head-actions");
     if (!target) {
-      // Probeer later opnieuw
       setTimeout(setupSummaryObserver, 1000);
       return;
     }
+
     summaryObserver = new MutationObserver(function(){
       if (summaryObserverTimer) return;
       summaryObserverTimer = setTimeout(function(){
@@ -690,7 +695,9 @@
         }
       }, 500);
     });
-    summaryObserver.observe(target, { childList: true, subtree: true });
+
+    /* v2.2: alleen childList op de actions-container, geen subtree */
+    summaryObserver.observe(target, { childList: true, subtree: false });
   }
 
   function init() {
@@ -698,7 +705,6 @@
     if (!bus) return;
     injectStyles();
 
-    // v2.1: eenmalige init + observer
     injectSummaryButton();
     setupSummaryObserver();
 
@@ -714,7 +720,7 @@
       if (evt && evt.value && evt.value.length) onNewsLoaded({ items: evt.value });
     });
 
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v2.1 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-ui.js v2.2 geladen");
 
     var lastSeenCount = 0;
     var stableTimer = null;
