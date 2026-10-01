@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16
-   - v3.16: FIX locatie-fallback — "war"/"world" uit CAT_TO_REGION
-            gehaald, GENERIC_TAGS filter ingebouwd,
-            skipCountries doorgegeven aan findTargetByPosition,
-            _isCity niet meer op LOCATIONS gemuteerd.
+   WAR DESK — ai-map.js v3.16.1
+   - v3.16.1: PERFORMANCE — vertaalwachtrij 40→25, geen OSINT
+              erin (te veel vertalingen per refresh)
+   - v3.16: FIX locatie-fallback ("war"/"world" weg uit
+            CAT_TO_REGION + GENERIC_TAGS filter + skipCountries
+            doorgeven + _isCity niet muteren)
    - v3.15.3: OSINT-events samengevoegd met MAP-events
-   - v3.15.2: FIX filter zwakke politiek
    ============================================================ */
 
 (function(){
@@ -13,6 +13,7 @@
 
   var MAX_EVENTS = 800;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  var MAX_TRANSLATIONS_PER_RUN = 25;
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
@@ -73,7 +74,6 @@
     "Latijns-Amerika":{ lat: 0.0, lng: -70.0,  country: "Latijns-Amerika", region: "Latijns-Amerika" }
   };
 
-  /* v3.16: "war" en "world" zijn VERWIJDERD — die gaven valse locaties */
   var CAT_TO_REGION = {
     "nl": "West-Europa", "be": "West-Europa", "de": "West-Europa", "fr": "West-Europa",
     "uk": "West-Europa", "europe": "West-Europa", "it": "West-Europa",
@@ -87,7 +87,6 @@
     "us": "Noord-Amerika", "vs": "Noord-Amerika"
   };
 
-  /* v3.16: generieke tags die NIET naar een regio mogen leiden */
   var GENERIC_TAGS = {
     "war": 1, "world": 1, "news": 1, "mideast": 1,
     "conflict": 1, "crisis": 1, "attack": 1, "middleeast": 1,
@@ -130,7 +129,6 @@
     return firstPos;
   }
 
-  /* v3.16: skipCountries nu doorgegeven */
   function findTargetByPosition(title, actorCountries, skipCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -166,7 +164,6 @@
       var nextChunk = afterVerb.slice(afterIdx, afterIdx + 20);
       if (CONTEXT_SUFFIX.test(nextChunk)) continue;
 
-      /* v3.16: return een KOPIE, muteer LOCATIONS niet */
       var locCopy = {
         lat: loc.lat, lng: loc.lng,
         country: loc.country, region: loc.region,
@@ -189,7 +186,6 @@
     return null;
   }
 
-  /* v3.16: geeft KOPIE terug, muteert LOCATIONS niet */
   function extractLocation(text, skipCountries){
     if (!text) return null;
     var skip = [];
@@ -240,7 +236,6 @@
     return { loc: null, method: "none" };
   }
 
-  /* v3.16: GENERIC_TAGS filter — "war"/"world" leiden niet meer naar regio */
   function extractRegionFallback(article, skipCountries){
     if (!article) return null;
     var skip = [];
@@ -452,35 +447,28 @@
     grouped.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
+    /* v3.16.1: vertaalwachtrij 25 ipv 40, geen OSINT */
     try {
-  if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
-    var toTranslate = [];
-    var TRANSLATABLE = { "ar": 1, "fr": 1, "ru": 1, "uk": 1, "he": 1 };
-    for (var k = 0; k < items.length; k++) {
-      var it = items[k];
-      if (it && it.lang && TRANSLATABLE[it.lang]) {
-        toTranslate.push(it);
-        if (toTranslate.length >= 40) break;
+      if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
+        var TRANSLATABLE = { "ar": 1, "fr": 1, "ru": 1, "uk": 1, "he": 1 };
+        var toTranslate = [];
+        for (var k = 0; k < items.length; k++) {
+          var it = items[k];
+          if (it && it.lang && TRANSLATABLE[it.lang]) {
+            toTranslate.push(it);
+            if (toTranslate.length >= MAX_TRANSLATIONS_PER_RUN) break;
+          }
+        }
+        if (toTranslate.length) window.NewsAPI.ensureTranslations(toTranslate);
       }
-    }
-    /* OSINT-events ook meesturen */
-    if (window.OSINTFeeds && window.OSINTFeeds.getEvents) {
-      var osint = window.OSINTFeeds.getEvents();
-      for (var m = 0; m < osint.length && toTranslate.length < 80; m++) {
-        var oe = osint[m];
-        if (oe && oe.lang && TRANSLATABLE[oe.lang]) toTranslate.push(oe);
-      }
-    }
-    if (toTranslate.length) window.NewsAPI.ensureTranslations(toTranslate);
-  }
-} catch(e){}
+    } catch(e){}
 
     var elapsed = ((window.performance && performance.now) ? performance.now() : Date.now()) - startTime;
 
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16.1] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -611,7 +599,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16 geladen (locatie-fallback fix)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.1 geladen");
   }
 
   function getCountries(){
