@@ -1,8 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16.2
-   - v3.16.2: Vertaal-throttle 30 min (voorkomt herhaalde
-              MyMemory calls bij elke news:loaded)
-   - v3.16.1: Vertaalwachtrij 40→25, geen OSINT
+   WAR DESK — ai-map.js v3.16.3
+   - v3.16.3: getEventsSync respecteert cache. Probeert eerst
+              MAPAPI.state.militaryEvents ipv altijd rebuilden
+   - v3.16.2: Vertaal-throttle 30 min
+   - v3.16.1: Vertaalwachtrij 40→25
    - v3.16: locatie-fallback fix
    ============================================================ */
 
@@ -12,7 +13,7 @@
   var MAX_EVENTS = 800;
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var MAX_TRANSLATIONS_PER_RUN = 25;
-  var TRANSLATE_THROTTLE_MS = 30 * 60 * 1000; /* v3.16.2 */
+  var TRANSLATE_THROTTLE_MS = 30 * 60 * 1000;
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
@@ -316,7 +317,7 @@
   }
 
   var lastHash = "";
-  var _lastTranslateRun = 0; /* v3.16.2 */
+  var _lastTranslateRun = 0;
 
   function buildEvents(){
     if (!window.State || !Array.isArray(window.State.items)) return [];
@@ -447,7 +448,6 @@
     grouped.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
-    /* v3.16.2: vertaal-throttle 30 min */
     try {
       var now = Date.now();
       if (window.NewsAPI && window.NewsAPI.ensureTranslations &&
@@ -471,7 +471,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16.2] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16.3] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -602,7 +602,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.2 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.3 geladen");
   }
 
   function getCountries(){
@@ -615,17 +615,43 @@
   }
 
   window.MapAI = {
-    run: run, forceRun: forceRun,
+    run: run,
+    forceRun: forceRun,
+
+    /* v3.16.3: respecteer cache ipv altijd rebuilden */
     getEventsSync: function(){
       try {
-        lastHash = "";
+        /* 1. Probeer MAPAPI state eerst (snelste pad) */
+        if (window.MAPAPI && window.MAPAPI.state &&
+            Array.isArray(window.MAPAPI.state.militaryEvents) &&
+            window.MAPAPI.state.militaryEvents.length){
+          return window.MAPAPI.state.militaryEvents.slice();
+        }
+        /* 2. Fallback: build (gebruikt cache als hash gelijk) */
+        var ev = buildEvents();
+        if (ev === null) {
+          /* Cache hit maar MAPAPI leeg → return leeg, geen rebuild */
+          return [];
+        }
+        if (!Array.isArray(ev)) ev = [];
+        mergeOsintEvents(ev);
+        return ev;
+      } catch(e){ return []; }
+    },
+
+    /* Force rebuild — alleen gebruiken als je zeker weet dat je nieuwe data wil */
+    forceEventsSync: function(){
+      lastHash = "";
+      try {
         var ev = buildEvents();
         if (!Array.isArray(ev)) ev = [];
         mergeOsintEvents(ev);
         return ev;
       } catch(e){ return []; }
     },
+
     getCountries: getCountries,
+
     calculateHotspots: function(){
       if (!window.State || !window.State.items) return [];
       var ev = buildEvents() || [];
