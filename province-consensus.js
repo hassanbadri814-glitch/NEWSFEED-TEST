@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.14
+   WAR DESK — province-consensus.js v1.15
+   - v1.15: MIN_ACTOR_SOURCES 1→2 (voorkomt 1-bron dominantie)
+            MIN_ACTOR_SHARE 0.25→0.30
+            Actor met confidence < 0.5 telt niet voor dominantie
    - v1.14: ID-dedup in collectEvents() — voorkomt dubbele
-            telling van OSINT-events (was 538 ipv 334 events)
+            telling van OSINT-events
    - v1.13: CONFLICT_ISO3 uitgebreid naar 18 landen
-            + COUNTRY_DEFAULT_ACTOR voor alle nieuwe landen
-   - v1.12: onbekende actors → generieke fallback
-   - v1.11: OSINT throttle 5min → 30s
    ============================================================ */
 
 (function(){
@@ -23,20 +23,20 @@
   var OSINT_THROTTLE_MS = 30 * 1000;
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
-  var MIN_ACTOR_SHARE = 0.25;
-  var MIN_ACTOR_SOURCES = 1;
+
+  /* v1.15: strengere drempels */
+  var MIN_ACTOR_SHARE = 0.30;
+  var MIN_ACTOR_SOURCES = 2;
+  var MIN_DOMINANT_CONFIDENCE = 0.50;
 
   var COUNTRY_DEFAULT_ACTOR = {
-    /* Midden-Oosten */
     "SYR": "Regering", "UKR": "Oekraïne", "RUS": "Rusland",
     "YEM": "Regering", "ISR": "Israël", "LBN": "Libanese staat",
     "PSE": "Palestina", "SAU": "Saoedi-Arabië",
     "IRQ": "Regering", "IRN": "Iran",
-    /* Afrika */
     "SDN": "Regering", "ETH": "Federale regering",
     "MLI": "Junta (Regering)", "BFA": "Junta (Regering)",
     "NER": "Junta (Regering)", "COD": "Regering (FARDC)",
-    /* Azië */
     "MMR": "Militaire junta", "PAK": "Pakistan (Regering)"
   };
 
@@ -149,11 +149,6 @@
     return null;
   }
 
-  /* ============================================================
-     v1.14: collectEvents met ID-dedup
-     Voorkomt dubbele telling wanneer ai-map.js OSINT-events al
-     heeft samengevoegd in map:military-events
-     ============================================================ */
   function collectEvents(){
     var combined = [];
     var seen = {};
@@ -369,19 +364,35 @@
       var totalScore = ranked.reduce(function(s, a){ return s + a.score; }, 0);
       if(totalScore < 0.01) return;
 
-      var best = ranked[0];
+      /* v1.15: kies beste actor MET voldoende bronnen EN confidence */
+      var best = null;
+      for(var i = 0; i < ranked.length; i++){
+        var a = ranked[i];
+        var srcCount = Object.keys(a.sources).length;
+        var orgCount = Object.keys(a.origins).length;
+        var conf = calculateConfidence(srcCount, orgCount);
+        if(srcCount >= MIN_ACTOR_SOURCES && conf >= MIN_DOMINANT_CONFIDENCE){
+          best = a;
+          break;
+        }
+      }
+
+      /* Geen actor voldoet → sla provincie over (blijft op controller-kleur) */
+      if(!best) return;
+
       var bestShare = best.score / totalScore;
       var bestSourceCount = Object.keys(best.sources).length;
       var bestOriginCount = Object.keys(best.origins).length;
       var confidence = calculateConfidence(bestSourceCount, bestOriginCount);
 
+      /* v1.15: contested alleen bij 2+ actoren met voldoende bronnen */
       var contestedActors = [];
-      for(var i = 0; i < ranked.length && i < 3; i++){
-        var a = ranked[i];
-        var share = a.score / totalScore;
-        var srcCount = Object.keys(a.sources).length;
-        if(share >= MIN_ACTOR_SHARE && srcCount >= MIN_ACTOR_SOURCES){
-          contestedActors.push({ actor: a.actor, share: Math.round(share * 100) });
+      for(var j = 0; j < ranked.length && j < 3; j++){
+        var c = ranked[j];
+        var share = c.score / totalScore;
+        var srcCount2 = Object.keys(c.sources).length;
+        if(share >= MIN_ACTOR_SHARE && srcCount2 >= MIN_ACTOR_SOURCES){
+          contestedActors.push({ actor: c.actor, share: Math.round(share * 100) });
         }
       }
       var contested = contestedActors.length >= 2;
@@ -539,8 +550,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.14"
+    _version: "v1.15"
   };
 
-  LOG("province-consensus.js v1.14 geladen (18 landen + ID-dedup)");
+  LOG("province-consensus.js v1.15 geladen (strengere drempels)");
 })();
