@@ -1,7 +1,13 @@
 /* ============================================================
-   WAR DESK — worldmap.js v3.5
-   - v3.5: COUNTRIES_WITH_AREA_LAYER uitgebreid (SYR, LBN, YEM, ISR, PSE, IRQ)
-           + kleur op basis van totale hitte (target + actor)
+   WAR DESK — worldmap.js v3.6
+   - v3.6: IRQ uit COUNTRIES_WITH_AREA_LAYER verwijderd (geen
+           conflict-areas laag voor Irak → was een gat)
+           + openCountryPanel telt nu militair + crime (consistent
+             met calculateHeat)
+           + openCountryPanel sluit #caAreaPanel eerst (voorkomt
+             dubbele bottom-sheets)
+   - v3.5: COUNTRIES_WITH_AREA_LAYER uitgebreid (SYR, LBN, YEM,
+           ISR, PSE, IRQ) + kleur op basis van totale hitte
    - v3.4: legenda retry tot ConflictAreas klaar is
    ============================================================ */
 
@@ -10,8 +16,8 @@
 
   var LOG = function(){ try{ wdLog.info.apply(null, ["[WM]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
-  /* v3.5: meerdere landen met sub-nationale lagen */
-  var COUNTRIES_WITH_AREA_LAYER = ["UKR", "SYR", "LBN", "YEM", "ISR", "PSE", "IRQ"];
+  /* v3.6: IRQ verwijderd — conflict-areas.js heeft geen IRQ-laag */
+  var COUNTRIES_WITH_AREA_LAYER = ["UKR", "SYR", "LBN", "YEM", "ISR", "PSE"];
 
   var GEOJSON_URLS = [
     "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
@@ -63,7 +69,9 @@
   function getISO3(feature){
     if (!feature || !feature.properties) return null;
     var p = feature.properties;
-    return p.ISO_A3 || p.iso_a3 || p.ADM0_A3 || p.adm0_a3 || p.ISO_A3_EH || p.SOV_A3 || p.iso_a3_eh || null;
+    var iso = p.ISO_A3 || p.iso_a3 || p.ADM0_A3 || p.adm0_a3 || p.ISO_A3_EH || p.SOV_A3 || p.iso_a3_eh || null;
+    if (iso === "-99") return null;
+    return iso;
   }
 
   function getCountryName(feature){
@@ -214,9 +222,6 @@
     return baseOpacity;
   }
 
-  /* ============================================================
-     v3.5: styleCountry gebruikt TOTALE hitte (target + actor)
-     ============================================================ */
   function styleCountry(feature){
     var iso3 = getISO3(feature);
     if (hasAreaLayer(iso3)){
@@ -231,7 +236,6 @@
     if (totalHeat < 0.1){
       return { fillColor: cc.cold || "#2f2f38", fillOpacity: 0.30, color: cc.border || "rgba(255,255,255,0.12)", weight: 0.5 };
     }
-    /* v3.5: niveau op basis van TOTALE hitte */
     var level = getConflictLevel(totalHeat);
     var fillColor = getFillColor(level);
     var fillOpacity = getFillOpacity(level, confPct);
@@ -319,6 +323,16 @@
     });
   }
 
+  /* v3.6: sluit #caAreaPanel voordat we het eigen paneel tonen */
+  function closeConflictAreasPanel(){
+    try {
+      var caPanel = document.getElementById("caAreaPanel");
+      if (caPanel && caPanel.classList.contains("show")) {
+        caPanel.classList.remove("show");
+      }
+    } catch(e){}
+  }
+
   function ensurePanel(){
     if (WM.panel) return WM.panel;
     var panel = document.createElement("div");
@@ -338,6 +352,10 @@
 
   function openCountryPanel(iso3, countryName){
     if (!iso3) return;
+
+    /* v3.6: sluit eventueel open conflict-areas paneel */
+    closeConflictAreasPanel();
+
     var panel = ensurePanel();
     panel.querySelector("#wmPanelTitle").textContent = countryName || iso3;
     var conf = WM.countryConfidence[iso3];
@@ -357,12 +375,15 @@
     }
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
+
+    /* v3.6: militair + crime, consistent met calculateHeat */
     var myEvents = (WM._allEvents || []).filter(function(e){
       if (!e) return false;
-      if (e.category !== "militair") return false;
+      if (e.category !== "militair" && e.category !== "crime") return false;
       if (e.countryISO3 !== iso3) return false;
       return new Date(e.date).getTime() >= periodAgo;
     }).sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); }).slice(0, 15);
+
     var evEl = panel.querySelector("#wmPanelEvents");
     if (!myEvents.length){
       evEl.innerHTML = '<div class="wm-panel-empty">Geen events in deze periode</div>';
@@ -396,9 +417,10 @@
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
     var rendered = 0, skippedNoLoc = 0, skippedOld = 0, skippedBoth = 0;
+    var locs = window.__wm_locations || (window.WorldMapData && window.WorldMapData.LOCATIONS) || {};
     cities.forEach(function(c){
       if (!c || !c.city) return;
-      var loc = window.__wm_locations ? window.__wm_locations[c.city] : null;
+      var loc = locs[c.city];
       if (!loc) { skippedNoLoc++; return; }
       if (c.lastUpdate && c.lastUpdate < periodAgo) { skippedOld++; return; }
       var hasController = !!c.controller;
@@ -471,6 +493,7 @@
   }
 
   function openCityPanel(cityKey, record){
+    closeConflictAreasPanel();
     var panel = ensurePanel();
     var titleParts = [capitalizeCity(cityKey)];
     if (record.controller) titleParts.push(record.controller);
@@ -494,7 +517,7 @@
     var lowerCity = cityKey.toLowerCase();
     var myEvents = (WM._allEvents || []).filter(function(e){
       if (!e) return false;
-      if (e.category !== "militair") return false;
+      if (e.category !== "militair" && e.category !== "crime") return false;
       var t = (e.title || "").toLowerCase();
       if (t.indexOf(lowerCity) === -1) return false;
       return new Date(e.date).getTime() >= periodAgo;
@@ -539,7 +562,7 @@
         if (isNaN(days)) return;
         if (window.WORLDMAP_THRESHOLDS) window.WORLDMAP_THRESHOLDS.period_days = days;
         try { if (window.WDStorage) WDStorage.set("worldmap_period", String(days)); } catch(e){}
-        div.querySelectorAll("button").forEach(function(b){ b.classList.remove("active"); });
+        Array.prototype.forEach.call(div.querySelectorAll("button"), function(b){ b.classList.remove("active"); });
         btn.classList.add("active");
         WM.lastHeatCalc = 0;
         if (WM._allEvents && WM._allEvents.length) refresh(WM._allEvents, true);
@@ -728,7 +751,7 @@
     restoreLegendVisibility();
     restorePeriodFilter();
     WM.isLoaded = true;
-    LOG("Wereldkaart v3.5 geladen — " + geo.features.length + " features");
+    LOG("Wereldkaart v3.6 geladen — " + geo.features.length + " features");
   }
 
   function refresh(events, force){
@@ -779,6 +802,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v3.5 geladen (meer area-layers + totale hitte)");
+  LOG("worldmap.js v3.6 geladen (IRQ-fix + panel-conflict + militair/crime)");
 
 })();
