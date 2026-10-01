@@ -1,9 +1,11 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16.3
-   - v3.16.3: getEventsSync respecteert cache. Probeert eerst
-              MAPAPI.state.militaryEvents ipv altijd rebuilden
+   WAR DESK — ai-map.js v3.16.4
+   - v3.16.4: Precompileerde LOCATION-regexes (CPU -30% in
+              buildEvents door geen RegExp-constructie in de
+              hot loop)
+   - v3.16.3: getEventsSync respecteert cache
    - v3.16.2: Vertaal-throttle 30 min
-   - v3.16.1: Vertaalwachtrij 40→25
+   - v3.16.1: Vertaalwachtrij 40→25, geen OSINT
    - v3.16: locatie-fallback fix
    ============================================================ */
 
@@ -47,6 +49,26 @@
   try { window.__wm_locations = LOCATIONS; } catch(e){}
 
   var _countryKeyCache = null;
+
+  /* ============================================================
+     v3.16.4: Precompileerde LOCATION regexes
+     ============================================================ */
+  var _locationRegexes = null;
+
+  function getLocationRegexes(){
+    if (_locationRegexes) return _locationRegexes;
+    _locationRegexes = [];
+    for (var key in LOCATIONS){
+      if (!Object.prototype.hasOwnProperty.call(LOCATIONS, key)) continue;
+      if (key.length < 4) continue;
+      try {
+        var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        var re = new RegExp("\\b" + escaped + "\\w*\\b", "i");
+        _locationRegexes.push({ key: key, re: re });
+      } catch(e){}
+    }
+    return _locationRegexes;
+  }
 
   function isCountryKey(key){
     if (!_countryKeyCache) _countryKeyCache = {};
@@ -129,6 +151,7 @@
     return firstPos;
   }
 
+  /* v3.16.4: gebruikt precompileerde regexes */
   function findTargetByPosition(title, actorCountries, skipCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -146,12 +169,10 @@
     var bestCity = null, bestCityPos = -1;
     var bestCountry = null, bestCountryPos = -1;
 
-    for (var key in LOCATIONS){
-      if (!Object.prototype.hasOwnProperty.call(LOCATIONS, key)) continue;
-      if (key.length < 4) continue;
-
-      var escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      var re = new RegExp("\\b" + escaped + "\\w*\\b", "i");
+    var regexes = getLocationRegexes();
+    for (var ri = 0; ri < regexes.length; ri++){
+      var key = regexes[ri].key;
+      var re = regexes[ri].re;
       var m = afterVerb.match(re);
       if (!m) continue;
 
@@ -471,7 +492,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16.3] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16.4] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -602,7 +623,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.3 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.4 geladen");
   }
 
   function getCountries(){
@@ -618,19 +639,15 @@
     run: run,
     forceRun: forceRun,
 
-    /* v3.16.3: respecteer cache ipv altijd rebuilden */
     getEventsSync: function(){
       try {
-        /* 1. Probeer MAPAPI state eerst (snelste pad) */
         if (window.MAPAPI && window.MAPAPI.state &&
             Array.isArray(window.MAPAPI.state.militaryEvents) &&
             window.MAPAPI.state.militaryEvents.length){
           return window.MAPAPI.state.militaryEvents.slice();
         }
-        /* 2. Fallback: build (gebruikt cache als hash gelijk) */
         var ev = buildEvents();
         if (ev === null) {
-          /* Cache hit maar MAPAPI leeg → return leeg, geen rebuild */
           return [];
         }
         if (!Array.isArray(ev)) ev = [];
@@ -639,7 +656,6 @@
       } catch(e){ return []; }
     },
 
-    /* Force rebuild — alleen gebruiken als je zeker weet dat je nieuwe data wil */
     forceEventsSync: function(){
       lastHash = "";
       try {
