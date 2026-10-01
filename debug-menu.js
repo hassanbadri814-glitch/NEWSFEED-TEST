@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK — debug-menu.js v1.0
-   Voegt een Debug-toggle + Open/Wis-knoppen toe aan het menu.
-   Zelfstandig — geen wijzigingen nodig in index.html behalve
-   één <script>-tag.
+   WAR DESK — debug-menu.js v1.1
+   - v1.1: window.onerror + unhandledrejection logging naar __wdLog
+   - v1.0: Debug-toggle + Open/Wis-knoppen in menu
    ============================================================ */
 
 (function(){
@@ -45,17 +44,12 @@
       return;
     }
 
-    /* Activeer debug-modus UI als dat nog niet actief is */
     if (!document.documentElement.classList.contains("wd-debug-on")) {
       document.documentElement.classList.add("wd-debug-on");
     }
 
-    /* Open het paneel via de bestaande knop */
-    try {
-      btn.click();
-    } catch(e){}
+    try { btn.click(); } catch(e){}
 
-    /* Sluit het menu-sheet zodat de log niet eroverheen valt */
     try {
       var sheet = document.getElementById("sheet");
       var overlay = document.getElementById("sheetOverlay");
@@ -75,6 +69,47 @@
 
     if (window.showToast) window.showToast("🧹 Log gewist");
     LOG("Log gewist door gebruiker");
+  }
+
+  /* ============================================================
+     v1.1: Error handlers
+     ============================================================ */
+  function installErrorHandlers(){
+    if (window._wdErrorHandlersInstalled) return;
+    window._wdErrorHandlersInstalled = true;
+
+    window.addEventListener("error", function(e){
+      try {
+        var msg = (e.error && e.error.message) || e.message || "onbekende error";
+        var stack = (e.error && e.error.stack) ? String(e.error.stack).slice(0, 250) : "";
+        var src = e.filename ? (e.filename.split("/").pop() + ":" + e.lineno) : "";
+        var full = msg + (src ? " @ " + src : "") + (stack ? " | " + stack : "");
+
+        if (window.__wdLog && window.__wdLog.push){
+          window.__wdLog.push({
+            time: new Date().toTimeString().slice(0,8),
+            type: "err",
+            msg: full
+          });
+        }
+      } catch(err){}
+    });
+
+    window.addEventListener("unhandledrejection", function(e){
+      try {
+        var r = e.reason;
+        var msg = (r && r.message) ? r.message : String(r || "onbekende promise-rejection");
+        if (window.__wdLog && window.__wdLog.push){
+          window.__wdLog.push({
+            time: new Date().toTimeString().slice(0,8),
+            type: "err",
+            msg: "Promise: " + msg
+          });
+        }
+      } catch(err){}
+    });
+
+    LOG("Error handlers geïnstalleerd");
   }
 
   /* ============================================================
@@ -104,7 +139,6 @@
   }
 
   function findInsertPoint(){
-    /* We willen de debug-sectie NA "Meldingen" en VOOR "App" */
     var sheet = document.getElementById("sheet");
     if (!sheet) return null;
 
@@ -121,17 +155,14 @@
       if (title === "Meldingen" && !meldingenSection) meldingenSection = s;
     }
 
-    /* Voorkeur: voor "App" */
     if (appSection) {
       return { before: appSection };
     }
 
-    /* Fallback: na "Meldingen" */
     if (meldingenSection && meldingenSection.nextSibling) {
       return { after: meldingenSection };
     }
 
-    /* Laatste fallback: aan het einde van het sheet-content */
     var content = sheet.querySelector(".sheet-content");
     if (content) {
       return { append: content };
@@ -170,9 +201,6 @@
     return true;
   }
 
-  /* ============================================================
-     Event-binding
-     ============================================================ */
   function bindDebugSectionEvents(section){
     var row = section.querySelector("#toggleDebugRow");
     var openBtn = section.querySelector("#wdOpenDebugBtn");
@@ -210,14 +238,10 @@
     }
   }
 
-  /* ============================================================
-     Sync toggle-state
-     ============================================================ */
   function syncDebugToggle(){
     var row = document.getElementById("toggleDebugRow");
     if (!row) return;
 
-    /* URL-parameter dwingt debug aan (handig voor snel testen) */
     try {
       if (/[?&]debug=1/.test(location.search)) {
         if (localStorage.getItem(LS_KEY) !== "1") {
@@ -231,16 +255,12 @@
     row.setAttribute("aria-pressed", active ? "true" : "false");
   }
 
-  /* ============================================================
-     Observers — houd de sectie in sync
-     ============================================================ */
   function observeSheet(){
     var sheet = document.getElementById("sheet");
     if (!sheet) return;
 
     try {
       var obs = new MutationObserver(function(){
-        /* Als het menu opent, check of de sectie er is */
         if (sheet.classList.contains("open")) {
           if (!document.getElementById("wdDebugMenuSection")) {
             injectDebugSection();
@@ -253,25 +273,19 @@
     } catch(e){}
   }
 
-  /* ============================================================
-     Exporteer globale functies voor gebruik elders
-     ============================================================ */
   window.__isDebugActive = isDebugActive;
   window.__setDebug = setDebug;
   window.__openDebugLog = openDebugLog;
   window.__clearDebugLog = clearDebugLog;
 
-  /* ============================================================
-     Init — wacht tot DOM klaar is
-     ============================================================ */
   function init(){
-    /* Probeer direct (menu kan al bestaan) */
+    installErrorHandlers();
+
     if (injectDebugSection()) {
       observeSheet();
       return;
     }
 
-    /* Retry — misschien is het menu nog niet gebouwd */
     var attempts = 0;
     var timer = setInterval(function(){
       attempts++;
@@ -295,7 +309,6 @@
     setTimeout(init, 600);
   }
 
-  /* Herinit bij page-show (PWA) */
   window.addEventListener("pageshow", function(){
     setTimeout(function(){
       if (!document.getElementById("wdDebugMenuSection")) {
@@ -306,6 +319,6 @@
     }, 300);
   });
 
-  LOG("debug-menu.js v1.0 geladen");
+  LOG("debug-menu.js v1.1 geladen");
 
 })();
