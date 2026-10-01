@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — consensus-history.js v2.1
-   - v2.1: Override vervalt na 7 dagen zonder nieuwe bevestiging
-           (was: oneindig actief). Voorkomt dat oude AI-bevestigde
-           kleuren blijven hangen als er geen events meer zijn.
+   WAR DESK — consensus-history.js v2.2
+   - v2.2: Batch-write voor stability records (1 transactie
+           ipv 27 per run)
+   - v2.1: Override vervalt na 7 dagen
    - v2.0: Stability-tracking voor landen zonder DeepState
    ============================================================ */
 
@@ -19,8 +19,8 @@
   var STORE_STABILITY = "stability";
 
   var CONFIRMED_DAYS = 3;
-  var MAX_STABILITY_DAYS = 7;  /* v2.1: was 14, nu 7 */
-  var MAX_STABILITY_RESET = 14; /* hard reset na 14 dagen inactiviteit */
+  var MAX_STABILITY_DAYS = 7;
+  var MAX_STABILITY_RESET = 14;
 
   var db = null;
   var currentChanges = {};
@@ -53,6 +53,20 @@
       try {
         var tx = db.transaction(storeName, "readwrite");
         tx.objectStore(storeName).put(record);
+        tx.oncomplete = function(){ res(true); };
+        tx.onerror = function(){ res(false); };
+      } catch(e){ res(false); }
+    });
+  }
+
+  /* v2.2: batch-write van N records in 1 transactie */
+  function putMany(storeName, records){
+    if (!db || !records || !records.length) return Promise.resolve(false);
+    return new Promise(function(res){
+      try {
+        var tx = db.transaction(storeName, "readwrite");
+        var store = tx.objectStore(storeName);
+        records.forEach(function(r){ store.put(r); });
         tx.oncomplete = function(){ res(true); };
         tx.onerror = function(){ res(false); };
       } catch(e){ res(false); }
@@ -95,9 +109,7 @@
     });
   }
 
-  function todayKey(){
-    return new Date().toISOString().slice(0, 10);
-  }
+  function todayKey(){ return new Date().toISOString().slice(0, 10); }
 
   function yesterdayKey(){
     var d = new Date();
@@ -136,7 +148,7 @@
   }
 
   /* ============================================================
-     v2.1: stability + override-expiry
+     v2.2: processStability met batch-write
      ============================================================ */
   function processStability(byGid){
     if (!byGid || typeof byGid !== "object") return Promise.resolve({});
@@ -149,7 +161,7 @@
       var existing = {};
       existingRecords.forEach(function(r){ existing[r.gid] = r; });
 
-      var promises = [];
+      var toWrite = [];
 
       Object.keys(byGid).forEach(function(gid){
         var cons = byGid[gid];
@@ -170,8 +182,6 @@
           previousActor: null, history: []
         };
 
-        /* v2.1: als override bestaat maar laatste update > MAX_STABILITY_DAYS,
-           vervalt de override (fill valt terug op provinceRules) */
         if (rec.confirmed && rec.lastDayKey) {
           var overrideAge = dayDiff(today, rec.lastDayKey);
           if (overrideAge > MAX_STABILITY_DAYS) {
@@ -179,7 +189,6 @@
             rec.confirmedAt = null;
             rec.consecutiveDays = 0;
             expiredOverrides.push(gid);
-            LOG("Override vervallen: " + gid + " (" + overrideAge + " dagen geen update)");
           }
         }
 
@@ -236,10 +245,11 @@
           if (rec.history.length > 10) rec.history = rec.history.slice(-10);
         }
 
-        promises.push(put(STORE_STABILITY, rec));
+        toWrite.push(rec);
       });
 
-      return Promise.all(promises).then(function(){
+      /* v2.2: alles in 1 transactie */
+      return putMany(STORE_STABILITY, toWrite).then(function(){
         return getAll(STORE_STABILITY).then(function(allRecords){
           confirmedOverrides = {};
           allRecords.forEach(function(r){
@@ -247,6 +257,10 @@
               confirmedOverrides[r.gid] = r.currentActor;
             }
           });
+
+          if (toWrite.length > 1){
+            LOG("Stability batch-write: " + toWrite.length + " records");
+          }
 
           if (newConfirmed.length > 0) {
             LOG("Territory confirmed: " + newConfirmed.length + " provincies");
@@ -265,7 +279,6 @@
             } catch(e){}
           }
 
-          /* v2.1: ook vervallen overrides emitteren */
           if (expiredOverrides.length > 0) {
             LOG("Overrides vervallen: " + expiredOverrides.length + " provincies");
             try {
@@ -415,7 +428,7 @@
 
   function init(){
     return openDB().then(function(){
-      LOG("Init klaar (v2.1, stabiliteit " + CONFIRMED_DAYS + " dagen, override-verval " + MAX_STABILITY_DAYS + " dagen)");
+      LOG("Init klaar (v2.2, stabiliteit " + CONFIRMED_DAYS + " dagen, override-verval " + MAX_STABILITY_DAYS + " dagen)");
 
       return getAll(STORE_STABILITY).then(function(records){
         confirmedOverrides = {};
@@ -423,7 +436,6 @@
         var today = todayKey();
         records.forEach(function(r){
           if (r.confirmed && r.currentActor) {
-            /* v2.1: filter verlopen overrides ook bij het laden */
             if (r.lastDayKey) {
               var age = dayDiff(today, r.lastDayKey);
               if (age > MAX_STABILITY_DAYS) {
@@ -472,7 +484,7 @@
     getConfirmedOverrides: getConfirmedOverrides,
     resetStability: resetStability,
     cleanup: cleanupOldSnapshots,
-    _version: "v2.1"
+    _version: "v2.2"
   };
 
   if (document.readyState === "loading"){
@@ -481,6 +493,6 @@
     setTimeout(init, 2500);
   }
 
-  LOG("consensus-history.js v2.1 geladen (3-dagen confirm, 7-dagen verval)");
+  LOG("consensus-history.js v2.2 geladen (batch-writes)");
 
 })();
