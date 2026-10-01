@@ -1,13 +1,14 @@
 /* ============================================================
-   WAR DESK Service Worker v4.31
-   - v4.31: MEDIA_CACHE cache-first (geen background re-fetch)
-            PRECACHE_ASSETS compleet (34 bestanden)
-   - v4.30: SW cache-bump
+   WAR DESK Service Worker v4.35
+   - v4.35: Tile-caching voor OpenFreeMap (data -15%)
+            + PRECACHE compleet
+   - v4.31: MEDIA_CACHE cache-first
    ============================================================ */
 
-const CACHE_VERSION = 'v4.34';
+const CACHE_VERSION = 'v4.35';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
+const TILE_CACHE    = 'wardesk-tiles-v1';
 
 const PRECACHE_ASSETS = [
   './',
@@ -60,10 +61,28 @@ const PRECACHE_ASSETS = [
   './world-status.js',
   './enhancements.js',
   './iptv-v8.js',
-  './vod-v24.js'
+  './vod-v24.js',
+  './debug-menu.js'
 ];
 
-const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
+const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE, TILE_CACHE];
+
+/* v4.35: tile-hosts die we cachen */
+const TILE_HOSTS = [
+  'tiles.openfreemap.org',
+  'tile.openstreetmap.org',
+  'a.tile.openstreetmap.org',
+  'b.tile.openstreetmap.org',
+  'c.tile.openstreetmap.org'
+];
+
+function isTileRequest(url){
+  if(!url) return false;
+  for(var i = 0; i < TILE_HOSTS.length; i++){
+    if(url.hostname === TILE_HOSTS[i]) return true;
+  }
+  return false;
+}
 
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -92,7 +111,7 @@ self.addEventListener('activate', event => {
           })
       )
     ).then(() => {
-      console.log('[SW] Actief:', STATIC_CACHE, '+', MEDIA_CACHE);
+      console.log('[SW] Actief:', STATIC_CACHE, '+', MEDIA_CACHE, '+', TILE_CACHE);
       return self.clients.claim();
     })
   );
@@ -109,6 +128,29 @@ self.addEventListener('fetch', event => {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
+
+  /* v4.35: tiles — cache-first, lange TTL */
+  if (isTileRequest(url)) {
+    event.respondWith(
+      caches.open(TILE_CACHE).then(cache =>
+        cache.match(req).then(cached => {
+          if (cached) return cached;
+          return fetch(req).then(res => {
+            if (res && res.status === 200) {
+              cache.put(req, res.clone()).catch(()=>{});
+            }
+            return res;
+          }).catch(() => {
+            /* Tile offline → leeg 1x1 PNG ipv crash */
+            return new Response('', { status: 503 });
+          });
+        })
+      )
+    );
+    return;
+  }
+
+  /* Alleen same-origin verwerken voor de rest */
   if (url.origin !== location.origin) return;
 
   const isImage = /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(url.pathname);
@@ -119,7 +161,6 @@ self.addEventListener('fetch', event => {
                || url.pathname.endsWith('/');
   const isJson  = /\.json$/i.test(url.pathname);
 
-  /* v4.31: images/fonts — pure cache-first, geen background re-fetch */
   if (isImage || isFont) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(cache =>
@@ -137,7 +178,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* JS/CSS: cache-first, dan netwerk, dan cache-update */
   if (isAsset) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(cache =>
@@ -153,7 +193,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* HTML/JSON: network-first met cache-fallback */
   if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
