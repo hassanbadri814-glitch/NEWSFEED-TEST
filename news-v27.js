@@ -1,9 +1,10 @@
 /* ============================================================
-   WAR DESK v27.21 — Nieuws Logica + EventBus
+   WAR DESK v27.22 — Nieuws Logica + EventBus
+   - v27.22: Auto-refresh pauzeert na 30 min inactiviteit
    - v27.21: refreshAllScores on-demand (was elke 10 min)
-   - v27.20: he toegevoegd + Arabic-priority translation queue (80 items)
+   - v27.20: he toegevoegd + Arabic-priority translation queue
    - v27.19: uk + ru toegevoegd aan vertaalbare talen
-   - v27.18: __setTranslate directe visuele update + CustomEvent
+   - v27.18: __setTranslate directe visuele update
    - v27.17: NewsAPI.getTranslatedTitle + ensureTranslations
    - v27.16: Voetbal/Oranje correct in Sport-categorie
    ============================================================ */
@@ -11,7 +12,7 @@
 (function(){
   "use strict";
 
-  window.__newsVersion = "v27.21";
+  window.__newsVersion = "v27.22";
   const MYMEMORY_EMAIL = "";
   const $ = (id) => document.getElementById(id);
 
@@ -1079,7 +1080,6 @@
       list = list.filter(it => (it.title + " " + it.desc + " " + it.source).toLowerCase().includes(q));
     }
     if(state.currentSort === "importance"){
-      /* v27.21: lazy score-berekening — alleen als ontbrekend */
       list.forEach(it => { if(it._score === undefined) it._score = scoreArticle(it); });
       list.sort((a, b) => b._score - a._score);
     } else {
@@ -1249,11 +1249,17 @@
     renderNewsChunked(toShow);
   };
 
+  /* ============================================================
+     v27.22: auto-refresh pauzeert na 30 min inactiviteit
+     ============================================================ */
   const startAutoRefresh = () => {
     clearInterval(state.refreshTimer);
     if(!CONFIG.autoRefreshMs || CONFIG.autoRefreshMs <= 0) return;
     state.refreshTimer = setInterval(() => {
       if(document.hidden) return;
+      /* v27.22: extra check — stop interval als app lang inactief */
+      if(Date.now() - state.lastActivity > 30 * 60 * 1000) return;
+
       const idle = Date.now() - state.lastActivity;
       const atTop = window.scrollY < 200;
       if(idle < CONFIG.pauseOnScrollMs && !atTop) return;
@@ -1354,8 +1360,6 @@
     }
   };
 
-  /* v27.21: refreshAllScores interval verwijderd — on-demand nu */
-
   setInterval(() => {
     if(document.hidden) return;
     pruneTranslations();
@@ -1366,7 +1370,6 @@
     reload: loadAllFeeds,
     setCat: (cat) => { state.currentCat = cat; renderNews(); },
     setSort: (s) => {
-      /* v27.21: score alleen herberekenen als sortering op importantie */
       if (s === "importance") {
         try { refreshAllScores(); } catch(e){}
       }
