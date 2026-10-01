@@ -1,5 +1,8 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.15.2
+   WAR DESK — ai-map.js v3.15.3
+   - v3.15.3: OSINT-events samengevoegd met MAP-events
+              (leest window.OSINTFeeds.getEvents() + luistert
+               naar osint:military-events voor late updates)
    - v3.15.2: FIX filter zwakke politiek (alleen conflict-gerelateerd)
    - v3.15.1: zwak-civiel versoepeld + city-hits teller fix
    - v3.15: CITY > COUNTRY preference in locatie-extractie
@@ -15,10 +18,8 @@
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
-  /* v3.15.2: oorlogs-/conflictcontext voor politiek + civiel filter */
   var WAR_CONTEXT_PATTERN = /\b(war|oorlog|conflict|attack|strike|military|troops|army|soldier|weapon|missile|drone|bomb|border|front|offensive|invasion|ceasefire|sanction|refugee|evacuation|shelling|artillery|airstrike|casualties|killed|wounded|strike|strikes|troepen|leger|soldaten|wapen|raketten|drone|bommen|grens|front|offensief|invasie|staakt-het-vuren|sanctie|vluchtelingen|beschieting|artillerie|luchtaanval|slachtoffers|gedood|gewond)\b/i;
 
-  /* v3.15.2: specifieke politieke onderwerpen die conflict-relevant zijn */
   var POLITIEK_CONFLICT_PATTERN = /\b(sanctions?|sancties|ceasefire|staakt-het-vuren|wapenstilstand|nuclear|nucleair|invasion|invasie|troops|troepen|missile|raket|drone|airstrike|luchtaanval|casualties|slachtoffers|killed|gedood|wounded|gewond|declared war|oorlogsverklaring|mobilization|mobilisatie|military aid|militaire hulp|arms deal|wapendeal|weapons|wapens|peace plan|vredesplan|peace talks|vredesoverleg|negotiations|onderhandelingen|hostage|gijzelaar|prisoner|gevangene|genocide|war crime|oorlogsmisdaad)\b/i;
 
   var CONTEXT_AFTER = /^(war|oorlog|conflict|conflicts|crisis|deal|akkoord|agreement|sanctions|sancties|negotiations|onderhandelingen|talks|overleg|statement|verklaring|response|reactie|policy|beleid|trade|handel|economy|economie|threat|dreiging|warning|waarschuwing|live|update|updates|news|nieuws|situation|situatie|relations|betrekkingen|program|programma|nuclear|nucleair)\b/i;
@@ -319,17 +320,12 @@
 
       var titleStr = String(article.title || "");
 
-      /* v3.15.2: civiel filter */
       if (cls.category === "civiel") {
         if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
           if (!WAR_CONTEXT_PATTERN.test(titleStr)) { skippedWeakCiviel++; continue; }
         }
       }
 
-      /* ============================================================
-         v3.15.2: NIEUW — politiek filter
-         Alleen politieke events met duidelijke conflictcontext doorlaten
-         ============================================================ */
       if (cls.category === "politiek") {
         var hasPolitiekConflictContext = POLITIEK_CONFLICT_PATTERN.test(titleStr) ||
                                          WAR_CONTEXT_PATTERN.test(titleStr);
@@ -444,7 +440,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.15.2] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.15.3] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -459,6 +455,43 @@
     }
 
     return grouped;
+  }
+
+  /* ============================================================
+     v3.15.3: OSINT-events ophalen en samenvoegen
+     ============================================================ */
+  function getOsintEvents(){
+    try {
+      if (window.OSINTFeeds && typeof window.OSINTFeeds.getEvents === "function"){
+        var osint = window.OSINTFeeds.getEvents();
+        if (Array.isArray(osint) && osint.length) return osint;
+      }
+    } catch(e){
+      if (window.wdLog) wdLog.warn("[Map-AI] OSINTFeeds.getEvents faalde: " + (e.message || "?"));
+    }
+    return [];
+  }
+
+  function mergeOsintEvents(events){
+    var osint = getOsintEvents();
+    if (!osint.length) return events;
+    var seen = {};
+    for (var i = 0; i < events.length; i++){
+      if (events[i] && events[i].id) seen[events[i].id] = 1;
+    }
+    var added = 0;
+    for (var j = 0; j < osint.length; j++){
+      var e = osint[j];
+      if (!e || !e.id) continue;
+      if (seen[e.id]) continue;
+      events.push(e);
+      seen[e.id] = 1;
+      added++;
+    }
+    if (added && window.wdLog){
+      wdLog.info("[Map-AI] +" + added + " OSINT events samengevoegd (totaal " + events.length + ")");
+    }
+    return events;
   }
 
   function calculateHotspots(events){
@@ -500,6 +533,10 @@
     var events = buildEvents();
     if (events === null) return;
     if (!Array.isArray(events)) events = [];
+
+    /* v3.15.3: OSINT-events toevoegen */
+    mergeOsintEvents(events);
+
     if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
     var bus = getBus();
     if (!bus) return;
@@ -522,10 +559,29 @@
     bus.on("translation:toggle", function(){
       try { var mapTab = document.querySelector('.tab[data-view="map"]'); if (mapTab && mapTab.classList.contains("active")) forceRun(); } catch(e){}
     });
+
+    /* v3.15.3: OSINT-events triggeren een herrun */
+    bus.on("osint:military-events", function(osintList){
+      if (!Array.isArray(osintList) || !osintList.length) return;
+      if (window.wdLog) wdLog.info("[Map-AI] OSINT update: " + osintList.length + " events → herrun");
+      var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
+      idle(function(){ forceRun(); }, { timeout: 2000 });
+    });
+
     setTimeout(function(){
       if (window.State && window.State.items && window.State.items.length) run();
     }, 2000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15.2 geladen (politiek-filter + conflictcontext)");
+
+    /* v3.15.3: extra poll — als OSINT later binnenkomt dan init */
+    setTimeout(function(){
+      var osint = getOsintEvents();
+      if (osint.length > 0) {
+        if (window.wdLog) wdLog.info("[Map-AI] Late OSINT poll: " + osint.length + " events → herrun");
+        forceRun();
+      }
+    }, 15000);
+
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.15.3 geladen (OSINT-integratie)");
   }
 
   function getCountries(){
@@ -540,13 +596,19 @@
   window.MapAI = {
     run: run, forceRun: forceRun,
     getEventsSync: function(){
-      try { lastHash = ""; var ev = buildEvents(); return (Array.isArray(ev) && ev.length) ? ev : []; }
-      catch(e){ return []; }
+      try {
+        lastHash = "";
+        var ev = buildEvents();
+        if (!Array.isArray(ev)) ev = [];
+        mergeOsintEvents(ev);
+        return ev;
+      } catch(e){ return []; }
     },
     getCountries: getCountries,
     calculateHotspots: function(){
       if (!window.State || !window.State.items) return [];
       var ev = buildEvents() || [];
+      mergeOsintEvents(ev);
       return calculateHotspots(ev);
     }
   };
