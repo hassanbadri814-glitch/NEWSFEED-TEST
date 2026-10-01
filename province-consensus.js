@@ -1,5 +1,7 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.13
+   WAR DESK — province-consensus.js v1.14
+   - v1.14: ID-dedup in collectEvents() — voorkomt dubbele
+            telling van OSINT-events (was 538 ipv 334 events)
    - v1.13: CONFLICT_ISO3 uitgebreid naar 18 landen
             + COUNTRY_DEFAULT_ACTOR voor alle nieuwe landen
    - v1.12: onbekende actors → generieke fallback
@@ -147,24 +149,51 @@
     return null;
   }
 
+  /* ============================================================
+     v1.14: collectEvents met ID-dedup
+     Voorkomt dubbele telling wanneer ai-map.js OSINT-events al
+     heeft samengevoegd in map:military-events
+     ============================================================ */
   function collectEvents(){
     var combined = [];
+    var seen = {};
+    var addedFromMap = 0, addedFromLast = 0, addedFromOsint = 0, skippedDup = 0;
+
+    function eventKey(ev){
+      if(!ev) return null;
+      if(ev.id) return String(ev.id);
+      var s = String(ev.source || "");
+      var d = String(ev.date || "");
+      var t = String(ev.title || "").slice(0, 80);
+      return s + "|" + d + "|" + t;
+    }
+
+    function add(ev){
+      if(!ev) return;
+      var k = eventKey(ev);
+      if(!k){ return; }
+      if(seen[k]){ skippedDup++; return; }
+      seen[k] = 1;
+      combined.push(ev);
+    }
+
     var state = window.MAPAPI && window.MAPAPI.state;
 
     if(state){
       if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
-        combined = combined.concat(state.militaryEvents);
+        state.militaryEvents.forEach(function(ev){ add(ev); addedFromMap++; });
       } else if(Array.isArray(state.events) && state.events.length > 0){
-        combined = combined.concat(state.events);
+        state.events.forEach(function(ev){ add(ev); addedFromMap++; });
       }
     }
 
     if(!combined.length && Array.isArray(lastEvents) && lastEvents.length > 0){
-      combined = combined.concat(lastEvents);
+      lastEvents.forEach(function(ev){ add(ev); addedFromLast++; });
     }
 
     if(Array.isArray(osintEvents) && osintEvents.length > 0){
-      combined = combined.concat(osintEvents);
+      osintEvents.forEach(function(ev){ add(ev); addedFromOsint++; });
+
       try {
         if(window.NewsAPI && window.NewsAPI.ensureTranslations){
           var toTranslate = osintEvents.filter(function(ev){
@@ -174,6 +203,13 @@
         }
       } catch(e){}
     }
+
+    if(window.wdLog && skippedDup > 0){
+      wdLog.info("[CONSENSUS] collectEvents — map:" + addedFromMap +
+        " last:" + addedFromLast + " osint:" + addedFromOsint +
+        " | dup geskipt:" + skippedDup + " | totaal:" + combined.length);
+    }
+
     return combined;
   }
 
@@ -503,8 +539,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.13"
+    _version: "v1.14"
   };
 
-  LOG("province-consensus.js v1.13 geladen (18 landen)");
+  LOG("province-consensus.js v1.14 geladen (18 landen + ID-dedup)");
 })();
