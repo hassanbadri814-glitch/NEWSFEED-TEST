@@ -1,11 +1,9 @@
 /* ============================================================
-   WAR DESK — consensus-history.js v2.0
+   WAR DESK — consensus-history.js v2.1
+   - v2.1: Override vervalt na 7 dagen zonder nieuwe bevestiging
+           (was: oneindig actief). Voorkomt dat oude AI-bevestigde
+           kleuren blijven hangen als er geen events meer zijn.
    - v2.0: Stability-tracking voor landen zonder DeepState
-           Een actor moet 3 opeenvolgende dagen dominant zijn
-           voordat hij als "confirmed" wordt beschouwd en de
-           fill-kleur van de provincie mag overriden.
-           UKR wordt geskipt (DeepState is de bron van waarheid).
-   - v1.0: Eerste versie — dagelijkse snapshots + territory changes
    ============================================================ */
 
 (function(){
@@ -16,18 +14,18 @@
   };
 
   var DB_NAME = "wardesk_consensus_history";
-  var DB_VERSION = 2; /* v2.0: nieuwe store "stability" */
+  var DB_VERSION = 2;
   var STORE_DAILY = "daily";
   var STORE_STABILITY = "stability";
 
-  /* v2.0: stabiliteits-drempel */
-  var CONFIRMED_DAYS = 3;  /* 3 opeenvolgende dagen = 72u */
-  var MAX_STABILITY_DAYS = 14; /* na 14 dagen geen update → vergeten */
+  var CONFIRMED_DAYS = 3;
+  var MAX_STABILITY_DAYS = 7;  /* v2.1: was 14, nu 7 */
+  var MAX_STABILITY_RESET = 14; /* hard reset na 14 dagen inactiviteit */
 
   var db = null;
   var currentChanges = {};
   var lastComparison = 0;
-  var confirmedOverrides = {};  /* {gid: actor} — in-memory cache */
+  var confirmedOverrides = {};
 
   function openDB(){
     return new Promise(function(resolve){
@@ -108,15 +106,12 @@
   }
 
   function dayDiff(dayKeyA, dayKeyB){
-    /* Verschil in dagen tussen twee YYYY-MM-DD strings */
+    if (!dayKeyA || !dayKeyB) return 0;
     var a = new Date(dayKeyA + "T00:00:00Z").getTime();
     var b = new Date(dayKeyB + "T00:00:00Z").getTime();
     return Math.round((a - b) / 86400000);
   }
 
-  /* ============================================================
-     Snapshot (bestaande functionaliteit)
-     ============================================================ */
   function snapshotConsensus(byGid){
     if (!byGid || typeof byGid !== "object") return Promise.resolve();
     var key = todayKey();
@@ -136,25 +131,20 @@
     });
   }
 
-  /* ============================================================
-     Stability tracking (v2.0)
-     ============================================================ */
-
-  /*
-   * Bepaalt of een gid in een land valt dat DeepState/ISW heeft.
-   * Voor die landen skippen we stability tracking.
-   */
   function hasExternalControlSource(iso3){
     return iso3 === "UKR";
   }
 
+  /* ============================================================
+     v2.1: stability + override-expiry
+     ============================================================ */
   function processStability(byGid){
     if (!byGid || typeof byGid !== "object") return Promise.resolve({});
 
     var today = todayKey();
     var newConfirmed = [];
+    var expiredOverrides = [];
 
-    /* Haal alle bestaande stability records op */
     return getAll(STORE_STABILITY).then(function(existingRecords){
       var existing = {};
       existingRecords.forEach(function(r){ existing[r.gid] = r; });
@@ -167,35 +157,38 @@
         var iso3 = parts[0];
         var admin1 = parts[1] || null;
 
-        /* Skip landen met DeepState */
         if (hasExternalControlSource(iso3)) return;
 
         var actor = cons.dominantActor;
         if (!actor) return;
 
         var rec = existing[gid] || {
-          gid: gid,
-          iso3: iso3,
-          admin1: admin1,
-          currentActor: null,
-          consecutiveDays: 0,
-          lastDayKey: null,
-          firstSeenAt: null,
-          confirmed: false,
-          confirmedAt: null,
-          previousActor: null,
-          history: []
+          gid: gid, iso3: iso3, admin1: admin1,
+          currentActor: null, consecutiveDays: 0,
+          lastDayKey: null, firstSeenAt: null,
+          confirmed: false, confirmedAt: null,
+          previousActor: null, history: []
         };
+
+        /* v2.1: als override bestaat maar laatste update > MAX_STABILITY_DAYS,
+           vervalt de override (fill valt terug op provinceRules) */
+        if (rec.confirmed && rec.lastDayKey) {
+          var overrideAge = dayDiff(today, rec.lastDayKey);
+          if (overrideAge > MAX_STABILITY_DAYS) {
+            rec.confirmed = false;
+            rec.confirmedAt = null;
+            rec.consecutiveDays = 0;
+            expiredOverrides.push(gid);
+            LOG("Override vervallen: " + gid + " (" + overrideAge + " dagen geen update)");
+          }
+        }
 
         var sameActor = (rec.currentActor === actor);
         var lastDay = rec.lastDayKey;
-
-        /* Is het een nieuwe dag sinds laatste update? */
         var isNewDay = !lastDay || dayDiff(today, lastDay) >= 1;
-        var isTooOld = lastDay && dayDiff(today, lastDay) > MAX_STABILITY_DAYS;
+        var isTooOld = lastDay && dayDiff(today, lastDay) > MAX_STABILITY_RESET;
 
         if (isTooOld) {
-          /* Te oud → reset volledig */
           rec.currentActor = actor;
           rec.consecutiveDays = 1;
           rec.firstSeenAt = Date.now();
@@ -204,7 +197,6 @@
           rec.previousActor = null;
           rec.history = [];
         } else if (!sameActor) {
-          /* Actor gewisseld → reset teller */
           var wasConfirmed = rec.confirmed;
           rec.previousActor = rec.currentActor;
           rec.currentActor = actor;
@@ -212,7 +204,6 @@
           rec.firstSeenAt = Date.now();
           rec.confirmed = false;
           rec.confirmedAt = null;
-
           rec.history.push({
             at: Date.now(),
             from: wasConfirmed ? rec.previousActor : null,
@@ -221,32 +212,21 @@
           });
           if (rec.history.length > 10) rec.history = rec.history.slice(-10);
         } else if (isNewDay) {
-          /* Zelfde actor, nieuwe dag → increment */
           rec.consecutiveDays += 1;
         }
-        /* Anders: zelfde actor, zelfde dag → niks doen */
 
-        /* Update lastDayKey als het een nieuwe dag is */
         if (isNewDay) rec.lastDayKey = today;
 
-        /* Check of hij nu confirmed moet worden */
         if (!rec.confirmed && rec.consecutiveDays >= CONFIRMED_DAYS) {
           rec.confirmed = true;
           rec.confirmedAt = Date.now();
-
-          /* v2.0: alleen een "change" emitteren als de override ECHT
-             anders is dan de vorige bevestigde actor. Eerste keer
-             confirm is ook een change. */
           newConfirmed.push({
-            gid: gid,
-            iso3: iso3,
-            admin1: admin1,
+            gid: gid, iso3: iso3, admin1: admin1,
             actor: actor,
             previousActor: rec.previousActor,
             confidence: cons.confidence,
             consecutiveDays: rec.consecutiveDays
           });
-
           rec.history.push({
             at: Date.now(),
             type: "confirmed",
@@ -260,24 +240,20 @@
       });
 
       return Promise.all(promises).then(function(){
-        /* Update in-memory cache */
-        confirmedOverrides = {};
-        existingRecords.forEach(function(r){ /* placeholder */ });
         return getAll(STORE_STABILITY).then(function(allRecords){
+          confirmedOverrides = {};
           allRecords.forEach(function(r){
             if (r.confirmed && r.currentActor) {
               confirmedOverrides[r.gid] = r.currentActor;
             }
           });
 
-          /* Emit territory:confirmed voor nieuwe confirmaties */
           if (newConfirmed.length > 0) {
-            LOG("Territory confirmed: " + newConfirmed.length + " provincies (≥" + CONFIRMED_DAYS + " dagen)");
+            LOG("Territory confirmed: " + newConfirmed.length + " provincies");
             newConfirmed.forEach(function(c){
-              LOG("  ✓ " + c.gid + " → " + c.actor + " (" + c.consecutiveDays + " dagen" +
+              LOG("  ✓ " + c.gid + " → " + c.actor + " (" + c.consecutiveDays + "d" +
                   (c.previousActor ? ", was " + c.previousActor : "") + ")");
             });
-
             try {
               if (window.WarDesk && WarDesk.events) {
                 WarDesk.events.emit("territory:confirmed", {
@@ -289,18 +265,27 @@
             } catch(e){}
           }
 
-          return {
-            newConfirmed: newConfirmed,
-            overrides: confirmedOverrides
-          };
+          /* v2.1: ook vervallen overrides emitteren */
+          if (expiredOverrides.length > 0) {
+            LOG("Overrides vervallen: " + expiredOverrides.length + " provincies");
+            try {
+              if (window.WarDesk && WarDesk.events) {
+                WarDesk.events.emit("territory:confirmed", {
+                  confirmed: [],
+                  expired: expiredOverrides,
+                  overrides: confirmedOverrides,
+                  timestamp: Date.now()
+                });
+              }
+            } catch(e){}
+          }
+
+          return { newConfirmed: newConfirmed, overrides: confirmedOverrides, expired: expiredOverrides };
         });
       });
     });
   }
 
-  /* ============================================================
-     Bestaande change-detectie (dagelijkse verschillen)
-     ============================================================ */
   function compareWithPrevious(byGid){
     if (!byGid) return Promise.resolve({});
     var prevKey = yesterdayKey();
@@ -321,28 +306,18 @@
         if (old.dominantActor !== cur.dominantActor){
           changes[gid] = {
             type: "control-change",
-            from: old.dominantActor,
-            to: cur.dominantActor,
-            fromConfidence: old.confidence,
-            toConfidence: cur.confidence,
-            lossFor: old.dominantActor,
-            gainFor: cur.dominantActor
+            from: old.dominantActor, to: cur.dominantActor,
+            fromConfidence: old.confidence, toConfidence: cur.confidence,
+            lossFor: old.dominantActor, gainFor: cur.dominantActor
           };
           return;
         }
         if (!old.contested && cur.contested){
-          changes[gid] = {
-            type: "became-contested",
-            actor: cur.dominantActor,
-            contestedActors: cur.contestedActors
-          };
+          changes[gid] = { type: "became-contested", actor: cur.dominantActor, contestedActors: cur.contestedActors };
           return;
         }
         if (old.contested && !cur.contested){
-          changes[gid] = {
-            type: "resolved",
-            actor: cur.dominantActor
-          };
+          changes[gid] = { type: "resolved", actor: cur.dominantActor };
         }
       });
       return changes;
@@ -356,21 +331,14 @@
       var parts = gid.split("|");
       var iso3 = parts[0];
       var admin1 = parts[1] || null;
-      var enriched = {
-        gid: gid, iso3: iso3, admin1: admin1,
-        type: c.type
-      };
+      var enriched = { gid: gid, iso3: iso3, admin1: admin1, type: c.type, timestamp: Date.now() };
       if (c.type === "control-change"){
-        enriched.from = c.from;
-        enriched.to = c.to;
-        enriched.fromConfidence = c.fromConfidence;
-        enriched.toConfidence = c.toConfidence;
-        enriched.gainFor = c.gainFor;
-        enriched.lossFor = c.lossFor;
+        enriched.from = c.from; enriched.to = c.to;
+        enriched.fromConfidence = c.fromConfidence; enriched.toConfidence = c.toConfidence;
+        enriched.gainFor = c.gainFor; enriched.lossFor = c.lossFor;
         enriched.label = (admin1 || iso3) + ": " + c.from + " → " + c.to;
       } else if (c.type === "became-contested"){
-        enriched.actor = c.actor;
-        enriched.contestedActors = c.contestedActors;
+        enriched.actor = c.actor; enriched.contestedActors = c.contestedActors;
         enriched.label = (admin1 || iso3) + ": betwist (" + (c.contestedActors || []).map(function(a){ return a.actor; }).join(" vs ") + ")";
       } else if (c.type === "resolved"){
         enriched.actor = c.actor;
@@ -384,9 +352,6 @@
     return out;
   }
 
-  /* ============================================================
-     Hoofd-functie — combineert snapshot + compare + stability
-     ============================================================ */
   function processConsensus(byGid){
     if (!byGid || !Object.keys(byGid).length) return Promise.resolve({});
 
@@ -395,27 +360,23 @@
       currentChanges = enriched;
       lastComparison = Date.now();
 
-      var changeCount = Object.keys(enriched).length;
-      if (changeCount > 0){
-        LOG("Vergelijking met gisteren: " + changeCount + " wijzigingen");
+      if (Object.keys(enriched).length > 0){
+        LOG("Vergelijking met gisteren: " + Object.keys(enriched).length + " wijzigingen");
       }
 
       try {
         if (window.WarDesk && WarDesk.events){
           WarDesk.events.emit("territory:changes", {
             changes: enriched,
-            count: changeCount,
+            count: Object.keys(enriched).length,
             timestamp: lastComparison
           });
         }
       } catch(e){}
 
-      /* Stability tracking NA de daily-change compare */
       return processStability(byGid).then(function(stabilityResult){
         return snapshotConsensus(byGid).then(function(){
-          return Object.assign({}, enriched, {
-            __stability: stabilityResult
-          });
+          return Object.assign({}, enriched, { __stability: stabilityResult });
         });
       });
     });
@@ -425,9 +386,6 @@
   function getLastComparison(){ return lastComparison; }
   function getConfirmedOverrides(){ return confirmedOverrides; }
 
-  /* ============================================================
-     Reset (handmatig)
-     ============================================================ */
   function resetStability(){
     return getAll(STORE_STABILITY).then(function(records){
       return Promise.all(records.map(function(r){ return del(STORE_STABILITY, r.gid); }));
@@ -457,21 +415,28 @@
 
   function init(){
     return openDB().then(function(){
-      LOG("Init klaar (v2.0, stabiliteit " + CONFIRMED_DAYS + " dagen)");
+      LOG("Init klaar (v2.1, stabiliteit " + CONFIRMED_DAYS + " dagen, override-verval " + MAX_STABILITY_DAYS + " dagen)");
 
-      /* Laad bestaande confirmed-overrides in memory */
       return getAll(STORE_STABILITY).then(function(records){
         confirmedOverrides = {};
         var count = 0;
+        var today = todayKey();
         records.forEach(function(r){
           if (r.confirmed && r.currentActor) {
+            /* v2.1: filter verlopen overrides ook bij het laden */
+            if (r.lastDayKey) {
+              var age = dayDiff(today, r.lastDayKey);
+              if (age > MAX_STABILITY_DAYS) {
+                LOG("Verlopen override genegeerd bij load: " + r.gid + " (" + age + "d)");
+                return;
+              }
+            }
             confirmedOverrides[r.gid] = r.currentActor;
             count++;
           }
         });
-        if (count > 0) LOG("Geladen uit cache: " + count + " confirmed overrides");
+        if (count > 0) LOG("Geladen uit cache: " + count + " geldige confirmed overrides");
 
-        /* Emit direct de bestaande overrides zodat kaart kan laden */
         try {
           if (window.WarDesk && WarDesk.events && count > 0) {
             setTimeout(function(){
@@ -507,7 +472,7 @@
     getConfirmedOverrides: getConfirmedOverrides,
     resetStability: resetStability,
     cleanup: cleanupOldSnapshots,
-    _version: "v2.0"
+    _version: "v2.1"
   };
 
   if (document.readyState === "loading"){
@@ -516,6 +481,6 @@
     setTimeout(init, 2500);
   }
 
-  LOG("consensus-history.js v2.0 geladen (" + CONFIRMED_DAYS + "-dagen stabiliteit)");
+  LOG("consensus-history.js v2.1 geladen (3-dagen confirm, 7-dagen verval)");
 
 })();
