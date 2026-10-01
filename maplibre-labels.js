@@ -1,9 +1,8 @@
 /* ============================================================
-   WAR DESK — maplibre-labels.js v1.2
-   - v1.2: Poll-interval 800ms → 2000ms, MAX_ATTEMPTS 60 → 30
-           (zelfde totale tijd, minder tikken, minder CPU)
+   WAR DESK — maplibre-labels.js v1.3
+   - v1.3: Poll pauzeert bij document.hidden + hervat bij terugkeer
+   - v1.2: Poll-interval 2000ms + MAX_ATTEMPTS 30
    - v1.1: reset poll bij Map-tab klik
-   - v1.0: eerste versie
    ============================================================ */
 
 (function(){
@@ -24,7 +23,6 @@
   var LABEL_HALO_COLOR = "rgba(0, 0, 0, 0.9)";
   var LABEL_HALO_WIDTH = 1.5;
 
-  /* v1.2: poll-tuning */
   var POLL_INTERVAL_MS = 2000;
   var MAX_ATTEMPTS = 30;
 
@@ -93,7 +91,6 @@
     }
   }
 
-  /* v1.2: rustigere poll */
   var pollTimer = null;
   var attempts = 0;
 
@@ -105,6 +102,11 @@
   }
 
   function poll(){
+    if(document.hidden){
+      /* v1.3: niet pollen op achtergrond */
+      return;
+    }
+
     if(attempts >= MAX_ATTEMPTS){
       LOG("Poll opgegeven na " + MAX_ATTEMPTS + " pogingen");
       return;
@@ -151,6 +153,17 @@
     setTimeout(function(){ startPoll("init"); }, 3000);
   }
 
-  LOG("maplibre-labels.js v1.2 geladen");
+  /* v1.3: pauzeer bij document.hidden, hervat bij terugkeer */
+  document.addEventListener("visibilitychange", function(){
+    if(document.hidden){
+      if(pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
+    } else {
+      if(!pollTimer && !(appliedFor.dark && appliedFor.light)){
+        poll();
+      }
+    }
+  });
+
+  LOG("maplibre-labels.js v1.3 geladen");
 
 })();
