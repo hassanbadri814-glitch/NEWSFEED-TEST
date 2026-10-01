@@ -1,8 +1,8 @@
 /* ============================================================
-   WAR DESK — maplibre-labels.js v1.1
-   ------------------------------------------------------------
-   - v1.1: reset poll bij Map-tab klik; langere timeout; 
-           betere detectie van MapLibre instantie
+   WAR DESK — maplibre-labels.js v1.2
+   - v1.2: Poll-interval 800ms → 2000ms, MAX_ATTEMPTS 60 → 30
+           (zelfde totale tijd, minder tikken, minder CPU)
+   - v1.1: reset poll bij Map-tab klik
    - v1.0: eerste versie
    ============================================================ */
 
@@ -24,7 +24,11 @@
   var LABEL_HALO_COLOR = "rgba(0, 0, 0, 0.9)";
   var LABEL_HALO_WIDTH = 1.5;
 
-  var appliedFor = {}; /* track per theme welke al aangepast is */
+  /* v1.2: poll-tuning */
+  var POLL_INTERVAL_MS = 2000;
+  var MAX_ATTEMPTS = 30;
+
+  var appliedFor = {};
 
   function customizeMapLabels(glMap, theme){
     if(!glMap) return;
@@ -58,7 +62,6 @@
       var layer = window.MAPAPI.state.tileLayers[theme];
       if(!layer) return null;
 
-      /* Meerdere manieren om de interne MapLibre instantie te krijgen */
       if(typeof layer.getMaplibreMap === "function"){
         var m1 = layer.getMaplibreMap();
         if(m1) return m1;
@@ -81,7 +84,6 @@
         customizeMapLabels(glMap, theme);
         return true;
       } else {
-        /* Wacht op styledata event, eenmalig */
         glMap.once("styledata", function(){ customizeMapLabels(glMap, theme); });
         return true;
       }
@@ -91,12 +93,9 @@
     }
   }
 
-  /* ============================================================
-     Poll — reset bij elke Map-tab klik en probeert 60x met 800ms
-     ============================================================ */
+  /* v1.2: rustigere poll */
   var pollTimer = null;
   var attempts = 0;
-  var MAX_ATTEMPTS = 60;
 
   function startPoll(reason){
     if(pollTimer){ clearTimeout(pollTimer); pollTimer = null; }
@@ -113,28 +112,23 @@
     attempts++;
 
     if(tryApplyForCurrentTheme()){
-      /* Gelukt — check of beide themes gedaan zijn */
       if(appliedFor.dark && appliedFor.light){
         LOG("Beide themes klaar — poll gestopt");
         return;
       }
-      /* Anders: blijf proberen voor de andere theme */
     }
 
-    pollTimer = setTimeout(poll, 800);
+    pollTimer = setTimeout(poll, POLL_INTERVAL_MS);
   }
 
-  /* Bij elke klik op de Map-tab: herstart poll */
   document.addEventListener("click", function(e){
     var tab = e.target.closest && e.target.closest('.bottom-tabs .tab[data-view="map"]');
     if(tab){
-      /* Reset appliedFor voor de huidige theme — want switchTile() hermaakt de laag */
       appliedFor = {};
       setTimeout(function(){ startPoll("Map-tab klik"); }, 1500);
     }
   });
 
-  /* Ook herstarten bij theme-wissel */
   try {
     var themeObserver = new MutationObserver(function(muts){
       muts.forEach(function(m){
@@ -151,12 +145,12 @@
     themeObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   } catch(e){}
 
-  /* Initiele start */
   if(document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", function(){ setTimeout(function(){ startPoll("init"); }, 3000); });
   } else {
     setTimeout(function(){ startPoll("init"); }, 3000);
   }
 
-  LOG("maplibre-labels.js v1.1 geladen");
+  LOG("maplibre-labels.js v1.2 geladen");
+
 })();
