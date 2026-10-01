@@ -1,10 +1,8 @@
 /* ============================================================
-   WAR DESK — city-status.js v2.0
-   ------------------------------------------------------------
+   WAR DESK — city-status.js v2.1
+   - v2.1: Decay-fix (ageDays berekend ipv hardcoded 0)
+           + Batch-writes: IDB-transacties verzameld ipv per event
    - v2.0: 2-laags systeem (control + attack)
-         + confidence berekening
-         + contested detectie
-         + historie tracking
    ============================================================ */
 
 (function(){
@@ -13,12 +11,19 @@
   var LOG = function(){ try{ wdLog.info.apply(null, ["[CITY]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
 
   var DB_NAME = "wardesk_worldmap";
-  var DB_VERSION = 2; /* v2.0: nieuw schema */
+  var DB_VERSION = 2;
   var STORE_NAME = "city_status";
   var SNAPSHOT_STORE = "snapshots";
 
+  var WRITE_DEBOUNCE_MS = 300;
+
   var db = null;
   var CITY_STATUS = {};
+
+  /* v2.1: write-queue */
+  var _writeQueue = {};
+  var _writeTimer = null;
+  var _flushing = false;
 
   /* ============================================================
      INDEXEDDB
@@ -30,7 +35,6 @@
         var req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = function(e){
           var d = e.target.result;
-          /* Verwijder oude store (schema change) */
           if (d.objectStoreNames.contains(STORE_NAME)){
             d.deleteObjectStore(STORE_NAME);
           }
@@ -84,29 +88,64 @@
   }
 
   /* ============================================================
+     v2.1: BATCH-WRITE queue
+     ============================================================ */
+  function queueWrite(record){
+    if (!record || !record.city) return;
+    _writeQueue[record.city] = record;
+    if (_writeTimer) clearTimeout(_writeTimer);
+    _writeTimer = setTimeout(flushWrites, WRITE_DEBOUNCE_MS);
+  }
+
+  function flushWrites(){
+    if (_writeTimer){ clearTimeout(_writeTimer); _writeTimer = null; }
+    if (_flushing) return;
+    var records = Object.keys(_writeQueue).map(function(k){ return _writeQueue[k]; });
+    if (!records.length) return;
+    _writeQueue = {};
+    if (!db) return;
+
+    _flushing = true;
+    try {
+      var tx = db.transaction(STORE_NAME, "readwrite");
+      var store = tx.objectStore(STORE_NAME);
+      records.forEach(function(r){ store.put(r); });
+      tx.oncomplete = function(){
+        _flushing = false;
+        if (window.wdLog && records.length > 1){
+          wdLog.info("[CITY] Batch-write: " + records.length + " records");
+        }
+      };
+      tx.onerror = function(){ _flushing = false; };
+    } catch(e){
+      _flushing = false;
+    }
+  }
+
+  /* Flush bij verlaten pagina / verbergen tab */
+  if (typeof window !== "undefined"){
+    window.addEventListener("pagehide", flushWrites);
+    document.addEventListener("visibilitychange", function(){
+      if (document.hidden) flushWrites();
+    });
+  }
+
+  /* ============================================================
      STAD RECORD — lege template
      ============================================================ */
   function makeCityRecord(cityKey, countryName){
     return {
       city: cityKey,
       country: countryName || null,
-
-      /* Control claims — wie zegt dat ze stad controleren */
       controlClaims: {},
-
-      /* Attack claims — wie valt stad aan */
       attackClaims: {},
-
-      /* Afgeleide velden (herberekend bij elke update) */
       controller: null,
       controllerConfidence: 0,
       controllerSources: 0,
       contested: false,
-
       dominantAttacker: null,
       attackIntensity: 0,
       attackCount: 0,
-
       since: null,
       history: [],
       lastUpdate: null
@@ -122,9 +161,6 @@
     return CITY_STATUS[cityKey];
   }
 
-  /* ============================================================
-     CONFIDENCE BEREKENING
-     ============================================================ */
   function calculateConfidence(sourcesMap, originsMap){
     var sourceCount = Object.keys(sourcesMap || {}).length;
     var originCount = Object.keys(originsMap || {}).length;
@@ -142,9 +178,7 @@
   }
 
   /* ============================================================
-     v2.0: RECORD CONTROL CLAIM
-     ------------------------------------------------------------
-     Wordt aangeroepen bij "captured/liberated/seized" events.
+     v2.1: RECORD CONTROL CLAIM
      ============================================================ */
   async function recordControlClaim(cityKey, actorName, actorISO3, sourceName, originCountry){
     if (!cityKey || !actorName) return null;
@@ -176,21 +210,17 @@
     claim.lastClaim = now;
     claim.confidence = calculateConfidence(claim.sources, claim.origins);
 
-    /* Herbereken afgeleide velden */
     recomputeCityState(record);
-
     record.lastUpdate = now;
 
-    await put(STORE_NAME, record);
+    queueWrite(record);
 
     LOG("Control: " + cityKey + " → " + actorName + " (conf " + claim.confidence + ", bronnen " + Object.keys(claim.sources).length + ")");
     return record;
   }
 
   /* ============================================================
-     v2.0: RECORD ATTACK CLAIM
-     ------------------------------------------------------------
-     Wordt aangeroepen bij "attacked/shelled/bombed" events.
+     v2.1: RECORD ATTACK CLAIM — decay-fix
      ============================================================ */
   async function recordAttackClaim(cityKey, actorName, actorISO3, sourceName, originCountry){
     if (!cityKey || !actorName) return null;
@@ -221,18 +251,16 @@
     claim.count++;
     claim.lastAttack = now;
 
-    /* Intensity: count/10, decay over 7 dagen */
+    /* v2.1: decay op basis van tijd sinds laatste aanval */
     var baseIntensity = Math.min(1, claim.count / 10);
-    var ageDays = 0; /* net binnengekomen */
+    var ageDays = claim.lastAttack ? (now - claim.lastAttack) / 86400000 : 0;
     var decay = Math.max(0.3, 1 - ageDays / 30);
     claim.intensity = Math.round(baseIntensity * decay * 100) / 100;
 
-    /* Herbereken afgeleide velden */
     recomputeCityState(record);
-
     record.lastUpdate = now;
 
-    await put(STORE_NAME, record);
+    queueWrite(record);
 
     LOG("Attack: " + cityKey + " ← " + actorName + " (count " + claim.count + ", intensity " + claim.intensity + ")");
     return record;
@@ -242,7 +270,6 @@
      HERBEREKEN AFGELEIDE VELDEN
      ============================================================ */
   function recomputeCityState(record){
-    /* ==== Controller (hoogste control claim) ==== */
     var bestActor = null;
     var bestScore = 0;
     var contestedActors = 0;
@@ -263,11 +290,8 @@
     record.controller = bestActor;
     record.controllerConfidence = bestScore;
     record.controllerSources = bestActor ? Object.keys(record.controlClaims[bestActor].sources).length : 0;
-
-    /* Contested: 2+ actoren met >= 40% confidence */
     record.contested = contestedActors >= 2;
 
-    /* Controller-wissel → historie */
     if (prevController && bestActor && prevController !== bestActor){
       record.history.push({
         at: Date.now(),
@@ -281,7 +305,6 @@
       record.since = Date.now();
     }
 
-    /* ==== Attack intensity (hoogste attacker) ==== */
     var dominantAttacker = null;
     var highestIntensity = 0;
     var totalCount = 0;
@@ -303,20 +326,9 @@
     return record;
   }
 
-  /* ============================================================
-     GETTERS
-     ============================================================ */
-  function getCity(cityKey){
-    return CITY_STATUS[cityKey] || null;
-  }
+  function getCity(cityKey){ return CITY_STATUS[cityKey] || null; }
+  function getAllCities(){ return Object.keys(CITY_STATUS).map(function(k){ return CITY_STATUS[k]; }); }
 
-  function getAllCities(){
-    return Object.keys(CITY_STATUS).map(function(k){ return CITY_STATUS[k]; });
-  }
-
-  /* ============================================================
-     SNAPSHOTS — dagelijkse momentopname
-     ============================================================ */
   async function saveSnapshot(){
     var dateKey = new Date().toISOString().slice(0, 10);
     var snapshot = {
@@ -328,17 +340,9 @@
     LOG("Snapshot opgeslagen: " + dateKey + " (" + Object.keys(CITY_STATUS).length + " steden)");
   }
 
-  async function getSnapshot(dateKey){
-    return await get(SNAPSHOT_STORE, dateKey);
-  }
+  async function getSnapshot(dateKey){ return await get(SNAPSHOT_STORE, dateKey); }
+  async function getAllSnapshots(){ return await getAll(SNAPSHOT_STORE); }
 
-  async function getAllSnapshots(){
-    return await getAll(SNAPSHOT_STORE);
-  }
-
-  /* ============================================================
-     INIT
-     ============================================================ */
   async function init(){
     await openDB();
     var all = await getAll(STORE_NAME);
@@ -347,7 +351,6 @@
     });
     LOG("Init — " + Object.keys(CITY_STATUS).length + " steden uit cache");
 
-    /* Migratie-check: als oude structuur (zonder controlClaims) → reset */
     var needsMigration = false;
     for (var city in CITY_STATUS){
       if (!Object.prototype.hasOwnProperty.call(CITY_STATUS, city)) continue;
@@ -357,7 +360,7 @@
       }
     }
     if (needsMigration){
-      LOG("Oude structuur gedetecteerd — alle city-data gewist voor v2.0");
+      LOG("Oude structuur gedetecteerd — alle city-data gewist voor v2.1");
       CITY_STATUS = {};
       if (db){
         try {
@@ -368,9 +371,6 @@
     }
   }
 
-  /* ============================================================
-     RESET (voor debug)
-     ============================================================ */
   async function reset(){
     CITY_STATUS = {};
     if (db){
@@ -382,9 +382,6 @@
     LOG("Reset — alle city-status gewist");
   }
 
-  /* ============================================================
-     EXPORT
-     ============================================================ */
   window.CityStatus = {
     init: init,
     reset: reset,
@@ -395,17 +392,17 @@
     saveSnapshot: saveSnapshot,
     getSnapshot: getSnapshot,
     getAllSnapshots: getAllSnapshots,
+    flush: flushWrites,
     _getState: function(){ return CITY_STATUS; },
-    _version: "v2.0"
+    _version: "v2.1"
   };
 
-  /* Auto-init */
   if (document.readyState === "loading"){
     document.addEventListener("DOMContentLoaded", function(){ setTimeout(init, 500); });
   } else {
     setTimeout(init, 500);
   }
 
-  LOG("city-status v2.0 geladen (2-laags: control + attack)");
+  LOG("city-status v2.1 geladen (decay-fix + batch-writes)");
 
 })();
