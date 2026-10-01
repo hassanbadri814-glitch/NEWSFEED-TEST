@@ -1,10 +1,8 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.5
-   - v2.5: countsForHeat fix (alleen echte fysieke events)
-           + Arabische locatie-minimumlengte 3
+   WAR DESK — osint-feeds.js v2.6
+   - v2.6: +10 nieuwe kanalen voor Afrika/Azië/Oekraïne
+   - v2.5: countsForHeat fix + Arabic min-3
    - v2.4: Arabic-aware locatie-extractie
-   - v2.3: Arabische Telegram-kanalen
-   - v2.2: OSINT bron-trust
    ============================================================ */
 
 (function(){
@@ -27,27 +25,70 @@
   ];
 
   var TELEGRAM_CHANNELS = [
+    /* === Bestaande OSINT kanalen === */
     { channel: "DeepStateUA",    region: "Oost-Europa",   country: "Oekraïne" },
     { channel: "sentdefender",   region: "Midden-Oosten", country: null },
     { channel: "rybar",          region: "Oost-Europa",   country: "Rusland" },
     { channel: "Faytuks",        region: "Midden-Oosten", country: null },
     { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
     { channel: "OSINTtechnical", region: "Midden-Oosten", country: null },
+
+    /* === Bestaande Arabische kanalen === */
     { channel: "HalabTodayTV",    region: "Midden-Oosten", country: "Syrië" },
     { channel: "damscuce",        region: "Midden-Oosten", country: "Syrië" },
     { channel: "ya_topa",         region: "Midden-Oosten", country: "Syrië" },
     { channel: "NWSYEME",         region: "Midden-Oosten", country: "Jemen" },
     { channel: "naya_foriraq",    region: "Midden-Oosten", country: "Irak" },
     { channel: "sadadahiechannel", region: "Midden-Oosten", country: "Libanon" },
-    { channel: "alshamii011",     region: "Midden-Oosten", country: null }
+    { channel: "alshamii011",     region: "Midden-Oosten", country: null },
+
+    /* === v2.6: NIEUWE KANALEN === */
+
+    /* Oekraïne */
+    { channel: "dniproofficial",  region: "Oost-Europa",   country: "Oekraïne" },
+    { channel: "Militarylandnet", region: "Oost-Europa",   country: "Oekraïne" },
+
+    /* Syrië */
+    { channel: "Suriyakmaps",     region: "Midden-Oosten", country: "Syrië" },
+
+    /* Ethiopië */
+    { channel: "ASCENTIG",        region: "Afrika",        country: "Ethiopië" },
+
+    /* Sahel */
+    { channel: "aesinfos",        region: "Afrika",        country: "Mali" },
+
+    /* Soedan */
+    { channel: "RSFSudan",        region: "Afrika",        country: "Sudan" },
+
+    /* DR Congo + Pakistan */
+    { channel: "WarNoir",         region: "Afrika",        country: "DR Congo" },
+
+    /* Myanmar */
+    { channel: "bni_mmpeacemonitor", region: "Azië",       country: "Myanmar" },
+
+    /* Jemen + Saoedi-Arabië */
+    { channel: "global_observers", region: "Midden-Oosten", country: "Jemen" },
+
+    /* Palestina */
+    { channel: "qassam1brigades", region: "Midden-Oosten", country: "Palestina" },
+
+    /* Pakistan + Afghanistan */
+    { channel: "ResonantNews",    region: "Azië",          country: "Pakistan" }
   ];
 
   var OSINT_MILITARY_SOURCES = [
+    /* Bestaand */
     "DeepStateUA", "sentdefender", "rybar",
     "Faytuks", "GeoConfirmed", "OSINTtechnical",
     "SOHR",
     "HalabTodayTV", "damscuce", "ya_topa",
-    "NWSYEME", "naya_foriraq", "sadadahiechannel", "alshamii011"
+    "NWSYEME", "naya_foriraq", "sadadahiechannel", "alshamii011",
+
+    /* v2.6 — nieuwe kanalen */
+    "dniproofficial", "Militarylandnet", "Suriyakmaps",
+    "ASCENTIG", "aesinfos", "RSFSudan", "WarNoir",
+    "bni_mmpeacemonitor", "global_observers",
+    "qassam1brigades", "ResonantNews"
   ];
 
   var SOHR_RSS = "https://www.syriahr.com/en/feed/";
@@ -88,31 +129,21 @@
     return "en";
   }
 
-  /* ============================================================
-     v2.5: Arabic-aware locatie-extractie (min lengte 3 voor Arabisch)
-     ============================================================ */
   function extractLocationFromText(text, hint){
     if (!text) return null;
     if (!window.WorldMapData) return null;
     var locs = window.WorldMapData.LOCATIONS || {};
-
     var lower = " " + String(text).toLowerCase()
       .replace(/[^\w\sÀ-ÿ\u0400-\u04FF\u0600-\u06FF\u0590-\u05FF]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim() + " ";
-
+      .replace(/\s+/g, " ").trim() + " ";
     var bestCity = null, bestCityLen = 0;
     var bestCountry = null, bestCountryLen = 0;
 
     for (var key in locs){
       if (!Object.prototype.hasOwnProperty.call(locs, key)) continue;
-
       var isArabicKey = /[\u0600-\u06FF\u0590-\u05FF]/.test(key);
-
-      /* v2.5: Arabisch min 3, Latijns min 4 */
       var minLen = isArabicKey ? 3 : 4;
       if (key.length < minLen) continue;
-
       var found = false;
       if (isArabicKey){
         if (lower.indexOf(key) !== -1) found = true;
@@ -120,7 +151,6 @@
         if (lower.indexOf(" " + key + " ") !== -1) found = true;
       }
       if (!found) continue;
-
       var loc = locs[key];
       var isCountry = false;
       try {
@@ -129,14 +159,12 @@
           if (iso && iso.indexOf("REG-") !== 0) isCountry = true;
         }
       } catch(e){}
-
       if (isCountry){
         if (key.length > bestCountryLen){ bestCountry = loc; bestCountryLen = key.length; }
       } else {
         if (key.length > bestCityLen){ bestCity = loc; bestCityLen = key.length; }
       }
     }
-
     if (bestCity) return bestCity;
     if (bestCountry) return bestCountry;
     if (hint && hint.country && locs[hint.country.toLowerCase()]) return locs[hint.country.toLowerCase()];
@@ -192,10 +220,8 @@
     var posts = [];
     var wrappers = html.split('tgme_widget_message_wrap');
     if (wrappers.length < 2) return posts;
-
     var textRegex = /<div class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/;
     var dateRegex = /<time[^>]*datetime="([^"]+)"/;
-
     for (var i = 1; i < wrappers.length; i++){
       var w = wrappers[i];
       var textMatch = w.match(textRegex);
@@ -236,17 +262,11 @@
     return items;
   }
 
-  /* ============================================================
-     v2.5: countsForHeat = alleen echte fysieke events
-     ============================================================ */
   function itemToEvent(item, hint){
     if (!item || !item.text) return null;
-
     var isOsintMilitary = OSINT_MILITARY_SOURCES.indexOf(item.channel) !== -1;
-
     var cls = classifyText(item.text);
     if (cls.category === "sport") return null;
-
     if (isOsintMilitary){
       if (cls.category !== "militair" && cls.category !== "crime"){
         cls = { category: "militair", subtype: cls.subtype || "Conflict" };
@@ -254,7 +274,6 @@
     } else {
       if (cls.category !== "militair" && cls.category !== "crime") return null;
     }
-
     var phys = detectPhysical(item.text);
     var loc = extractLocationFromText(item.text, hint);
     if (!loc) return null;
@@ -265,14 +284,8 @@
         iso3 = window.WorldMapData.getISO3(loc.country);
       }
     } catch(e){}
-
     var sourceLabel = item.channel === "SOHR" ? "SOHR" : "@" + item.channel;
-
-    /* ============================================================
-       v2.5 FIX: countsForHeat ALLEEN bij fysieke events
-       ============================================================ */
     var countsForHeat = !!phys.isPhysicalEvent;
-
     return {
       id: "osint-" + item.channel + "-" + hashCode(item.text.slice(0, 200)),
       lat: loc.lat, lng: loc.lng,
@@ -333,7 +346,6 @@
     var allItems = [];
     var okCount = 0;
     var failCount = 0;
-
     for (var i = 0; i < TELEGRAM_CHANNELS.length; i += PARALLEL_BATCH){
       var batch = TELEGRAM_CHANNELS.slice(i, i + PARALLEL_BATCH);
       var results = await Promise.all(batch.map(fetchOneChannel));
@@ -345,12 +357,10 @@
         await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
       }
     }
-
     await new Promise(function(r){ setTimeout(r, STAGGER_MS); });
     var sohr = await fetchOneSohr();
     if (sohr.ok){ okCount++; allItems = allItems.concat(sohr.items); }
     else failCount++;
-
     return { allItems: allItems, okCount: okCount, failCount: failCount };
   }
 
@@ -358,12 +368,9 @@
     opts = opts || {};
     if (isRunning && !opts.force) return osintEvents;
     isRunning = true;
-
     var startTime = Date.now();
     LOG("Run start — " + TELEGRAM_CHANNELS.length + " TG + SOHR (parallel " + PARALLEL_BATCH + ")");
-
     var result = await fetchAllSources();
-
     var seen = {};
     var events = [];
     result.allItems.forEach(function(item){
@@ -373,29 +380,23 @@
       seen[ev.id] = 1;
       events.push(ev);
     });
-
     events.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
-
     osintEvents = events;
     lastRun = Date.now();
     isRunning = false;
-
     var elapsed = Date.now() - startTime;
     LOG("Klaar — " + events.length + " events uit " + result.allItems.length +
         " raw items | " + result.okCount + " bronnen OK, " + result.failCount + " faalden | " + elapsed + "ms");
-
     try {
       if (window.WarDesk && WarDesk.events){
         WarDesk.events.emit("osint:military-events", osintEvents);
       }
     } catch(e){}
-
     try {
       localStorage.setItem("wardesk_osint_lastRun", String(lastRun));
       localStorage.setItem("wardesk_osint_count", String(events.length));
     } catch(e){}
-
     return osintEvents;
   }
 
@@ -413,12 +414,10 @@
       var saved = parseInt(localStorage.getItem("wardesk_osint_lastRun") || "0", 10);
       if (saved) lastRun = saved;
     } catch(e){}
-
     setTimeout(function(){
       runNow();
       scheduleNext();
     }, 8000);
-
     LOG("Init klaar — refresh elke " + (REFRESH_MS/60000) + " min, parallel " + PARALLEL_BATCH);
   }
 
@@ -426,7 +425,7 @@
     init: init, runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.5",
+    _version: "v2.6",
     _channels: TELEGRAM_CHANNELS,
     _militarySources: OSINT_MILITARY_SOURCES
   };
@@ -437,5 +436,5 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.5 geladen (countsForHeat fix + Arabic min-3)");
+  LOG("osint-feeds.js v2.6 geladen (" + TELEGRAM_CHANNELS.length + " kanalen)");
 })();
