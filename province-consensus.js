@@ -1,11 +1,10 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.15
-   - v1.15: MIN_ACTOR_SOURCES 1→2 (voorkomt 1-bron dominantie)
-            MIN_ACTOR_SHARE 0.25→0.30
-            Actor met confidence < 0.5 telt niet voor dominantie
-   - v1.14: ID-dedup in collectEvents() — voorkomt dubbele
-            telling van OSINT-events
-   - v1.13: CONFLICT_ISO3 uitgebreid naar 18 landen
+   WAR DESK — province-consensus.js v1.16
+   - v1.16: Verwijderd: ensureTranslations-aanroep in collectEvents
+            (ai-map.js doet dit al met 30-min throttle; hier was
+            een bypass die quota opmaakte)
+   - v1.15: MIN_ACTOR_SOURCES 1→2 + MIN_DOMINANT_CONFIDENCE 0.5
+   - v1.14: ID-dedup in collectEvents
    ============================================================ */
 
 (function(){
@@ -24,7 +23,6 @@
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
 
-  /* v1.15: strengere drempels */
   var MIN_ACTOR_SHARE = 0.30;
   var MIN_ACTOR_SOURCES = 2;
   var MIN_DOMINANT_CONFIDENCE = 0.50;
@@ -149,6 +147,9 @@
     return null;
   }
 
+  /* ============================================================
+     v1.16: collectEvents zonder vertaal-bypass
+     ============================================================ */
   function collectEvents(){
     var combined = [];
     var seen = {};
@@ -188,15 +189,7 @@
 
     if(Array.isArray(osintEvents) && osintEvents.length > 0){
       osintEvents.forEach(function(ev){ add(ev); addedFromOsint++; });
-
-      try {
-        if(window.NewsAPI && window.NewsAPI.ensureTranslations){
-          var toTranslate = osintEvents.filter(function(ev){
-            return ev.lang && ev.lang !== "en" && ev.lang !== "unknown";
-          }).slice(0, 20);
-          if(toTranslate.length > 0) window.NewsAPI.ensureTranslations(toTranslate);
-        }
-      } catch(e){}
+      /* v1.16: vertaal-aanroep verwijderd — gebeurt al in ai-map.js */
     }
 
     if(window.wdLog && skippedDup > 0){
@@ -364,7 +357,6 @@
       var totalScore = ranked.reduce(function(s, a){ return s + a.score; }, 0);
       if(totalScore < 0.01) return;
 
-      /* v1.15: kies beste actor MET voldoende bronnen EN confidence */
       var best = null;
       for(var i = 0; i < ranked.length; i++){
         var a = ranked[i];
@@ -377,7 +369,6 @@
         }
       }
 
-      /* Geen actor voldoet → sla provincie over (blijft op controller-kleur) */
       if(!best) return;
 
       var bestShare = best.score / totalScore;
@@ -385,7 +376,6 @@
       var bestOriginCount = Object.keys(best.origins).length;
       var confidence = calculateConfidence(bestSourceCount, bestOriginCount);
 
-      /* v1.15: contested alleen bij 2+ actoren met voldoende bronnen */
       var contestedActors = [];
       for(var j = 0; j < ranked.length && j < 3; j++){
         var c = ranked[j];
@@ -550,8 +540,8 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.15"
+    _version: "v1.16"
   };
 
-  LOG("province-consensus.js v1.15 geladen (strengere drempels)");
+  LOG("province-consensus.js v1.16 geladen (geen vertaal-bypass)");
 })();
