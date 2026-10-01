@@ -1,12 +1,11 @@
 /* ============================================================
-   WAR DESK v14.5.3 — Conflictkaart + Wereldkaart-integratie
-   - v14.5.3: PERFORMANCE-FIX
-              * translation:added debounce 3s (ipv direct re-render)
-              * renderMarkers vertaalt niet meer bij render
-              * renderLiveList cachet vertaling per event-id
-              * Vertaling in popup gebeurt pas bij popup-open
+   WAR DESK v14.5.4 — Conflictkaart + Wereldkaart-integratie
+   - v14.5.4: renderLiveList 200 → 100 items (DOM-perf)
+   - v14.5.3: translation:added debounce 3s + renderMarkers
+              vertaalt niet meer bij render + renderLiveList
+              cachet vertaling per event-id
    - v14.5.2: Live-list + detail halen vertaling bij render-tijd
-   - v14.5.1: Zoek + tijd-filter triggeren flyTo
+   - v14.5.1: Zoeken + tijd-filter triggeren flyTo
    - v14.5:   Zoekveld + tijdfilter + toast override
    ============================================================ */
 
@@ -18,7 +17,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.5.3 geladen — wereldkaart + live-filters + vertaling");
+  LOG("v14.5.4 geladen — wereldkaart + live-filters + vertaling");
 
   var CATEGORIES = {
     all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
@@ -585,9 +584,6 @@
     return true;
   }
 
-  /* ============================================================
-     v14.5.3: renderMarkers zonder vertaal-lookup (alleen bij popup-open)
-     ============================================================ */
   function renderMarkers(){
     if(!MAP.cluster) return;
     MAP.cluster.clearLayers();
@@ -627,7 +623,6 @@
       marker.bindPopup(popupHtml);
 
       marker.on("popupopen", function(){
-        /* v14.5.3: vertaal pas bij openen van de popup */
         try {
           if (window.NewsAPI && window.NewsAPI.getTranslatedTitle){
             var tt = window.NewsAPI.getTranslatedTitle(e);
@@ -649,9 +644,6 @@
     LOG("Markers gerenderd: " + markers.length + " (filter: " + MAP.currentFilter + ")");
   }
 
-  /* ============================================================
-     v14.5.3: renderLiveList met vertaling-cache
-     ============================================================ */
   function renderLiveList(){
     var list = $("liveList");
     var countEl = $("liveCount");
@@ -689,7 +681,8 @@
       return;
     }
 
-    var shown = filtered.slice(0, 200);
+    /* v14.5.4: 200 → 100 items voor snellere DOM-render */
+    var shown = filtered.slice(0, 100);
     var overflow = filtered.length - shown.length;
 
     list.innerHTML = shown.map(function(e){
@@ -701,7 +694,6 @@
         ? '<span class="live-event-multi">+' + (e.sources.length - 1) + ' bron' + (e.sources.length > 2 ? 'nen' : '') + '</span>'
         : '';
 
-      /* v14.5.3: cache vertaling per event-id */
       var displayTitle = e.title;
       var displayOriginal = null;
 
@@ -944,9 +936,6 @@
     });
   }
 
-  /* ============================================================
-     v14.5.3: translation:added debounce 3s
-     ============================================================ */
   function bindEventBus(){
     if(MAP._busBound) return;
     if(!window.WarDesk || !WarDesk.events || !WarDesk.events.on) return;
@@ -972,14 +961,12 @@
       if (isMapActive() && MAP.militaryEvents.length === 0) refreshFromNews();
     });
 
-    /* v14.5.3: debounce — wacht 3s stilte voor één re-render */
     var _translationRenderTimer = null;
     WarDesk.events.on("translation:added", function(){
       if (!isMapActive()) return;
       if (_translationRenderTimer) clearTimeout(_translationRenderTimer);
       _translationRenderTimer = setTimeout(function(){
         _translationRenderTimer = null;
-        /* wis de translation-cache voor deze items die net zijn toegevoegd */
         MAP._translationCache = {};
         if (MAP.militaryEvents && MAP.militaryEvents.length) {
           MAP.events = MAP.militaryEvents.slice();
@@ -1104,5 +1091,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.5.3 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.5.4 geladen");
 })();
