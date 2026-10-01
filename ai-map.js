@@ -453,18 +453,27 @@
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
     try {
-      if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
-        var arItems = [];
-        for (var k = 0; k < items.length; k++) {
-          var it = items[k];
-          if (it && (it.lang === "ar" || it.lang === "fr")) {
-            arItems.push(it);
-            if (arItems.length >= 30) break;
-          }
-        }
-        if (arItems.length) window.NewsAPI.ensureTranslations(arItems);
+  if (window.NewsAPI && window.NewsAPI.ensureTranslations) {
+    var toTranslate = [];
+    var TRANSLATABLE = { "ar": 1, "fr": 1, "ru": 1, "uk": 1, "he": 1 };
+    for (var k = 0; k < items.length; k++) {
+      var it = items[k];
+      if (it && it.lang && TRANSLATABLE[it.lang]) {
+        toTranslate.push(it);
+        if (toTranslate.length >= 40) break;
       }
-    } catch(e){}
+    }
+    /* OSINT-events ook meesturen */
+    if (window.OSINTFeeds && window.OSINTFeeds.getEvents) {
+      var osint = window.OSINTFeeds.getEvents();
+      for (var m = 0; m < osint.length && toTranslate.length < 80; m++) {
+        var oe = osint[m];
+        if (oe && oe.lang && TRANSLATABLE[oe.lang]) toTranslate.push(oe);
+      }
+    }
+    if (toTranslate.length) window.NewsAPI.ensureTranslations(toTranslate);
+  }
+} catch(e){}
 
     var elapsed = ((window.performance && performance.now) ? performance.now() : Date.now()) - startTime;
 
