@@ -1,9 +1,12 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.15
+   WAR DESK — conflict-areas.js v11.16
+   - v11.16: updateIntensity debounce 800ms (voorkomt 3× CPU-piek
+             bij OSINT+RSS events kort na elkaar)
    - v11.15: Pulse pauzeert bij scroll/zoom + document.hidden
    - v11.14: AI-confirmed overrides (3-dagen stabiliteit)
    - v11.13: styleProvince — fill = controller, rand = consensus
    - v11.12: openPanel sluit eerst #wmCountryPanel
+   - v11.11: FIX init timeout (30s → 120s) + parallel batching
    ============================================================ */
 
 (function(){
@@ -1483,15 +1486,11 @@
     });
   }
 
-  /* ============================================================
-     v11.15: bindZoomListener met pulse-pause hooks
-     ============================================================ */
   function bindZoomListener(){
     if(!CA.map || CA._zoomBound) return;
     CA._zoomBound = true;
     CA.map.on("zoomend", updateBorderWeights);
 
-    /* v11.15: pauzeer pulse tijdens scroll/zoom */
     CA.map.on("movestart", function(){ pausePulseFor(5000); });
     CA.map.on("zoomstart", function(){ pausePulseFor(5000); });
     CA.map.on("moveend", function(){ pausePulseFor(1500); });
@@ -1625,7 +1624,6 @@
   var _pulseRetryTimer = null;
   var _pulseEmptyChecks = 0;
 
-  /* v11.15: pulse-pause state */
   var _pulsePaused = false;
   var _pulsePauseTimer = null;
 
@@ -2346,7 +2344,7 @@
     },
     getConfirmedOverrides: function(){ return CA._confirmedOverrides; },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.15",
+    state: CA, _version: "v11.16",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2393,10 +2391,19 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
+  /* ============================================================
+     v11.16: updateIntensity debounce 800ms
+     ============================================================ */
+  var _intensityTimer = null;
   try {
     if(window.WarDesk && window.WarDesk.events){
       window.WarDesk.events.on("map:military-events", function(){
-        if(CA.isInitialized) setTimeout(function(){ updateIntensity(); }, 500);
+        if(!CA.isInitialized) return;
+        if(_intensityTimer) clearTimeout(_intensityTimer);
+        _intensityTimer = setTimeout(function(){
+          _intensityTimer = null;
+          updateIntensity();
+        }, 800);
       });
     }
   } catch(e){}
@@ -2411,5 +2418,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.15 geladen (pulse-pause)");
+  LOG("conflict-areas.js v11.16 geladen (debounce updateIntensity)");
 })();
