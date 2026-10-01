@@ -1,16 +1,13 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.10
+   WAR DESK — conflict-areas.js v11.11
+   - v11.11: FIX init timeout (30s → 120s) + parallel batching
+             + betere logging van init-progress
    - v11.10: BFA/ETH/NER/COD robuustere matching
-   - v11.9: Slimmere matching (word-split)
+   - v11.9: Slimmere matching
    - v11.8: YEM + SDN robuuster
    - v11.7: +7 nieuwe conflicten
    - v11.6: MAP-LEVEL CLICK FALLBACK
    - v11.5: Panel robuuster + fallback CSS
-   - v11.4: Sudan robuuste matching
-   - v11.3: Sudan toegevoegd (SAF vs RSF)
-   - v11.2: territory gain/loss visualisatie
-   - v11.1: UI-subtieler
-   - v11.0: AI-consensus integratie
    ============================================================ */
 
 (function(){
@@ -41,9 +38,6 @@
   }
 
   var CONFLICTS = {
-    /* ============================================================
-       BESTAANDE CONFLICTEN
-       ============================================================ */
     "UKR": {
       name: "Oekraïne", level: "ADM1", center: [49.0, 32.0, 6],
       parties: {
@@ -309,9 +303,6 @@
         snapshot:  { key: "wardesk_palestine_snapshot", version: "v1" }
       }
     },
-    /* ============================================================
-       v11.10 — ETHIOPIË robuustere matching
-       ============================================================ */
     "ETH": {
       name: "Ethiopië", level: "ADM1", center: [11.0, 39.0, 6],
       parties: {
@@ -327,15 +318,10 @@
       countrySources: adm0Sources("ETH"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        /* Tigray — TPLF */
         { match: ["tigray"],                                          controller: "TPLF (Tigray)" },
-        /* Amhara — Fano */
         { match: ["amhara"],                                          controller: "Fano (Amhara)" },
-        /* Afar — TPLF (gevechten) */
         { match: ["afar"],                                            controller: "TPLF (Tigray)" },
-        /* Oromia — OLA */
         { match: ["oromia"],                                          controller: "OLA (Oromia)" },
-        /* Alle andere regio's — Federale regering */
         { match: ["benshangul", "benishangul", "gumuz", "gumaz"],     controller: "Federale regering" },
         { match: ["assosa", "asosa", "metekel", "kamashi"],           controller: "Federale regering" },
         { match: ["gambela", "gambella"],                             controller: "Federale regering" },
@@ -434,9 +420,6 @@
         snapshot:  { key: "wardesk_mali_snapshot", version: "v1" }
       }
     },
-    /* ============================================================
-       v11.10 — BURKINA FASO robuustere matching
-       ============================================================ */
     "BFA": {
       name: "Burkina Faso", level: "ADM1", center: [12.3, -1.6, 7],
       parties: {
@@ -451,7 +434,6 @@
       countrySources: adm0Sources("BFA"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        /* JNIM-gecontroleerd — noord/oost */
         { match: ["sahel"],                                           controller: "JNIM (Jihadisten)" },
         { match: ["est"],                                             controller: "JNIM (Jihadisten)" },
         { match: ["boucledumouhoun"],                                 controller: "JNIM (Jihadisten)" },
@@ -459,7 +441,6 @@
         { match: ["centrenord"],                                      controller: "JNIM (Jihadisten)" },
         { match: ["centreest"],                                       controller: "JNIM (Jihadisten)" },
         { match: ["kaya", "dori", "sebba", "gorom"],                  controller: "JNIM (Jihadisten)" },
-        /* Regering-gecontroleerd — zuid/west */
         { match: ["cascades"],                                        controller: "Junta (Regering)" },
         { match: ["hautsbassins", "houet", "kenedougou", "tuy"],      controller: "Junta (Regering)" },
         { match: ["bobo", "dioulasso", "orodara", "banfora", "bama"], controller: "Junta (Regering)" },
@@ -493,9 +474,6 @@
         snapshot:  { key: "wardesk_burkina_snapshot", version: "v1" }
       }
     },
-    /* ============================================================
-       v11.10 — NIGER robuustere matching
-       ============================================================ */
     "NER": {
       name: "Niger", level: "ADM1", center: [17.6, 8.1, 6],
       parties: {
@@ -511,16 +489,12 @@
       countrySources: adm0Sources("NER"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        /* JNIM — Tillabéri (drielandengrens) */
         { match: ["tillaberi", "tillabery"],        controller: "JNIM (Jihadisten)" },
-        /* IS Sahel — Tahoua, Dosso, Maradi */
         { match: ["tahoua"],                        controller: "IS Sahel" },
         { match: ["dosso"],                         controller: "IS Sahel" },
         { match: ["maradi"],                        controller: "IS Sahel" },
-        /* Boko Haram/ISWAP — Diffa, Zinder */
         { match: ["diffa"],                         controller: "Boko Haram/ISWAP" },
         { match: ["zinder"],                        controller: "Boko Haram/ISWAP" },
-        /* Regering — Agadez + Niamey */
         { match: ["agadez"],                        controller: "Junta (Regering)" },
         { match: ["niamey"],                        controller: "Junta (Regering)" }
       ],
@@ -533,9 +507,6 @@
         snapshot:  { key: "wardesk_niger_snapshot", version: "v1" }
       }
     },
-    /* ============================================================
-       v11.10 — DR CONGO robuustere matching
-       ============================================================ */
     "COD": {
       name: "DR Congo", level: "ADM1", center: [-2.5, 26.0, 6],
       parties: {
@@ -550,7 +521,6 @@
       countrySources: adm0Sources("COD"),
       iswUrl: null, deepStateUrlFn: null,
       provinceRules: [
-        /* Oost — M23/AFC actief */
         { match: ["nordkivu"],          controller: "M23/AFC" },
         { match: ["sudkivu"],           controller: "M23/AFC" },
         { match: ["tanganyika"],        controller: "M23/AFC" },
@@ -559,7 +529,6 @@
         { match: ["hautuele"],          controller: "M23/AFC" },
         { match: ["basuele"],           controller: "M23/AFC" },
         { match: ["maniema"],           controller: "M23/AFC" },
-        /* Regering — west/centraal */
         { match: ["kinshasa"],          controller: "Regering (FARDC)" },
         { match: ["kongocentral"],      controller: "Regering (FARDC)" },
         { match: ["kwango"],            controller: "Regering (FARDC)" },
@@ -761,17 +730,14 @@
     if(!nameOrProvince || !rules || !rules.length) return null;
     var norm = normalize(nameOrProvince);
     if(!norm) return null;
-
     for(var i = 0; i < rules.length; i++){
       var entry = rules[i];
       if(!entry || !entry.match) continue;
       for(var j = 0; j < entry.match.length; j++){
         var needle = normalize(entry.match[j]);
         if(!needle) continue;
-
         if(norm === needle) return entry;
         if(norm.indexOf(needle) !== -1) return entry;
-
         if(needle.length >= 5 && norm.length >= 5){
           if(norm.substring(0, needle.length) === needle) return entry;
           if(needle.indexOf(norm) !== -1) return entry;
@@ -1210,7 +1176,6 @@
     var partyNames = Object.keys(conflict.parties);
     partyNames.forEach(function(p){ stats[p] = 0; });
     stats.total = 0; stats.unknown = 0;
-    var unmatchedNames = [];
 
     geojson.features.forEach(function(feature){
       if(!feature || !feature.properties) return;
@@ -1240,7 +1205,6 @@
         props.controller = null;
         props.control_source = "Onbekend";
         stats.unknown++;
-        if (unmatchedNames.length < 50) unmatchedNames.push(props.name);
         return;
       }
 
@@ -1273,10 +1237,6 @@
     });
 
     CA.stats[conflictIso] = stats;
-
-    if (unmatchedNames.length > 0 && window.WD_DEBUG) {
-      LOG("[" + conflictIso + "] " + stats.unknown + " unmatched: " + unmatchedNames.slice(0, 10).join(", "));
-    }
   }
 
   function calculateAttackIntensity(conflictIso){
@@ -2128,7 +2088,17 @@
   function _doInit(){
     LOG("Init gestart: " + ACTIVE_CONFLICTS.join(", "));
     return openDB().then(function(){
-      return Promise.all(ACTIVE_CONFLICTS.map(function(iso){ return initOneConflict(iso); }));
+      /* v11.11: batches van 4 conflicten parallel */
+      var batches = [];
+      for(var i = 0; i < ACTIVE_CONFLICTS.length; i += 4){
+        batches.push(ACTIVE_CONFLICTS.slice(i, i + 4));
+      }
+      return batches.reduce(function(chain, batch){
+        return chain.then(function(){
+          LOG("Batch: " + batch.join(", "));
+          return Promise.all(batch.map(function(iso){ return initOneConflict(iso); }));
+        });
+      }, Promise.resolve());
     }).then(function(){ loadAllNeighbors().catch(function(){}); }).then(function(){
       if(window.ProvinceMapper && window.ProvinceMapper.init){
         try { window.ProvinceMapper.init(CA.geojsons); } catch(e){}
@@ -2264,7 +2234,7 @@
       renderTerritoryChanges(changes);
     },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.10",
+    state: CA, _version: "v11.11",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2273,33 +2243,33 @@
       var areas = CA.areas[iso] || [];
       if (areas.length) openPanel(areas[0], iso);
       else LOG("Geen areas om te testen");
-    },
-    dumpUnmatched: function(){
-      var out = {};
-      ACTIVE_CONFLICTS.forEach(function(iso){
-        var g = CA.geojsons[iso];
-        if (!g || !g.features) return;
-        var unmatched = [];
-        g.features.forEach(function(f){
-          if (f.properties && !f.properties.controller){
-            unmatched.push(f.properties.name);
-          }
-        });
-        if (unmatched.length) out[iso] = unmatched;
-      });
-      console.log("=== UNMATCHED PROVINCES ===");
-      console.log(JSON.stringify(out, null, 2));
-      return out;
     }
   };
 
-  var tries = 0, MAX = 60;
+  /* ============================================================
+     v11.11: tryInit met 120s timeout + logging
+     ============================================================ */
+  var tries = 0, MAX = 240;
   function tryInit(){
     if(CA.isInitialized) return;
     tries++;
     var m = window.MAPAPI && window.MAPAPI.state && window.MAPAPI.state.instance;
-    if(m){ init(m).catch(function(){}); return; }
-    if(tries >= MAX) return;
+    if(m){
+      LOG("Map instance gevonden na " + tries + " pogingen — start init");
+      init(m).then(function(){
+        LOG("Init promise voltooid");
+      }).catch(function(e){
+        LOG("Init FAALDE: " + (e.message || "?"));
+      });
+      return;
+    }
+    if(tries >= MAX){
+      LOG("Timeout na " + MAX + " pogingen — map instance nooit gevonden");
+      return;
+    }
+    if(tries % 10 === 0){
+      LOG("Wacht op map instance... (" + tries + "/" + MAX + ")");
+    }
     setTimeout(tryInit, 500);
   }
 
@@ -2332,5 +2302,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.10 geladen (" + ACTIVE_CONFLICTS.length + " conflicten)");
+  LOG("conflict-areas.js v11.11 geladen (" + ACTIVE_CONFLICTS.length + " conflicten)");
 })();
