@@ -1,15 +1,16 @@
 /* ============================================================
-   WAR DESK v1.1 — Centrale Storage Module
-   - Alle localStorage en sessionStorage keys op één plek
-   - Wrapper functies met error handling
-   - Bestaande keys blijven gelijk → geen dataverlies
-   - FIX v1.1: eigen debug check (draait vóór config.js)
+   WAR DESK v1.2 — Centrale Storage Module
+   - v1.2: 5 map-keys toegevoegd (map_filter_v3, worldmap_*)
+           + verify() functie om alle keys te testen
+           + audit() functie voor debugging
+   - v1.1: eigen debug check (draait vóór config.js)
    ============================================================ */
 
 window.WDStorage = (function(){
   "use strict";
 
   var KEYS = {
+    /* Thema & weergave */
     theme:               "wardesk_theme",
     font_size:           "wardesk_font_size",
     accent_color:        "wardesk_accent_color",
@@ -20,13 +21,26 @@ window.WDStorage = (function(){
     ui_state:            "wardesk_ui_state_v1",
     active_view:         "wardesk_active_view_v1",
     active_tab:          "wardesk_active_tab",
+    debug:               "wardesk_debug",
+
+    /* IPTV */
     iptv_volume:         "wardesk_iptv_volume",
     iptv_mute:           "wardesk_iptv_mute",
     iptv_view:           "wardesk_iptv_view",
     iptv_working:        "wardesk_iptv_working",
+
+    /* Tags */
     tags_version:        "wardesk_tags_version",
+
+    /* Map — legacy */
     map_filter:          "wardesk_map_filter",
-    debug:               "wardesk_debug"
+
+    /* Map — v1.2 nieuw */
+    map_filter_v3:       "wardesk_map_filter_v3",
+    worldmap_period:     "wardesk_worldmap_period",
+    worldmap_legend:     "wardesk_worldmap_legend",
+    worldmap_enabled:    "wardesk_worldmap_enabled",
+    worldmap_initialised:"wardesk_worldmap_initialised"
   };
 
   function get(key, fallback){
@@ -90,6 +104,137 @@ window.WDStorage = (function(){
     return out;
   }
 
+  /* ============================================================
+     v1.2: VERIFY — test alle keys in KEYS
+     Retourneert: { ok: [], fail: [], total: N }
+     ============================================================ */
+  function verify(){
+    var ok = [];
+    var fail = [];
+
+    Object.keys(KEYS).forEach(function(k){
+      var testKey = KEYS[k];
+      var testValue = "__verify_" + Date.now() + "__";
+
+      try{
+        /* Test localStorage */
+        localStorage.setItem(testKey, testValue);
+        var readBack = localStorage.getItem(testKey);
+        if(readBack === testValue){
+          ok.push(k);
+        } else {
+          fail.push({ key: k, reason: "read-back mismatch" });
+        }
+        localStorage.removeItem(testKey);
+
+        /* Test sessionStorage (alleen als active_tab of scroll) */
+        if(k === "active_tab" || k.indexOf("scroll_") === 0){
+          sessionStorage.setItem(testKey, testValue);
+          var sReadBack = sessionStorage.getItem(testKey);
+          if(sReadBack !== testValue){
+            fail.push({ key: k + " (session)", reason: "session read-back mismatch" });
+          }
+          sessionStorage.removeItem(testKey);
+        }
+      } catch(e){
+        fail.push({ key: k, reason: e.message || "unknown" });
+      }
+    });
+
+    return {
+      ok: ok,
+      fail: fail,
+      total: Object.keys(KEYS).length,
+      okCount: ok.length,
+      failCount: fail.length
+    };
+  }
+
+  /* ============================================================
+     v1.2: AUDIT — check welke keys in KEYS niet gebruikt worden
+     EN welke keys in de app wel gebruikt worden
+     (handmatige lijst uit codebase-inventarisatie)
+     ============================================================ */
+  var KNOWN_USAGE = {
+    /* keys die overal gebruikt worden */
+    used: [
+      "theme", "font_size", "accent_color", "oled_mode", "theme_manual_until",
+      "translate", "notifications", "ui_state", "active_tab",
+      "iptv_volume", "iptv_mute", "iptv_view", "iptv_working",
+      "tags_version",
+      "map_filter_v3", "worldmap_period", "worldmap_legend", "worldmap_enabled"
+    ],
+    /* keys die in KEYS staan maar zelden gebruikt */
+    legacy: [
+      "active_view", "map_filter", "debug"
+    ]
+  };
+
+  function audit(){
+    var defined = Object.keys(KEYS);
+    var used = KNOWN_USAGE.used;
+    var legacy = KNOWN_USAGE.legacy;
+
+    var missing = used.filter(function(k){ return defined.indexOf(k) === -1; });
+    var orphan = defined.filter(function(k){
+      return used.indexOf(k) === -1 && legacy.indexOf(k) === -1;
+    });
+
+    return {
+      defined: defined.length,
+      used: used.length,
+      legacy: legacy.length,
+      missing: missing,   // ← keys die gebruikt worden maar ontbreken (BUG!)
+      orphan: orphan,     // ← keys die gedefinieerd zijn maar nergens gebruikt
+      total: defined.length
+    };
+  }
+
+  /* ============================================================
+     v1.2: selfTest — roep in console: WDStorage.selfTest()
+     ============================================================ */
+  function selfTest(){
+    console.log("═══════════════════════════════════════");
+    console.log("WDStorage v1.2 — ZELFTEST");
+    console.log("═══════════════════════════════════════");
+    console.log("");
+
+    var v = verify();
+    console.log("📦 Storage verificatie:");
+    console.log("   Totaal keys:  " + v.total);
+    console.log("   Werkt:        " + v.okCount);
+    console.log("   Faalt:        " + v.failCount);
+    if(v.failCount > 0){
+      console.log("   ❌ MISLUKT:");
+      v.fail.forEach(function(f){ console.log("      - " + f.key + ": " + f.reason); });
+    } else {
+      console.log("   ✅ Alle keys werken correct");
+    }
+
+    console.log("");
+    var a = audit();
+    console.log("🔍 Usage audit:");
+    console.log("   Gedefinieerd: " + a.defined);
+    console.log("   In gebruik:   " + a.used);
+    console.log("   Legacy:       " + a.legacy);
+    console.log("");
+    if(a.missing.length > 0){
+      console.log("   ❌ ONTBREKEND (wordt gebruikt in code maar niet in KEYS):");
+      a.missing.forEach(function(k){ console.log("      - " + k); });
+    } else {
+      console.log("   ✅ Geen ontbrekende keys");
+    }
+    if(a.orphan.length > 0){
+      console.log("   ⚠️  Ongebruikt (in KEYS maar nooit in code):");
+      a.orphan.forEach(function(k){ console.log("      - " + k); });
+    }
+
+    console.log("");
+    console.log("═══════════════════════════════════════");
+
+    return { verify: v, audit: a };
+  }
+
   return {
     KEYS: KEYS,
     get: get,
@@ -103,7 +248,11 @@ window.WDStorage = (function(){
       remove: sremove
     },
     clearAll: clearAll,
-    dump: dump
+    dump: dump,
+    /* v1.2 nieuw */
+    verify: verify,
+    audit: audit,
+    selfTest: selfTest
   };
 })();
 
@@ -114,6 +263,9 @@ window.WDStorage = (function(){
     DEBUG = (localStorage.getItem("wardesk_debug") === "1") || /[?&]debug=1/.test(location.search);
   }catch(e){}
   if(DEBUG){
-    try{ console.log("[WAR DESK] storage.js v1.1 geladen — " + Object.keys(window.WDStorage.KEYS).length + " keys"); }catch(e){}
+    try{
+      console.log("[WAR DESK] storage.js v1.2 geladen — " + Object.keys(window.WDStorage.KEYS).length + " keys");
+      console.log("[WAR DESK] Typ WDStorage.selfTest() in console voor volledige verificatie");
+    }catch(e){}
   }
 })();
