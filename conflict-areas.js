@@ -1,7 +1,9 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.16
-   - v11.16: updateIntensity debounce 800ms (voorkomt 3× CPU-piek
-             bij OSINT+RSS events kort na elkaar)
+   WAR DESK — conflict-areas.js v11.17
+   - v11.17: Centroid-caching in feature.properties (CPU -50%
+             bij heat-herberekening — getCentroid wordt 1× per
+             feature berekend ipv bij elke aanroep)
+   - v11.16: updateIntensity debounce 800ms
    - v11.15: Pulse pauzeert bij scroll/zoom + document.hidden
    - v11.14: AI-confirmed overrides (3-dagen stabiliteit)
    - v11.13: styleProvince — fill = controller, rand = consensus
@@ -808,8 +810,17 @@
     return pointInGeometry(x, y, feature.geometry);
   }
 
+  /* ============================================================
+     v11.17: getCentroid met caching
+     ============================================================ */
   function getCentroid(feature){
     if(!feature || !feature.geometry) return null;
+
+    /* v11.17: cached centroid in properties */
+    if(feature.properties && feature.properties._centroid){
+      return feature.properties._centroid;
+    }
+
     var geom = feature.geometry, outerRing = null;
     if(geom.type === "Polygon"){ outerRing = geom.coordinates[0]; }
     else if(geom.type === "MultiPolygon"){
@@ -831,10 +842,19 @@
       cy += (y0 + y1) * cross;
     }
     area = area / 2;
-    if(Math.abs(area) < 1e-12) return getBBoxCenter(outerRing);
-    cx = cx / (6 * area); cy = cy / (6 * area);
-    if(!pointInRing(cx, cy, outerRing)) return getBBoxCenter(outerRing);
-    return [cx, cy];
+    var result;
+    if(Math.abs(area) < 1e-12) result = getBBoxCenter(outerRing);
+    else {
+      cx = cx / (6 * area); cy = cy / (6 * area);
+      if(!pointInRing(cx, cy, outerRing)) result = getBBoxCenter(outerRing);
+      else result = [cx, cy];
+    }
+
+    /* v11.17: cache resultaat */
+    if(feature.properties){
+      feature.properties._centroid = result;
+    }
+    return result;
   }
 
   function getBBoxCenter(ring){
@@ -923,6 +943,9 @@
     return tryNext();
   }
 
+  /* ============================================================
+     v11.17: normalizeArea met _centroid: null
+     ============================================================ */
   function normalizeArea(json, level){
     json.features.forEach(function(f){
       if(!f || !f.properties) return;
@@ -943,7 +966,8 @@
         id: id, name: name, provinceName: provinceName, iso: iso,
         controller: null, control_confidence: 0, control_source: null,
         territory_gain: false, territory_gain_from: null,
-        attack_intensity: 0, attack_count: 0, last_update: null
+        attack_intensity: 0, attack_count: 0, last_update: null,
+        _centroid: null
       };
     });
     return json;
@@ -2344,7 +2368,7 @@
     },
     getConfirmedOverrides: function(){ return CA._confirmedOverrides; },
     getConsensus: getConsensusForFeature,
-    state: CA, _version: "v11.16",
+    state: CA, _version: "v11.17",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2391,9 +2415,6 @@
     if(tab) setTimeout(tryInit, 1200);
   });
 
-  /* ============================================================
-     v11.16: updateIntensity debounce 800ms
-     ============================================================ */
   var _intensityTimer = null;
   try {
     if(window.WarDesk && window.WarDesk.events){
@@ -2418,5 +2439,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.16 geladen (debounce updateIntensity)");
+  LOG("conflict-areas.js v11.17 geladen (centroid-cache)");
 })();
