@@ -14,7 +14,7 @@
     try{ wdLog.info.apply(null, ["[OSINT]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  var REFRESH_MS = 20 * 60 * 1000;
+  var REFRESH_MS = 30 * 60 * 1000;
   var MAX_EVENTS = 300;
   var STAGGER_MS = 5000;
   var PARALLEL_BATCH = 2;
