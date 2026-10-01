@@ -1,12 +1,11 @@
 /* ============================================================
-   WAR DESK Service Worker v3.92
-   - v3.92: consensus-history.js toegevoegd (territory gain/loss)
-   - v3.91: osint-feeds.js toegevoegd
-   - v3.90: worldmap-data.js v3.3
-   - v3.89: conflict-areas.js v11.2
+   WAR DESK Service Worker v4.31
+   - v4.31: MEDIA_CACHE cache-first (geen background re-fetch)
+            PRECACHE_ASSETS compleet (34 bestanden)
+   - v4.30: SW cache-bump
    ============================================================ */
 
-const CACHE_VERSION = 'v4.30';
+const CACHE_VERSION = 'v4.31';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 
@@ -16,15 +15,52 @@ const PRECACHE_ASSETS = [
   './offline.html',
   './icon.svg',
   './manifest.json',
-  './world-status.js',
+
+  /* Core */
+  './config.js',
+  './utils.js',
+  './storage.js',
+  './store.js',
+
+  /* Classifier + event logic */
   './classifier.js',
+  './event-detector.js',
   './event-dedup.js',
+
+  /* AI */
+  './ai-shared.js',
+  './ai-trending.js',
+  './ai-ranking.js',
+  './ai-dedup.js',
+  './ai-summary.js',
+  './ai-map.js',
+  './ai-chat.js',
+  './ai-ui.js',
+
+  /* Worldmap */
+  './worldmap-data.js',
+  './worldmap.js',
   './province-mapper.js',
   './province-consensus.js',
   './consensus-history.js',
-  './diagnostic.js',
+  './city-status.js',
+  './conflict-areas.js',
+  './maplibre-labels.js',
+
+  /* OSINT */
   './osint-feeds.js',
-  './conflict-areas.js'
+  './diagnostic.js',
+
+  /* Map + UI */
+  './map-v11.10.js',
+  './news-v27.js',
+  './app-v12.js',
+  './persist-v4.js',
+  './refresh-v12.js',
+  './world-status.js',
+  './enhancements.js',
+  './iptv-v8.js',
+  './vod-v24.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE];
@@ -83,16 +119,12 @@ self.addEventListener('fetch', event => {
                || url.pathname.endsWith('/');
   const isJson  = /\.json$/i.test(url.pathname);
 
+  /* v4.31: images/fonts — pure cache-first, geen background re-fetch */
   if (isImage || isFont) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(cache =>
         cache.match(req).then(cached => {
-          if (cached) {
-            fetch(req).then(res => {
-              if (res && res.status === 200) cache.put(req, res.clone()).catch(()=>{});
-            }).catch(()=>{});
-            return cached;
-          }
+          if (cached) return cached;
           return fetch(req).then(res => {
             if (res && res.status === 200 && (res.type === 'basic' || res.type === 'cors')) {
               cache.put(req, res.clone()).catch(()=>{});
@@ -105,6 +137,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  /* JS/CSS: cache-first, dan netwerk, dan cache-update */
   if (isAsset) {
     event.respondWith(
       caches.open(STATIC_CACHE).then(cache =>
@@ -120,6 +153,7 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  /* HTML/JSON: network-first met cache-fallback */
   if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
