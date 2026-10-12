@@ -1,22 +1,17 @@
 /* ============================================================
-   WAR DESK — event-detector.js v2.0
-   - v2.0: extractCityEvent gebruikt WDCityActors.resolve() —
-           canonieke (conflict, party), geen "Onbekend" meer.
-           findReportVerbs/findFuturePatterns returnen nu
-           daadwerkelijke matches ipv regex-source strings.
-           Future-threat check vóór report-only check.
-   - v1.5: extractCityEvent (control + attack)
-   - v1.3: extractCityClaim
+   WAR DESK — event-detector.js v2.1
+   - v2.1: CITY_LOSS_PATTERNS + hasLossAction — verlies-detectie
+           ("Houthi's verliezen Marib", "Russen trekken terug")
+           extractCityEvent kan nu type: control | loss | attack
+   - v2.0: canonieke resolver via WDCityActors
+           findReportVerbs / findFuturePatterns returnen matches
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v2.0";
+  window.WDEventDetectorVersion = "v2.1";
 
-  /* ══════════════════════════════════════════════════════════════
-     ACTIEPATRONEN — fysieke gebeurtenissen
-     ══════════════════════════════════════════════════════════════ */
   var ACTION_PATTERNS = [
     { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
     { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt|aanvallen)\b/i, type: "attack" },
@@ -87,9 +82,6 @@
     { re: /سيطر|استولى|حرر|دخل/, type: "capture" }
   ];
 
-  /* ══════════════════════════════════════════════════════════════
-     RAPPORTAGE-PATRONEN — "X zegt dat Y"
-     ══════════════════════════════════════════════════════════════ */
   var REPORT_PATTERNS = [
     /\b(says?|said|stated|declares?|declared|announces?|announced)\b/i,
     /\b(warns?|warned|highlights?|highlighted)\b/i,
@@ -107,9 +99,6 @@
     /قال|صرح|أعلن|وفقا|حسب/
   ];
 
-  /* ══════════════════════════════════════════════════════════════
-     TOEKOMST-PATRONEN — "X is van plan Y te doen"
-     ══════════════════════════════════════════════════════════════ */
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
     /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
@@ -127,7 +116,6 @@
     /\b(rhetoric|rhetorisch|verbale\s+dreiging)\b/i
   ];
 
-  /* Titelprefixen die vaak clickbait / geen fysieke events zijn */
   var PREFIX_PATTERNS = [
     /^live\s*:/i, /^live\s*[-–]/i, /^live\s+updates?/i,
     /^report\s*:/i, /^analysis\s*:/i, /^opinion\s*:/i,
@@ -137,9 +125,6 @@
     /^en\s*direct/i
   ];
 
-  /* ══════════════════════════════════════════════════════════════
-     BRON-LAND — voor skip-regels bij locatie-extractie
-     ══════════════════════════════════════════════════════════════ */
   var SOURCE_COUNTRY = {
     "NOS": "Nederland", "NOS Sport": "Nederland", "NOS Voetbal": "Nederland",
     "De Telegraaf": "Nederland", "AD.nl": "Nederland",
@@ -206,9 +191,9 @@
     "Japan Times": "Japan"
   };
 
-  /* ══════════════════════════════════════════════════════════════
-     CITY-PATRONEN
-     ══════════════════════════════════════════════════════════════ */
+  /* ════════════════════════════════════════════════════════════
+     CITY-PATRONEN — capture (winnaar)
+     ════════════════════════════════════════════════════════════ */
   var CITY_CONTROL_PATTERNS = [
     /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns|took|taken|takes)\b/i,
     /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming|recaptured|recaptures)\b/i,
@@ -220,6 +205,28 @@
     /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
     /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
     /سيطر|استولى|حرر|دخل/
+  ];
+
+  /* ════════════════════════════════════════════════════════════
+     v2.1: CITY_LOSS_PATTERNS — verlies / terugtrekking
+     ════════════════════════════════════════════════════════════ */
+  var CITY_LOSS_PATTERNS = [
+    /\b(lost|lose|loses|losing|loss)\b/i,
+    /\b(retreated|retreating|retreat|withdrew|withdrawal|withdrawn|withdraws)\b/i,
+    /\b(pulled back|pullback|pull-back|pull out|pulls out)\b/i,
+    /\b(ceded|ceded to|surrendered|surrendering|gave up|give up|gives up)\b/i,
+    /\b(abandoned|abandoning|abandons|evacuated|evacuating)\b/i,
+    /\b(fell to|falls to|fallen to|fall to|has fallen)\b/i,
+    /\b(handed over|hand over|handover|transferred control|transfer of control)\b/i,
+    /\b(retaken by|recaptured by)\b/i,
+    /\b(verloor|verliest|verliezen|verloren|verlies)\b/i,
+    /\b(teruggetrokken|trok terug|trek terug|terugtrekking|terugtrekken|trekt terug)\b/i,
+    /\b(teruggedrongen|teruggeslagen|teruggedreven)\b/i,
+    /\b(opgegeven|prijsgegeven|overgegeven|gaf op|geeft op)\b/i,
+    /\b(overgedragen|overhandigd|overdracht)\b/i,
+    /\b(viel aan|valt aan|viel in handen|is gevallen)\b/i,
+    /\b(verlaten|geabandoneerd|ontruimd|ontruimen)\b/i,
+    /استعاد|انسحب|تراجع|فقد|خسر|سقط|سلم/
   ];
 
   var CITY_ATTACK_PATTERNS = [
@@ -234,11 +241,6 @@
     /قصف|غارة|غارات|هجوم|اعتداء|ضربة/
   ];
 
-  /* ══════════════════════════════════════════════════════════════
-     HELPERS
-     ══════════════════════════════════════════════════════════════ */
-
-  /* Retourneert array van { type, match } — met ECHTE match-tekst */
   function findActionVerbs(text){
     var found = [];
     ACTION_PATTERNS.forEach(function(p){
@@ -248,7 +250,6 @@
     return found;
   }
 
-  /* Retourneert array van ECHTE matches (was: regex-source strings — bug) */
   function findReportVerbs(text){
     var found = [];
     REPORT_PATTERNS.forEach(function(p){
@@ -258,7 +259,6 @@
     return found;
   }
 
-  /* Idem — fix voor de oude bug die p.source teruggaf */
   function findFuturePatterns(text){
     var found = [];
     FUTURE_PATTERNS.forEach(function(p){
@@ -278,6 +278,14 @@
   function hasControlAction(text){
     for (var i = 0; i < CITY_CONTROL_PATTERNS.length; i++){
       if (CITY_CONTROL_PATTERNS[i].test(text)) return true;
+    }
+    return false;
+  }
+
+  /* v2.1: verlies-detectie */
+  function hasLossAction(text){
+    for (var i = 0; i < CITY_LOSS_PATTERNS.length; i++){
+      if (CITY_LOSS_PATTERNS[i].test(text)) return true;
     }
     return false;
   }
@@ -312,7 +320,6 @@
                reason: reportMatches.length > 0 ? "report-only" : "no-action-verb" };
     }
 
-    /* Future-threat check vóór report-only */
     if (futureMatches.length > 0 && actionMatches.length <= 2){
       return { isPhysicalEvent: false, actionTypes: [], actionCount: 0,
                reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch,
@@ -335,9 +342,6 @@
     };
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     CITY-EVENT — met canonieke actor-resolver
-     ══════════════════════════════════════════════════════════════ */
   function findCityInText(text){
     if (!window.__wm_locations) return null;
     var lower = " " + String(text || "")
@@ -359,6 +363,9 @@
     return bestCity;
   }
 
+  /* ════════════════════════════════════════════════════════════
+     v2.1: extractCityEvent met control | loss | attack
+     ════════════════════════════════════════════════════════════ */
   function extractCityEvent(title, desc, actorCountries){
     title = String(title || "");
     desc = String(desc || "");
@@ -367,7 +374,6 @@
     var cityKey = findCityInText(text);
     if (!cityKey) return null;
 
-    /* Canonieke resolver — geeft (conflict, party) of null */
     var resolved = null;
     if (window.WDCityActors && window.WDCityActors.resolveFromCandidates){
       try {
@@ -375,7 +381,6 @@
       } catch(e){}
     }
 
-    /* Fallback: oude pad als resolver niet beschikbaar is */
     var actorName = null;
     var conflictIso = null;
     var actorISO3 = null;
@@ -403,8 +408,13 @@
 
     if (!actorName) return null;
 
+    /* Prioriteit: control > loss > attack
+       "HTS captured Aleppo after Syrian army lost it" → control (HTS wint)
+       "Houthi's lost Marib" → loss
+       "Aleppo under attack" → attack */
     var type = null;
     if (hasControlAction(text)) type = "control";
+    else if (hasLossAction(text)) type = "loss";
     else if (hasAttackAction(text)) type = "attack";
     if (!type) return null;
 
@@ -419,7 +429,6 @@
     };
   }
 
-  /* Backwards-compat */
   function extractCityClaim(title, desc, actorCountries){
     var ev = extractCityEvent(title, desc, actorCountries);
     if (ev && ev.type === "control") return ev;
@@ -430,9 +439,6 @@
     return SOURCE_COUNTRY[sourceName] || null;
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     EXPORT
-     ══════════════════════════════════════════════════════════════ */
   window.WDEventDetector = {
     analyze: analyze,
     findActionVerbs: findActionVerbs,
@@ -440,6 +446,7 @@
     findFuturePatterns: findFuturePatterns,
     hasPrefix: hasPrefix,
     hasControlAction: hasControlAction,
+    hasLossAction: hasLossAction,
     hasAttackAction: hasAttackAction,
     extractCityEvent: extractCityEvent,
     extractCityClaim: extractCityClaim,
@@ -448,15 +455,17 @@
     _reportPatterns: REPORT_PATTERNS,
     _futurePatterns: FUTURE_PATTERNS,
     _controlPatterns: CITY_CONTROL_PATTERNS,
+    _lossPatterns: CITY_LOSS_PATTERNS,
     _attackPatterns: CITY_ATTACK_PATTERNS,
     _sourceCountry: SOURCE_COUNTRY
   };
 
   try {
     if (window.wdLog){
-      wdLog.info("[EventDetector] v2.0 geladen — " +
+      wdLog.info("[EventDetector] v2.1 geladen — " +
         ACTION_PATTERNS.length + " acties, " +
         CITY_CONTROL_PATTERNS.length + " control, " +
+        CITY_LOSS_PATTERNS.length + " loss, " +
         CITY_ATTACK_PATTERNS.length + " attack" +
         (window.WDCityActors ? " | resolver: aan" : " | resolver: ONTBREEKT"));
     }
