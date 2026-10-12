@@ -1,15 +1,22 @@
 /* ============================================================
-   WAR DESK — event-detector.js v1.5
-   - v1.5: extractCityEvent (control + attack types)
-   - v1.4: future-threats uitgebreid
+   WAR DESK — event-detector.js v2.0
+   - v2.0: extractCityEvent gebruikt WDCityActors.resolve() —
+           canonieke (conflict, party), geen "Onbekend" meer.
+           findReportVerbs/findFuturePatterns returnen nu
+           daadwerkelijke matches ipv regex-source strings.
+           Future-threat check vóór report-only check.
+   - v1.5: extractCityEvent (control + attack)
    - v1.3: extractCityClaim
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v1.5";
+  window.WDEventDetectorVersion = "v2.0";
 
+  /* ══════════════════════════════════════════════════════════════
+     ACTIEPATRONEN — fysieke gebeurtenissen
+     ══════════════════════════════════════════════════════════════ */
   var ACTION_PATTERNS = [
     { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
     { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt|aanvallen)\b/i, type: "attack" },
@@ -43,6 +50,8 @@
     { re: /\b(raid|raids|raided|raiding)\b/i, type: "raid" },
     { re: /\b(repelled|repelling|repels)\b/i, type: "defense" },
     { re: /\b(counterattack|counterattacks|counter-attack|counter-attacks)\b/i, type: "attack" },
+    { re: /\b(took control|takes control|taking control|take control)\b/i, type: "capture" },
+    { re: /\b(captur\w*)\b/i, type: "capture" },
 
     { re: /\b(targeted|targets|targeting)\b/i, type: "strike" },
     { re: /\b(rocket|missile|drone) (attacks?|strikes?|launch(es)?|barrages?)\b/i, type: "specific-strike" },
@@ -57,6 +66,7 @@
     { re: /\b(tué|tués|mort|morts)\b/i, type: "kill" },
     { re: /\b(blessé|blessés)\b/i, type: "wound" },
     { re: /\b(invasion|envahi|envahie)\b/i, type: "invasion" },
+    { re: /\b(capturé|capture|capturent)\b/i, type: "capture" },
 
     { re: /\b(getroffen|treffer|angriff|angriffe)\b/i, type: "strike" },
     { re: /\b(angegriffen|greift an)\b/i, type: "attack" },
@@ -64,6 +74,7 @@
     { re: /\b(getötet|tote|tötet|tot)\b/i, type: "kill" },
     { re: /\b(verletzt|verletzte)\b/i, type: "wound" },
     { re: /\b(invasion|invadiert)\b/i, type: "invasion" },
+    { re: /\b(eingenommen|erobert|eroberte)\b/i, type: "capture" },
 
     { re: /قصف|غارة|غارات|ضربة|ضربات/, type: "strike" },
     { re: /هجوم|هجمات|اعتداء/, type: "attack" },
@@ -72,9 +83,13 @@
     { re: /انفجار|انفجارات|تفجير/, type: "explosion" },
     { re: /صاروخ|صواريخ|قذيفة|قذائف/, type: "launch" },
     { re: /احتلال|غزو|اجتياح/, type: "invasion" },
-    { re: /معارك|قتال|اشتباكات/, type: "combat" }
+    { re: /معارك|قتال|اشتباكات/, type: "combat" },
+    { re: /سيطر|استولى|حرر|دخل/, type: "capture" }
   ];
 
+  /* ══════════════════════════════════════════════════════════════
+     RAPPORTAGE-PATRONEN — "X zegt dat Y"
+     ══════════════════════════════════════════════════════════════ */
   var REPORT_PATTERNS = [
     /\b(says?|said|stated|declares?|declared|announces?|announced)\b/i,
     /\b(warns?|warned|highlights?|highlighted)\b/i,
@@ -92,6 +107,9 @@
     /قال|صرح|أعلن|وفقا|حسب/
   ];
 
+  /* ══════════════════════════════════════════════════════════════
+     TOEKOMST-PATRONEN — "X is van plan Y te doen"
+     ══════════════════════════════════════════════════════════════ */
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
     /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
@@ -109,6 +127,7 @@
     /\b(rhetoric|rhetorisch|verbale\s+dreiging)\b/i
   ];
 
+  /* Titelprefixen die vaak clickbait / geen fysieke events zijn */
   var PREFIX_PATTERNS = [
     /^live\s*:/i, /^live\s*[-–]/i, /^live\s+updates?/i,
     /^report\s*:/i, /^analysis\s*:/i, /^opinion\s*:/i,
@@ -118,6 +137,9 @@
     /^en\s*direct/i
   ];
 
+  /* ══════════════════════════════════════════════════════════════
+     BRON-LAND — voor skip-regels bij locatie-extractie
+     ══════════════════════════════════════════════════════════════ */
   var SOURCE_COUNTRY = {
     "NOS": "Nederland", "NOS Sport": "Nederland", "NOS Voetbal": "Nederland",
     "De Telegraaf": "Nederland", "AD.nl": "Nederland",
@@ -184,9 +206,9 @@
     "Japan Times": "Japan"
   };
 
-  /* ============================================================
-     v1.5: CITY-EVENT PATRONEN
-     ============================================================ */
+  /* ══════════════════════════════════════════════════════════════
+     CITY-PATRONEN
+     ══════════════════════════════════════════════════════════════ */
   var CITY_CONTROL_PATTERNS = [
     /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns|took|taken|takes)\b/i,
     /\b(retook|retaken|retakes|reclaimed|reclaims|reclaiming|recaptured|recaptures)\b/i,
@@ -212,52 +234,62 @@
     /قصف|غارة|غارات|هجوم|اعتداء|ضربة/
   ];
 
-  function findActionVerbs(text) {
+  /* ══════════════════════════════════════════════════════════════
+     HELPERS
+     ══════════════════════════════════════════════════════════════ */
+
+  /* Retourneert array van { type, match } — met ECHTE match-tekst */
+  function findActionVerbs(text){
     var found = [];
-    ACTION_PATTERNS.forEach(function(p) {
-      if (p.re.test(text)) found.push({ type: p.type });
+    ACTION_PATTERNS.forEach(function(p){
+      var m = p.re.exec(text);
+      if (m) found.push({ type: p.type, match: m[0] });
     });
     return found;
   }
 
-  function findReportVerbs(text) {
+  /* Retourneert array van ECHTE matches (was: regex-source strings — bug) */
+  function findReportVerbs(text){
     var found = [];
-    REPORT_PATTERNS.forEach(function(p) {
-      if (p.test(text)) found.push(p.source);
+    REPORT_PATTERNS.forEach(function(p){
+      var m = p.exec(text);
+      if (m) found.push(m[0]);
     });
     return found;
   }
 
-  function findFuturePatterns(text) {
+  /* Idem — fix voor de oude bug die p.source teruggaf */
+  function findFuturePatterns(text){
     var found = [];
-    FUTURE_PATTERNS.forEach(function(p) {
-      if (p.test(text)) found.push(p.source);
+    FUTURE_PATTERNS.forEach(function(p){
+      var m = p.exec(text);
+      if (m) found.push(m[0]);
     });
     return found;
   }
 
-  function hasPrefix(title) {
-    for (var i = 0; i < PREFIX_PATTERNS.length; i++) {
+  function hasPrefix(title){
+    for (var i = 0; i < PREFIX_PATTERNS.length; i++){
       if (PREFIX_PATTERNS[i].test(title)) return true;
     }
     return false;
   }
 
-  function hasControlAction(text) {
-    for (var i = 0; i < CITY_CONTROL_PATTERNS.length; i++) {
+  function hasControlAction(text){
+    for (var i = 0; i < CITY_CONTROL_PATTERNS.length; i++){
       if (CITY_CONTROL_PATTERNS[i].test(text)) return true;
     }
     return false;
   }
 
-  function hasAttackAction(text) {
-    for (var i = 0; i < CITY_ATTACK_PATTERNS.length; i++) {
+  function hasAttackAction(text){
+    for (var i = 0; i < CITY_ATTACK_PATTERNS.length; i++){
       if (CITY_ATTACK_PATTERNS[i].test(text)) return true;
     }
     return false;
   }
 
-  function analyze(title, desc) {
+  function analyze(title, desc){
     title = String(title || "");
     desc = String(desc || "");
     var text = title + " " + desc;
@@ -267,32 +299,52 @@
     var reportMatches = findReportVerbs(text);
     var futureMatches = findFuturePatterns(text);
 
-    if (prefixMatch && actionMatches.length === 0) {
-      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: false, reason: "prefix-no-action" };
+    if (prefixMatch && actionMatches.length === 0){
+      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0,
+               reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch,
+               futureMatch: false, reason: "prefix-no-action" };
     }
 
-    if (actionMatches.length === 0) {
-      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: reportMatches.length > 0 ? "report-only" : "no-action-verb" };
+    if (actionMatches.length === 0){
+      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0,
+               reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch,
+               futureMatch: futureMatches.length > 0,
+               reason: reportMatches.length > 0 ? "report-only" : "no-action-verb" };
     }
 
-    if (futureMatches.length > 0 && actionMatches.length <= 2) {
-      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: true, reason: "future-threat" };
+    /* Future-threat check vóór report-only */
+    if (futureMatches.length > 0 && actionMatches.length <= 2){
+      return { isPhysicalEvent: false, actionTypes: [], actionCount: 0,
+               reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch,
+               futureMatch: true, reason: "future-threat" };
     }
 
     var types = [];
-    actionMatches.forEach(function(m) {
+    actionMatches.forEach(function(m){
       if (types.indexOf(m.type) === -1) types.push(m.type);
     });
 
-    return { isPhysicalEvent: true, actionTypes: types, actionCount: actionMatches.length, reportMatch: reportMatches.length > 0, prefixMatch: prefixMatch, futureMatch: futureMatches.length > 0, reason: "action-found" };
+    return {
+      isPhysicalEvent: true,
+      actionTypes: types,
+      actionCount: actionMatches.length,
+      reportMatch: reportMatches.length > 0,
+      prefixMatch: prefixMatch,
+      futureMatch: futureMatches.length > 0,
+      reason: "action-found"
+    };
   }
 
-  /* ============================================================
-     v1.5: EXTRACT CITY EVENT (control of attack)
-     ============================================================ */
+  /* ══════════════════════════════════════════════════════════════
+     CITY-EVENT — met canonieke actor-resolver
+     ══════════════════════════════════════════════════════════════ */
   function findCityInText(text){
     if (!window.__wm_locations) return null;
-    var lower = " " + String(text || "").toLowerCase().replace(/[^\w\sÀ-ÿ-]/g, " ").replace(/\s+/g, " ").trim() + " ";
+    var lower = " " + String(text || "")
+      .toLowerCase()
+      .replace(/[^\w\sÀ-ÿ-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim() + " ";
     var bestCity = null;
     var bestLen = 0;
     for (var key in window.__wm_locations){
@@ -314,41 +366,73 @@
 
     var cityKey = findCityInText(text);
     if (!cityKey) return null;
-    if (!actorCountries || !actorCountries.length) return null;
 
-    var actorName = actorCountries[0];
+    /* Canonieke resolver — geeft (conflict, party) of null */
+    var resolved = null;
+    if (window.WDCityActors && window.WDCityActors.resolveFromCandidates){
+      try {
+        resolved = window.WDCityActors.resolveFromCandidates(text, actorCountries);
+      } catch(e){}
+    }
+
+    /* Fallback: oude pad als resolver niet beschikbaar is */
+    var actorName = null;
+    var conflictIso = null;
     var actorISO3 = null;
-    try {
-      if (window.WorldMapData && window.WorldMapData.getISO3){
-        actorISO3 = window.WorldMapData.getISO3(actorName);
-      }
-    } catch(e){}
+
+    if (resolved){
+      actorName = resolved.party;
+      conflictIso = resolved.conflict;
+      try {
+        if (window.WorldMapData && window.WorldMapData.getISO3){
+          actorISO3 = window.WorldMapData.getISO3(resolved.party) ||
+                      window.WorldMapData.getISO3(resolved.conflict);
+        }
+      } catch(e){}
+    } else if (actorCountries && actorCountries.length){
+      actorName = actorCountries[0];
+      if (!actorName || actorName === "Onbekend") return null;
+      try {
+        if (window.WorldMapData && window.WorldMapData.getISO3){
+          actorISO3 = window.WorldMapData.getISO3(actorName);
+        }
+      } catch(e){}
+    } else {
+      return null;
+    }
+
+    if (!actorName) return null;
 
     var type = null;
     if (hasControlAction(text)) type = "control";
     else if (hasAttackAction(text)) type = "attack";
-
     if (!type) return null;
 
     return {
       city: cityKey,
       type: type,
       actor: actorName,
-      actorISO3: actorISO3
+      actorISO3: actorISO3,
+      conflict: conflictIso,
+      party: actorName,
+      tier: resolved ? resolved.tier : "fallback"
     };
   }
 
-  /* Backwards-compat: oude extractCityClaim → nu de control-variant */
+  /* Backwards-compat */
   function extractCityClaim(title, desc, actorCountries){
     var ev = extractCityEvent(title, desc, actorCountries);
     if (ev && ev.type === "control") return ev;
     return null;
   }
 
-  function getSourceCountry(sourceName) {
+  function getSourceCountry(sourceName){
     return SOURCE_COUNTRY[sourceName] || null;
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     EXPORT
+     ══════════════════════════════════════════════════════════════ */
   window.WDEventDetector = {
     analyze: analyze,
     findActionVerbs: findActionVerbs,
@@ -369,11 +453,12 @@
   };
 
   try {
-    if (window.wdLog) {
-      wdLog.info("[EventDetector] v1.5 geladen — " +
+    if (window.wdLog){
+      wdLog.info("[EventDetector] v2.0 geladen — " +
         ACTION_PATTERNS.length + " acties, " +
         CITY_CONTROL_PATTERNS.length + " control, " +
-        CITY_ATTACK_PATTERNS.length + " attack");
+        CITY_ATTACK_PATTERNS.length + " attack" +
+        (window.WDCityActors ? " | resolver: aan" : " | resolver: ONTBREEKT"));
     }
   } catch(e){}
 
