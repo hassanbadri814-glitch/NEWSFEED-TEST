@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK — worldmap.js v4.0
-   - v4.0: City dots canonieke kleur (conflict.parties[controller])
-           + city:control-changed listener (direct rerender)
-           + eigen pane z=470 (boven ConflictAreas)
-           + stale decay (7d/14d)
-           + contested dots met dubbele ring
-           + refresh: heat-throttle alleen op landen, dots altijd
+   WAR DESK — worldmap.js v4.1
+   - v4.1: Transition-state dots (gele pulserende ring) voor
+           steden die "verloren" zijn maar nog geen nieuwe
+           controller hebben
+           + city:control-lost listener
+   - v4.0: canonieke kleur + direct rerender + eigen pane z=470
+           + stale decay (7d/14d) + contested dots
    ============================================================ */
 
 (function(){
@@ -38,9 +38,6 @@
 
   var _legendRetryTimer = null;
 
-  /* ══════════════════════════════════════════════════════════════
-     GEOJSON LADEN
-     ══════════════════════════════════════════════════════════════ */
   function loadGeoJSON(){
     return new Promise(function(resolve){
       try {
@@ -109,9 +106,6 @@
     return COUNTRIES_WITH_AREA_LAYER.indexOf(iso3.toUpperCase()) !== -1;
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     HEAT-BEREKENING
-     ══════════════════════════════════════════════════════════════ */
   function getPeriodScale(periodDays){
     if (periodDays <= 1) return 0.3;
     if (periodDays <= 7) return 1.0;
@@ -488,18 +482,13 @@
     if (WM.panel) WM.panel.classList.remove("show");
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     CITY DOTS — v4.0
-     ══════════════════════════════════════════════════════════════ */
-
   function ensureCityPane(map){
     if (map.getPane("cityDots")) return;
     map.createPane("cityDots");
-    map.getPane("cityDots").style.zIndex = 470;      /* > caPaneTerritory (460) */
+    map.getPane("cityDots").style.zIndex = 470;
     map.getPane("cityDots").style.pointerEvents = "auto";
   }
 
-  /* Canonieke kleur-lookup: conflict.parties[controller].fill */
   function resolveCityColor(record){
     var actor = record && record.controller;
     if (!actor) return { color: "#6b7280", isClaim: true };
@@ -514,18 +503,15 @@
       if (r) conflictIso = r.conflict;
     }
 
-    /* 1. Canonieke partij-lookup via ConflictAreas */
     if (conflictIso && window.ConflictAreas && window.ConflictAreas._conflicts){
       var conflict = window.ConflictAreas._conflicts[conflictIso];
       if (conflict && conflict.parties){
-        /* Exacte match */
         if (conflict.parties[actor]){
           return {
             color: conflict.parties[actor].fill,
             isClaim: (record.controllerConfidence || 0) < 0.6
           };
         }
-        /* Fuzzy via WDCityActors.matchParty */
         if (window.WDCityActors && window.WDCityActors.matchParty){
           var matched = window.WDCityActors.matchParty(actor, conflict.parties);
           if (matched){
@@ -538,7 +524,6 @@
       }
     }
 
-    /* 2. Fallback: ISO3 → alliantie */
     var iso = null;
     try {
       if (actor.length === 3 && actor === actor.toUpperCase()){
@@ -578,6 +563,7 @@
     var now = Date.now();
 
     var rendered = 0, skippedNoLoc = 0, skippedOld = 0, skippedBoth = 0;
+    var transitionCount = 0;
     var locs = window.__wm_locations ||
                (window.WorldMapData && window.WorldMapData.LOCATIONS) || {};
 
@@ -589,7 +575,12 @@
 
       var hasController = !!c.controller;
       var hasAttack = (c.attackIntensity || 0) > 0.15;
-      if (!hasController && !hasAttack) { skippedBoth++; return; }
+      var hasTransition = !!c.transition;
+
+      if (!hasController && !hasAttack && !hasTransition) {
+        skippedBoth++;
+        return;
+      }
 
       /* Basis */
       var size = 10;
@@ -611,9 +602,34 @@
       if (ageDays > STALE_OLD_DAYS) staleFactor = 0.35;
       else if (ageDays > STALE_WARN_DAYS) staleFactor = 0.6;
 
+      /* ══════════════════════════════════════════════════════
+         v4.1: Transition-state — gele pulserende ring
+         ══════════════════════════════════════════════════════ */
+      var transitionHtml = "";
+      var transitionAge = 0;
+      if (hasTransition && c.transition.since){
+        transitionAge = (now - c.transition.since) / 86400000;
+        if (transitionAge <= 7){
+          transitionCount++;
+          var tPulseSize = size + 18;
+          transitionHtml =
+            '<div style="position:absolute;top:50%;left:50%;' +
+            'transform:translate(-50%,-50%);' +
+            'width:' + tPulseSize + 'px;height:' + tPulseSize + 'px;' +
+            'border-radius:50%;border:2px dashed #f59e0b;' +
+            'box-shadow:0 0 14px rgba(245,158,11,0.85);' +
+            'pointer-events:none;z-index:4;' +
+            'animation:wmTransitionSpin 4s linear infinite;"></div>';
+        } else {
+          hasTransition = false;
+        }
+      }
+
       /* Border */
       var borderStyle;
-      if (isContested){
+      if (hasTransition){
+        borderStyle = 'border:2px solid #f59e0b;box-sizing:border-box;';
+      } else if (isContested){
         borderStyle = 'border:2px solid rgba(255,255,255,0.95);box-sizing:border-box;';
       } else if (isClaim){
         borderStyle = 'border:1.5px dashed rgba(255,255,255,0.85);box-sizing:border-box;';
@@ -621,17 +637,20 @@
         borderStyle = 'border:1.5px solid rgba(255,255,255,0.65);box-sizing:border-box;';
       }
 
-      var shadow = 'box-shadow:0 0 6px rgba(0,0,0,0.85),0 0 10px ' + coreColor + ';';
+      /* Core: als transition actief is, toon een amber core, niet de partij-kleur */
+      var effectiveCoreColor = hasTransition ? "#f59e0b" : coreColor;
+      var shadow = 'box-shadow:0 0 6px rgba(0,0,0,0.85),0 0 10px ' +
+                   effectiveCoreColor + ';';
 
       var coreHtml =
         '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
-        'background:' + coreColor + ';' + shadow + borderStyle +
+        'background:' + effectiveCoreColor + ';' + shadow + borderStyle +
         'opacity:' + staleFactor + ';' +
         'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2"></div>';
 
       /* Contested: extra ring */
       var contestedRingHtml = "";
-      if (isContested){
+      if (isContested && !hasTransition){
         var rSize = size + 8;
         contestedRingHtml =
           '<div style="position:absolute;top:50%;left:50%;' +
@@ -644,7 +663,7 @@
 
       /* Attack ring */
       var attackRingHtml = "";
-      if (hasAttack){
+      if (hasAttack && !hasTransition){
         var intensity = c.attackIntensity || 0;
         var ringWidth = Math.round(1.5 + intensity * 2.5);
         var ringSize = size + 12 + Math.round(intensity * 5);
@@ -662,7 +681,7 @@
       /* Badge */
       var badgeHtml = "";
       var totalCount = (c.attackCount || 0);
-      if (totalCount >= 3){
+      if (totalCount >= 3 && !hasTransition){
         badgeHtml =
           '<div style="position:absolute;top:-6px;right:-6px;' +
           'background:#070c16;color:#f0c78a;font-size:8px;font-weight:800;' +
@@ -671,10 +690,10 @@
           'text-align:center;z-index:3">' + totalCount + '</div>';
       }
 
-      var containerSize = Math.max(size + 24, 34);
+      var containerSize = Math.max(size + 26, 36);
       var container =
         '<div style="position:relative;width:' + containerSize + 'px;height:' + containerSize + 'px;">' +
-          attackRingHtml + contestedRingHtml + coreHtml + badgeHtml +
+          attackRingHtml + contestedRingHtml + transitionHtml + coreHtml + badgeHtml +
         '</div>';
 
       var icon = L.divIcon({
@@ -691,25 +710,32 @@
         '<b>' + escapeHtml(capitalizeCity(c.city)) + '</b>' +
         (loc.country ? ' · ' + escapeHtml(loc.country) : '')
       ];
-      if (hasController){
+      if (hasTransition){
+        tooltipParts.push('⚠️ <b>In transitie</b>');
+        tooltipParts.push('   ' + escapeHtml(c.transition.from || "?") +
+          ' verliest — nog geen nieuwe controller');
+        if (c.transition.count > 1){
+          tooltipParts.push('   ' + c.transition.count + ' verlies-berichten');
+        }
+      } else if (hasController){
         var statusLabel = isContested ? "Betwist" :
                           (isClaim ? "Claim" : "Bevestigd");
         var ctrlConfPct = Math.round(ctrlConf * 100);
         tooltipParts.push('🎛️ <b>' + escapeHtml(c.controller) + '</b> · ' +
           statusLabel + ' · ' + ctrlConfPct + '%');
       }
-      if (isContested && c.contestedActors && c.contestedActors.length >= 2){
+      if (isContested && c.contestedActors && c.contestedActors.length >= 2 && !hasTransition){
         var contested = c.contestedActors.slice(0, 3).map(function(x){
           return escapeHtml(x.actor);
         }).join(" vs ");
         tooltipParts.push('⚔️ ' + contested);
       }
-      if (hasAttack){
+      if (hasAttack && !hasTransition){
         var intensityPct = Math.round((c.attackIntensity || 0) * 100);
         tooltipParts.push('💥 Aanvallen door <b>' + escapeHtml(c.dominantAttacker || '?') + '</b>');
         tooltipParts.push('   ' + (c.attackCount || 0) + ' events · intensiteit ' + intensityPct + '%');
       }
-      if (staleFactor < 1){
+      if (staleFactor < 1 && !hasTransition){
         var ageLabel = ageDays > STALE_OLD_DAYS ? ">14 dagen" : ">7 dagen";
         tooltipParts.push('⚠️ Laatste update ' + ageLabel + ' geleden');
       }
@@ -727,6 +753,7 @@
     });
 
     LOG("City-dots: " + rendered + " steden (van " + cities.length +
+        " | transitions:" + transitionCount +
         " | skip geen-loc:" + skippedNoLoc + " oud:" + skippedOld +
         " geen-claim:" + skippedBoth + ")");
   }
@@ -735,8 +762,12 @@
     closeConflictAreasPanel();
     var panel = ensurePanel();
     var titleParts = [capitalizeCity(cityKey)];
-    if (record.controller) titleParts.push(record.controller);
-    if (record.dominantAttacker && record.attackCount > 0){
+    if (record.transition){
+      titleParts.push("⚠️ " + record.transition.from + " verliest");
+    } else if (record.controller){
+      titleParts.push(record.controller);
+    }
+    if (record.dominantAttacker && record.attackCount > 0 && !record.transition){
       titleParts.push("← " + record.dominantAttacker);
     }
     panel.querySelector("#wmPanelTitle").textContent = titleParts.join(" · ");
@@ -747,18 +778,31 @@
     var confClass = record.contested ? "conf-low"
       : (ctrlConf >= 70 ? "conf-high" : (ctrlConf >= 40 ? "conf-med" : "conf-low"));
 
-    var contestedLine = "";
+    var lines = [];
+
+    if (record.transition){
+      var ageH = Math.round((Date.now() - record.transition.since) / 3600000);
+      var ageLabel = ageH < 24 ? ageH + "u" : Math.round(ageH/24) + "d";
+      lines.push('<div class="wm-panel-conf-detail" style="color:#f59e0b;font-weight:700">' +
+        '⚠️ IN TRANSITIE — ' + escapeHtml(record.transition.from) + ' verliest' +
+        '<br><span style="font-weight:400;opacity:.8">' +
+        'Sinds ' + ageLabel + ' geleden · ' +
+        (record.transition.count || 1) + ' verlies-berichten' +
+        (record.transition.source ? ' · ' + escapeHtml(record.transition.source) : '') +
+        '</span></div>');
+    }
+
     if (record.contested && record.contestedActors){
-      contestedLine = '<div class="wm-panel-conf-detail">⚔️ Betwist gebied:<br>' +
+      lines.push('<div class="wm-panel-conf-detail">⚔️ Betwist gebied:<br>' +
         record.contestedActors.map(function(x){
           return '• <b>' + escapeHtml(x.actor) + '</b> (' +
             Math.round(x.confidence * 100) + '%, ' + x.sources + ' bron' +
             (x.sources === 1 ? '' : 'nen') + ')';
-        }).join('<br>') + '</div>';
-    } else if (record.controller){
-      contestedLine = '<div class="wm-panel-conf-detail">Controller: ' +
+        }).join('<br>') + '</div>');
+    } else if (record.controller && !record.transition){
+      lines.push('<div class="wm-panel-conf-detail">Controller: ' +
         escapeHtml(record.controller) + ' · ' + (record.controllerSources || 0) +
-        ' ' + ((record.controllerSources === 1) ? 'bron' : 'bronnen') + '</div>';
+        ' ' + ((record.controllerSources === 1) ? 'bron' : 'bronnen') + '</div>');
     }
 
     statsEl.innerHTML =
@@ -771,7 +815,7 @@
       '<div class="wm-panel-stat">' +
         '<div class="wm-panel-stat-val">' + atkIntensity + '%</div>' +
         '<div class="wm-panel-stat-lbl">Intensiteit</div></div>' +
-      contestedLine;
+      lines.join("");
 
     var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
     var periodAgo = Date.now() - periodDays * 24 * 60 * 60 * 1000;
@@ -809,9 +853,6 @@
     requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     PERIOD FILTER
-     ══════════════════════════════════════════════════════════════ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
     if (!wrap || wrap.querySelector(".wm-period-filter")) return;
@@ -854,9 +895,6 @@
     } catch(e){}
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     LEGEND
-     ══════════════════════════════════════════════════════════════ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -870,6 +908,7 @@
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
       '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
       '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a855f7"></span>Betwist (stad)</div>' +
+      '<div class="wm-legend-row"><span class="wm-legend-swatch wm-legend-swatch-transition"></span>In transitie</div>' +
       '<div id="wmAreaLegend" class="wm-area-legend"></div>' +
       '<div class="wm-legend-hint">Klik op een land of stad</div>';
     var wrap = document.querySelector(".map-wrap");
@@ -939,6 +978,8 @@
     var s = document.createElement("style");
     s.id = "wmStyles";
     s.textContent =
+      "@keyframes wmTransitionSpin{from{transform:translate(-50%,-50%) rotate(0deg)}to{transform:translate(-50%,-50%) rotate(360deg)}}" +
+      ".wm-legend-swatch-transition{background:transparent!important;border:2px dashed #f59e0b;box-sizing:border-box;border-radius:50%;animation:wmLegendPulse 1.2s infinite;}" +
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
@@ -1015,9 +1056,6 @@
     document.head.appendChild(s);
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     INIT
-     ══════════════════════════════════════════════════════════════ */
   function init(map){
     if (!map || WM.isLoaded) return Promise.resolve();
     WM.map = map;
@@ -1042,9 +1080,8 @@
       restoreLegendVisibility();
       restorePeriodFilter();
       WM.isLoaded = true;
-      LOG("Wereldkaart v4.0 geladen — " + geo.features.length + " features");
+      LOG("Wereldkaart v4.1 geladen — " + geo.features.length + " features");
 
-      /* v4.0: bind bus-listeners voor city-events */
       bindCityBus();
     });
   }
@@ -1057,7 +1094,6 @@
     WarDesk.events.on("city:control-changed", function(data){
       if (!WM.map) return;
       if (!data) return;
-      /* Directe rerender — geen throttle */
       renderCityDots(WM.map);
       LOG("city:control-changed → dots rerender (" + (data.city || "?") + ")");
     });
@@ -1067,7 +1103,13 @@
       renderCityDots(WM.map);
     });
 
-    LOG("City-bus listeners actief");
+    WarDesk.events.on("city:control-lost", function(data){
+      if (!WM.map) return;
+      renderCityDots(WM.map);
+      LOG("city:control-lost → dots rerender (" + (data && data.city ? data.city : "?") + ")");
+    });
+
+    LOG("City-bus listeners actief (changed + attack + lost)");
   }
 
   function refresh(events, force){
@@ -1082,7 +1124,6 @@
     var heatFresh = !force && now - WM.lastHeatCalc < recalc &&
                     Object.keys(WM.targetHeatByCountry).length > 0;
 
-    /* Landen: alleen herberekenen als heat stale is */
     if (!heatFresh){
       calculateHeat(events);
       if (WM.layer){
@@ -1093,7 +1134,6 @@
       refreshTooltips();
     }
 
-    /* City dots: altijd herberekenen */
     if (WM.map) renderCityDots(WM.map);
   }
 
@@ -1132,6 +1172,6 @@
     _state: WM
   };
 
-  LOG("worldmap.js v4.0 geladen (canonieke city-kleuren + direct rerender)");
+  LOG("worldmap.js v4.1 geladen (transition-dots + control-lost)");
 
 })();
