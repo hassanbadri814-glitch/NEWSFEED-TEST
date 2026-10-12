@@ -1,15 +1,11 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v11.18
-   - v11.18: City-overrides laag (stad → provincie doorwerking)
-             + fuzzy matchParty met WDCityActors fallback
-             + luistert op city:control-changed
-             + laadt bestaande CityStatus-overrides bij init
-             + styleProvince: prioriteit city > confirmed > rules
-   - v11.17: Centroid-caching in feature.properties
-   - v11.16: updateIntensity debounce 800ms
-   - v11.15: Pulse pauzeert bij scroll/zoom + document.hidden
-   - v11.14: AI-confirmed overrides (3-dagen stabiliteit)
-   - v11.13: styleProvince — fill = controller, rand = consensus
+   WAR DESK — conflict-areas.js v11.19
+   - v11.19: Rode gestreepte rand voor zwaar-aangevallen
+             provincies (attack_intensity > 0.4) zonder de
+             fill-kleur te wijzigen. Zo blijft de controller
+             zichtbaar, maar zie je dat het gebied onder vuur ligt.
+   - v11.18: City-overrides laag + fuzzy matchParty
+   - v11.17: Centroid-caching
    ============================================================ */
 
 (function(){
@@ -229,7 +225,10 @@
     },
     "SAU": {
       name: "Saoedi-Arabië", level: "ADM1", center: [24.71, 46.68, 5],
-      parties: { "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" } },
+      parties: {
+        "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" },
+        "Houthi's":      { color: "#C62828", fill: "#C62828" }
+      },
       oblastSources: [
         "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SAU_1.json",
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SAU_1.json"
@@ -644,6 +643,7 @@
     territoryGain:  "#22c55e",
     territoryLoss:  "#ef4444",
     territoryContested: "#a855f7",
+    underAttack:    "#e63950",
     neighborFillDark:    "#2d3a52",
     neighborFillLight:   "#d0cbc0",
     neighborStrokeDark:  "rgba(255,255,255,0.28)",
@@ -652,6 +652,10 @@
 
   var FILL_OPACITY = 0.42;
   var OVERLAY_FILL_OPACITY = 0.55;
+
+  /* v11.19: attack-rand drempel */
+  var ATTACK_RING_THRESHOLD = 0.4;
+  var ATTACK_RING_THRESHOLD_HIGH = 0.7;
 
   function countryShadowWeight(z){
     if(z <= 4) return 1.5;
@@ -722,7 +726,6 @@
     _consensusBound: false,
     _territoryChanges: {},
     _confirmedOverrides: {},
-    /* v11.18: city-overrides laag + bus-binding */
     _cityOverrides: {},
     _cityBusBound: false
   };
@@ -819,7 +822,6 @@
     return pointInGeometry(x, y, feature.geometry);
   }
 
-  /* v11.17: getCentroid met caching */
   function getCentroid(feature){
     if(!feature || !feature.geometry) return null;
 
@@ -1389,7 +1391,6 @@
     return null;
   }
 
-  /* v11.18: city-override lookup */
   function getCityOverrideFor(feature, iso3){
     if(!feature || !feature.properties) return null;
     if(!CA._cityOverrides || !Object.keys(CA._cityOverrides).length) return null;
@@ -1406,7 +1407,6 @@
     return null;
   }
 
-  /* v11.18: fuzzy party-lookup via WDCityActors of lokale fallback */
   function matchParty(label, parties){
     if(!label || !parties) return null;
     if(parties[label]) return label;
@@ -1461,7 +1461,11 @@
     } catch(e){}
   }
 
-  /* v11.18: prioriteit city > confirmed > provinceRules */
+  /* ════════════════════════════════════════════════════════════
+     v11.19: styleProvince met attack-ring (rode rand)
+     Prioriteit: city > confirmed > rules
+     Attack-ring: bovenop alles (behalve hover)
+     ════════════════════════════════════════════════════════════ */
   function styleProvince(feature){
     var props = (feature && feature.properties) || {};
     var conflict = CA._currentConflict;
@@ -1476,7 +1480,7 @@
     var fillColor = "transparent";
     var source = "rules";
 
-    /* 1. city override (specifiekst) */
+    /* 1. city override */
     if(cityOverride && conflict && conflict.parties){
       var matchedCity = matchParty(cityOverride.actor, conflict.parties);
       if(matchedCity){
@@ -1525,6 +1529,7 @@
       result.opacity = Math.max(baseOpacity, 0.5);
     }
 
+    /* Consensus: rand-kleur op basis van AI-signaal */
     var consensus = getConsensusForFeature(feature, CA._currentConflictIso);
     if(consensus && consensus.dominantActor && conflict && conflict.parties){
       var matchedCons = matchParty(consensus.dominantActor, conflict.parties);
@@ -1542,10 +1547,31 @@
       }
     }
 
+    /* ══════════════════════════════════════════════════════════
+       v11.19: attack-ring — rode gestreepte rand voor
+       zwaar-aangevallen provincies.
+       Overschrijft alle andere randen als attack_intensity hoog is,
+       behalve bij hover.
+       ══════════════════════════════════════════════════════════ */
+    var attackIntensity = props.attack_intensity || 0;
+
+    if (attackIntensity >= ATTACK_RING_THRESHOLD_HIGH){
+      /* Zeer zwaar aangevallen */
+      result.color = COLORS.underAttack;
+      result.weight = Math.max(baseWeight, 2.5);
+      result.opacity = 1.0;
+      result.dashArray = "3 2";
+    } else if (attackIntensity >= ATTACK_RING_THRESHOLD){
+      /* Zwaar aangevallen */
+      result.color = COLORS.underAttack;
+      result.weight = Math.max(baseWeight, 1.8);
+      result.opacity = 0.85;
+      result.dashArray = "5 3";
+    }
+
     return result;
   }
 
-  /* v11.18: stad → provincie override toepassen */
   function applyCityOverrideToMap(cityKey, actor, conflictIso, confidence){
     if(!cityKey || !actor) return;
 
@@ -1846,7 +1872,8 @@
       "#caAreaPanel .wm-ev-physical{background:rgba(230,57,80,.15)!important;color:#ff8090!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
       "#caAreaPanel .wm-ev-political{background:rgba(107,122,147,.15)!important;color:#a3adc0!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:700!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}" +
       "#caAreaPanel .wm-panel-empty{padding:1.5rem 1rem!important;text-align:center!important;color:#6b7a93!important;font-size:.78rem!important;}" +
-      "#caAreaPanel .ca-event-dim{opacity:.55!important;font-style:italic!important;}";
+      "#caAreaPanel .ca-event-dim{opacity:.55!important;font-style:italic!important;}" +
+      "#caAreaPanel .wm-ev-underattack{background:rgba(230,57,80,.25)!important;color:#ff5566!important;padding:.1rem .4rem!important;border-radius:5px!important;font-weight:800!important;font-size:.58rem!important;text-transform:uppercase!important;letter-spacing:.03em!important;}";
     document.head.appendChild(s);
   }
 
@@ -1960,6 +1987,19 @@
         '</div>';
       }
 
+      /* v11.19: attack-status regel */
+      var attackLine = "";
+      var attackIntensity = props.attack_intensity || 0;
+      if (attackIntensity >= ATTACK_RING_THRESHOLD_HIGH){
+        attackLine = '<div class="wm-panel-conf-detail wm-ev-underattack">' +
+          '💥 ZWAAR ONDER VUUR — intensiteit ' + Math.round(attackIntensity * 100) + '%' +
+          ' (' + (props.attack_count || 0) + ' events)</div>';
+      } else if (attackIntensity >= ATTACK_RING_THRESHOLD){
+        attackLine = '<div class="wm-panel-conf-detail" style="color:#e63950;font-weight:700">' +
+          '💥 Onder vuur — intensiteit ' + Math.round(attackIntensity * 100) + '%' +
+          ' (' + (props.attack_count || 0) + ' events)</div>';
+      }
+
       var consensusLine = "";
       var consensus = getConsensusForFeature(area.feature, conflictIso);
       if(consensus){
@@ -1995,7 +2035,7 @@
         '<div class="wm-panel-stat ' + ctrlClass + '"><div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div><div class="wm-panel-stat-lbl">Controller</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + events.length + '</div><div class="wm-panel-stat-lbl">Events (7d)</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + physicalCount + '</div><div class="wm-panel-stat-lbl">Fysiek</div></div>' +
-        cityOverrideLine + overrideLine + consensusLine + territoryLine +
+        cityOverrideLine + overrideLine + attackLine + consensusLine + territoryLine +
         '<div class="wm-panel-conf-detail">Bron: ' + escapeHtml(props.control_source || "—") +
           ' · Confidence: ' + Math.round((props.control_confidence || 0) * 100) + '%</div>' +
         provinceLine;
@@ -2215,6 +2255,8 @@
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square wm-legend-swatch-pulse"></span>Actief conflict</div>';
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryGain + '"></span>Winst (▲)</div>';
     html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square" style="background:' + COLORS.territoryLoss + '"></span>Verlies (▼)</div>';
+    /* v11.19: attack-ring legenda */
+    html += '<div class="wm-legend-row"><span class="wm-legend-swatch-square wm-legend-swatch-underattack"></span>Onder vuur (rand)</div>';
     html += '<div class="wm-legend-row" style="opacity:.7;font-style:italic">Fill = controle · Rand = activiteit</div>';
     html += '<div class="wm-legend-row" style="opacity:.7;font-style:italic">🎯 = stad-claim · ✅ = AI-bevestigd</div>';
     html += '</div>';
@@ -2275,7 +2317,8 @@
       ".wm-legend-country-name{flex:1;text-transform:uppercase;letter-spacing:.03em;}" +
       ".wm-legend-country-count{background:rgba(224,168,87,.2);color:#e0a857;font-size:.48rem;padding:.05rem .3rem;border-radius:6px;font-weight:700;}" +
       ".wm-legend-zoom{background:transparent;border:0;color:#e0a857;font-size:.7rem;cursor:pointer;padding:0 .15rem;font-family:inherit;opacity:.8;}" +
-      ".wm-legend-country .wm-legend-row{padding:.15rem .4rem .15rem .9rem;font-size:.52rem;}";
+      ".wm-legend-country .wm-legend-row{padding:.15rem .4rem .15rem .9rem;font-size:.52rem;}" +
+      ".wm-legend-swatch-underattack{background:transparent!important;border:2px dashed #e63950;box-sizing:border-box;border-radius:2px;}";
     document.head.appendChild(s);
   }
 
@@ -2313,9 +2356,6 @@
     });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     _doInit — met 6g: city:control-changed listener
-     ══════════════════════════════════════════════════════════════ */
   function _doInit(){
     LOG("Init gestart: " + ACTIVE_CONFLICTS.join(", "));
 
@@ -2343,39 +2383,24 @@
         return window.ProvinceConsensus.init().then(function(){
           if(window.WarDesk && WarDesk.events && WarDesk.events.on){
 
-            /* ────────────────────────────────────────────────
-               6g: city:control-changed listener
-               Specifieker dan territory:confirmed — stad-override
-               krijgt voorrang op provincie-override.
-               ──────────────────────────────────────────────── */
             WarDesk.events.on("city:control-changed", function(data){
               if(!data || !data.city || !data.controller) return;
-
               var conflictIso = data.conflict;
               if(!conflictIso && window.WDCityActors && window.WDCityActors.resolve){
                 var r = window.WDCityActors.resolve(data.controller);
                 if(r) conflictIso = r.conflict;
               }
-
-              applyCityOverrideToMap(
-                data.city,
-                data.controller,
-                conflictIso,
-                data.confidence
-              );
-
+              applyCityOverrideToMap(data.city, data.controller, conflictIso, data.confidence);
               LOG("city:control-changed → provincie-update (" +
                   data.city + " → " + data.controller +
                   (conflictIso ? " · " + conflictIso : "") + ")");
             });
 
-            /* Ruwe AI-signalen per provincie */
             WarDesk.events.on("province:consensus", function(data){
               CA._consensus = data.byGid || {};
               applyConsensusToMap();
             });
 
-            /* Vergelijking met gisteren */
             WarDesk.events.on("territory:changes", function(data){
               if(data && data.changes){
                 CA._territoryChanges = data.changes;
@@ -2383,7 +2408,6 @@
               }
             });
 
-            /* 3-daagse bevestigde overrides */
             WarDesk.events.on("territory:confirmed", function(data){
               if(!data || !data.overrides) return;
               CA._confirmedOverrides = data.overrides;
@@ -2446,9 +2470,6 @@
     });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     init — met 6h: laad bestaande city-overrides uit CityStatus
-     ══════════════════════════════════════════════════════════════ */
   function init(mapInstance){
     if(CA.isInitialized){ return Promise.resolve(); }
     if(_initPromise){ return _initPromise; }
@@ -2580,9 +2601,6 @@
     else { CA.isMapActive = false; stopPulse(); }
   });
 
-  /* ══════════════════════════════════════════════════════════════
-     Publieke API — met 6i: nieuwe methodes
-     ══════════════════════════════════════════════════════════════ */
   window.ConflictAreas = {
     init: init,
     refresh: refresh,
@@ -2606,7 +2624,6 @@
       applyConsensusToMap();
     },
 
-    /* v11.18: nieuwe methodes */
     applyCityOverride: function(cityKey, actor, conflictIso, confidence){
       applyCityOverrideToMap(cityKey, actor, conflictIso, confidence);
     },
@@ -2615,7 +2632,7 @@
     getConsensus: getConsensusForFeature,
 
     state: CA,
-    _version: "v11.18",
+    _version: "v11.19",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     _neighborCountries: NEIGHBOR_COUNTRIES,
@@ -2687,5 +2704,5 @@
     obs.observe(document.body, { attributes: true, attributeFilter: ["class"] });
   })();
 
-  LOG("conflict-areas.js v11.18 geladen (city-overrides + fuzzy matchParty)");
+  LOG("conflict-areas.js v11.19 geladen (attack-ring voor aangevallen provincies)");
 })();
