@@ -1,24 +1,17 @@
 /* ============================================================
-   WAR DESK — baseline.js v3.0
-   - Exacte GADM feature-namen (uit debug-log 12 okt 2026)
-   - Fallback per land als een district geen entry heeft
-   - Bijgewerkt: Syrië (Al-Sharaa), Libanon (Israël bezet zuid),
-     Jemen (Houthi's vs Regering), Soedan (SAF vs RSF)
+   WAR DESK — baseline.js v3.1
+   - v3.1: Saoedi-Arabië toegevoegd (13 provincies)
+   - v3.0: Exacte GADM keys + country fallback
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WD_BASELINE_VERSION = "v3.0";
+  window.WD_BASELINE_VERSION = "v3.1";
 
-  /* ════════════════════════════════════════════════════════════
-     BASELINE — exacte GADM keys
-     Formaat: "ISO3|GADM_NAAM": { controller, since, source }
-     ════════════════════════════════════════════════════════════ */
   var BASELINE = {
 
     /* ══════════════ SYRIË (ADM2) ══════════════ */
-    /* Alle districten onder Al-Sharaa, behalve Suwayda (Druze) en Quneitra (Israël) */
     "SYR|As-Safirah":            { controller: "Al-Sharaa-regering", since: "2024-12-08", source: "HTS" },
     "SYR|JabalSam'an":           { controller: "Al-Sharaa-regering", since: "2024-12-01", source: "HTS" },
     "SYR|Jarabulus":             { controller: "Al-Sharaa-regering", since: "2024-12-01", source: "HTS" },
@@ -73,9 +66,6 @@
     "SYR|Al-Qusayr":             { controller: "Al-Sharaa-regering", since: "2024-12-07", source: "HTS" },
 
     /* ══════════════ LIBANON (ADM2) ══════════════ */
-    /* Zuid (Israël bezet): BintJbayl, Hasbaya, Marjaayoun, Nabatiyeh, Saida, Sour */
-    /* Bekaa (Hezbollah): Baalbeck, Hermel, WestBekaa, Zahleh, Rachiaya */
-    /* Rest: Libanese staat */
     "LBN|BintJbayl":        { controller: "Israël (bezet)", since: "2026-06-01", source: "IDF" },
     "LBN|Hasbaya":          { controller: "Israël (bezet)", since: "2026-06-01", source: "IDF" },
     "LBN|Marjaayoun":       { controller: "Israël (bezet)", since: "2026-06-01", source: "IDF" },
@@ -123,6 +113,21 @@
     "YEM|AlJawf":           { controller: "Houthi's", since: "2021-02-01", source: "Houthi" },
     "YEM|AlMahrah":         { controller: "Regering", since: "2015-07-17", source: "STC" },
     "YEM|AlMahwit":         { controller: "Houthi's", since: "2014-09-21", source: "Houthi" },
+
+    /* ══════════════ SAOEDI-ARABIË (ADM1) ══════════════ */
+    "SAU|ArRiyad":              { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|Makkah":               { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|AlMadinah":            { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|AshSharqiyah":         { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|AlQassim":             { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|Ha'il":                { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|Tabuk":                { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|AlJawf":               { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|AlHududAshShamaliyah": { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|Jizan":                { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|Najran":               { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|Asir":                 { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
+    "SAU|AlBahah":              { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
 
     /* ══════════════ ISRAËL (ADM1) ══════════════ */
     "ISR|Golan":     { controller: "Israël", since: "1967-06-10", source: "IDF" },
@@ -291,15 +296,11 @@
     "PAK|Sindh":                           { controller: "India (grens)",         since: "1947-08-14", source: "grens" }
   };
 
-  /* ════════════════════════════════════════════════════════════
-     FALLBACK PER LAND
-     Als een district geen entry heeft, gebruik deze default.
-     Zo blijven missende GADM-namen toch gekleurd.
-     ════════════════════════════════════════════════════════════ */
   var COUNTRY_FALLBACK = {
     "SYR": { controller: "Al-Sharaa-regering", since: "2024-12-08", source: "fallback" },
     "UKR": { controller: "Oekraïne",           since: "2022-02-24", source: "fallback" },
     "YEM": { controller: "Houthi's",           since: "2014-09-21", source: "fallback" },
+    "SAU": { controller: "Saoedi-Arabië",      since: "1932-09-23", source: "fallback" },
     "ISR": { controller: "Israël",             since: "1948-05-14", source: "fallback" },
     "PSE": { controller: "Palestina",          since: "1994-05-04", source: "fallback" },
     "SDN": { controller: "Regering",           since: "2024-01-01", source: "fallback" },
@@ -313,7 +314,6 @@
     "PAK": { controller: "Pakistan (Regering)", since: "1947-08-14", source: "fallback" }
   };
 
-  /* Normaliseer: lowercase, verwijder apostrofs/spaties/koppeltekens */
   function normalizeKey(s){
     return String(s || "").toLowerCase()
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -324,8 +324,6 @@
 
   function getBaseline(iso3, admin1, provinceName){
     if (!iso3) return null;
-
-    /* 1. Exacte match */
     var keys = [];
     if (admin1) keys.push(iso3 + "|" + admin1);
     if (provinceName) keys.push(iso3 + "|" + provinceName);
@@ -334,7 +332,6 @@
       if (BASELINE[keys[i]]) return BASELINE[keys[i]];
     }
 
-    /* 2. Fuzzy match — normaliseer en vergelijk */
     var candidates = [];
     if (admin1) candidates.push(normalizeKey(admin1));
     if (provinceName) candidates.push(normalizeKey(provinceName));
@@ -356,9 +353,7 @@
       }
     }
 
-    /* 3. Country fallback */
     if (COUNTRY_FALLBACK[iso3]) return COUNTRY_FALLBACK[iso3];
-
     return null;
   }
 
@@ -396,7 +391,7 @@
   loadLocalOverrides();
 
   window.WDBaseline = {
-    version: "v3.0",
+    version: "v3.1",
     get: getBaseline,
     set: setBaseline,
     _all: BASELINE,
@@ -405,7 +400,7 @@
 
   try {
     if (window.wdLog) {
-      wdLog.info("[Baseline] v3.0 geladen — " +
+      wdLog.info("[Baseline] v3.1 geladen — " +
         Object.keys(BASELINE).length + " exacte entries + " +
         Object.keys(COUNTRY_FALLBACK).length + " fallbacks (12 okt 2026)");
     }
