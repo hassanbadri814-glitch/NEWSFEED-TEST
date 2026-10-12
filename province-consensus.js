@@ -1,10 +1,12 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v2.0
-   - v2.0: getFallbackActor retourneert null i.p.v. "Onbekende X"
-           → skip i.p.v. gok → geen valse overrides meer
-           → conflict-ISO meegegeven aan CityStatus claims
+   WAR DESK — province-consensus.js v2.1
+   - v2.1: Attack-only events worden overgeslagen in consensus.
+           Alleen control-claims (capture/invasion) tellen mee
+           voor territoriumcontrole. Aanvallen blijven zichtbaar
+           via attack-ringen op de kaart (CityStatus), maar
+           vervuilen niet langer de kleuren van een land.
+   - v2.0: getFallbackActor retourneert null
    - v1.16: geen vertaal-bypass
-   - v1.15: MIN_ACTOR_SOURCES 2, confidence 0.5
    ============================================================ */
 
 (function(){
@@ -18,7 +20,7 @@
   var DB_VERSION = 1;
   var STORE = "consensus";
   var META_STORE = "meta";
-  var THROTTLE_MS = 15 * 60 * 1000;         /* v2.0: 60 min → 15 min */
+  var THROTTLE_MS = 15 * 60 * 1000;
   var OSINT_THROTTLE_MS = 30 * 1000;
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
@@ -26,6 +28,18 @@
   var MIN_ACTOR_SHARE = 0.30;
   var MIN_ACTOR_SOURCES = 2;
   var MIN_DOMINANT_CONFIDENCE = 0.50;
+
+  /* v2.1: alleen deze action-types gelden als "territoriale claim" */
+  var CONTROL_ACTION_TYPES = [
+    "capture", "control", "invasion", "offensive", "raid"
+  ];
+
+  /* v2.1: deze types zijn puur "aanval", geen claim */
+  var ATTACK_ONLY_TYPES = [
+    "strike", "attack", "bombing", "shelling", "launch",
+    "specific-strike", "explosion", "shootdown", "kill", "wound",
+    "combat", "defense"
+  ];
 
   var COUNTRY_DEFAULT_ACTOR = {
     "SYR": "Regering", "UKR": "Oekraïne", "RUS": "Rusland",
@@ -50,6 +64,15 @@
   var consensusByGid = {};
   var isRunning = false;
   var _runTimer = null;
+
+  /* Statistieken voor de log */
+  var _lastRunStats = {
+    inputEvents: 0,
+    attackOnlySkipped: 0,
+    nonConflictSkipped: 0,
+    noActorSkipped: 0,
+    noProvinceSkipped: 0
+  };
 
   function openDB(){
     return new Promise(function(resolve){
@@ -221,7 +244,6 @@
         if (detected && detected.length > 0) return detected;
       }
     } catch(e){}
-    /* v2.0: geen fallback naar COUNTRY_DEFAULT_ACTOR — dat gaf valse overrides */
     return [];
   }
 
@@ -244,16 +266,65 @@
     return all;
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     v2.0: getFallbackActor retourneert NULL i.p.v. "Onbekende X"
-     ══════════════════════════════════════════════════════════════ */
   function getFallbackActor(ev, prov){
-    /* Geen actor → geen consensus. Liever niets dan een gok. */
     return null;
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     v2.1: check of dit event een territoriale claim bevat
+     ════════════════════════════════════════════════════════════ */
+  function isTerritorialClaim(ev){
+    if (!ev) return false;
+
+    var types = Array.isArray(ev.actionTypes) ? ev.actionTypes : [];
+
+    /* Als er GEEN actionTypes zijn, val terug op subtype-hint */
+    if (!types.length){
+      var subtype = String(ev.subtype || "").toLowerCase();
+      var title = String(ev.title || "").toLowerCase();
+
+      /* Bekende capture-woorden in titel/subtype */
+      if (/captur|seiz|overran|verover|ingenomen|heroverd|bevrijd|invasi|bezet/.test(title)) return true;
+      if (/captur|control|invasi|bezet/.test(subtype)) return true;
+
+      /* Bekende pure-attack-woorden → geen claim */
+      if (/strike|aanval|raketaanval|bomb|shell|beschieting/.test(title)) return false;
+
+      /* Onbekend → conservatief: skip voor consensus */
+      return false;
+    }
+
+    /* Check op control-types */
+    for (var i = 0; i < types.length; i++){
+      if (CONTROL_ACTION_TYPES.indexOf(types[i]) !== -1) return true;
+    }
+
+    /* Alleen attack-types? → geen claim */
+    var allAttack = true;
+    for (var j = 0; j < types.length; j++){
+      if (ATTACK_ONLY_TYPES.indexOf(types[j]) === -1){
+        allAttack = false;
+        break;
+      }
+    }
+    if (allAttack) return false;
+
+    /* Geen match → conservatief skippen */
+    return false;
   }
 
   function processEvent(ev, aggregator){
     if (!ev) return;
+
+    /* ══════════════════════════════════════════════════════════
+       v2.1: sla puur-aanvallende events over voor consensus.
+       Aanvallen blijven zichtbaar via attack-ringen (CityStatus),
+       maar ze claimen geen territorium.
+       ══════════════════════════════════════════════════════════ */
+    if (!isTerritorialClaim(ev)){
+      _lastRunStats.attackOnlySkipped++;
+      return;
+    }
 
     var categoryBoost = getCategoryBoost(ev.category);
     if (categoryBoost === 0) return;
@@ -261,7 +332,10 @@
     var physicalBoost = 1.0;
     if (ev.countsForHeat === false) physicalBoost = 0.3;
 
-    if (CONFLICT_ISO3.indexOf(ev.countryISO3) === -1) return;
+    if (CONFLICT_ISO3.indexOf(ev.countryISO3) === -1){
+      _lastRunStats.nonConflictSkipped++;
+      return;
+    }
 
     var ts = new Date(ev.date).getTime();
     if (isNaN(ts)) return;
@@ -290,10 +364,16 @@
       }
       if (cityKey) prov = ProvinceMapper.getProvinceForCity(cityKey);
     }
-    if (!prov || !prov.iso3) return;
+    if (!prov || !prov.iso3){
+      _lastRunStats.noProvinceSkipped++;
+      return;
+    }
 
     var actors = getActors(ev, prov);
-    if (!actors || !actors.length) return;   /* v2.0: skip als geen actor */
+    if (!actors || !actors.length){
+      _lastRunStats.noActorSkipped++;
+      return;
+    }
 
     var gid = prov.iso3 + "|" + (prov.admin1 || "*");
     if (!aggregator[gid]){
@@ -310,10 +390,7 @@
 
     actors.forEach(function(actorRaw){
       var actor = ProvinceMapper.resolveActor(actorRaw);
-      if (!actor || actor === "Onbekend"){
-        /* v2.0: skip i.p.v. fallback gok */
-        return;
-      }
+      if (!actor || actor === "Onbekend") return;
 
       if (!bucket.actors[actor]){
         bucket.actors[actor] = {
@@ -411,6 +488,14 @@
 
     var startTime = Date.now();
 
+    _lastRunStats = {
+      inputEvents: 0,
+      attackOnlySkipped: 0,
+      nonConflictSkipped: 0,
+      noActorSkipped: 0,
+      noProvinceSkipped: 0
+    };
+
     if (!ensureProvinceMapper()){
       var retries = (opts._retries || 0);
       if (retries < 8){
@@ -434,6 +519,7 @@
       return Promise.resolve(consensusByGid);
     }
 
+    _lastRunStats.inputEvents = events.length;
     LOG("Verwerken " + events.length + " events (MAP + OSINT)...");
 
     var aggregator = {};
@@ -449,7 +535,12 @@
     var elapsed = Date.now() - startTime;
     var contestedCount = results.filter(function(r){ return r.contested; }).length;
     LOG("Run klaar — " + results.length + " provincies | " +
-        contestedCount + " contested | " + events.length + " events | " + elapsed + "ms");
+        contestedCount + " contested | " +
+        "attack-skip:" + _lastRunStats.attackOnlySkipped +
+        " non-conflict:" + _lastRunStats.nonConflictSkipped +
+        " geen-actor:" + _lastRunStats.noActorSkipped +
+        " geen-prov:" + _lastRunStats.noProvinceSkipped +
+        " | " + elapsed + "ms");
 
     return dbPutAll(results).then(function(){
       return dbPutMeta("lastRun", lastRun);
@@ -543,9 +634,10 @@
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v2.0"
+    isTerritorialClaim: isTerritorialClaim,
+    _version: "v2.1"
   };
 
-  LOG("province-consensus.js v2.0 geladen (geen valse fallback-actors)");
+  LOG("province-consensus.js v2.1 geladen (attack-claims geskipt)");
 
 })();
