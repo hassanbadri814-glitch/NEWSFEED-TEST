@@ -1,12 +1,9 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16.4
-   - v3.16.4: Precompileerde LOCATION-regexes (CPU -30% in
-              buildEvents door geen RegExp-constructie in de
-              hot loop)
-   - v3.16.3: getEventsSync respecteert cache
-   - v3.16.2: Vertaal-throttle 30 min
-   - v3.16.1: Vertaalwachtrij 40→25, geen OSINT
-   - v3.16: locatie-fallback fix
+   WAR DESK — ai-map.js v3.16.6
+   - v3.16.6: cityEvent.type === "loss" → CityStatus.recordLossClaim
+              lossCount in log
+   - v3.16.5: conflict-ISO doorgeven + skippedCityClaim-teller
+   - v3.16.4: precompileerde LOCATION-regexes
    ============================================================ */
 
 (function(){
@@ -39,7 +36,9 @@
     /\b(veroverde|veroverden|ingenomen)\b/i, /\b(viel binnen|vielen binnen|binnengevallen)\b/i,
     /\b(neerschoot|neergeschoten|neergehaald|onderschept)\b/i,
     /\b(frappé|frappe|attaqué|attaques)\b/i, /\b(angegriffen|getroffen|bombardiert)\b/i,
-    /قصف|غارة|هجوم|قتل|انفجار/
+    /\b(lost|lose|loses|retreated|withdrew|abandoned)\b/i,
+    /\b(verloor|verliest|verliezen|teruggetrokken|opgegeven)\b/i,
+    /قصف|غارة|هجوم|قتل|انفجار|خسر|انسحب/
   ];
 
   var LOCATIONS = (window.WorldMapData && window.WorldMapData.LOCATIONS)
@@ -49,10 +48,6 @@
   try { window.__wm_locations = LOCATIONS; } catch(e){}
 
   var _countryKeyCache = null;
-
-  /* ============================================================
-     v3.16.4: Precompileerde LOCATION regexes
-     ============================================================ */
   var _locationRegexes = null;
 
   function getLocationRegexes(){
@@ -151,7 +146,6 @@
     return firstPos;
   }
 
-  /* v3.16.4: gebruikt precompileerde regexes */
   function findTargetByPosition(title, actorCountries, skipCountries){
     if (!title) return null;
     var actionPos = findFirstActionPosition(title);
@@ -353,7 +347,8 @@
     var events = [];
     var skippedOld = 0, skippedSport = 0, skippedWeakCiviel = 0, skippedWeakPolitiek = 0;
     var skippedNoLocation = 0, skippedNonPhysical = 0;
-    var controlCount = 0, attackCount = 0;
+    var controlCount = 0, attackCount = 0, lossCount = 0;
+    var skippedCityClaim = 0;
     var positionHits = 0, contextHits = 0;
     var cityHits = 0;
 
@@ -403,6 +398,9 @@
 
       var iso3 = getISO3For(loc.country);
 
+      /* ══════════════════════════════════════════════════════════
+         CITY-EVENT → CityStatus (control | loss | attack)
+         ══════════════════════════════════════════════════════════ */
       if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
           window.WDEventDetector.extractCityEvent){
         try {
@@ -413,19 +411,32 @@
           );
           if (cityEvent && cityEvent.city && cityEvent.actor){
             var originCountry = sourceCountry;
+            var conflictIso = cityEvent.conflict || null;
+            var promise = null;
+
             if (cityEvent.type === "control" && window.CityStatus.recordControlClaim){
               controlCount++;
-              window.CityStatus.recordControlClaim(
+              promise = window.CityStatus.recordControlClaim(
                 cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
-                article.source, originCountry
-              ).catch(function(){});
+                article.source, originCountry, conflictIso
+              );
+            } else if (cityEvent.type === "loss" && window.CityStatus.recordLossClaim){
+              lossCount++;
+              promise = window.CityStatus.recordLossClaim(
+                cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
+                article.source, originCountry, conflictIso
+              );
             } else if (cityEvent.type === "attack" && window.CityStatus.recordAttackClaim){
               attackCount++;
-              window.CityStatus.recordAttackClaim(
+              promise = window.CityStatus.recordAttackClaim(
                 cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
-                article.source, originCountry
-              ).catch(function(){});
+                article.source, originCountry, conflictIso
+              );
             }
+
+            if (promise && promise.catch) promise.catch(function(){});
+          } else if (detection.isPhysicalEvent) {
+            skippedCityClaim++;
           }
         } catch(e){}
       }
@@ -492,14 +503,15 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16.4] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16.6] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
         " | skip sport:" + skippedSport + " zwak-civiel:" + skippedWeakCiviel +
         " zwak-pol:" + skippedWeakPolitiek +
         " niet-fysiek:" + skippedNonPhysical +
-        " control:" + controlCount + " attack:" + attackCount +
+        " control:" + controlCount + " attack:" + attackCount + " loss:" + lossCount +
+        " city-claim-miss:" + skippedCityClaim +
         " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
         " | loc-pos:" + positionHits + " loc-ctx:" + contextHits +
         " city-hits:" + cityHits +
@@ -623,7 +635,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.4 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.6 geladen");
   }
 
   function getCountries(){
