@@ -1,8 +1,7 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v13.0
+   WAR DESK — conflict-areas.js v13.1
+   - v13.1: DEBUG — logt GADM feature-namen per land
    - v13.0: Fill = baseline, rand = attack_intensity
-             Geen provinceRules, geen consensus, geen overrides.
-             SDF verwijderd, nieuwe partijen okt 2026.
    ============================================================ */
 
 (function(){
@@ -599,8 +598,32 @@
     } catch(err){}
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     v13.1: DEBUG — log GADM feature-namen
+     ══════════════════════════════════════════════════════════════ */
+  function logFeatureNames(conflictIso, oblastsJson){
+    try {
+      if (!oblastsJson || !oblastsJson.features) return;
+      var names = oblastsJson.features.map(function(f){
+        if (!f || !f.properties) return "?";
+        return f.properties.name || "?";
+      });
+      /* Splits in blokken van 8 namen per log-regel voor leesbaarheid */
+      var chunks = [];
+      for (var i = 0; i < names.length; i += 8){
+        chunks.push(names.slice(i, i + 8).join(" | "));
+      }
+      wdLog.info("[GADM " + conflictIso + "] " + names.length + " features:");
+      chunks.forEach(function(chunk){
+        wdLog.info("[GADM " + conflictIso + "]   " + chunk);
+      });
+    } catch(e){}
+  }
+
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
+      logFeatureNames(conflictIso, oblastsJson);
+
       CA.geojsons[conflictIso] = oblastsJson;
       return loadCountry(conflictIso).then(function(countryJson){
         CA.countryGeojsons[conflictIso] = countryJson;
@@ -620,7 +643,7 @@
       }, Promise.resolve());
     }).then(function(){
       CA.isInitialized = true; CA.isLoaded = true;
-      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten geladen (v13.0)");
+      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten geladen (v13.1)");
       return true;
     });
   }
@@ -635,7 +658,7 @@
   }
 
   window.ConflictAreas = {
-    init: init, state: CA, _version: "v13.0",
+    init: init, state: CA, _version: "v13.1",
     _conflicts: CONFLICTS, _activeConflicts: ACTIVE_CONFLICTS
   };
 
@@ -674,6 +697,6 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v13.0 geladen (baseline + attack-ring, okt 2026)");
+  LOG("conflict-areas.js v13.1 geladen (met GADM debug-log)");
 
 })();
