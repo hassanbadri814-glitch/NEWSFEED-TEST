@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.41</title>
+<title>WAR DESK v14.42</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -217,7 +217,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.41</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.42</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -515,7 +515,7 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.41</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.42</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -805,11 +805,10 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <!-- ============================================================
      AI CLASSIFICATIE
-     city-actors.js MOET vóór event-detector.js en vóór
-     worldmap-data.js
+     city-actors.js MOET vóór event-detector.js
      ============================================================ -->
 <script src="classifier.js?v=5.0c" defer></script>
-<script src="city-actors.js?v=1.0" defer></script>
+<script src="city-actors.js?v=2.0" defer></script>
 <script src="event-detector.js?v=2.1" defer></script>
 <script src="event-dedup.js?v=1.1" defer></script>
 
@@ -823,9 +822,11 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="ai-summary.js?v=1.2" defer></script>
 
 <!-- ============================================================
-     WORLDMAP DATA
+     WORLDMAP DATA + BASELINE
+     baseline.js moet vóór conflict-areas.js
      ============================================================ -->
 <script src="worldmap-data.js?v=3.5" defer></script>
+<script src="baseline.js?v=2.0" defer></script>
 
 <!-- ============================================================
      MAP AI + CITY STATUS
@@ -834,19 +835,22 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="city-status.js?v=3.1" defer></script>
 
 <!-- ============================================================
-     WORLDMAP + CONSENSUS
+     WORLDMAP
      ============================================================ -->
 <script src="worldmap.js?v=4.1" defer></script>
 <script src="province-mapper.js?v=1.1" defer></script>
-<script src="province-consensus.js?v=2.1" defer></script>
-<script src="consensus-history.js?v=2.3" defer></script>
+
+<!-- ============================================================
+     CAPTURE TRACKER (vervangt province-consensus + consensus-history)
+     ============================================================ -->
+<script src="capture-tracker.js?v=1.0" defer></script>
 
 <!-- ============================================================
      OSINT + AREAS
      ============================================================ -->
 <script src="diagnostic.js?v=1.3" defer></script>
 <script src="osint-feeds.js?v=2.6.2" defer></script>
-<script src="conflict-areas.js?v=11.19" defer></script>
+<script src="conflict-areas.js?v=13.0" defer></script>
 <script src="maplibre-labels.js?v=1.2" defer></script>
 
 <!-- ============================================================
