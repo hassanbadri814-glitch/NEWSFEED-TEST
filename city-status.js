@@ -1,12 +1,11 @@
 /* ============================================================
-   WAR DESK — city-status.js v3.0
-   - v3.0: Claim-levenscyclus (retract / supersede / expire)
-           Origin-dedup (citerende bronnen tellen niet als 2)
-           Conflict-events via EventBus (city:control-changed,
-           city:attack-changed) — worldmap kan direct rerenderen
-           Conflict-ISO opgeslagen in record
-   - v2.1: Decay-fix + batch-writes
-   - v2.0: 2-laags systeem
+   WAR DESK — city-status.js v3.1
+   - v3.1: recordLossClaim + transition-state
+           Events: city:control-lost
+           Transition vervalt na 7 dagen
+           Transition gewist zodra sterke control-claim binnenkomt
+   - v3.0: claim-levenscyclus + origin-dedup + events
+   - v2.1: decay-fix + batch-writes
    ============================================================ */
 
 (function(){
@@ -15,37 +14,33 @@
   var LOG = function(){
     try{ wdLog.info.apply(null, ["[CITY]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
-  var WARN = function(){
-    try{ wdLog.warn.apply(null, ["[CITY]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
-  };
 
   var DB_NAME = "wardesk_worldmap";
-  var DB_VERSION = 3;                  /* bump vanwege nieuwe velden */
+  var DB_VERSION = 4;
   var STORE_NAME = "city_status";
   var SNAPSHOT_STORE = "snapshots";
 
   var WRITE_DEBOUNCE_MS = 300;
-  var CLAIM_EXPIRY_DAYS = 14;          /* claim zonder updates → niet meer geldig */
-  var CLAIM_STALE_DAYS  = 7;           /* visuele decay start na 7 dagen */
-  var CONTRADICTION_THRESHOLD = 0.25;  /* twee partijen binnen 25% confidence → contested */
+  var CLAIM_EXPIRY_DAYS = 14;
+  var CLAIM_STALE_DAYS  = 7;
+  var CONTRADICTION_THRESHOLD = 0.25;
+  var TRANSITION_EXPIRY_DAYS = 7;
 
   var db = null;
   var CITY_STATUS = {};
 
-  /* v3.0: write-queue */
   var _writeQueue = {};
   var _writeTimer = null;
   var _flushing = false;
 
-  /* v3.0: origin-dedup — "AP via NOS" telt niet als 2 bronnen */
   var ORIGIN_PATTERNS = [
     /\bvia\s+([A-Z]{2,6})\b/,
     /\b(?:according to|volgens|bron|source):?\s*([A-Za-zÀ-ÿ]{2,20})/i,
     /\(([A-Z]{2,6})\)/,
-    /\b(reuters|ap|afp|anadolu|apnews|bloomberg|interfax|tass|sputnik|kyodo|efе|efe|dpa|epa|ansa)\b/i
+    /\b(reuters|ap|afp|anadolu|apnews|bloomberg|interfax|tass|sputnik|kyodo|efe|dpa|epa|ansa)\b/i
   ];
 
-  function extractOrigin(sourceName, rawText){
+  function extractOrigin(sourceName){
     if (sourceName){
       for (var i = 0; i < ORIGIN_PATTERNS.length; i++){
         var m = String(sourceName).match(ORIGIN_PATTERNS[i]);
@@ -55,9 +50,6 @@
     return (sourceName || "").toLowerCase();
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     INDEXEDDB
-     ══════════════════════════════════════════════════════════════ */
   function openDB(){
     return new Promise(function(resolve){
       try {
@@ -65,7 +57,6 @@
         var req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = function(e){
           var d = e.target.result;
-          /* Structuur gewijzigd in v3 → bestaande store wissen */
           if (d.objectStoreNames.contains(STORE_NAME)){
             d.deleteObjectStore(STORE_NAME);
           }
@@ -116,9 +107,6 @@
     });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     BATCH-WRITE queue
-     ══════════════════════════════════════════════════════════════ */
   function queueWrite(record){
     if (!record || !record.city) return;
     _writeQueue[record.city] = record;
@@ -158,14 +146,11 @@
     });
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     STAD RECORD — nieuwe structuur
-     ══════════════════════════════════════════════════════════════ */
   function makeCityRecord(cityKey, countryName){
     return {
       city: cityKey,
       country: countryName || null,
-      conflict: null,                 /* ISO3 van primair conflict */
+      conflict: null,
       controlClaims: {},
       attackClaims: {},
       controller: null,
@@ -177,6 +162,8 @@
       dominantAttacker: null,
       attackIntensity: 0,
       attackCount: 0,
+      /* v3.1 */
+      transition: null,
       since: null,
       history: [],
       lastUpdate: null
@@ -192,14 +179,10 @@
     return CITY_STATUS[cityKey];
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     CONFIDENCE — met origin-dedup
-     ══════════════════════════════════════════════════════════════ */
   function calculateConfidence(claim){
     var sourceNames = Object.keys(claim.sources || {});
     var originNames = Object.keys(claim.origins || {});
 
-    /* Origin-dedup: hoeveel UNIEKE origins? */
     var uniqueOrigins = {};
     sourceNames.forEach(function(src){
       var o = extractOrigin(src);
@@ -220,9 +203,6 @@
     return Math.round(base * 100) / 100;
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     CLAIM-OPSCHONING — retract/expire
-     ══════════════════════════════════════════════════════════════ */
   function ageOutClaims(record, now){
     var expiryMs = CLAIM_EXPIRY_DAYS * 86400000;
 
@@ -237,18 +217,25 @@
         }
       });
     });
+
+    /* v3.1: transition laten verlopen */
+    if (record.transition && record.transition.since){
+      var transitionAgeDays = (now - record.transition.since) / 86400000;
+      if (transitionAgeDays > TRANSITION_EXPIRY_DAYS){
+        record.transition = null;
+      }
+    }
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     CONTROL CLAIM — v3.0 met conflict-ISO + events
-     ══════════════════════════════════════════════════════════════ */
+  /* ════════════════════════════════════════════════════════════
+     CONTROL CLAIM — winnaar
+     ════════════════════════════════════════════════════════════ */
   function recordControlClaim(cityKey, actorName, actorISO3, sourceName, originCountry, conflictIso){
     if (!cityKey || !actorName) return Promise.resolve(null);
 
     var record = ensureRecord(cityKey);
-    var actor = actorName;   /* ← nu canoniek: "Regering", "HTS", "Hezbollah" */
+    var actor = actorName;
 
-    /* v3.0: sla conflict-ISO op voor kleur-lookup */
     if (conflictIso && !record.conflict){
       record.conflict = conflictIso;
     }
@@ -256,6 +243,7 @@
     var prevController = record.controller;
     var prevConfidence = record.controllerConfidence;
     var prevContested = record.contested;
+    var hadTransition = !!record.transition;
 
     if (!record.controlClaims[actor]){
       record.controlClaims[actor] = {
@@ -285,20 +273,24 @@
     claim.lastClaim = now;
     claim.confidence = calculateConfidence(claim);
 
-    /* Oude claims opruimen */
     ageOutClaims(record, now);
+
+    /* v3.1: control-claim wist transition — er is weer een duidelijke winnaar */
+    if (record.transition && claim.confidence >= 0.4){
+      LOG("Transition gewist voor " + cityKey + " — " + actorName + " claimt nu");
+      record.transition = null;
+    }
 
     recomputeCityState(record);
     record.lastUpdate = now;
 
     queueWrite(record);
 
-    /* v3.0: events uitsturen */
     var changed = (record.controller !== prevController);
     var confidenceRose = (record.controllerConfidence > prevConfidence + 0.15);
     var contestedChanged = (record.contested !== prevContested);
 
-    if (changed || confidenceRose || contestedChanged){
+    if (changed || confidenceRose || contestedChanged || hadTransition){
       emitCityEvent("city:control-changed", {
         city: cityKey,
         controller: record.controller,
@@ -320,9 +312,81 @@
     return Promise.resolve(record);
   }
 
-  /* ══════════════════════════════════════════════════════════════
+  /* ════════════════════════════════════════════════════════════
+     v3.1: LOSS CLAIM — verliezer markeert stad als transition
+     ════════════════════════════════════════════════════════════ */
+  function recordLossClaim(cityKey, actorName, actorISO3, sourceName, originCountry, conflictIso){
+    if (!cityKey || !actorName) return Promise.resolve(null);
+
+    var record = ensureRecord(cityKey);
+    var now = Date.now();
+
+    if (conflictIso && !record.conflict){
+      record.conflict = conflictIso;
+    }
+
+    /* Kijk of de verliezende actor überhaupt controller is/was */
+    var isCurrentController = (record.controller === actorName);
+    var hadClaim = !!record.controlClaims[actorName];
+
+    /* Alleen registreren als deze actor daadwerkelijk iets te verliezen had */
+    if (!isCurrentController && !hadClaim){
+      LOG("Loss genegeerd: " + cityKey + " — " + actorName + " was geen controller");
+      return Promise.resolve(record);
+    }
+
+    record.transition = {
+      from: actorName,
+      fromISO3: actorISO3 || null,
+      since: now,
+      source: sourceName || null,
+      origin: originCountry || null,
+      conflict: conflictIso || record.conflict || null,
+      count: (record.transition && record.transition.from === actorName
+              ? (record.transition.count || 1) + 1
+              : 1)
+    };
+
+    /* Verzwak de bestaande claim van de verliezende actor — decay zijn confidence */
+    if (record.controlClaims[actorName]){
+      record.controlClaims[actorName].confidence =
+        Math.round(record.controlClaims[actorName].confidence * 0.5 * 100) / 100;
+    }
+
+    ageOutClaims(record, now);
+    recomputeCityState(record);
+    record.lastUpdate = now;
+
+    queueWrite(record);
+
+    emitCityEvent("city:control-lost", {
+      city: cityKey,
+      lostBy: actorName,
+      conflict: record.conflict,
+      transition: record.transition,
+      timestamp: now
+    });
+
+    /* Ook control-changed emitten — dot moet herberekenen */
+    emitCityEvent("city:control-changed", {
+      city: cityKey,
+      controller: record.controller,
+      contested: record.contested,
+      transition: record.transition,
+      conflict: record.conflict,
+      timestamp: now
+    });
+
+    LOG("Loss: " + cityKey + " ← " + actorName +
+        " verliest (transition sinds " + new Date(now).toISOString().slice(11,19) + ")" +
+        (conflictIso ? " · " + conflictIso : ""));
+
+    return Promise.resolve(record);
+  }
+
+  /* ════════════════════════════════════════════════════════════
      ATTACK CLAIM
-     ══════════════════════════════════════════════════════════════ */
+     ════════════════════════════════════════════════════════════ */
   function recordAttackClaim(cityKey, actorName, actorISO3, sourceName, originCountry, conflictIso){
     if (!cityKey || !actorName) return Promise.resolve(null);
 
@@ -358,7 +422,6 @@
     if (!claim.firstAttack) claim.firstAttack = now;
     claim.lastAttack = now;
 
-    /* Intensity: aantal aanvallen × decay over tijd */
     var baseIntensity = Math.min(1, claim.count / 10);
     var ageDays = (now - claim.firstAttack) / 86400000;
     var decay = Math.max(0.3, 1 - ageDays / 30);
@@ -370,7 +433,6 @@
 
     queueWrite(record);
 
-    /* v3.0: event bij significante wijziging */
     var attackerChanged = (record.dominantAttacker !== prevAttacker);
     var intensityJump = (record.attackIntensity - prevIntensity) > 0.15;
 
@@ -391,9 +453,6 @@
     return Promise.resolve(record);
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     HERBEREKEN — contested-detectie met contradictie-drempel
-     ══════════════════════════════════════════════════════════════ */
   function recomputeCityState(record){
     var ranked = Object.keys(record.controlClaims)
       .map(function(a){ return record.controlClaims[a]; })
@@ -416,7 +475,6 @@
       record.controllerSources = Object.keys(best.sources).length;
       record.controllerOrigin = best.actorISO3 || null;
 
-      /* Contested als 2e partij binnen CONTRADICTION_THRESHOLD van de 1e zit */
       var contestedActors = [];
       var threshold = best.confidence - CONTRADICTION_THRESHOLD;
       ranked.forEach(function(c){
@@ -432,7 +490,6 @@
       record.contestedActors = record.contested ? contestedActors.slice(0, 3) : null;
     }
 
-    /* Controller-wijziging → history */
     if (prevController && record.controller && prevController !== record.controller){
       record.history.push({
         at: Date.now(),
@@ -447,7 +504,6 @@
       record.since = Date.now();
     }
 
-    /* Dominant attacker */
     var dominantAttacker = null;
     var highestIntensity = 0;
     var totalCount = 0;
@@ -468,9 +524,6 @@
     return record;
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     EVENTS
-     ══════════════════════════════════════════════════════════════ */
   function emitCityEvent(name, payload){
     try {
       if (window.WarDesk && WarDesk.events){
@@ -479,9 +532,6 @@
     } catch(e){}
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     API
-     ══════════════════════════════════════════════════════════════ */
   function getCity(cityKey){ return CITY_STATUS[cityKey] || null; }
   function getAllCities(){
     return Object.keys(CITY_STATUS).map(function(k){ return CITY_STATUS[k]; });
@@ -508,10 +558,18 @@
     }).then(function(all){
       all.forEach(function(c){
         if (c && c.city){
-          /* Normaliseer velden die nieuw zijn in v3 */
           if (!c.controlClaims) c.controlClaims = {};
           if (!c.attackClaims) c.attackClaims = {};
           if (c.conflict === undefined) c.conflict = null;
+          /* v3.1: normaliseer transition */
+          if (c.transition === undefined) c.transition = null;
+          /* Verlopen transitions wissen bij load */
+          if (c.transition && c.transition.since){
+            var ageDays = (Date.now() - c.transition.since) / 86400000;
+            if (ageDays > TRANSITION_EXPIRY_DAYS){
+              c.transition = null;
+            }
+          }
           CITY_STATUS[c.city] = c;
         }
       });
@@ -532,7 +590,6 @@
     return Promise.resolve(true);
   }
 
-  /* Handmatige retractie van een claim */
   function retractClaim(cityKey, actorName, reason){
     var record = CITY_STATUS[cityKey];
     if (!record) return Promise.resolve(false);
@@ -563,12 +620,32 @@
     return Promise.resolve(removed);
   }
 
+  /* v3.1: handmatig transition clearen (voor als het te lang duurt) */
+  function clearTransition(cityKey){
+    var record = CITY_STATUS[cityKey];
+    if (!record || !record.transition) return Promise.resolve(false);
+    record.transition = null;
+    record.lastUpdate = Date.now();
+    queueWrite(record);
+    emitCityEvent("city:control-changed", {
+      city: cityKey,
+      controller: record.controller,
+      transition: null,
+      conflict: record.conflict,
+      timestamp: Date.now()
+    });
+    LOG("Transition gewist: " + cityKey);
+    return Promise.resolve(true);
+  }
+
   window.CityStatus = {
     init: init,
     reset: reset,
     recordControlClaim: recordControlClaim,
+    recordLossClaim: recordLossClaim,
     recordAttackClaim: recordAttackClaim,
     retractClaim: retractClaim,
+    clearTransition: clearTransition,
     getCity: getCity,
     getAllCities: getAllCities,
     saveSnapshot: saveSnapshot,
@@ -576,7 +653,7 @@
     getAllSnapshots: getAllSnapshots,
     flush: flushWrites,
     _getState: function(){ return CITY_STATUS; },
-    _version: "v3.0"
+    _version: "v3.1"
   };
 
   if (document.readyState === "loading"){
@@ -585,6 +662,6 @@
     setTimeout(init, 500);
   }
 
-  LOG("city-status v3.0 geladen (claim-levenscyclus + origin-dedup + events)");
+  LOG("city-status v3.1 geladen (loss-claims + transition-state)");
 
 })();
