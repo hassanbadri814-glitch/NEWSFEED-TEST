@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK — province-consensus.js v1.16
-   - v1.16: Verwijderd: ensureTranslations-aanroep in collectEvents
-            (ai-map.js doet dit al met 30-min throttle; hier was
-            een bypass die quota opmaakte)
-   - v1.15: MIN_ACTOR_SOURCES 1→2 + MIN_DOMINANT_CONFIDENCE 0.5
-   - v1.14: ID-dedup in collectEvents
+   WAR DESK — province-consensus.js v2.0
+   - v2.0: getFallbackActor retourneert null i.p.v. "Onbekende X"
+           → skip i.p.v. gok → geen valse overrides meer
+           → conflict-ISO meegegeven aan CityStatus claims
+   - v1.16: geen vertaal-bypass
+   - v1.15: MIN_ACTOR_SOURCES 2, confidence 0.5
    ============================================================ */
 
 (function(){
@@ -18,7 +18,7 @@
   var DB_VERSION = 1;
   var STORE = "consensus";
   var META_STORE = "meta";
-  var THROTTLE_MS = 60 * 60 * 1000;
+  var THROTTLE_MS = 15 * 60 * 1000;         /* v2.0: 60 min → 15 min */
   var OSINT_THROTTLE_MS = 30 * 1000;
   var DECAY_HALF_LIFE_DAYS = 3;
   var MAX_AGE_DAYS = 30;
@@ -54,12 +54,16 @@
   function openDB(){
     return new Promise(function(resolve){
       try {
-        if(!("indexedDB" in window)){ resolve(null); return; }
+        if (!("indexedDB" in window)){ resolve(null); return; }
         var req = indexedDB.open(DB_NAME, DB_VERSION);
         req.onupgradeneeded = function(e){
           var d = e.target.result;
-          if(!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: "gid" });
-          if(!d.objectStoreNames.contains(META_STORE)) d.createObjectStore(META_STORE, { keyPath: "k" });
+          if (!d.objectStoreNames.contains(STORE)){
+            d.createObjectStore(STORE, { keyPath: "gid" });
+          }
+          if (!d.objectStoreNames.contains(META_STORE)){
+            d.createObjectStore(META_STORE, { keyPath: "k" });
+          }
         };
         req.onsuccess = function(e){ db = e.target.result; resolve(db); };
         req.onerror = function(){ resolve(null); };
@@ -68,7 +72,7 @@
   }
 
   function dbPutAll(items){
-    if(!db || !items.length) return Promise.resolve(false);
+    if (!db || !items.length) return Promise.resolve(false);
     return new Promise(function(res){
       try {
         var tx = db.transaction(STORE, "readwrite");
@@ -82,7 +86,7 @@
   }
 
   function dbGetAll(){
-    if(!db) return Promise.resolve([]);
+    if (!db) return Promise.resolve([]);
     return new Promise(function(res){
       try {
         var tx = db.transaction(STORE, "readonly");
@@ -94,7 +98,7 @@
   }
 
   function dbPutMeta(key, value){
-    if(!db) return Promise.resolve(false);
+    if (!db) return Promise.resolve(false);
     return new Promise(function(res){
       try {
         var tx = db.transaction(META_STORE, "readwrite");
@@ -106,7 +110,7 @@
   }
 
   function dbGetMeta(key){
-    if(!db) return Promise.resolve(null);
+    if (!db) return Promise.resolve(null);
     return new Promise(function(res){
       try {
         var tx = db.transaction(META_STORE, "readonly");
@@ -119,7 +123,7 @@
 
   function getTier(source){
     try {
-      if(window.WorldMapData && window.WorldMapData.getTier){
+      if (window.WorldMapData && window.WorldMapData.getTier){
         return window.WorldMapData.getTier(source);
       }
     } catch(e){}
@@ -128,36 +132,32 @@
 
   function calculateConfidence(sourcesCount, originsCount){
     var base;
-    if(sourcesCount >= 3) base = 0.85;
-    else if(sourcesCount >= 2) base = 0.60;
-    else if(sourcesCount >= 1) base = 0.33;
+    if (sourcesCount >= 3) base = 0.85;
+    else if (sourcesCount >= 2) base = 0.60;
+    else if (sourcesCount >= 1) base = 0.33;
     else base = 0;
-    if(originsCount >= 2) base = Math.min(1, base + 0.10);
-    if(sourcesCount >= 5) base = Math.min(1, base + 0.05);
+    if (originsCount >= 2) base = Math.min(1, base + 0.10);
+    if (sourcesCount >= 5) base = Math.min(1, base + 0.05);
     return Math.round(base * 100) / 100;
   }
 
   function getOrigin(source){
     try {
-      if(window.WDEventDetector && window.WDEventDetector.getSourceCountry){
+      if (window.WDEventDetector && window.WDEventDetector.getSourceCountry){
         var c = window.WDEventDetector.getSourceCountry(source);
-        if(c) return c;
+        if (c) return c;
       }
     } catch(e){}
     return null;
   }
 
-  /* ============================================================
-     v1.16: collectEvents zonder vertaal-bypass
-     ============================================================ */
   function collectEvents(){
     var combined = [];
     var seen = {};
-    var addedFromMap = 0, addedFromLast = 0, addedFromOsint = 0, skippedDup = 0;
 
     function eventKey(ev){
-      if(!ev) return null;
-      if(ev.id) return String(ev.id);
+      if (!ev) return null;
+      if (ev.id) return String(ev.id);
       var s = String(ev.source || "");
       var d = String(ev.date || "");
       var t = String(ev.title || "").slice(0, 80);
@@ -165,51 +165,43 @@
     }
 
     function add(ev){
-      if(!ev) return;
+      if (!ev) return;
       var k = eventKey(ev);
-      if(!k){ return; }
-      if(seen[k]){ skippedDup++; return; }
+      if (!k) return;
+      if (seen[k]) return;
       seen[k] = 1;
       combined.push(ev);
     }
 
     var state = window.MAPAPI && window.MAPAPI.state;
-
-    if(state){
-      if(Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
-        state.militaryEvents.forEach(function(ev){ add(ev); addedFromMap++; });
-      } else if(Array.isArray(state.events) && state.events.length > 0){
-        state.events.forEach(function(ev){ add(ev); addedFromMap++; });
+    if (state){
+      if (Array.isArray(state.militaryEvents) && state.militaryEvents.length > 0){
+        state.militaryEvents.forEach(add);
+      } else if (Array.isArray(state.events) && state.events.length > 0){
+        state.events.forEach(add);
       }
     }
 
-    if(!combined.length && Array.isArray(lastEvents) && lastEvents.length > 0){
-      lastEvents.forEach(function(ev){ add(ev); addedFromLast++; });
+    if (!combined.length && Array.isArray(lastEvents) && lastEvents.length > 0){
+      lastEvents.forEach(add);
     }
 
-    if(Array.isArray(osintEvents) && osintEvents.length > 0){
-      osintEvents.forEach(function(ev){ add(ev); addedFromOsint++; });
-      /* v1.16: vertaal-aanroep verwijderd — gebeurt al in ai-map.js */
-    }
-
-    if(window.wdLog && skippedDup > 0){
-      wdLog.info("[CONSENSUS] collectEvents — map:" + addedFromMap +
-        " last:" + addedFromLast + " osint:" + addedFromOsint +
-        " | dup geskipt:" + skippedDup + " | totaal:" + combined.length);
+    if (Array.isArray(osintEvents) && osintEvents.length > 0){
+      osintEvents.forEach(add);
     }
 
     return combined;
   }
 
   function ensureProvinceMapper(){
-    if(!window.ProvinceMapper) return false;
-    if(ProvinceMapper.isReady()) return true;
+    if (!window.ProvinceMapper) return false;
+    if (ProvinceMapper.isReady()) return true;
     try {
       var geojsons = null;
-      if(window.ConflictAreas && window.ConflictAreas.state){
+      if (window.ConflictAreas && window.ConflictAreas.state){
         geojsons = window.ConflictAreas.state.geojsons;
       }
-      if(geojsons && Object.keys(geojsons).length > 0){
+      if (geojsons && Object.keys(geojsons).length > 0){
         var ok = ProvinceMapper.init(geojsons);
         LOG("Auto-init ProvinceMapper: " + (ok ? "OK" : "faalde"));
         return ok;
@@ -221,97 +213,96 @@
   }
 
   function getActors(ev, prov){
-    if(ev.actorCountries && ev.actorCountries.length > 0) return ev.actorCountries;
+    if (ev.actorCountries && ev.actorCountries.length > 0) return ev.actorCountries;
     try {
-      if(window.WorldMapData && window.WorldMapData.detectActorsInTitle){
+      if (window.WorldMapData && window.WorldMapData.detectActorsInTitle){
         var text = (ev.title || "") + " " + (ev.description || "");
         var detected = window.WorldMapData.detectActorsInTitle(text);
-        if(detected && detected.length > 0) return detected;
+        if (detected && detected.length > 0) return detected;
       }
     } catch(e){}
-    if(prov && prov.iso3 && COUNTRY_DEFAULT_ACTOR[prov.iso3]){
-      return [COUNTRY_DEFAULT_ACTOR[prov.iso3]];
-    }
+    /* v2.0: geen fallback naar COUNTRY_DEFAULT_ACTOR — dat gaf valse overrides */
     return [];
   }
 
   function getCategoryBoost(category){
-    if(category === "militair" || category === "crime") return 1.0;
-    if(category === "politiek") return 0.4;
-    if(category === "protest") return 0.3;
-    if(category === "civiel") return 0.2;
+    if (category === "militair" || category === "crime") return 1.0;
+    if (category === "politiek") return 0.4;
+    if (category === "protest") return 0.3;
+    if (category === "civiel") return 0.2;
     return 0;
   }
 
   function getAllSources(ev){
     var all = [];
-    if(ev.source) all.push(ev.source);
-    if(ev.isCluster && Array.isArray(ev.sources)){
+    if (ev.source) all.push(ev.source);
+    if (ev.isCluster && Array.isArray(ev.sources)){
       ev.sources.forEach(function(s){
-        if(s && s.name && all.indexOf(s.name) === -1) all.push(s.name);
+        if (s && s.name && all.indexOf(s.name) === -1) all.push(s.name);
       });
     }
     return all;
   }
 
+  /* ══════════════════════════════════════════════════════════════
+     v2.0: getFallbackActor retourneert NULL i.p.v. "Onbekende X"
+     ══════════════════════════════════════════════════════════════ */
   function getFallbackActor(ev, prov){
-    if(ev.actorCountries && ev.actorCountries.length > 0){
-      return "Onbekende " + ev.actorCountries[0];
-    }
-    if(prov && prov.iso3 && COUNTRY_DEFAULT_ACTOR[prov.iso3]){
-      return "Onbekende " + COUNTRY_DEFAULT_ACTOR[prov.iso3];
-    }
-    return "Onbekende actor";
+    /* Geen actor → geen consensus. Liever niets dan een gok. */
+    return null;
   }
 
   function processEvent(ev, aggregator){
-    if(!ev) return;
+    if (!ev) return;
 
     var categoryBoost = getCategoryBoost(ev.category);
-    if(categoryBoost === 0) return;
+    if (categoryBoost === 0) return;
 
     var physicalBoost = 1.0;
-    if(ev.countsForHeat === false) physicalBoost = 0.3;
+    if (ev.countsForHeat === false) physicalBoost = 0.3;
 
-    if(CONFLICT_ISO3.indexOf(ev.countryISO3) === -1) return;
+    if (CONFLICT_ISO3.indexOf(ev.countryISO3) === -1) return;
 
     var ts = new Date(ev.date).getTime();
-    if(isNaN(ts)) return;
+    if (isNaN(ts)) return;
     var ageDays = (Date.now() - ts) / 86400000;
-    if(ageDays > MAX_AGE_DAYS) return;
+    if (ageDays > MAX_AGE_DAYS) return;
 
     var tier = getTier(ev.source || "");
     var decay = Math.pow(0.5, ageDays / DECAY_HALF_LIFE_DAYS);
     var weight = tier * decay * physicalBoost * categoryBoost;
-    if(weight < 0.01) return;
+    if (weight < 0.01) return;
 
     var prov = null;
-    if(typeof ev.lat === "number" && typeof ev.lng === "number"){
+    if (typeof ev.lat === "number" && typeof ev.lng === "number"){
       prov = ProvinceMapper.getProvinceForPoint(ev.lat, ev.lng, ev.countryISO3);
     }
-    if(!prov){
+    if (!prov){
       var cityKey = null;
       var t = String(ev.title || "").toLowerCase();
       var locs = (window.WorldMapData && window.WorldMapData.LOCATIONS) || {};
       var bestLen = 0;
-      for(var key in locs){
-        if(key.length < 4) continue;
-        if(t.indexOf(key) !== -1 && key.length > bestLen){ cityKey = key; bestLen = key.length; }
+      for (var key in locs){
+        if (key.length < 4) continue;
+        if (t.indexOf(key) !== -1 && key.length > bestLen){
+          cityKey = key; bestLen = key.length;
+        }
       }
-      if(cityKey) prov = ProvinceMapper.getProvinceForCity(cityKey);
+      if (cityKey) prov = ProvinceMapper.getProvinceForCity(cityKey);
     }
-    if(!prov || !prov.iso3) return;
+    if (!prov || !prov.iso3) return;
 
     var actors = getActors(ev, prov);
-    if(!actors || !actors.length){
-      actors = [getFallbackActor(ev, prov)];
-    }
+    if (!actors || !actors.length) return;   /* v2.0: skip als geen actor */
 
     var gid = prov.iso3 + "|" + (prov.admin1 || "*");
-    if(!aggregator[gid]){
+    if (!aggregator[gid]){
       aggregator[gid] = {
-        gid: gid, iso3: prov.iso3, admin1: prov.admin1 || null,
-        actors: {}, rawClaimCount: 0
+        gid: gid,
+        iso3: prov.iso3,
+        admin1: prov.admin1 || null,
+        actors: {},
+        rawClaimCount: 0
       };
     }
     var bucket = aggregator[gid];
@@ -319,15 +310,19 @@
 
     actors.forEach(function(actorRaw){
       var actor = ProvinceMapper.resolveActor(actorRaw);
-      if(!actor || actor === "Onbekend"){
-        actor = getFallbackActor(ev, prov);
+      if (!actor || actor === "Onbekend"){
+        /* v2.0: skip i.p.v. fallback gok */
+        return;
       }
-      if(!actor) return;
 
-      if(!bucket.actors[actor]){
+      if (!bucket.actors[actor]){
         bucket.actors[actor] = {
-          actor: actor, score: 0,
-          sources: {}, origins: {}, count: 0, lastClaim: 0
+          actor: actor,
+          score: 0,
+          sources: {},
+          origins: {},
+          count: 0,
+          lastClaim: 0
         };
       }
       var ab = bucket.actors[actor];
@@ -336,10 +331,10 @@
       ab.lastClaim = Math.max(ab.lastClaim, ts);
 
       getAllSources(ev).forEach(function(src){
-        if(!src) return;
+        if (!src) return;
         ab.sources[src] = 1;
         var origin = getOrigin(src);
-        if(origin) ab.origins[origin] = 1;
+        if (origin) ab.origins[origin] = 1;
       });
     });
   }
@@ -349,27 +344,27 @@
     Object.keys(aggregator).forEach(function(gid){
       var bucket = aggregator[gid];
       var actorKeys = Object.keys(bucket.actors);
-      if(!actorKeys.length) return;
+      if (!actorKeys.length) return;
 
       var ranked = actorKeys.map(function(k){ return bucket.actors[k]; })
         .sort(function(a, b){ return b.score - a.score; });
 
       var totalScore = ranked.reduce(function(s, a){ return s + a.score; }, 0);
-      if(totalScore < 0.01) return;
+      if (totalScore < 0.01) return;
 
       var best = null;
-      for(var i = 0; i < ranked.length; i++){
+      for (var i = 0; i < ranked.length; i++){
         var a = ranked[i];
         var srcCount = Object.keys(a.sources).length;
         var orgCount = Object.keys(a.origins).length;
         var conf = calculateConfidence(srcCount, orgCount);
-        if(srcCount >= MIN_ACTOR_SOURCES && conf >= MIN_DOMINANT_CONFIDENCE){
+        if (srcCount >= MIN_ACTOR_SOURCES && conf >= MIN_DOMINANT_CONFIDENCE){
           best = a;
           break;
         }
       }
 
-      if(!best) return;
+      if (!best) return;
 
       var bestShare = best.score / totalScore;
       var bestSourceCount = Object.keys(best.sources).length;
@@ -377,18 +372,23 @@
       var confidence = calculateConfidence(bestSourceCount, bestOriginCount);
 
       var contestedActors = [];
-      for(var j = 0; j < ranked.length && j < 3; j++){
+      for (var j = 0; j < ranked.length && j < 3; j++){
         var c = ranked[j];
         var share = c.score / totalScore;
         var srcCount2 = Object.keys(c.sources).length;
-        if(share >= MIN_ACTOR_SHARE && srcCount2 >= MIN_ACTOR_SOURCES){
-          contestedActors.push({ actor: c.actor, share: Math.round(share * 100) });
+        if (share >= MIN_ACTOR_SHARE && srcCount2 >= MIN_ACTOR_SOURCES){
+          contestedActors.push({
+            actor: c.actor,
+            share: Math.round(share * 100)
+          });
         }
       }
       var contested = contestedActors.length >= 2;
 
       results.push({
-        gid: gid, iso3: bucket.iso3, admin1: bucket.admin1,
+        gid: gid,
+        iso3: bucket.iso3,
+        admin1: bucket.admin1,
         dominantActor: best.actor,
         consensusStrength: Math.round(bestShare * 100) / 100,
         confidence: confidence,
@@ -406,16 +406,16 @@
 
   function runNow(opts){
     opts = opts || {};
-    if(isRunning && !opts.force) return Promise.resolve(consensusByGid);
+    if (isRunning && !opts.force) return Promise.resolve(consensusByGid);
     isRunning = true;
 
     var startTime = Date.now();
 
-    if(!ensureProvinceMapper()){
+    if (!ensureProvinceMapper()){
       var retries = (opts._retries || 0);
-      if(retries < 8){
+      if (retries < 8){
         isRunning = false;
-        LOG("PM niet ready — retry " + (retries+1) + "/8");
+        LOG("PM niet ready — retry " + (retries + 1) + "/8");
         return new Promise(function(resolve){
           setTimeout(function(){
             runNow({ force: true, _retries: retries + 1 }).then(resolve);
@@ -428,7 +428,7 @@
     }
 
     var events = collectEvents();
-    if(!events.length){
+    if (!events.length){
       isRunning = false;
       LOG("Geen events");
       return Promise.resolve(consensusByGid);
@@ -455,7 +455,7 @@
       return dbPutMeta("lastRun", lastRun);
     }).catch(function(){}).then(function(){
       try {
-        if(window.WarDesk && WarDesk.events){
+        if (window.WarDesk && WarDesk.events){
           WarDesk.events.emit("province:consensus", {
             byGid: consensusByGid,
             count: results.length,
@@ -470,7 +470,7 @@
   }
 
   function scheduleRun(delayMs){
-    if(_runTimer) clearTimeout(_runTimer);
+    if (_runTimer) clearTimeout(_runTimer);
     _runTimer = setTimeout(function(){
       _runTimer = null;
       runNow();
@@ -482,6 +482,7 @@
     return consensusByGid[iso3 + "|" + (admin1 || "*")] || null;
   }
   function getAllConsensus(){ return consensusByGid; }
+
   function getStats(){
     var arr = Object.keys(consensusByGid).map(function(k){ return consensusByGid[k]; });
     return {
@@ -497,51 +498,54 @@
 
   function init(){
     return openDB().then(function(){
-      return dbGetAll().then(function(rows){
-        rows.forEach(function(r){ consensusByGid[r.gid] = r; });
-        LOG("Init klaar — " + rows.length + " provincies uit cache");
-        return dbGetMeta("lastRun");
-      }).then(function(last){
-        if(last) lastRun = last;
-        return true;
-      });
+      return dbGetAll();
+    }).then(function(rows){
+      rows.forEach(function(r){ consensusByGid[r.gid] = r; });
+      LOG("Init klaar — " + rows.length + " provincies uit cache");
+      return dbGetMeta("lastRun");
+    }).then(function(last){
+      if (last) lastRun = last;
+      return true;
     }).then(function(){
-      if(window.WarDesk && WarDesk.events && WarDesk.events.on){
+      if (window.WarDesk && WarDesk.events && WarDesk.events.on){
         WarDesk.events.on("map:military-events", function(events){
           lastEvents = Array.isArray(events) ? events : [];
           var sinceLast = Date.now() - lastRun;
-          if(sinceLast > THROTTLE_MS) scheduleRun(3000);
+          if (sinceLast > THROTTLE_MS) scheduleRun(3000);
           else LOG("Throttle — " + Math.round((THROTTLE_MS - sinceLast) / 60000) + " min");
         });
         WarDesk.events.on("osint:military-events", function(events){
           osintEvents = Array.isArray(events) ? events : [];
           LOG("OSINT events ontvangen: " + osintEvents.length);
           var sinceLast = Date.now() - lastRun;
-          if(sinceLast > OSINT_THROTTLE_MS){
+          if (sinceLast > OSINT_THROTTLE_MS){
             LOG("OSINT run direct (throttle OK)");
             scheduleRun(2000);
           } else {
-            LOG("OSINT throttle — wacht " + Math.round((OSINT_THROTTLE_MS - sinceLast) / 1000) + " sec");
+            LOG("OSINT throttle — wacht " +
+                Math.round((OSINT_THROTTLE_MS - sinceLast) / 1000) + " sec");
           }
         });
         LOG("EventBus listeners actief (MAP + OSINT)");
       }
       setInterval(function(){
-        if(document.hidden) return;
-        if(Date.now() - lastRun > 65 * 60 * 1000) scheduleRun(1000);
+        if (document.hidden) return;
+        if (Date.now() - lastRun > 65 * 60 * 1000) scheduleRun(1000);
       }, 5 * 60 * 1000);
       return true;
     });
   }
 
   window.ProvinceConsensus = {
-    init: init, runNow: runNow,
+    init: init,
+    runNow: runNow,
     getConsensus: getConsensus,
     getConsensusForArea: getConsensusForArea,
     getAllConsensus: getAllConsensus,
     getStats: getStats,
-    _version: "v1.16"
+    _version: "v2.0"
   };
 
-  LOG("province-consensus.js v1.16 geladen (geen vertaal-bypass)");
+  LOG("province-consensus.js v2.0 geladen (geen valse fallback-actors)");
+
 })();
