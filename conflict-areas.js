@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v13.1
-   - v13.1: DEBUG — logt GADM feature-namen per land
-   - v13.0: Fill = baseline, rand = attack_intensity
+   WAR DESK — conflict-areas.js v14.0
+   - v14.0: Saoedi-Arabië toegevoegd aan CONFLICTS
+   - v13.1: DEBUG GADM logging (kan later verwijderd worden)
    ============================================================ */
 
 (function(){
@@ -69,6 +69,17 @@
         "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_YEM_1.json"
       ],
       countrySources: adm0Sources("YEM")
+    },
+    "SAU": {
+      name: "Saoedi-Arabië", level: "ADM1", center: [24.71, 46.68, 5],
+      parties: {
+        "Saoedi-Arabië": { color: "#2A6FDB", fill: "#2A6FDB" }
+      },
+      oblastSources: [
+        "https://geodata.ucdavis.edu/gadm/gadm4.1/json/gadm41_SAU_1.json",
+        "https://geodata.ucdavis.edu/gadm/gadm4.0/json/gadm40_SAU_1.json"
+      ],
+      countrySources: adm0Sources("SAU")
     },
     "SDN": {
       name: "Soedan", level: "ADM1", center: [15.55, 32.53, 6],
@@ -199,7 +210,7 @@
   };
 
   var ACTIVE_CONFLICTS = [
-    "SYR", "LBN", "YEM", "ISR", "PSE", "SAU",
+    "SYR", "LBN", "YEM", "SAU", "ISR", "PSE",
     "UKR",
     "SDN", "ETH",
     "MLI", "BFA", "NER",
@@ -516,7 +527,7 @@
           click: function(e){
             try {
               if(L.DomEvent) L.DomEvent.stopPropagation(e);
-              var area = { id: feature.properties.id, name: feature.properties.name, provinceName: feature.properties.provinceName, feature: feature };
+              var area = { id: feature.properties.id, name: feature.properties.name, provinceName: feature.properties.provinceName, feature: feature, iso3: conflictIso };
               openPanel(area, conflictIso);
             } catch(err){}
           }
@@ -554,7 +565,8 @@
     panel.innerHTML =
       '<div class="wm-panel-head"><div class="wm-panel-title" id="caPanelTitle">—</div>' +
       '<button class="wm-panel-close" id="caPanelClose" aria-label="Sluiten">✕</button></div>' +
-      '<div class="wm-panel-stats" id="caPanelStats"></div>';
+      '<div class="wm-panel-stats" id="caPanelStats"></div>' +
+      '<div id="caPanelAdminSlot"></div>';
     document.body.appendChild(panel);
     CA.panel = panel;
     panel.querySelector("#caPanelClose").addEventListener("click", function(){ panel.classList.remove("show"); });
@@ -594,13 +606,15 @@
         attackLine +
         '<div class="wm-panel-conf-detail">' + escapeHtml(sinceLabel) + (baseline && baseline.source ? ' · bron: ' + escapeHtml(baseline.source) : '') + '</div>';
 
+      /* Admin slot — laat admin.js hier een knop injecteren als admin modus actief */
+      if (window.WDAdmin && window.WDAdmin.onPanelOpen){
+        try { window.WDAdmin.onPanelOpen(area, conflictIso); } catch(e){}
+      }
+
       requestAnimationFrame(function(){ panel.classList.add("show"); });
     } catch(err){}
   }
 
-  /* ══════════════════════════════════════════════════════════════
-     v13.1: DEBUG — log GADM feature-namen
-     ══════════════════════════════════════════════════════════════ */
   function logFeatureNames(conflictIso, oblastsJson){
     try {
       if (!oblastsJson || !oblastsJson.features) return;
@@ -608,7 +622,6 @@
         if (!f || !f.properties) return "?";
         return f.properties.name || "?";
       });
-      /* Splits in blokken van 8 namen per log-regel voor leesbaarheid */
       var chunks = [];
       for (var i = 0; i < names.length; i += 8){
         chunks.push(names.slice(i, i + 8).join(" | "));
@@ -623,7 +636,6 @@
   function initOneConflict(conflictIso){
     return loadOblasts(conflictIso).then(function(oblastsJson){
       logFeatureNames(conflictIso, oblastsJson);
-
       CA.geojsons[conflictIso] = oblastsJson;
       return loadCountry(conflictIso).then(function(countryJson){
         CA.countryGeojsons[conflictIso] = countryJson;
@@ -643,7 +655,7 @@
       }, Promise.resolve());
     }).then(function(){
       CA.isInitialized = true; CA.isLoaded = true;
-      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten geladen (v13.1)");
+      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten geladen (v14.0)");
       return true;
     });
   }
@@ -657,9 +669,19 @@
     return _initPromise;
   }
 
+  function refreshLayerForIso(iso3){
+    if (!CA.layers[iso3]) return;
+    CA._currentConflictIso = iso3;
+    CA._currentConflict = getConflict(iso3);
+    CA.layers[iso3].eachLayer(function(l){
+      if (l.feature) try { l.setStyle(styleProvince(l.feature)); } catch(e){}
+    });
+  }
+
   window.ConflictAreas = {
-    init: init, state: CA, _version: "v13.1",
-    _conflicts: CONFLICTS, _activeConflicts: ACTIVE_CONFLICTS
+    init: init, state: CA, _version: "v14.0",
+    _conflicts: CONFLICTS, _activeConflicts: ACTIVE_CONFLICTS,
+    refreshLayer: refreshLayerForIso
   };
 
   var tries = 0, MAX = 240;
@@ -697,6 +719,6 @@
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v13.1 geladen (met GADM debug-log)");
+  LOG("conflict-areas.js v14.0 geladen (SAU toegevoegd + GADM debug)");
 
 })();
