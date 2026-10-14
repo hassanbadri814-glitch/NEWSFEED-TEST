@@ -1,11 +1,11 @@
 /* ============================================================
-   WAR DESK v1.21 — AI Chat Module
-   - v1.21: onMeta vangt nu ook meta.sources op, zodat bronnen
-            uit de streaming-worker in de UI verschijnen.
-   - v1.20: Warmup uitgeschakeld (data/batterij-besparing).
-            Eerste vraag duurt ~2s langer, daarna alles gecached.
-   - v1.19: getMilitaryEvents fallback verbeterd (MAPAPI → MapAI)
-   - v1.18: Voice input (Web Speech API) + Dagoverzicht
+   WAR DESK v1.22 — AI Chat Module
+   - v1.22: AUTH_TOKEN verwijderd. Beveiliging loopt nu via
+            Cloudflare Worker (Origin whitelist + rate limit).
+   - v1.21: onMeta vangt meta.sources op
+   - v1.20: Warmup uitgeschakeld
+   - v1.19: getMilitaryEvents fallback verbeterd
+   - v1.18: Voice input + Dagoverzicht
    - v1.17: Cache warming
    - v1.16: Retry met exponentiële backoff
    - v1.15: SSE streaming + stop-knop + JSON fallback
@@ -66,10 +66,9 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.21 geladen (warmup uit + meta.sources fix)");
+  LOG("v1.22 geladen (token-vrij, server-side beveiligd)");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
-  var AUTH_TOKEN = "wardesk-2026-soft-auth";
   var MAX_ARTICLES = 35;
   var MAX_ARTICLES_MILITARY = 15;
   var MAX_MILITARY = 50;
@@ -109,7 +108,7 @@
   var warmupState = {
     scheduled: false,
     started: false,
-    aborted: true, /* v1.20: direct geaborteerd */
+    aborted: true,
     completed: [],
     currentAbort: null
   };
@@ -167,6 +166,7 @@
     var m = String(e.message);
     if (/HTTP 40[0-4]/.test(m)) return true;
     if (/HTTP 413/.test(m)) return true;
+    if (/HTTP 429/.test(m)) return true;
     if (/Unauthorized/i.test(m)) return true;
     return false;
   }
@@ -937,11 +937,11 @@
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Auth-Token": AUTH_TOKEN,
           "Accept": "text/event-stream"
         },
         body: JSON.stringify(payload),
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: "omit"
       });
     } catch(e){ clearTimeout(timeoutId); throw e; }
 
@@ -951,7 +951,7 @@
       var friendly = "Worker HTTP " + r.status;
       try {
         var errData = JSON.parse(errText);
-        if (errData.error) friendly = errData.error;
+        if (errData.error) friendly = errData.error + (errData.hint ? " — " + errData.hint : "");
       } catch(e){}
       var httpErr = new Error(friendly);
       httpErr._httpStatus = r.status;
@@ -1211,11 +1211,11 @@
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Auth-Token": AUTH_TOKEN,
           "Accept": "text/event-stream"
         },
         body: JSON.stringify(payload),
-        signal: controller.signal
+        signal: controller.signal,
+        credentials: "omit"
       });
 
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -1302,9 +1302,6 @@
     });
   }
 
-  /* ============================================================
-     v1.20: warmup is uitgeschakeld
-     ============================================================ */
   function scheduleWarmup(){
     warmupState.scheduled = true;
     warmupState.aborted = true;
@@ -1400,9 +1397,6 @@
         payload.militarySubtype = (militaryCtx.intent.subtype && militaryCtx.intent.subtype !== "actief") ? militaryCtx.intent.subtype : null;
       }
 
-      /* ============================================================
-         v1.21: onMeta vangt nu ook sources op
-         ============================================================ */
       var onMeta = function(meta){
         if (!AI.streaming) return;
         if (meta.provider) AI.streaming.provider = meta.provider;
@@ -1564,8 +1558,6 @@
     initDayOverview();
     bindUI();
     renderMessages();
-    /* v1.20: warmup uitgeschakeld — geen automatische API-calls bij page-load */
-    // scheduleWarmup();
     LOG("Warmup overgeslagen (v1.20 — data/batterij)");
   }
 
@@ -1578,7 +1570,7 @@
     abortWarmup: abortWarmup,
     dayOverview: refreshDayOverview,
     state: AI,
-    version: "v1.21",                          /* v1.21: versie zichtbaar in API */
+    version: "v1.22",
     _warmupState: warmupState,
     _dayState: dayState,
     _voiceState: voiceState,
@@ -1615,5 +1607,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.21 geladen (meta.sources fix)");
+  wdLog.info("[WAR DESK] ai-chat.js v1.22 geladen (token-vrij)");
 })();
