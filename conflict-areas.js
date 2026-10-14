@@ -1,5 +1,8 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v15.0
+   WAR DESK — conflict-areas.js v15.1
+   - v15.1: openPanel toont confidence + verifiedAt + notes
+            (Ronde 5 P3-3 migratie)
+            + refreshAll() methode voor timeline
    - v15.0: Gesplitst in 3 modules (data, fetch, orchestrator)
            + Loading/error/empty states op de kaart
    - v14.1: WDGeo + WDProxy + safeCatch
@@ -369,6 +372,33 @@
           '⚠ Geen baseline-data voor deze provincie — voeg toe via Admin</div>';
       }
 
+      /* v15.1: confidence + verifiedAt + notes tonen als ze bestaan */
+      var confidenceLine = "";
+      if (baseline){
+        var parts = [];
+        if (typeof baseline.confidence === "number"){
+          parts.push("Confidence: " + Math.round(baseline.confidence * 100) + "%");
+        }
+        if (baseline.verifiedAt){
+          parts.push("Verified: " + baseline.verifiedAt);
+        }
+        if (parts.length){
+          var confClass2 = "conf-high";
+          if (typeof baseline.confidence === "number"){
+            if (baseline.confidence < 0.4) confClass2 = "conf-low";
+            else if (baseline.confidence < 0.7) confClass2 = "conf-med";
+          }
+          confidenceLine = '<div class="wm-panel-conf-detail ' + confClass2 + '" style="font-weight:700">' +
+            parts.map(function(p){ return _esc(p); }).join(' · ') + '</div>';
+        }
+      }
+
+      var notesLine = "";
+      if (baseline && baseline.notes){
+        notesLine = '<div class="wm-panel-conf-detail" style="opacity:.75;font-style:italic;font-size:.65rem">' +
+          '📝 ' + _esc(baseline.notes) + '</div>';
+      }
+
       var statsEl = panel.querySelector("#caPanelStats");
       var confClass = baseline ? "conf-high" : "conf-low";
       statsEl.innerHTML =
@@ -379,6 +409,8 @@
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' +
           Math.round(attackIntensity * 100) + '%</div><div class="wm-panel-stat-lbl">Intensiteit</div></div>' +
         unknownLine +
+        confidenceLine +
+        notesLine +
         attackLine +
         '<div class="wm-panel-conf-detail">' + _esc(sinceLabel) +
           (baseline && baseline.source ? ' · bron: ' + _esc(baseline.source) : '') + '</div>';
@@ -474,7 +506,7 @@
         setStatus("error", "Kaart kon niet laden — check verbinding");
       }
 
-      LOG("Init klaar — " + okCount + "/" + results.length + " conflicten (v15.0)");
+      LOG("Init klaar — " + okCount + "/" + results.length + " conflicten (v15.1)");
 
       try {
         if (window.WarDesk && WarDesk.events){
@@ -525,10 +557,15 @@
   window.ConflictAreas = {
     init: init,
     state: CA,
-    _version: "v15.0",
+    _version: "v15.1",
     _conflicts: CONFLICTS,
     _activeConflicts: ACTIVE_CONFLICTS,
     refreshLayer: refreshLayerForIso,
+    refreshAll: function(){
+      ACTIVE_CONFLICTS.forEach(function(iso){
+        refreshLayerForIso(iso);
+      });
+    },
     setStatus: setStatus
   };
 
@@ -582,9 +619,24 @@
           });
         }, 800);
       });
+
+      /* v15.1: timeline-changed → alle lagen hertekenen */
+      window.WarDesk.events.on("baseline:timeline-changed", function(){
+        if (!CA.isInitialized) return;
+        ACTIVE_CONFLICTS.forEach(function(iso){
+          refreshLayerForIso(iso);
+        });
+        LOG("Timeline gewijzigd — alle lagen hertekend");
+      });
+
+      /* baseline:updated → alleen de betreffende laag hertekenen */
+      window.WarDesk.events.on("baseline:updated", function(data){
+        if (!CA.isInitialized || !data || !data.iso3) return;
+        refreshLayerForIso(data.iso3);
+      });
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v15.0 geladen (split: data + fetch + orchestrator)");
+  LOG("conflict-areas.js v15.1 geladen (confidence + timeline hooks)");
 
 })();
