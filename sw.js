@@ -1,14 +1,11 @@
 /* ============================================================
-   WAR DESK Service Worker v4.40
-   - v4.40: JS/CSS nu network-first met 3s timeout
-            (updates komen direct door, geen hard refresh meer)
-            PRECACHE bijgewerkt: nieuwe WD modules, oude
-            province-consensus/consensus-history verwijderd
-   - v4.35: Tile-caching voor OpenFreeMap/CARTO
-   - v4.31: MEDIA_CACHE cache-first
+   WAR DESK Service Worker v4.41
+   - v4.41: styles.css + timeline.js + icons + consensus modules
+            maplibre-labels.js verwijderd (dode code)
+   - v4.40: JS/CSS network-first met 3s timeout
    ============================================================ */
 
-const CACHE_VERSION = 'v4.40';
+const CACHE_VERSION = 'v4.41';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 const TILE_CACHE    = 'wardesk-tiles-v1';
@@ -19,8 +16,14 @@ const PRECACHE_ASSETS = [
   './',
   './index.html',
   './offline.html',
+  './styles.css',                     /* ← v4.41 TOEGEVOEGD */
   './icon.svg',
   './manifest.json',
+
+  /* Icons (voor PWA-installatie) */
+  './icons/icon-144.png',             /* ← v4.41 TOEGEVOEGD */
+  './icons/icon-152.png',             /* ← v4.41 TOEGEVOEGD */
+  './icons/icon-180.png',             /* ← v4.41 TOEGEVOEGD */
 
   /* Core */
   './config.js',
@@ -28,7 +31,7 @@ const PRECACHE_ASSETS = [
   './storage.js',
   './store.js',
 
-  /* WD modules (Ronde 2) */
+  /* WD modules */
   './wd-utils.js',
   './wd-geo.js',
   './wd-proxy.js',
@@ -56,12 +59,15 @@ const PRECACHE_ASSETS = [
   './baseline.js',
   './worldmap.js',
   './province-mapper.js',
+  './province-consensus.js',          /* ← v4.41 TOEGEVOEGD */
+  './consensus-history.js',           /* ← v4.41 TOEGEVOEGD */
   './city-status.js',
   './capture-tracker.js',
   './conflict-areas-data.js',
   './conflict-areas-fetch.js',
   './conflict-areas.js',
-  './maplibre-labels.js',
+  './timeline.js',                    /* ← v4.41 TOEGEVOEGD */
+  /* maplibre-labels.js VERWIJDERD — dode code */
 
   /* OSINT */
   './osint-feeds.js',
@@ -83,7 +89,6 @@ const PRECACHE_ASSETS = [
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE, TILE_CACHE];
 
-/* Tile-hosts die we cachen (CARTO + OSM fallback) */
 const TILE_HOSTS = [
   'a.basemaps.cartocdn.com',
   'b.basemaps.cartocdn.com',
@@ -149,7 +154,6 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(req.url);
 
-  /* Tiles — cache-first, lange TTL */
   if (isTileRequest(url)) {
     event.respondWith(
       caches.open(TILE_CACHE).then(cache =>
@@ -169,7 +173,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* Alleen same-origin verwerken voor de rest */
   if (url.origin !== location.origin) return;
 
   const isImage = /\.(png|jpe?g|gif|webp|svg|ico|bmp|avif)$/i.test(url.pathname);
@@ -180,7 +183,6 @@ self.addEventListener('fetch', event => {
                || url.pathname.endsWith('/');
   const isJson  = /\.json$/i.test(url.pathname);
 
-  /* Images + fonts — cache-first (veranderen nooit zonder versie-bump) */
   if (isImage || isFont) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(cache =>
@@ -198,7 +200,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* JS/CSS — NETWORK-FIRST met 3s timeout, fallback cache */
   if (isAsset) {
     event.respondWith(
       (async () => {
@@ -216,7 +217,6 @@ self.addEventListener('fetch', event => {
           }
           return res;
         } catch (err) {
-          /* Netwerk faalde of timeout — val terug op cache */
           if (cached) return cached;
           return new Response('', { status: 503, statusText: 'Offline' });
         }
@@ -225,7 +225,6 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  /* HTML/JSON — network-first, altijd cache updaten */
   if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
