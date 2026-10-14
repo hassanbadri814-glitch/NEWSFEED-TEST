@@ -1,11 +1,12 @@
 /* ============================================================
-   WAR DESK — worldmap.js v4.1
-   - v4.1: Transition-state dots (gele pulserende ring) voor
-           steden die "verloren" zijn maar nog geen nieuwe
-           controller hebben
-           + city:control-lost listener
-   - v4.0: canonieke kleur + direct rerender + eigen pane z=470
-           + stale decay (7d/14d) + contested dots
+   WAR DESK — worldmap.js v5.0
+   - v5.0: FUNDAMENTELE SCHEIDING
+           * Fill-kleur = alleen baseline (via conflict-areas.js)
+           * WorldMap tekent alleen landen die NIET in CONFLICTS
+             zitten, met neutrale donkere fill + heat-randen
+           * Geen rood-oranje fill meer op basis van heat
+           * Dynamische check via ConflictAreas._activeConflicts
+   - v4.1: city-dots + transition-state (behouden)
    ============================================================ */
 
 (function(){
@@ -15,14 +16,12 @@
     try{ wdLog.info.apply(null, ["[WM]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  var COUNTRIES_WITH_AREA_LAYER = ["UKR", "SYR", "LBN", "YEM", "ISR", "PSE"];
-
   var GEOJSON_URLS = [
     "https://cdn.jsdelivr.net/gh/nvkelso/natural-earth-vector@master/geojson/ne_110m_admin_0_countries.geojson",
     "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson"
   ];
   var CACHE_KEY = "wardesk_countries_geojson";
-  var CACHE_VERSION = "v7";
+  var CACHE_VERSION = "v8";
   var CACHE_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
   var STALE_WARN_DAYS = 7;
@@ -38,6 +37,9 @@
 
   var _legendRetryTimer = null;
 
+  /* ════════════════════════════════════════════════════════════
+     GEOJSON LADEN
+     ════════════════════════════════════════════════════════════ */
   function loadGeoJSON(){
     return new Promise(function(resolve){
       try {
@@ -101,9 +103,14 @@
     return p.NAME_NL || p.name_nl || p.NAME || p.name || p.ADMIN || p.admin || "?";
   }
 
-  function hasAreaLayer(iso3){
+  /* ════════════════════════════════════════════════════════════
+     v5.0: dynamische check — wie tekent dit land?
+     ════════════════════════════════════════════════════════════ */
+  function isRenderedByConflictAreas(iso3){
     if (!iso3) return false;
-    return COUNTRIES_WITH_AREA_LAYER.indexOf(iso3.toUpperCase()) !== -1;
+    if (!window.ConflictAreas) return false;
+    var active = window.ConflictAreas._activeConflicts || [];
+    return active.indexOf(iso3) !== -1;
   }
 
   function getPeriodScale(periodDays){
@@ -222,84 +229,6 @@
     return { targets: targetHeatMap, actors: actorHeatMap };
   }
 
-  function getConflictLevel(heat){
-    var th = (window.WORLDMAP_THRESHOLDS || {}).heat || {};
-    var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
-    var scale = getPeriodScale(periodDays);
-    var warm = (th.warm || 0.5) * scale;
-    var hot = (th.hot || 1.5) * scale;
-    var scorching = (th.scorching || 3) * scale;
-    if (heat >= scorching) return "scorching";
-    if (heat >= hot) return "hot";
-    if (heat >= warm) return "warm";
-    return "cold";
-  }
-
-  function getFillColor(level){
-    var c = window.CONFLICT_COLORS || {};
-    if (level === "scorching") return c.scorching || "#d41919";
-    if (level === "hot") return c.hot || "#a52a2a";
-    if (level === "warm") return c.warm || "#7a4040";
-    return c.cold || "#2f2f38";
-  }
-
-  function getFillOpacity(level, confidence){
-    var baseOpacity;
-    if (level === "scorching") baseOpacity = 0.88;
-    else if (level === "hot") baseOpacity = 0.78;
-    else if (level === "warm") baseOpacity = 0.65;
-    else return 0.30;
-    if (typeof confidence === "number" && confidence >= 0){
-      var factor = 0.55 + (Math.max(0, Math.min(100, confidence)) / 100) * 0.45;
-      return baseOpacity * factor;
-    }
-    return baseOpacity;
-  }
-
-  function styleCountry(feature){
-    var iso3 = getISO3(feature);
-    if (hasAreaLayer(iso3)){
-      return {
-        fillColor: "transparent", fillOpacity: 0,
-        color: "transparent", weight: 0, opacity: 0, interactive: false
-      };
-    }
-    var targetHeat = WM.targetHeatByCountry[iso3] || 0;
-    var actorHeat = WM.actorHeatByCountry[iso3] || 0;
-    var totalHeat = targetHeat + actorHeat;
-    var cc = window.CONFLICT_COLORS || {};
-    var conf = WM.countryConfidence[iso3];
-    var confPct = conf ? conf.confidence : null;
-
-    if (totalHeat < 0.1){
-      return {
-        fillColor: cc.cold || "#2f2f38", fillOpacity: 0.30,
-        color: cc.border || "rgba(255,255,255,0.12)", weight: 0.5
-      };
-    }
-    var level = getConflictLevel(totalHeat);
-    var fillColor = getFillColor(level);
-    var fillOpacity = getFillOpacity(level, confPct);
-    var periodDays = (window.WORLDMAP_THRESHOLDS || {}).period_days || 7;
-    var scale = getPeriodScale(periodDays);
-    var actorThreshold = ((window.WORLDMAP_THRESHOLDS || {}).actor_ring_min || 3) * scale;
-    var actorHotThreshold = ((window.WORLDMAP_THRESHOLDS || {}).actor_ring_hot || 15) * scale;
-    var borderColor = cc.border || "rgba(255,255,255,0.12)";
-    var borderWeight = 0.5;
-    var dashArray = null;
-    if (actorHeat >= actorHotThreshold){ borderColor = cc.actorHot || "#ff2222"; borderWeight = 2.5; }
-    else if (actorHeat >= actorThreshold){ borderColor = cc.actorRing || "#ff6666"; borderWeight = 1.8; }
-    if (level === "scorching"){
-      borderColor = cc.borderHot || "#ff0000";
-      borderWeight = Math.max(borderWeight, 2);
-      dashArray = "4 2";
-    }
-    return {
-      fillColor: fillColor, fillOpacity: fillOpacity,
-      color: borderColor, weight: borderWeight, dashArray: dashArray
-    };
-  }
-
   function pluralize(count, singular, plural){
     return count + " " + (count === 1 ? singular : plural);
   }
@@ -328,7 +257,9 @@
   }
 
   function buildTooltipHtml(iso3, name){
-    if (hasAreaLayer(iso3)) return "<b>" + name + "</b><br>Zie gebiedslaag voor details";
+    if (isRenderedByConflictAreas(iso3)){
+      return "<b>" + name + "</b><br>Zie gebiedslaag voor details";
+    }
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var conf = WM.countryConfidence[iso3];
@@ -345,26 +276,70 @@
     return lines.join("<br>");
   }
 
+  /* ════════════════════════════════════════════════════════════
+     v5.0: styleCountry — geen fill-kleur meer, alleen neutral + rand
+     ════════════════════════════════════════════════════════════ */
+  function styleCountry(feature){
+    var iso3 = getISO3(feature);
+
+    /* Landen die door conflict-areas.js gerenderd worden: niet aanraken */
+    if (isRenderedByConflictAreas(iso3)){
+      return {
+        fillColor: "transparent",
+        fillOpacity: 0,
+        color: "transparent",
+        weight: 0,
+        opacity: 0,
+        interactive: false
+      };
+    }
+
+    /* Alle andere landen: neutrale fill + heat-based rand */
+    var targetHeat = WM.targetHeatByCountry[iso3] || 0;
+    var actorHeat = WM.actorHeatByCountry[iso3] || 0;
+    var totalHeat = targetHeat + actorHeat;
+    var cc = window.CONFLICT_COLORS || {};
+
+    var fillColor = cc.cold || "#2f2f38";
+    var borderColor = cc.border || "rgba(255,255,255,0.12)";
+    var borderWeight = 0.5;
+    var dashArray = null;
+
+    if (totalHeat >= 5){
+      borderColor = cc.borderHot || "#ff0000";
+      borderWeight = 2.5;
+      dashArray = "3 2";
+    } else if (totalHeat >= 2){
+      borderColor = cc.actorHot || "#ff2222";
+      borderWeight = 1.8;
+      dashArray = "5 3";
+    } else if (totalHeat >= 0.5){
+      borderColor = cc.actorRing || "#ff6666";
+      borderWeight = 1.2;
+    }
+
+    return {
+      fillColor: fillColor,
+      fillOpacity: 0.28,
+      color: borderColor,
+      weight: borderWeight,
+      dashArray: dashArray,
+      lineCap: "round",
+      lineJoin: "round"
+    };
+  }
+
   function onEachCountry(feature, layer){
     var iso3 = getISO3(feature);
     var name = getCountryName(feature);
     layer.bindTooltip(buildTooltipHtml(iso3, name), {
       sticky: true, direction: "top", className: "wm-tooltip"
     });
-    if (hasAreaLayer(iso3)) return;
+    if (isRenderedByConflictAreas(iso3)) return;
     layer.on({
       mouseover: function(e){
         var l = e.target;
-        var targetHeat = WM.targetHeatByCountry[iso3] || 0;
-        var actorHeat = WM.actorHeatByCountry[iso3] || 0;
-        var level = getConflictLevel(targetHeat + actorHeat);
-        var conf = WM.countryConfidence[iso3];
-        var confPct = conf ? conf.confidence : null;
-        var currentOpacity = getFillOpacity(level, confPct);
-        l.setStyle({
-          weight: 2.5, color: "#e0a857",
-          fillOpacity: Math.min(0.9, currentOpacity + 0.15)
-        });
+        l.setStyle({ weight: Math.max(2.5, l.options.weight || 0.5), color: "#e0a857" });
       },
       mouseout: function(e){ if (WM.layer) WM.layer.resetStyle(e.target); },
       click: function(e){
@@ -389,6 +364,9 @@
     });
   }
 
+  /* ════════════════════════════════════════════════════════════
+     PANEL
+     ════════════════════════════════════════════════════════════ */
   function closeConflictAreasPanel(){
     try {
       var caPanel = document.getElementById("caAreaPanel");
@@ -482,6 +460,9 @@
     if (WM.panel) WM.panel.classList.remove("show");
   }
 
+  /* ════════════════════════════════════════════════════════════
+     CITY DOTS
+     ════════════════════════════════════════════════════════════ */
   function ensureCityPane(map){
     if (map.getPane("cityDots")) return;
     map.createPane("cityDots");
@@ -533,12 +514,8 @@
       }
     } catch(e){}
     if (iso){
-      var alliance = window.WorldMapData
-        ? window.WorldMapData.getAlliance(iso)
-        : "neutral";
-      var color = window.WorldMapData
-        ? window.WorldMapData.getColor(alliance)
-        : "#6b7280";
+      var alliance = window.WorldMapData ? window.WorldMapData.getAlliance(iso) : "neutral";
+      var color = window.WorldMapData ? window.WorldMapData.getColor(alliance) : "#6b7280";
       return { color: color, isClaim: (record.controllerConfidence || 0) < 0.6 };
     }
 
@@ -582,7 +559,6 @@
         return;
       }
 
-      /* Basis */
       var size = 10;
       var colorInfo = hasController
         ? resolveCityColor(c)
@@ -596,15 +572,11 @@
         size = Math.round(9 + ctrlConf * 5);
       }
 
-      /* Stale decay */
       var ageDays = (now - (c.lastUpdate || 0)) / 86400000;
       var staleFactor = 1.0;
       if (ageDays > STALE_OLD_DAYS) staleFactor = 0.35;
       else if (ageDays > STALE_WARN_DAYS) staleFactor = 0.6;
 
-      /* ══════════════════════════════════════════════════════
-         v4.1: Transition-state — gele pulserende ring
-         ══════════════════════════════════════════════════════ */
       var transitionHtml = "";
       var transitionAge = 0;
       if (hasTransition && c.transition.since){
@@ -625,7 +597,6 @@
         }
       }
 
-      /* Border */
       var borderStyle;
       if (hasTransition){
         borderStyle = 'border:2px solid #f59e0b;box-sizing:border-box;';
@@ -637,10 +608,8 @@
         borderStyle = 'border:1.5px solid rgba(255,255,255,0.65);box-sizing:border-box;';
       }
 
-      /* Core: als transition actief is, toon een amber core, niet de partij-kleur */
       var effectiveCoreColor = hasTransition ? "#f59e0b" : coreColor;
-      var shadow = 'box-shadow:0 0 6px rgba(0,0,0,0.85),0 0 10px ' +
-                   effectiveCoreColor + ';';
+      var shadow = 'box-shadow:0 0 6px rgba(0,0,0,0.85),0 0 10px ' + effectiveCoreColor + ';';
 
       var coreHtml =
         '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;' +
@@ -648,7 +617,6 @@
         'opacity:' + staleFactor + ';' +
         'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2"></div>';
 
-      /* Contested: extra ring */
       var contestedRingHtml = "";
       if (isContested && !hasTransition){
         var rSize = size + 8;
@@ -661,7 +629,6 @@
           'pointer-events:none;z-index:1"></div>';
       }
 
-      /* Attack ring */
       var attackRingHtml = "";
       if (hasAttack && !hasTransition){
         var intensity = c.attackIntensity || 0;
@@ -678,7 +645,6 @@
           'pointer-events:none;opacity:' + staleFactor + ';z-index:0"></div>';
       }
 
-      /* Badge */
       var badgeHtml = "";
       var totalCount = (c.attackCount || 0);
       if (totalCount >= 3 && !hasTransition){
@@ -705,24 +671,20 @@
 
       var marker = L.marker([loc.lat, loc.lng], { icon: icon, pane: "cityDots" });
 
-      /* Tooltip */
       var tooltipParts = [
         '<b>' + escapeHtml(capitalizeCity(c.city)) + '</b>' +
         (loc.country ? ' · ' + escapeHtml(loc.country) : '')
       ];
       if (hasTransition){
         tooltipParts.push('⚠️ <b>In transitie</b>');
-        tooltipParts.push('   ' + escapeHtml(c.transition.from || "?") +
-          ' verliest — nog geen nieuwe controller');
+        tooltipParts.push('   ' + escapeHtml(c.transition.from || "?") + ' verliest — nog geen nieuwe controller');
         if (c.transition.count > 1){
           tooltipParts.push('   ' + c.transition.count + ' verlies-berichten');
         }
       } else if (hasController){
-        var statusLabel = isContested ? "Betwist" :
-                          (isClaim ? "Claim" : "Bevestigd");
+        var statusLabel = isContested ? "Betwist" : (isClaim ? "Claim" : "Bevestigd");
         var ctrlConfPct = Math.round(ctrlConf * 100);
-        tooltipParts.push('🎛️ <b>' + escapeHtml(c.controller) + '</b> · ' +
-          statusLabel + ' · ' + ctrlConfPct + '%');
+        tooltipParts.push('🎛️ <b>' + escapeHtml(c.controller) + '</b> · ' + statusLabel + ' · ' + ctrlConfPct + '%');
       }
       if (isContested && c.contestedActors && c.contestedActors.length >= 2 && !hasTransition){
         var contested = c.contestedActors.slice(0, 3).map(function(x){
@@ -779,7 +741,6 @@
       : (ctrlConf >= 70 ? "conf-high" : (ctrlConf >= 40 ? "conf-med" : "conf-low"));
 
     var lines = [];
-
     if (record.transition){
       var ageH = Math.round((Date.now() - record.transition.since) / 3600000);
       var ageLabel = ageH < 24 ? ageH + "u" : Math.round(ageH/24) + "d";
@@ -791,7 +752,6 @@
         (record.transition.source ? ' · ' + escapeHtml(record.transition.source) : '') +
         '</span></div>');
     }
-
     if (record.contested && record.contestedActors){
       lines.push('<div class="wm-panel-conf-detail">⚔️ Betwist gebied:<br>' +
         record.contestedActors.map(function(x){
@@ -853,6 +813,9 @@
     requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
+  /* ════════════════════════════════════════════════════════════
+     PERIOD FILTER
+     ════════════════════════════════════════════════════════════ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
     if (!wrap || wrap.querySelector(".wm-period-filter")) return;
@@ -895,6 +858,9 @@
     } catch(e){}
   }
 
+  /* ════════════════════════════════════════════════════════════
+     LEGEND
+     ════════════════════════════════════════════════════════════ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -902,15 +868,10 @@
     legend.className = "wm-legend";
     legend.innerHTML =
       '<div class="wm-legend-title">Conflictkaart</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#2f2f38"></span>Rustig</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#7a4040"></span>Licht</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a52a2a"></span>Actief</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#d41919"></span>Extreem</div>' +
-      '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Aanvaller</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#a855f7"></span>Betwist (stad)</div>' +
-      '<div class="wm-legend-row"><span class="wm-legend-swatch wm-legend-swatch-transition"></span>In transitie</div>' +
+      '<div class="wm-legend-row"><span class="wm-legend-swatch" style="background:#2f2f38"></span>Neutraal</div>' +
+      '<div class="wm-legend-row wm-legend-row-ring"><span class="wm-legend-swatch wm-legend-swatch-ring"></span>Onder vuur (rand)</div>' +
       '<div id="wmAreaLegend" class="wm-area-legend"></div>' +
-      '<div class="wm-legend-hint">Klik op een land of stad</div>';
+      '<div class="wm-legend-hint">Fill = controle · Rand = activiteit</div>';
     var wrap = document.querySelector(".map-wrap");
     if (wrap) wrap.appendChild(legend);
     refreshAreaLegend();
@@ -973,6 +934,9 @@
     } catch(e){}
   }
 
+  /* ════════════════════════════════════════════════════════════
+     STYLES
+     ════════════════════════════════════════════════════════════ */
   function injectStyles(){
     if (document.getElementById("wmStyles")) return;
     var s = document.createElement("style");
@@ -983,7 +947,7 @@
       ".wm-tooltip{background:rgba(13,21,34,.95);color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:8px;font-size:12px;padding:6px 10px;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Inter,sans-serif;line-height:1.4;}" +
       ".wm-tooltip::before{border-top-color:rgba(224,168,87,.4)!important;}" +
       "html.light .wm-tooltip{background:rgba(255,255,255,.97);color:#131721;border-color:rgba(0,0,0,.15);}" +
-      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:140px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;max-height:72vh;overflow-y:auto;}" +
+      ".wm-legend{position:absolute;bottom:.6rem;right:.6rem;background:rgba(13,21,34,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.3);border-radius:9px;padding:.4rem .5rem;font-size:.55rem;color:#e6ebf5;max-width:160px;z-index:400;box-shadow:0 4px 20px rgba(0,0,0,.5);line-height:1.3;max-height:72vh;overflow-y:auto;}" +
       "html.light .wm-legend{background:rgba(255,255,255,.95);color:#131721;border-color:rgba(0,0,0,.12);}" +
       ".wm-legend-title{font-weight:800;font-size:.5rem;text-transform:uppercase;letter-spacing:.04em;color:#e0a857;margin-bottom:.2rem;padding-bottom:.2rem;border-bottom:1px solid rgba(224,168,87,.25);}" +
       ".wm-legend-row{display:flex;align-items:center;gap:.25rem;padding:.03rem 0;font-size:.52rem;}" +
@@ -1039,7 +1003,7 @@
       ".wm-ev-political{background:rgba(107,122,147,.15);color:#a3adc0;padding:.1rem .4rem;border-radius:5px;font-weight:700;font-size:.58rem;text-transform:uppercase;letter-spacing:.03em;}" +
       ".wm-panel-empty{padding:1.5rem 1rem;text-align:center;color:var(--ink-3,#6b7a93);font-size:.78rem;}" +
       "@media (max-width:640px){" +
-        ".wm-legend{max-width:120px!important;font-size:.5rem!important;padding:.35rem .45rem!important;}" +
+        ".wm-legend{max-width:130px!important;font-size:.5rem!important;padding:.35rem .45rem!important;}" +
         ".wm-legend-title{font-size:.5rem!important;margin-bottom:.2rem!important;padding-bottom:.2rem!important;}" +
         ".wm-legend-row{font-size:.5rem!important;padding:.02rem 0!important;}" +
         ".wm-legend-hint{font-size:.45rem!important;}" +
@@ -1056,6 +1020,9 @@
     document.head.appendChild(s);
   }
 
+  /* ════════════════════════════════════════════════════════════
+     INIT
+     ════════════════════════════════════════════════════════════ */
   function init(map){
     if (!map || WM.isLoaded) return Promise.resolve();
     WM.map = map;
@@ -1080,7 +1047,7 @@
       restoreLegendVisibility();
       restorePeriodFilter();
       WM.isLoaded = true;
-      LOG("Wereldkaart v4.1 geladen — " + geo.features.length + " features");
+      LOG("Wereldkaart v5.0 geladen — " + geo.features.length + " features (fill = baseline)");
 
       bindCityBus();
     });
@@ -1092,8 +1059,7 @@
     WM._cityBusBound = true;
 
     WarDesk.events.on("city:control-changed", function(data){
-      if (!WM.map) return;
-      if (!data) return;
+      if (!WM.map || !data) return;
       renderCityDots(WM.map);
       LOG("city:control-changed → dots rerender (" + (data.city || "?") + ")");
     });
@@ -1109,7 +1075,16 @@
       LOG("city:control-lost → dots rerender (" + (data && data.city ? data.city : "?") + ")");
     });
 
-    LOG("City-bus listeners actief (changed + attack + lost)");
+    /* v5.0: als ConflictAreas klaar is, herteken landen (zodat overlap weg gaat) */
+    WarDesk.events.on("conflictareas:ready", function(){
+      if (!WM.layer) return;
+      WM.layer.eachLayer(function(layer){
+        if (layer.feature) layer.setStyle(styleCountry(layer.feature));
+      });
+      LOG("ConflictAreas ready → landen opnieuw gestyled");
+    });
+
+    LOG("City-bus listeners actief");
   }
 
   function refresh(events, force){
@@ -1119,8 +1094,7 @@
     WM._allEvents = events.slice();
 
     var now = Date.now();
-    var recalc = (window.WORLDMAP_THRESHOLDS || {}).heat_recalc_interval_ms ||
-                 (5 * 60 * 1000);
+    var recalc = (window.WORLDMAP_THRESHOLDS || {}).heat_recalc_interval_ms || (5 * 60 * 1000);
     var heatFresh = !force && now - WM.lastHeatCalc < recalc &&
                     Object.keys(WM.targetHeatByCountry).length > 0;
 
@@ -1169,9 +1143,15 @@
     getConfidenceMap: function(){ return WM.countryConfidence; },
     refreshLegend: refreshAreaLegend,
     renderCityDots: renderCityDots,
+    restyleCountries: function(){
+      if (!WM.layer) return;
+      WM.layer.eachLayer(function(layer){
+        if (layer.feature) layer.setStyle(styleCountry(layer.feature));
+      });
+    },
     _state: WM
   };
 
-  LOG("worldmap.js v4.1 geladen (transition-dots + control-lost)");
+  LOG("worldmap.js v5.0 geladen (fill = baseline, heat = rand)");
 
 })();
