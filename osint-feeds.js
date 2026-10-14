@@ -1,10 +1,6 @@
 /* ============================================================
-   WAR DESK — osint-feeds.js v2.6.2
-   - v2.6.2: 3 lege kanalen verwijderd (Militarylandnet, WarNoir,
-             qassam1brigades) + syntax fix
-   - v2.6.1: STAGGER_MS 5000, PARALLEL_BATCH 2
-   - v2.6: +10 nieuwe kanalen voor Afrika/Azië/Oekraïne
-   - v2.5: countsForHeat fix + Arabic min-3
+   WAR DESK — osint-feeds.js v2.6.3
+   - v2.6.3: WDProxy + WD.safeCatch migratie
    ============================================================ */
 
 (function(){
@@ -20,22 +16,13 @@
   var PARALLEL_BATCH = 2;
   var FETCH_TIMEOUT = 25000;
 
-  var PROXIES = [
-    "https://newsfeed2.hassanbadri814.workers.dev/?url=",
-    "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
-    "https://api.allorigins.win/raw?url="
-  ];
-
   var TELEGRAM_CHANNELS = [
-    /* === Bestaande OSINT kanalen === */
     { channel: "DeepStateUA",    region: "Oost-Europa",   country: "Oekraïne" },
     { channel: "sentdefender",   region: "Midden-Oosten", country: null },
     { channel: "rybar",          region: "Oost-Europa",   country: "Rusland" },
     { channel: "Faytuks",        region: "Midden-Oosten", country: null },
     { channel: "GeoConfirmed",   region: "Midden-Oosten", country: null },
     { channel: "OSINTtechnical", region: "Midden-Oosten", country: null },
-
-    /* === Bestaande Arabische kanalen === */
     { channel: "HalabTodayTV",     region: "Midden-Oosten", country: "Syrië" },
     { channel: "damscuce",         region: "Midden-Oosten", country: "Syrië" },
     { channel: "ya_topa",          region: "Midden-Oosten", country: "Syrië" },
@@ -43,8 +30,6 @@
     { channel: "naya_foriraq",     region: "Midden-Oosten", country: "Irak" },
     { channel: "sadadahiechannel", region: "Midden-Oosten", country: "Libanon" },
     { channel: "alshamii011",      region: "Midden-Oosten", country: null },
-
-    /* === v2.6: nieuwe kanalen === */
     { channel: "dniproofficial",     region: "Oost-Europa",   country: "Oekraïne" },
     { channel: "Suriyakmaps",        region: "Midden-Oosten", country: "Syrië" },
     { channel: "ASCENTIG",           region: "Afrika",        country: "Ethiopië" },
@@ -56,13 +41,11 @@
   ];
 
   var OSINT_MILITARY_SOURCES = [
-    /* Bestaand */
     "DeepStateUA", "sentdefender", "rybar",
     "Faytuks", "GeoConfirmed", "OSINTtechnical",
     "SOHR",
     "HalabTodayTV", "damscuce", "ya_topa",
     "NWSYEME", "naya_foriraq", "sadahiechannel", "alshamii011",
-    /* v2.6 — nieuwe kanalen */
     "dniproofficial", "Suriyakmaps",
     "ASCENTIG", "aesinfos", "RSFSudan",
     "bni_mmpeacemonitor", "global_observers", "ResonantNews"
@@ -176,21 +159,36 @@
     return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reason: "no-detector" };
   }
 
-  async function fetchViaProxies(targetUrl){
-    for (var i = 0; i < PROXIES.length; i++){
-      var fullUrl = PROXIES[i] + encodeURIComponent(targetUrl);
-      try {
-        var ctrl = new AbortController();
-        var timer = setTimeout(function(){ ctrl.abort(); }, FETCH_TIMEOUT);
-        var r = await fetch(fullUrl, { signal: ctrl.signal });
-        clearTimeout(timer);
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        var text = await r.text();
-        if (!text || text.length < 100) throw new Error("Te kort");
-        return { ok: true, text: text, proxy: i };
-      } catch(e){}
+  /* ─── FETCH via WDProxy ─── */
+  function fetchViaProxies(targetUrl){
+    if (window.WDProxy && WDProxy.fetchText){
+      return WDProxy.fetchText(targetUrl).then(function(text){
+        return { ok: true, text: text, proxy: "wdproxy" };
+      }).catch(function(e){
+        LOG("WDProxy faalde: " + (e.message || "?"));
+        return { ok: false };
+      });
     }
-    return { ok: false };
+    /* Fallback */
+    var PROXIES = [
+      "https://newsfeed2.hassanbadri814.workers.dev/?url=",
+      "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
+      "https://api.allorigins.win/raw?url="
+    ];
+    var idx = 0;
+    function tryNext(){
+      if (idx >= PROXIES.length) return Promise.resolve({ ok: false });
+      var fullUrl = PROXIES[idx] + encodeURIComponent(targetUrl);
+      idx++;
+      return fetch(fullUrl).then(function(r){
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.text();
+      }).then(function(text){
+        if (!text || text.length < 100) throw new Error("Te kort");
+        return { ok: true, text: text, proxy: idx - 1 };
+      }).catch(function(){ return tryNext(); });
+    }
+    return tryNext();
   }
 
   function parseTelegramHtml(html, channel){
@@ -235,7 +233,9 @@
           link: link, lang: "en"
         });
       }
-    } catch(e){}
+    } catch(e){
+      try { wdLog.warn("[OSINT] parseSohrRss faalde:", e.message); } catch(err){}
+    }
     return items;
   }
 
@@ -291,32 +291,36 @@
   var isRunning = false;
   var _timer = null;
 
-  async function fetchOneChannel(ch){
-    try {
-      var res = await fetchViaProxies("https://t.me/s/" + ch.channel);
-      if (!res.ok){ LOG("@" + ch.channel + " — alle proxies faalden"); return { ok: false, items: [] }; }
+  function fetchOneChannel(ch){
+    return fetchViaProxies("https://t.me/s/" + ch.channel).then(function(res){
+      if (!res.ok){
+        LOG("@" + ch.channel + " — alle proxies faalden");
+        return { ok: false, items: [] };
+      }
       var posts = parseTelegramHtml(res.text, ch.channel);
       posts.forEach(function(p){ p.hint = ch; });
       LOG("@" + ch.channel + " — " + posts.length + " posts");
       return { ok: true, items: posts };
-    } catch(e){
-      LOG("@" + ch.channel + " faalde: " + (e.message || "?"));
+    }).catch(WD && WD.safeCatch ? WD.safeCatch("fetchOneChannel") : function(e){
+      LOG("@" + ch.channel + " faalde: " + (e && e.message ? e.message : "?"));
       return { ok: false, items: [] };
-    }
+    }).then(function(r){ return r || { ok: false, items: [] }; });
   }
 
-  async function fetchOneSohr(){
-    try {
-      var res = await fetchViaProxies(SOHR_RSS);
-      if (!res.ok){ LOG("SOHR — alle proxies faalden"); return { ok: false, items: [] }; }
+  function fetchOneSohr(){
+    return fetchViaProxies(SOHR_RSS).then(function(res){
+      if (!res.ok){
+        LOG("SOHR — alle proxies faalden");
+        return { ok: false, items: [] };
+      }
       var items = parseSohrRss(res.text);
       items.forEach(function(p){ p.hint = { country: "Syrië", region: "Midden-Oosten" }; });
       LOG("SOHR — " + items.length + " items");
       return { ok: true, items: items };
-    } catch(e){
-      LOG("SOHR faalde: " + (e.message || "?"));
+    }).catch(WD && WD.safeCatch ? WD.safeCatch("fetchOneSohr") : function(e){
+      LOG("SOHR faalde: " + (e && e.message ? e.message : "?"));
       return { ok: false, items: [] };
-    }
+    }).then(function(r){ return r || { ok: false, items: [] }; });
   }
 
   async function fetchAllSources(){
@@ -347,34 +351,41 @@
     isRunning = true;
     var startTime = Date.now();
     LOG("Run start — " + TELEGRAM_CHANNELS.length + " TG + SOHR (parallel " + PARALLEL_BATCH + ")");
-    var result = await fetchAllSources();
-    var seen = {};
-    var events = [];
-    result.allItems.forEach(function(item){
-      var ev = itemToEvent(item, item.hint);
-      if (!ev) return;
-      if (seen[ev.id]) return;
-      seen[ev.id] = 1;
-      events.push(ev);
-    });
-    events.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
-    if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
-    osintEvents = events;
-    lastRun = Date.now();
-    isRunning = false;
-    var elapsed = Date.now() - startTime;
-    LOG("Klaar — " + events.length + " events uit " + result.allItems.length +
-        " raw items | " + result.okCount + " bronnen OK, " + result.failCount + " faalden | " + elapsed + "ms");
+
     try {
-      if (window.WarDesk && WarDesk.events){
-        WarDesk.events.emit("osint:military-events", osintEvents);
-      }
-    } catch(e){}
-    try {
-      localStorage.setItem("wardesk_osint_lastRun", String(lastRun));
-      localStorage.setItem("wardesk_osint_count", String(events.length));
-    } catch(e){}
-    return osintEvents;
+      var result = await fetchAllSources();
+      var seen = {};
+      var events = [];
+      result.allItems.forEach(function(item){
+        var ev = itemToEvent(item, item.hint);
+        if (!ev) return;
+        if (seen[ev.id]) return;
+        seen[ev.id] = 1;
+        events.push(ev);
+      });
+      events.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
+      if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
+      osintEvents = events;
+      lastRun = Date.now();
+      isRunning = false;
+      var elapsed = Date.now() - startTime;
+      LOG("Klaar — " + events.length + " events uit " + result.allItems.length +
+          " raw items | " + result.okCount + " bronnen OK, " + result.failCount + " faalden | " + elapsed + "ms");
+      try {
+        if (window.WarDesk && WarDesk.events){
+          WarDesk.events.emit("osint:military-events", osintEvents);
+        }
+      } catch(e){}
+      try {
+        localStorage.setItem("wardesk_osint_lastRun", String(lastRun));
+        localStorage.setItem("wardesk_osint_count", String(events.length));
+      } catch(e){}
+      return osintEvents;
+    } catch(err){
+      isRunning = false;
+      LOG("Run faalde: " + (err && err.message ? err.message : "?"));
+      return osintEvents;
+    }
   }
 
   function scheduleNext(){
@@ -399,10 +410,11 @@
   }
 
   window.OSINTFeeds = {
-    init: init, runNow: runNow,
+    init: init,
+    runNow: runNow,
     getEvents: function(){ return osintEvents; },
     getLastRun: function(){ return lastRun; },
-    _version: "v2.6.2",
+    _version: "v2.6.3",
     _channels: TELEGRAM_CHANNELS,
     _militarySources: OSINT_MILITARY_SOURCES
   };
@@ -413,5 +425,6 @@
     init();
   }
 
-  LOG("osint-feeds.js v2.6.2 geladen (" + TELEGRAM_CHANNELS.length + " kanalen)");
+  LOG("osint-feeds.js v2.6.3 geladen (" + TELEGRAM_CHANNELS.length + " kanalen)");
+
 })();
