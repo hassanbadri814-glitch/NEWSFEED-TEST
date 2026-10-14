@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.34</title>
+<title>WAR DESK v14.35</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -22,7 +22,7 @@
 <link rel="apple-touch-icon" sizes="144x144" href="./icons/icon-144.png">
 
 <script>
-window.APP_VERSION = "v14.34";
+window.APP_VERSION = "v14.35";
 
 (function(){
   try {
@@ -226,7 +226,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.34</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.35</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -531,7 +531,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.34</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.35</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -606,6 +606,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
     <button id="wdDebugReload">Herlaad</button>
     <button id="wdDebugInfo">Systeem info</button>
     <button id="wdDebugCache">Cache info</button>
+    <button id="wdDebugErrors">Fouten</button>
   </div>
   <div id="wdDebugLog"></div>
 </div>
@@ -809,6 +810,21 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
           });
         });
       }
+      if(document.getElementById("wdDebugErrors")){
+        document.getElementById("wdDebugErrors").addEventListener("click", function(){
+          if(!window.WDErrorReporter){ add("warn", "WDErrorReporter niet geladen"); return; }
+          var stats = WDErrorReporter.getStats();
+          add("info", "─── ERROR REPORTER ───");
+          add("info", "Totaal: " + stats.total + " fouten (session " + WDErrorReporter.getSessionId() + ")");
+          Object.keys(stats.byType).forEach(function(t){
+            add("info", "  " + t + ": " + stats.byType[t]);
+          });
+          var log = WDErrorReporter.getLog().slice(-10);
+          log.forEach(function(e){
+            add(e.type === "error" ? "err" : "warn", "[" + e.t.slice(11,19) + "] " + e.msg);
+          });
+        });
+      }
     }
     add("info", "WAR DESK start");
     add("info", "Versie: " + (window.APP_VERSION || "?"));
@@ -831,14 +847,15 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
 
 <!-- ============================================================
-     CORE
+     CORE (error-reporter moet eerst — vangt vroege fouten)
      ============================================================ -->
+<script src="error-reporter.js?v=1.0" defer></script>
 <script src="storage.js?v=14.30" defer></script>
 <script src="config.js?v=14.34" defer></script>
 <script src="utils.js?v=14.30" defer></script>
 
 <!-- ============================================================
-     WD modules (Ronde 2)
+     WD modules
      ============================================================ -->
 <script src="wd-utils.js?v=1.0" defer></script>
 <script src="wd-geo.js?v=1.0" defer></script>
@@ -876,7 +893,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <!-- ============================================================
      WORLDMAP
      ============================================================ -->
-<script src="worldmap.js?v=5.0" defer></script>
+<script src="worldmap.js?v=5.1" defer></script>
 <script src="province-mapper.js?v=1.1" defer></script>
 
 <!-- ============================================================
@@ -898,7 +915,6 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="conflict-areas-data.js?v=1.0" defer></script>
 <script src="conflict-areas-fetch.js?v=1.0" defer></script>
 <script src="conflict-areas.js?v=15.2" defer></script>
-<!-- maplibre-labels.js VERWIJDERD — niet compatibel met CARTO raster tiles -->
 
 <!-- ============================================================
      TIMELINE UI
