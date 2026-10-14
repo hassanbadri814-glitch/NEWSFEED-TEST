@@ -1,17 +1,19 @@
 /* ============================================================
-   WAR DESK enhancements.js v1.3
-   - Notificaties 100% via ServiceWorkerRegistration (Android-proof)
-   - GEEN new Notification() fallback (werkt niet op Android)
-   - Share-knop voor AI berichten
+   WAR DESK enhancements.js v1.4
+   - v1.4: NOTIF_KEY geconsolideerd met news-v27.js
+           (wardesk_notifications ipv wardesk_notifications_enabled)
+           Voorkomt race condition bij reload
+   - v1.3: 100% via ServiceWorkerRegistration
    ============================================================ */
 
 (function(){
   "use strict";
 
   var LOG = function(){ try{ wdLog.info.apply(null, ["[ENH]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.3 geladen");
+  LOG("v1.4 geladen");
 
-  var NOTIF_KEY = "wardesk_notifications_enabled";
+  /* v1.4: gebruik DEZELFDE key als news-v27.js */
+  var NOTIF_KEY = "wardesk_notifications";
   var lastNotifTitle = "";
 
   function isSupported(){
@@ -35,7 +37,6 @@
     LOG("UI update — on:", on, "perm:", isSupported() ? Notification.permission : "?");
   }
 
-  /* v1.3: 100% via ServiceWorkerRegistration */
   async function sendNotification(title, options){
     if (!("serviceWorker" in navigator)){
       LOG("Geen serviceWorker — notificatie niet mogelijk");
@@ -74,6 +75,8 @@
     if (!enabled){
       saveEnabled(false);
       updateToggleUI();
+      /* v1.4: update State direct */
+      if (window.State) window.State.notificationsEnabled = false;
       if (window.showToast) window.showToast("Breaking notificaties uit");
       return;
     }
@@ -94,6 +97,7 @@
     if (perm === "denied"){
       saveEnabled(false);
       updateToggleUI();
+      if (window.State) window.State.notificationsEnabled = false;
       if (window.showToast) window.showToast("Meldingen geblokkeerd — reset in Chrome instellingen");
       return;
     }
@@ -101,12 +105,15 @@
     if (perm !== "granted"){
       saveEnabled(false);
       updateToggleUI();
+      if (window.State) window.State.notificationsEnabled = false;
       if (window.showToast) window.showToast("Notificaties niet toegestaan");
       return;
     }
 
     saveEnabled(true);
     updateToggleUI();
+    /* v1.4: update State direct */
+    if (window.State) window.State.notificationsEnabled = true;
     if (window.showToast) window.showToast("Breaking notificaties aan");
     LOG("Notificaties aan — stuur test via SW");
 
@@ -326,5 +333,5 @@
     setTimeout(init, 1500);
   }
 
-  wdLog.info("[WAR DESK] enhancements.js v1.3 geladen");
+  wdLog.info("[WAR DESK] enhancements.js v1.4 geladen — notificatie-key geconsolideerd");
 })();
