@@ -1,9 +1,9 @@
 /* ============================================================
-   WAR DESK v14.5.4 — Conflictkaart + Wereldkaart-integratie
+   WAR DESK v14.6.0 — Conflictkaart + Wereldkaart-integratie
+   - v14.6.0: MapLibre GL verwijderd (~230KB bespaard)
+              Raster tiles via CARTO (dark_all / light_all)
    - v14.5.4: renderLiveList 200 → 100 items (DOM-perf)
    - v14.5.3: translation:added debounce 3s + renderMarkers
-              vertaalt niet meer bij render + renderLiveList
-              cachet vertaling per event-id
    - v14.5.2: Live-list + detail halen vertaling bij render-tijd
    - v14.5.1: Zoeken + tijd-filter triggeren flyTo
    - v14.5:   Zoekveld + tijdfilter + toast override
@@ -17,7 +17,7 @@
     try{ wdLog.info.apply(null, ["[MAP]"].concat(Array.prototype.slice.call(arguments))); }catch(e){}
   };
 
-  LOG("v14.5.4 geladen — wereldkaart + live-filters + vertaling");
+  LOG("v14.6.0 geladen — wereldkaart + live-filters + vertaling (CARTO tiles)");
 
   var CATEGORIES = {
     all:      { label: "Alles",    color: "#e0a857", icon: "ph-globe-hemisphere-west" },
@@ -81,9 +81,24 @@
     _translationCache: {}
   };
 
+  /* ════════════════════════════════════════════════════════════
+     v14.6.0: CARTO raster tiles (geen MapLibre meer)
+     ════════════════════════════════════════════════════════════ */
   var TILES = {
-    dark: { style: "https://tiles.openfreemap.org/styles/dark", attribution: "© OpenFreeMap" },
-    light: { style: "https://tiles.openfreemap.org/styles/positron", attribution: "© OpenFreeMap" }
+    dark: {
+      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+      subdomains: "abcd",
+      attribution: "© OpenStreetMap contributors © CARTO",
+      maxZoom: 20,
+      bgColor: "#05080f"
+    },
+    light: {
+      url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+      subdomains: "abcd",
+      attribution: "© OpenStreetMap contributors © CARTO",
+      maxZoom: 20,
+      bgColor: "#f5f5f5"
+    }
   };
 
   function detectTheme(){ return document.body.classList.contains("light") ? "light" : "dark"; }
@@ -96,19 +111,33 @@
     meta.setAttribute("content", oled ? "#000000" : (light ? "#f6f4ee" : "#070c16"));
   }
 
+  function applyMapBgColor(theme){
+    var cfg = TILES[theme] || TILES.dark;
+    var container = document.querySelector(".leaflet-container");
+    if (container){
+      var oled = document.documentElement.getAttribute("data-oled") === "true";
+      if (oled) container.style.background = "#000000";
+      else container.style.background = cfg.bgColor;
+    }
+  }
+
   function switchTile(theme){
     if(!MAP.instance) return;
     var cfg = TILES[theme] || TILES.dark;
     if(MAP.tileLayers.dark && MAP.instance.hasLayer(MAP.tileLayers.dark)) MAP.instance.removeLayer(MAP.tileLayers.dark);
     if(MAP.tileLayers.light && MAP.instance.hasLayer(MAP.tileLayers.light)) MAP.instance.removeLayer(MAP.tileLayers.light);
+
     if(!MAP.tileLayers[theme]){
-      if(L.maplibreGL){
-        MAP.tileLayers[theme] = L.maplibreGL({ style: cfg.style, attribution: cfg.attribution });
-      } else {
-        MAP.tileLayers[theme] = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 });
-      }
+      MAP.tileLayers[theme] = L.tileLayer(cfg.url, {
+        subdomains: cfg.subdomains,
+        maxZoom: cfg.maxZoom,
+        attribution: cfg.attribution,
+        detectRetina: true,
+        crossOrigin: true
+      });
     }
     MAP.tileLayers[theme].addTo(MAP.instance);
+    applyMapBgColor(theme);
   }
 
   function observeThemeChanges(){
@@ -681,7 +710,6 @@
       return;
     }
 
-    /* v14.5.4: 200 → 100 items voor snellere DOM-render */
     var shown = filtered.slice(0, 100);
     var overflow = filtered.length - shown.length;
 
@@ -896,7 +924,7 @@
     });
     MAP.instance.addLayer(MAP.cluster);
     observeThemeChanges();
-    LOG("Map klaar");
+    LOG("Map klaar (CARTO raster tiles)");
 
     try {
       if (window.WorldMap && window.WorldMap.init){
@@ -1091,5 +1119,5 @@
   }, true);
 
   window.MAPAPI = { refresh: refreshFromNews, state: MAP };
-  wdLog.info("[WAR DESK] map-v11.10.js v14.5.4 geladen");
+  wdLog.info("[WAR DESK] map-v11.10.js v14.6.0 geladen (CARTO tiles)");
 })();
