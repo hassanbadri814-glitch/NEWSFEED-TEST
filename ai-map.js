@@ -1,10 +1,10 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.17.0
+   WAR DESK — ai-map.js v3.18.0
+   - v3.18.0: classifier draait nu in een Web Worker via
+              ClassifierBridge. Bij fallback (worker faalt)
+              valt het automatisch terug op sync buildEvents.
+              Async pad yield't nog steeds voor OSINT merges.
    - v3.17.0: async buildEventsAsync met chunk-yielding
-              (elke 40 artikelen → setTimeout 0 → UI blijft
-              responsief tijdens classificatie op mobiel)
-              run() en forceRun() gebruiken de async pad.
-              Sync-paden (getEventsSync e.d.) blijven werken.
    - v3.16.7: WD.safeCatch migratie
    ============================================================ */
 
@@ -287,7 +287,10 @@
     return String(h);
   }
 
-  function classifyItem(article){
+  /* ============================================================
+     Classificatie — via bridge (worker) of sync fallback
+     ============================================================ */
+  function classifySync(article){
     if (window.WDClassifier && window.WDClassifier.classify) {
       try {
         var r = window.WDClassifier.classify(
@@ -340,14 +343,14 @@
     return null;
   }
 
-  /* ════════════════════════════════════════════════════════════
-     Per-artikel verwerking (gedeeld tussen sync en async pad)
-     ════════════════════════════════════════════════════════════ */
-  function processArticle(article, i, stats){
+  /* ============================================================
+     Per-artikel verwerking
+     ============================================================ */
+  function processArticle(article, i, stats, preclassified){
     var ts = getTimestamp(article) || Date.now();
     if (Date.now() - ts > MAX_AGE_MS) { stats.skippedOld++; return null; }
 
-    var cls = classifyItem(article);
+    var cls = preclassified || classifySync(article);
     if (cls.category === "sport") { stats.skippedSport++; return null; }
 
     var titleStr = String(article.title || "");
@@ -387,7 +390,6 @@
 
     var iso3 = getISO3For(loc.country);
 
-    /* City-event → CityStatus */
     if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
         window.WDEventDetector.extractCityEvent){
       try {
@@ -476,7 +478,6 @@
     grouped.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
-    /* Vertalingen triggeren (throttled) */
     try {
       var now = Date.now();
       if (window.NewsAPI && window.NewsAPI.ensureTranslations &&
@@ -503,7 +504,7 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.17.0] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.18.0] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -530,9 +531,9 @@
     };
   }
 
-  /* ════════════════════════════════════════════════════════════
-     Sync buildEvents (voor backward compat + fallback)
-     ════════════════════════════════════════════════════════════ */
+  /* ============================================================
+     Sync buildEvents — voor backward compat + fallback
+     ============================================================ */
   var lastHash = "";
   var _lastTranslateRun = 0;
 
@@ -550,16 +551,16 @@
     var events = [];
 
     for (var i = 0; i < items.length; i++) {
-      var ev = processArticle(items[i], i, stats);
+      var ev = processArticle(items[i], i, stats, null);
       if (ev) events.push(ev);
     }
 
     return finalizeEvents(events, stats, startTime);
   }
 
-  /* ════════════════════════════════════════════════════════════
-     v3.17.0: Async buildEvents met chunk-yielding
-     ════════════════════════════════════════════════════════════ */
+  /* ============================================================
+     v3.18.0: Async buildEvents via Worker
+     ============================================================ */
   function yieldToMain(){
     return new Promise(function(resolve){
       if (window.requestIdleCallback){
@@ -581,27 +582,71 @@
 
     var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
     var stats = makeStats();
-    var events = [];
 
-    return (async function(){
-      var counter = 0;
-      for (var i = 0; i < items.length; i++) {
-        var ev = processArticle(items[i], i, stats);
-        if (ev) events.push(ev);
+    /* Stap 1: Classificeer alle items via bridge (worker of fallback) */
+    var payload = items.map(function(it, idx){
+      return {
+        index: idx,
+        title: it.title || "",
+        desc: it.description || it.desc || it.summary || "",
+        source: it.source || "",
+        url: it.link || it.url || ""
+      };
+    });
 
-        counter++;
-        if (counter >= YIELD_EVERY){
-          counter = 0;
-          await yieldToMain();
+    var classifyPromise;
+    if (window.ClassifierBridge && window.ClassifierBridge.classifyBatch){
+      classifyPromise = window.ClassifierBridge.classifyBatch(payload);
+    } else {
+      /* Geen bridge beschikbaar — sync fallback */
+      classifyPromise = Promise.resolve(payload.map(function(p){
+        var r = classifySync({ title: p.title, description: p.desc, source: p.source });
+        return {
+          index: p.index,
+          category: r.category, subtype: r.subtype,
+          confidence: r.confidence, uncertain: r.uncertain,
+          scores: r.scores, meta: r.meta
+        };
+      }));
+    }
+
+    return classifyPromise.then(function(results){
+      /* Map resultaten op items */
+      var byIndex = {};
+      results.forEach(function(r){
+        if (r && typeof r.index === "number") byIndex[r.index] = r;
+      });
+
+      /* Stap 2: Verwerk items in chunks met yielding */
+      var events = [];
+      var i = 0;
+
+      function processChunk(){
+        var chunkEnd = Math.min(i + YIELD_EVERY, items.length);
+        for (; i < chunkEnd; i++) {
+          var cls = byIndex[i];
+          var ev = processArticle(items[i], i, stats, cls);
+          if (ev) events.push(ev);
         }
+        if (i < items.length) {
+          return yieldToMain().then(processChunk);
+        }
+        return Promise.resolve();
       }
-      return finalizeEvents(events, stats, startTime);
-    })();
+
+      return processChunk().then(function(){
+        return finalizeEvents(events, stats, startTime);
+      });
+    }).catch(function(e){
+      try { wdLog.warn("[Map-AI] async build faalde:", e.message, "— valt terug op sync"); } catch(e2){}
+      lastHash = ""; /* Reset hash voor retry */
+      return buildEvents();
+    });
   }
 
-  /* ════════════════════════════════════════════════════════════
+  /* ============================================================
      OSINT merge
-     ════════════════════════════════════════════════════════════ */
+     ============================================================ */
   function getOsintEvents(){
     try {
       if (window.OSINTFeeds && typeof window.OSINTFeeds.getEvents === "function"){
@@ -671,9 +716,9 @@
     return result;
   }
 
-  /* ════════════════════════════════════════════════════════════
-     run() — async, met yielding
-     ════════════════════════════════════════════════════════════ */
+  /* ============================================================
+     run() — async, met worker
+     ============================================================ */
   var _runInFlight = null;
 
   function run(){
@@ -749,7 +794,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.17.0 geladen (chunk-yielding)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.18.0 geladen (worker-integratie)");
   }
 
   function getCountries(){
