@@ -1,5 +1,6 @@
 /* ============================================================
-   WAR DESK — city-status.js v3.2
+   WAR DESK — city-status.js v3.3
+   - v3.3: type/action velden toegevoegd aan emits (capture-tracker fix)
    - v3.2: WD.safeCatch migratie + emit logging
    - v3.1: recordLossClaim + transition-state
    ============================================================ */
@@ -288,6 +289,8 @@
         city: cityKey,
         controller: record.controller,
         previous: prevController,
+        type: "capture",                            /* ← v3.3: NIEUW */
+        action: "capture",                          /* ← v3.3: NIEUW */
         confidence: record.controllerConfidence,
         sources: record.controllerSources,
         contested: record.contested,
@@ -350,6 +353,8 @@
     emitCityEvent("city:control-lost", {
       city: cityKey,
       lostBy: actorName,
+      type: "loss",                                 /* ← v3.3: NIEUW */
+      action: "loss",                               /* ← v3.3: NIEUW */
       conflict: record.conflict,
       transition: record.transition,
       source: sourceName,
@@ -359,6 +364,8 @@
     emitCityEvent("city:control-changed", {
       city: cityKey,
       controller: record.controller,
+      type: "loss",                                 /* ← v3.3: NIEUW */
+      action: "loss",                               /* ← v3.3: NIEUW */
       contested: record.contested,
       transition: record.transition,
       conflict: record.conflict,
@@ -425,6 +432,8 @@
     if (attackerChanged || intensityJump){
       emitCityEvent("city:attack-changed", {
         city: cityKey,
+        type: "attack",                             /* ← v3.3: NIEUW */
+        action: "attack",                           /* ← v3.3: NIEUW */
         dominantAttacker: record.dominantAttacker,
         attackIntensity: record.attackIntensity,
         attackCount: record.attackCount,
@@ -599,6 +608,8 @@
       emitCityEvent("city:control-changed", {
         city: cityKey,
         controller: record.controller,
+        type: "retract",                            /* ← v3.3: NIEUW */
+        action: "retract",                          /* ← v3.3: NIEUW */
         contested: record.contested,
         conflict: record.conflict,
         retracted: actorName,
@@ -619,6 +630,8 @@
     emitCityEvent("city:control-changed", {
       city: cityKey,
       controller: record.controller,
+      type: "clear-transition",                     /* ← v3.3: NIEUW */
+      action: "clear-transition",                   /* ← v3.3: NIEUW */
       transition: null,
       conflict: record.conflict,
       timestamp: Date.now()
@@ -642,7 +655,7 @@
     getAllSnapshots: getAllSnapshots,
     flush: flushWrites,
     _getState: function(){ return CITY_STATUS; },
-    _version: "v3.2"
+    _version: "v3.3"
   };
 
   if (document.readyState === "loading"){
@@ -651,6 +664,6 @@
     setTimeout(init, 500);
   }
 
-  LOG("city-status v3.2 geladen (WD.safeCatch migratie)");
+  LOG("city-status v3.3 geladen (type/action velden — capture-tracker fix)");
 
 })();
