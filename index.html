@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.35</title>
+<title>WAR DESK v14.36</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -22,7 +22,7 @@
 <link rel="apple-touch-icon" sizes="144x144" href="./icons/icon-144.png">
 
 <script>
-window.APP_VERSION = "v14.35";
+window.APP_VERSION = "v14.36";
 
 (function(){
   try {
@@ -226,7 +226,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.35</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.36</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -531,7 +531,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.35</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.36</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -607,6 +607,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
     <button id="wdDebugInfo">Systeem info</button>
     <button id="wdDebugCache">Cache info</button>
     <button id="wdDebugErrors">Fouten</button>
+    <button id="wdDebugWorker">Worker</button>
   </div>
   <div id="wdDebugLog"></div>
 </div>
@@ -825,6 +826,24 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
           });
         });
       }
+      if(document.getElementById("wdDebugWorker")){
+        document.getElementById("wdDebugWorker").addEventListener("click", function(){
+          if(!window.ClassifierBridge){ add("warn", "ClassifierBridge niet geladen"); return; }
+          add("info", "─── CLASSIFIER WORKER ───");
+          var s = ClassifierBridge.getStatus();
+          add("info", "Bridge versie: " + s.version);
+          add("info", "Worker ondersteund: " + s.supported);
+          add("info", "Worker ready: " + s.ready);
+          add("info", "Worker gefaald: " + s.failed);
+          add("info", "Worker bestaat: " + s.workerExists);
+          add("info", "Pending requests: " + s.pendingCount);
+          add("info", "─── PING TEST ───");
+          ClassifierBridge.ping().then(function(r){
+            if(r.ok) add("info", "Ping OK — worker versie: " + (r.version || "?"));
+            else add("warn", "Ping faalde: " + (r.reason || "?"));
+          });
+        });
+      }
     }
     add("info", "WAR DESK start");
     add("info", "Versie: " + (window.APP_VERSION || "?"));
@@ -862,9 +881,10 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="wd-proxy.js?v=1.1" defer></script>
 
 <!-- ============================================================
-     AI CLASSIFICATIE
+     AI CLASSIFICATIE + WORKER BRIDGE
      ============================================================ -->
-<script src="classifier.js?v=5.0c" defer></script>
+<script src="classifier.js?v=6.0" defer></script>
+<script src="classifier-bridge.js?v=1.0" defer></script>
 <script src="city-actors.js?v=2.0" defer></script>
 <script src="event-detector.js?v=2.2" defer></script>
 <script src="event-dedup.js?v=1.1" defer></script>
@@ -887,7 +907,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <!-- ============================================================
      MAP AI + CITY STATUS
      ============================================================ -->
-<script src="ai-map.js?v=3.17.0" defer></script>
+<script src="ai-map.js?v=3.18.0" defer></script>
 <script src="city-status.js?v=3.3" defer></script>
 
 <!-- ============================================================
