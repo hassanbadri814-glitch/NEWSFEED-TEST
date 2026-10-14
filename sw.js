@@ -5,7 +5,7 @@
    - v4.40: JS/CSS network-first met 3s timeout
    ============================================================ */
 
-const CACHE_VERSION = 'v4.41';
+const CACHE_VERSION = 'v4.42';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 const TILE_CACHE    = 'wardesk-tiles-v1';
