@@ -1,17 +1,21 @@
 /* ============================================================
-   WAR DESK — baseline.js v3.1
-   - v3.1: Saoedi-Arabië toegevoegd (13 provincies)
-   - v3.0: Exacte GADM keys + country fallback
+   WAR DESK — baseline.js v3.2
+   - v3.2: confidence + verifiedAt per entry + changelog
+           + getStateAt(date) voor historische weergave
+           + activeDate toggle (via timeline.js)
+   - v3.1: Saoedi-Arabië toegevoegd
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WD_BASELINE_VERSION = "v3.1";
+  window.WD_BASELINE_VERSION = "v3.2";
+
+  var CHANGELOG_KEY = "wardesk_baseline_changelog";
+  var MAX_CHANGELOG = 2000;
 
   var BASELINE = {
-
-    /* ══════════════ SYRIË (ADM2) ══════════════ */
+    /* ══════════════ SYRIË ══════════════ */
     "SYR|As-Safirah":            { controller: "Al-Sharaa-regering", since: "2024-12-08", source: "HTS" },
     "SYR|JabalSam'an":           { controller: "Al-Sharaa-regering", since: "2024-12-01", source: "HTS" },
     "SYR|Jarabulus":             { controller: "Al-Sharaa-regering", since: "2024-12-01", source: "HTS" },
@@ -65,7 +69,7 @@
     "SYR|Al-Mukharram":          { controller: "Al-Sharaa-regering", since: "2024-12-07", source: "HTS" },
     "SYR|Al-Qusayr":             { controller: "Al-Sharaa-regering", since: "2024-12-07", source: "HTS" },
 
-    /* ══════════════ LIBANON (ADM2) ══════════════ */
+    /* ══════════════ LIBANON ══════════════ */
     "LBN|BintJbayl":        { controller: "Israël (bezet)", since: "2026-06-01", source: "IDF" },
     "LBN|Hasbaya":          { controller: "Israël (bezet)", since: "2026-06-01", source: "IDF" },
     "LBN|Marjaayoun":       { controller: "Israël (bezet)", since: "2026-06-01", source: "IDF" },
@@ -91,7 +95,7 @@
     "LBN|Tripoli":          { controller: "Libanese staat", since: "1990-10-13", source: "staat" },
     "LBN|Zgharta":          { controller: "Libanese staat", since: "1990-10-13", source: "staat" },
 
-    /* ══════════════ JEMEN (ADM1) ══════════════ */
+    /* ══════════════ JEMEN ══════════════ */
     "YEM|AmanatAlAsimah":   { controller: "Houthi's", since: "2014-09-21", source: "Houthi" },
     "YEM|Amran":            { controller: "Houthi's", since: "2014-09-21", source: "Houthi" },
     "YEM|Dhamar":           { controller: "Houthi's", since: "2014-09-21", source: "Houthi" },
@@ -114,7 +118,7 @@
     "YEM|AlMahrah":         { controller: "Regering", since: "2015-07-17", source: "STC" },
     "YEM|AlMahwit":         { controller: "Houthi's", since: "2014-09-21", source: "Houthi" },
 
-    /* ══════════════ SAOEDI-ARABIË (ADM1) ══════════════ */
+    /* ══════════════ SAOEDI-ARABIË ══════════════ */
     "SAU|ArRiyad":              { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
     "SAU|Makkah":               { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
     "SAU|AlMadinah":            { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
@@ -129,7 +133,7 @@
     "SAU|Asir":                 { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
     "SAU|AlBahah":              { controller: "Saoedi-Arabië", since: "1932-09-23", source: "staat" },
 
-    /* ══════════════ ISRAËL (ADM1) ══════════════ */
+    /* ══════════════ ISRAËL ══════════════ */
     "ISR|Golan":     { controller: "Israël", since: "1967-06-10", source: "IDF" },
     "ISR|HaDarom":   { controller: "Israël", since: "1948-05-14", source: "IDF" },
     "ISR|Haifa":     { controller: "Israël", since: "1948-05-14", source: "IDF" },
@@ -138,11 +142,11 @@
     "ISR|Jerusalem": { controller: "Israël", since: "1948-05-14", source: "IDF" },
     "ISR|TelAviv":   { controller: "Israël", since: "1948-05-14", source: "IDF" },
 
-    /* ══════════════ PALESTINA (ADM1) ══════════════ */
+    /* ══════════════ PALESTINA ══════════════ */
     "PSE|Gaza":     { controller: "Israël (bezet)", since: "2025-10-10", source: "IDF" },
     "PSE|WestBank": { controller: "Palestina",       since: "1994-05-04", source: "PA" },
 
-    /* ══════════════ SOEDAN (ADM1) ══════════════ */
+    /* ══════════════ SOEDAN ══════════════ */
     "SDN|AlJazirah":     { controller: "RSF",      since: "2024-12-01", source: "RSF" },
     "SDN|AlQadarif":     { controller: "Regering", since: "2024-01-01", source: "SAF" },
     "SDN|BlueNile":      { controller: "Regering", since: "2024-01-01", source: "SAF" },
@@ -162,7 +166,7 @@
     "SDN|WestKurdufan":  { controller: "RSF",      since: "2024-06-01", source: "RSF" },
     "SDN|WhiteNile":     { controller: "Regering", since: "2024-01-01", source: "SAF" },
 
-    /* ══════════════ OEKRAÏNE (ADM1) ══════════════ */
+    /* ══════════════ OEKRAÏNE ══════════════ */
     "UKR|Donets'k":            { controller: "Rusland",  since: "2022-02-24", source: "RF" },
     "UKR|Luhans'k":            { controller: "Rusland",  since: "2022-02-24", source: "RF" },
     "UKR|Zaporizhia":          { controller: "Rusland",  since: "2022-02-24", source: "RF" },
@@ -191,7 +195,7 @@
     "UKR|Khmel'nyts'kyy":      { controller: "Oekraïne", since: "2022-02-24", source: "ZSU" },
     "UKR|Chernivtsi":          { controller: "Oekraïne", since: "2022-02-24", source: "ZSU" },
 
-    /* ══════════════ ETHIOPIË (ADM1) ══════════════ */
+    /* ══════════════ ETHIOPIË ══════════════ */
     "ETH|Tigray":                    { controller: "TPLF (Tigray)",     since: "2020-11-04", source: "TPLF" },
     "ETH|Amhara":                    { controller: "Fano (Amhara)",     since: "2023-04-01", source: "Fano" },
     "ETH|Oromia":                    { controller: "OLA (Oromia)",      since: "2023-01-01", source: "OLA" },
@@ -204,7 +208,7 @@
     "ETH|Somali":                    { controller: "Federale regering", since: "1991-05-28", source: "EPRDF" },
     "ETH|SouthernNations,Nationalities": { controller: "Federale regering", since: "1991-05-28", source: "EPRDF" },
 
-    /* ══════════════ MALI (ADM1) ══════════════ */
+    /* ══════════════ MALI ══════════════ */
     "MLI|Kidal":     { controller: "FLA (Toeareg)",     since: "2024-01-01", source: "FLA" },
     "MLI|Gao":       { controller: "JNIM (Jihadisten)", since: "2025-06-01", source: "JNIM" },
     "MLI|Mopti":     { controller: "JNIM (Jihadisten)", since: "2025-06-01", source: "JNIM" },
@@ -215,7 +219,7 @@
     "MLI|Ségou":     { controller: "Junta (Regering)",  since: "2024-01-01", source: "Junta" },
     "MLI|Sikasso":   { controller: "Junta (Regering)",  since: "2024-01-01", source: "Junta" },
 
-    /* ══════════════ BURKINA FASO (ADM1) ══════════════ */
+    /* ══════════════ BURKINA FASO ══════════════ */
     "BFA|Sahel":           { controller: "JNIM (Jihadisten)", since: "2025-01-01", source: "JNIM" },
     "BFA|Est":             { controller: "JNIM (Jihadisten)", since: "2025-01-01", source: "JNIM" },
     "BFA|Nord":            { controller: "JNIM (Jihadisten)", since: "2025-01-01", source: "JNIM" },
@@ -230,7 +234,7 @@
     "BFA|Plateau-Central": { controller: "Junta (Regering)",  since: "2024-01-01", source: "Junta" },
     "BFA|Sud-Ouest":       { controller: "Junta (Regering)",  since: "2024-01-01", source: "Junta" },
 
-    /* ══════════════ NIGER (ADM1) ══════════════ */
+    /* ══════════════ NIGER ══════════════ */
     "NER|Agadez":    { controller: "Junta (Regering)",  since: "2024-01-01", source: "Junta" },
     "NER|Diffa":     { controller: "Boko Haram/ISWAP",  since: "2024-01-01", source: "ISWAP" },
     "NER|Dosso":     { controller: "Junta (Regering)",  since: "2024-01-01", source: "Junta" },
@@ -240,7 +244,7 @@
     "NER|Tillabéry": { controller: "JNIM (Jihadisten)", since: "2025-01-01", source: "JNIM" },
     "NER|Zinder":    { controller: "Boko Haram/ISWAP",  since: "2024-01-01", source: "ISWAP" },
 
-    /* ══════════════ DRC (ADM1) ══════════════ */
+    /* ══════════════ DRC ══════════════ */
     "COD|Nord-Kivu":     { controller: "M23/AFC",          since: "2024-06-01", source: "M23" },
     "COD|Sud-Kivu":      { controller: "M23/AFC",          since: "2024-06-01", source: "M23" },
     "COD|Tanganyika":    { controller: "M23/AFC",          since: "2024-06-01", source: "M23" },
@@ -268,7 +272,7 @@
     "COD|Haut-Lomami":   { controller: "Regering (FARDC)", since: "2019-01-24", source: "FARDC" },
     "COD|Lualaba":       { controller: "Regering (FARDC)", since: "2019-01-24", source: "FARDC" },
 
-    /* ══════════════ MYANMAR (ADM1) ══════════════ */
+    /* ══════════════ MYANMAR ══════════════ */
     "MMR|Rakhine":     { controller: "Arakan Army",     since: "2024-01-01", source: "AA" },
     "MMR|Kachin":      { controller: "KIA (Kachin)",    since: "2024-06-01", source: "KIA" },
     "MMR|Kayin":       { controller: "KNU (Karen)",     since: "2024-01-01", source: "KNU" },
@@ -285,15 +289,15 @@
     "MMR|Tanintharyi": { controller: "Militaire junta", since: "2021-02-01", source: "Tatmadaw" },
     "MMR|Yangon":      { controller: "Militaire junta", since: "2021-02-01", source: "Tatmadaw" },
 
-    /* ══════════════ PAKISTAN (ADM1) ══════════════ */
-    "PAK|Islamabad":                       { controller: "Pakistan (Regering)",   since: "1947-08-14", source: "staat" },
-    "PAK|Balochistan":                     { controller: "Afghanistan (Taliban)", since: "2024-01-01", source: "BLA" },
-    "PAK|Khyber-Pakhtunkhwa":              { controller: "Afghanistan (Taliban)", since: "2024-01-01", source: "TTP" },
-    "PAK|FederallyAdministeredTribalAr":   { controller: "Afghanistan (Taliban)", since: "2024-01-01", source: "TTP" },
-    "PAK|AzadKashmir":                     { controller: "India (grens)",         since: "1947-10-22", source: "grens" },
-    "PAK|Gilgit-Baltistan":                { controller: "India (grens)",         since: "1947-11-01", source: "grens" },
-    "PAK|Punjab":                          { controller: "India (grens)",         since: "1947-08-14", source: "grens" },
-    "PAK|Sindh":                           { controller: "India (grens)",         since: "1947-08-14", source: "grens" }
+    /* ══════════════ PAKISTAN ══════════════ */
+    "PAK|Islamabad":                     { controller: "Pakistan (Regering)",   since: "1947-08-14", source: "staat" },
+    "PAK|Balochistan":                   { controller: "Afghanistan (Taliban)", since: "2024-01-01", source: "BLA" },
+    "PAK|Khyber-Pakhtunkhwa":            { controller: "Afghanistan (Taliban)", since: "2024-01-01", source: "TTP" },
+    "PAK|FederallyAdministeredTribalAr": { controller: "Afghanistan (Taliban)", since: "2024-01-01", source: "TTP" },
+    "PAK|AzadKashmir":                   { controller: "India (grens)",         since: "1947-10-22", source: "grens" },
+    "PAK|Gilgit-Baltistan":              { controller: "India (grens)",         since: "1947-11-01", source: "grens" },
+    "PAK|Punjab":                        { controller: "India (grens)",         since: "1947-08-14", source: "grens" },
+    "PAK|Sindh":                         { controller: "India (grens)",         since: "1947-08-14", source: "grens" }
   };
 
   var COUNTRY_FALLBACK = {
@@ -314,6 +318,109 @@
     "PAK": { controller: "Pakistan (Regering)", since: "1947-08-14", source: "fallback" }
   };
 
+  /* ════════════════════════════════════════════════════════════
+     v3.2: Historische state
+     ════════════════════════════════════════════════════════════ */
+  var _activeDate = null;
+  var _historicalCache = null;
+
+  function loadChangelog(){
+    try {
+      var raw = localStorage.getItem(CHANGELOG_KEY);
+      if (!raw) return [];
+      var arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    } catch(e){ return []; }
+  }
+
+  function saveChangelog(arr){
+    try {
+      if (arr.length > MAX_CHANGELOG){
+        arr = arr.slice(arr.length - MAX_CHANGELOG);
+      }
+      localStorage.setItem(CHANGELOG_KEY, JSON.stringify(arr));
+    } catch(e){}
+  }
+
+  function appendChange(key, oldVal, newVal, actor){
+    var arr = loadChangelog();
+    arr.push({
+      t: Date.now(),
+      key: key,
+      old: oldVal || null,
+      new: newVal,
+      actor: actor || "onbekend"
+    });
+    saveChangelog(arr);
+  }
+
+  function computeHistoricalState(dateStr){
+    if (!dateStr) return null;
+    var targetTs;
+    try {
+      targetTs = new Date(dateStr + "T23:59:59.999").getTime();
+    } catch(e){ return null; }
+    if (isNaN(targetTs)) return null;
+
+    /* Start met huidige baseline */
+    var state = {};
+    Object.keys(BASELINE).forEach(function(k){
+      state[k] = BASELINE[k];
+    });
+
+    /* Reverse alle changes na target */
+    var changelog = loadChangelog();
+    for (var i = changelog.length - 1; i >= 0; i--){
+      var c = changelog[i];
+      if (!c || c.t <= targetTs) continue;
+      if (c.old === null){
+        delete state[c.key];
+      } else {
+        state[c.key] = c.old;
+      }
+    }
+
+    /* Filter entries waarvan since > target (bestonden nog niet) */
+    var result = {};
+    Object.keys(state).forEach(function(k){
+      var entry = state[k];
+      if (!entry) return;
+      var sinceTs = entry.since ? new Date(entry.since + "T00:00:00").getTime() : 0;
+      if (sinceTs <= targetTs){
+        result[k] = entry;
+      }
+    });
+
+    return result;
+  }
+
+  function setActiveDate(dateStr){
+    if (!dateStr){
+      _activeDate = null;
+      _historicalCache = null;
+      try {
+        if (window.WarDesk && WarDesk.events){
+          WarDesk.events.emit("baseline:timeline-changed", { date: null });
+        }
+      } catch(e){}
+      return;
+    }
+    _activeDate = dateStr;
+    _historicalCache = computeHistoricalState(dateStr);
+    try {
+      if (window.WarDesk && WarDesk.events){
+        WarDesk.events.emit("baseline:timeline-changed", { date: dateStr });
+      }
+    } catch(e){}
+  }
+
+  function getActiveDate(){ return _activeDate; }
+
+  /* ════════════════════════════════════════════════════════════
+     Lookups
+     ════════════════════════════════════════════════════════════ */
+  function getSource(){ return _historicalCache || BASELINE; }
+
   function normalizeKey(s){
     return String(s || "").toLowerCase()
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -324,12 +431,14 @@
 
   function getBaseline(iso3, admin1, provinceName){
     if (!iso3) return null;
+    var source = getSource();
+
     var keys = [];
     if (admin1) keys.push(iso3 + "|" + admin1);
     if (provinceName) keys.push(iso3 + "|" + provinceName);
 
     for (var i = 0; i < keys.length; i++){
-      if (BASELINE[keys[i]]) return BASELINE[keys[i]];
+      if (source[keys[i]]) return source[keys[i]];
     }
 
     var candidates = [];
@@ -337,17 +446,17 @@
     if (provinceName) candidates.push(normalizeKey(provinceName));
 
     var prefix = iso3 + "|";
-    for (var k in BASELINE){
-      if (!Object.prototype.hasOwnProperty.call(BASELINE, k)) continue;
+    for (var k in source){
+      if (!Object.prototype.hasOwnProperty.call(source, k)) continue;
       if (k.indexOf(prefix) !== 0) continue;
       var baselineKey = normalizeKey(k.substring(prefix.length));
       for (var j = 0; j < candidates.length; j++){
         var c = candidates[j];
         if (!c) continue;
-        if (baselineKey === c) return BASELINE[k];
+        if (baselineKey === c) return source[k];
         if (baselineKey.length >= 4 && c.length >= 4){
           if (baselineKey.indexOf(c) !== -1 || c.indexOf(baselineKey) !== -1){
-            return BASELINE[k];
+            return source[k];
           }
         }
       }
@@ -357,19 +466,56 @@
     return null;
   }
 
-  function setBaseline(iso3, admin1, controller, since, source){
+  function setBaseline(iso3, admin1, controller, since, source, extras){
+    if (!iso3 || !admin1 || !controller) return null;
+
     var key = iso3 + "|" + admin1;
-    BASELINE[key] = {
+    var oldVal = BASELINE[key] || null;
+
+    var newVal = {
       controller: controller,
       since: since || new Date().toISOString().slice(0, 10),
       source: source || "handmatig"
     };
+    if (extras){
+      if (typeof extras.confidence === "number") newVal.confidence = extras.confidence;
+      if (extras.verifiedAt) newVal.verifiedAt = extras.verifiedAt;
+      if (extras.notes) newVal.notes = String(extras.notes).slice(0, 500);
+    }
+
+    BASELINE[key] = newVal;
+
+    /* Changelog */
+    appendChange(key, oldVal, newVal, source || "handmatig");
+
+    /* localStorage overrides (backwards compat) */
     try {
       if (window.WDStorage) {
-        WDStorage.set("baseline_" + key, JSON.stringify(BASELINE[key]));
+        WDStorage.set("baseline_" + key, JSON.stringify(newVal));
       }
     } catch(e){}
-    return BASELINE[key];
+
+    /* Als we in historische modus zitten, herbereken cache */
+    if (_activeDate){
+      _historicalCache = computeHistoricalState(_activeDate);
+    }
+
+    /* Event */
+    try {
+      if (window.WarDesk && WarDesk.events){
+        WarDesk.events.emit("baseline:updated", {
+          iso3: iso3,
+          admin1: admin1,
+          controller: controller,
+          since: newVal.since,
+          source: newVal.source,
+          confidence: newVal.confidence,
+          verifiedAt: newVal.verifiedAt
+        });
+      }
+    } catch(e){}
+
+    return newVal;
   }
 
   function loadLocalOverrides(){
@@ -388,21 +534,29 @@
     } catch(e){}
   }
 
+  function getChangelog(){ return loadChangelog(); }
+  function clearChangelog(){ saveChangelog([]); }
+
   loadLocalOverrides();
 
   window.WDBaseline = {
-    version: "v3.1",
+    version: "v3.2",
     get: getBaseline,
     set: setBaseline,
+    setActiveDate: setActiveDate,
+    getActiveDate: getActiveDate,
+    getChangelog: getChangelog,
+    clearChangelog: clearChangelog,
     _all: BASELINE,
     _fallback: COUNTRY_FALLBACK
   };
 
   try {
     if (window.wdLog) {
-      wdLog.info("[Baseline] v3.1 geladen — " +
-        Object.keys(BASELINE).length + " exacte entries + " +
-        Object.keys(COUNTRY_FALLBACK).length + " fallbacks (12 okt 2026)");
+      wdLog.info("[Baseline] v3.2 geladen — " +
+        Object.keys(BASELINE).length + " entries, " +
+        Object.keys(COUNTRY_FALLBACK).length + " fallbacks, " +
+        loadChangelog().length + " changelog");
     }
   } catch(e){}
 
