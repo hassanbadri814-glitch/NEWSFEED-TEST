@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.45</title>
+<title>WAR DESK v14.46</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -22,6 +22,8 @@
 <link rel="apple-touch-icon" sizes="144x144" href="./icons/icon-144.png">
 
 <script>
+window.APP_VERSION = "v14.46";
+
 (function(){
   try {
     var t = localStorage.getItem("wardesk_theme");
@@ -190,7 +192,6 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
 #viewVod .vod-search-wrap { position: sticky !important; top: calc(var(--header-h, 52px) + 34px) !important; z-index: 19 !important; background: var(--bg) !important; padding: .35rem 0 .55rem !important; margin-bottom: .35rem !important; }
 #viewVod .vod-sidebar { top: calc(var(--header-h, 52px) + 80px) !important; max-height: calc(100vh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important; max-height: calc(100dvh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important; }
 
-/* Admin mode cursor */
 body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair !important; }
 </style>
 </head>
@@ -220,7 +221,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.45</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.46</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -518,7 +519,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.45</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.46</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -592,6 +593,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
     <button id="wdDebugClear">Clear</button>
     <button id="wdDebugReload">Herlaad</button>
     <button id="wdDebugInfo">Systeem info</button>
+    <button id="wdDebugCache">Cache info</button>
   </div>
   <div id="wdDebugLog"></div>
 </div>
@@ -776,6 +778,24 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
           add("info", "OLED: " + (window.__isOledActive() ? "aan" : "uit"));
         });
       }
+      if(document.getElementById("wdDebugCache")){
+        document.getElementById("wdDebugCache").addEventListener("click", function(){
+          if(!window.WDCache){ add("warn", "WDCache niet geladen"); return; }
+          add("info", "Cache stats laden...");
+          WDCache.stats().then(function(s){
+            add("info", "Totaal: " + s.totalMB + "MB");
+            s.entries.forEach(function(e){
+              if(e.count > 0) add("info", "  " + e.db + " / " + e.store + ": " + e.count + " items (" + (e.size / 1024).toFixed(1) + "KB)");
+            });
+          });
+          WDCache.getStorageEstimate().then(function(est){
+            if(est) add("info", "Storage: " + est.usedMB + "/" + est.quotaMB + "MB (" + est.percent + "%)");
+          });
+          WDCache.prune().then(function(r){
+            add("info", "Prune klaar: " + r.pruned + " entries verwijderd");
+          });
+        });
+      }
     }
     add("info", "WAR DESK start");
     add("info", "Versie: " + (window.APP_VERSION || "?"));
@@ -807,8 +827,14 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="utils.js?v=14.30" defer></script>
 
 <!-- ============================================================
+     NIEUW — WD modules (Ronde 2)
+     ============================================================ -->
+<script src="wd-utils.js?v=1.0" defer></script>
+<script src="wd-geo.js?v=1.0" defer></script>
+<script src="wd-proxy.js?v=1.0" defer></script>
+
+<!-- ============================================================
      AI CLASSIFICATIE
-     city-actors.js MOET vóór event-detector.js
      ============================================================ -->
 <script src="classifier.js?v=5.0c" defer></script>
 <script src="city-actors.js?v=2.0" defer></script>
@@ -826,7 +852,6 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <!-- ============================================================
      WORLDMAP DATA + BASELINE
-     baseline.js MOET vóór conflict-areas.js
      ============================================================ -->
 <script src="worldmap-data.js?v=3.5" defer></script>
 <script src="baseline.js?v=3.1" defer></script>
@@ -838,13 +863,13 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="city-status.js?v=3.1" defer></script>
 
 <!-- ============================================================
-     WORLDMAP v5.0 — fill = baseline, heat = rand
+     WORLDMAP
      ============================================================ -->
 <script src="worldmap.js?v=5.0" defer></script>
 <script src="province-mapper.js?v=1.1" defer></script>
 
 <!-- ============================================================
-     CAPTURE TRACKER — update baseline bij captures
+     CAPTURE TRACKER
      ============================================================ -->
 <script src="capture-tracker.js?v=2.0" defer></script>
 
@@ -878,6 +903,11 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="world-status.js?v=2.1" defer></script>
 <script src="admin.js?v=2.2" defer></script>
 <script src="debug-menu.js?v=1.0" defer></script>
+
+<!-- ============================================================
+     CACHE MANAGER + BOOT CHECK — laatste
+     ============================================================ -->
+<script src="cache-manager.js?v=1.0" defer></script>
 <script src="boot-check.js?v=1.0" defer></script>
 
 <!-- ============================================================
