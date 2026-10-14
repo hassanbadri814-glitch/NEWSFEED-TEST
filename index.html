@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.49</title>
+<title>WAR DESK v14.51</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -22,7 +22,7 @@
 <link rel="apple-touch-icon" sizes="144x144" href="./icons/icon-144.png">
 
 <script>
-window.APP_VERSION = "v14.49";
+window.APP_VERSION = "v14.51";
 
 (function(){
   try {
@@ -193,6 +193,11 @@ body:has(#viewAi:not([hidden])) .brand-mark svg { width: 18px !important; height
 #viewVod .vod-sidebar { top: calc(var(--header-h, 52px) + 80px) !important; max-height: calc(100vh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important; max-height: calc(100dvh - var(--header-h, 52px) - 80px - var(--tabs-h, 62px) - 20px) !important; }
 
 body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair !important; }
+
+.iptv-remember-row { padding: .6rem .1rem .5rem; }
+.iptv-remember-label { display: flex; align-items: center; gap: .5rem; cursor: pointer; font-size: .82rem; color: var(--ink); font-weight: 500; }
+.iptv-remember-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--amber, #e0a857); cursor: pointer; }
+.iptv-remember-hint { font-size: .68rem; color: var(--ink-3, #6b7a93); margin-top: .35rem; padding-left: 1.5rem; line-height: 1.35; }
 </style>
 </head>
 <body>
@@ -221,7 +226,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.49</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.51</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -319,6 +324,13 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
         <button class="iptv-btn" id="iptvTestBtn">🔍 Test</button>
         <button class="iptv-btn primary" id="iptvLoadBtn">⬇ Laad kanalen</button>
         <button class="iptv-btn danger" id="iptvClearBtn">🗑</button>
+      </div>
+      <div class="iptv-remember-row">
+        <label class="iptv-remember-label">
+          <input type="checkbox" id="iptvRemember" checked>
+          <span>Onthoud gegevens op dit apparaat</span>
+        </label>
+        <div class="iptv-remember-hint">Uit = wachtwoord wordt niet opgeslagen, je moet het elke keer opnieuw invoeren</div>
       </div>
       <div class="iptv-status" id="iptvStatus"></div>
     </div>
@@ -519,7 +531,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.49</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.51</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -776,6 +788,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
           add("info", "Thema: " + (document.body.classList.contains("light") ? "licht" : "donker"));
           add("info", "Accent: " + (document.documentElement.getAttribute("data-accent") || "goud"));
           add("info", "OLED: " + (window.__isOledActive() ? "aan" : "uit"));
+          add("info", "Timeline: " + (window.WDTimeline && WDTimeline.getActiveDate() ? WDTimeline.getActiveDate() : "live"));
         });
       }
       if(document.getElementById("wdDebugCache")){
@@ -849,10 +862,10 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="ai-summary.js?v=1.2" defer></script>
 
 <!-- ============================================================
-     WORLDMAP DATA + BASELINE
+     WORLDMAP DATA + BASELINE (v3.2 — timeline)
      ============================================================ -->
 <script src="worldmap-data.js?v=3.5" defer></script>
-<script src="baseline.js?v=3.1" defer></script>
+<script src="baseline.js?v=3.2" defer></script>
 
 <!-- ============================================================
      MAP AI + CITY STATUS
@@ -861,7 +874,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="city-status.js?v=3.2" defer></script>
 
 <!-- ============================================================
-     WORLDMAP v5.0
+     WORLDMAP
      ============================================================ -->
 <script src="worldmap.js?v=5.0" defer></script>
 <script src="province-mapper.js?v=1.1" defer></script>
@@ -878,8 +891,13 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="osint-feeds.js?v=2.6.3" defer></script>
 <script src="conflict-areas-data.js?v=1.0" defer></script>
 <script src="conflict-areas-fetch.js?v=1.0" defer></script>
-<script src="conflict-areas.js?v=15.0" defer></script>
+<script src="conflict-areas.js?v=15.1" defer></script>
 <script src="maplibre-labels.js?v=1.2" defer></script>
+
+<!-- ============================================================
+     TIMELINE UI (nieuw — Ronde 5)
+     ============================================================ -->
+<script src="timeline.js?v=1.0" defer></script>
 
 <!-- ============================================================
      STATE + NEWS + PERSISTENCE
@@ -893,7 +911,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <!-- ============================================================
      UI MODULES
      ============================================================ -->
-<script src="iptv-v8.js?v=14.30" defer></script>
+<script src="iptv-v8.js?v=14.31" defer></script>
 <script src="map-v11.10.js?v=14.6.0" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=1.20" defer></script>
@@ -901,7 +919,7 @@ document.addEventListener("DOMContentLoaded", function(){
 <script src="ai-ui.js?v=2.2" defer></script>
 <script src="enhancements.js?v=1.3" defer></script>
 <script src="world-status.js?v=2.1" defer></script>
-<script src="admin.js?v=2.2" defer></script>
+<script src="admin.js?v=2.3" defer></script>
 <script src="debug-menu.js?v=1.0" defer></script>
 
 <!-- ============================================================
