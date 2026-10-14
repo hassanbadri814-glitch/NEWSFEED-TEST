@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="WAR DESK">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="application-name" content="WAR DESK">
-<title>WAR DESK v14.47</title>
+<title>WAR DESK v14.49</title>
 
 <link rel="icon" type="image/svg+xml" href="icon.svg">
 <link rel="manifest" href="manifest.json">
@@ -22,7 +22,7 @@
 <link rel="apple-touch-icon" sizes="144x144" href="./icons/icon-144.png">
 
 <script>
-window.APP_VERSION = "v14.47";
+window.APP_VERSION = "v14.49";
 
 (function(){
   try {
@@ -105,6 +105,7 @@ window.APP_VERSION = "v14.47";
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://unpkg.com">
 <link rel="preconnect" href="https://newsfeed2.hassanbadri814.workers.dev" crossorigin>
+<link rel="preconnect" href="https://a.basemaps.cartocdn.com" crossorigin>
 <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
 <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
 
@@ -115,7 +116,6 @@ window.APP_VERSION = "v14.47";
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css">
-<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 
 <link rel="stylesheet" href="styles.css?v=15.2">
 
@@ -221,7 +221,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
       <div class="brand-text">
         <span class="name">WAR DESK</span>
-        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.47</span></span>
+        <span class="tag">LIVE MONITOR · <span class="version-badge" id="appVersion">v14.49</span></span>
       </div>
     </div>
     <div class="header-stats">
@@ -519,7 +519,7 @@ body.wd-admin-mode .leaflet-container .ca-pane-province path { cursor: crosshair
       </div>
     </div>
     <div class="sheet-section">
-      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.47</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
+      <div class="sheet-about">WAR DESK <span class="version" id="appVersionMenu">v14.49</span><br>Live nieuws + IPTV + Kaart + VOD + AI</div>
     </div>
   </div>
 </div>
@@ -816,8 +816,6 @@ document.addEventListener("DOMContentLoaded", function(){
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" defer></script>
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js" defer></script>
-<script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.20/leaflet-maplibre-gl.js" defer></script>
 
 <!-- ============================================================
      CORE
@@ -859,11 +857,11 @@ document.addEventListener("DOMContentLoaded", function(){
 <!-- ============================================================
      MAP AI + CITY STATUS
      ============================================================ -->
-<script src="ai-map.js?v=3.16.7" defer></script>
+<script src="ai-map.js?v=3.17.0" defer></script>
 <script src="city-status.js?v=3.2" defer></script>
 
 <!-- ============================================================
-     WORLDMAP
+     WORLDMAP v5.0
      ============================================================ -->
 <script src="worldmap.js?v=5.0" defer></script>
 <script src="province-mapper.js?v=1.1" defer></script>
@@ -878,7 +876,9 @@ document.addEventListener("DOMContentLoaded", function(){
      ============================================================ -->
 <script src="diagnostic.js?v=1.3" defer></script>
 <script src="osint-feeds.js?v=2.6.3" defer></script>
-<script src="conflict-areas.js?v=14.1" defer></script>
+<script src="conflict-areas-data.js?v=1.0" defer></script>
+<script src="conflict-areas-fetch.js?v=1.0" defer></script>
+<script src="conflict-areas.js?v=15.0" defer></script>
 <script src="maplibre-labels.js?v=1.2" defer></script>
 
 <!-- ============================================================
@@ -894,7 +894,7 @@ document.addEventListener("DOMContentLoaded", function(){
      UI MODULES
      ============================================================ -->
 <script src="iptv-v8.js?v=14.30" defer></script>
-<script src="map-v11.10.js?v=14.5.4" defer></script>
+<script src="map-v11.10.js?v=14.6.0" defer></script>
 <script src="vod-v24.js?v=14.30" defer></script>
 <script src="ai-chat.js?v=1.20" defer></script>
 
