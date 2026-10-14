@@ -1,14 +1,19 @@
 /* ============================================================
-   WAR DESK Service Worker v4.35
-   - v4.35: Tile-caching voor OpenFreeMap (data -15%)
-            + PRECACHE compleet
+   WAR DESK Service Worker v4.40
+   - v4.40: JS/CSS nu network-first met 3s timeout
+            (updates komen direct door, geen hard refresh meer)
+            PRECACHE bijgewerkt: nieuwe WD modules, oude
+            province-consensus/consensus-history verwijderd
+   - v4.35: Tile-caching voor OpenFreeMap/CARTO
    - v4.31: MEDIA_CACHE cache-first
    ============================================================ */
 
-const CACHE_VERSION = 'v4.38';
+const CACHE_VERSION = 'v4.40';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 const TILE_CACHE    = 'wardesk-tiles-v1';
+
+const NETWORK_TIMEOUT_MS = 3000;
 
 const PRECACHE_ASSETS = [
   './',
@@ -23,8 +28,16 @@ const PRECACHE_ASSETS = [
   './storage.js',
   './store.js',
 
+  /* WD modules (Ronde 2) */
+  './wd-utils.js',
+  './wd-geo.js',
+  './wd-proxy.js',
+  './cache-manager.js',
+  './boot-check.js',
+
   /* Classifier + event logic */
   './classifier.js',
+  './city-actors.js',
   './event-detector.js',
   './event-dedup.js',
 
@@ -40,11 +53,13 @@ const PRECACHE_ASSETS = [
 
   /* Worldmap */
   './worldmap-data.js',
+  './baseline.js',
   './worldmap.js',
   './province-mapper.js',
-  './province-consensus.js',
-  './consensus-history.js',
   './city-status.js',
+  './capture-tracker.js',
+  './conflict-areas-data.js',
+  './conflict-areas-fetch.js',
   './conflict-areas.js',
   './maplibre-labels.js',
 
@@ -62,13 +77,18 @@ const PRECACHE_ASSETS = [
   './enhancements.js',
   './iptv-v8.js',
   './vod-v24.js',
+  './admin.js',
   './debug-menu.js'
 ];
 
 const KEEP_CACHES = [STATIC_CACHE, MEDIA_CACHE, TILE_CACHE];
 
-/* v4.35: tile-hosts die we cachen */
+/* Tile-hosts die we cachen (CARTO + OSM fallback) */
 const TILE_HOSTS = [
+  'a.basemaps.cartocdn.com',
+  'b.basemaps.cartocdn.com',
+  'c.basemaps.cartocdn.com',
+  'd.basemaps.cartocdn.com',
   'tiles.openfreemap.org',
   'tile.openstreetmap.org',
   'a.tile.openstreetmap.org',
@@ -129,7 +149,7 @@ self.addEventListener('fetch', event => {
 
   const url = new URL(req.url);
 
-  /* v4.35: tiles — cache-first, lange TTL */
+  /* Tiles — cache-first, lange TTL */
   if (isTileRequest(url)) {
     event.respondWith(
       caches.open(TILE_CACHE).then(cache =>
@@ -141,7 +161,6 @@ self.addEventListener('fetch', event => {
             }
             return res;
           }).catch(() => {
-            /* Tile offline → leeg 1x1 PNG ipv crash */
             return new Response('', { status: 503 });
           });
         })
@@ -161,6 +180,7 @@ self.addEventListener('fetch', event => {
                || url.pathname.endsWith('/');
   const isJson  = /\.json$/i.test(url.pathname);
 
+  /* Images + fonts — cache-first (veranderen nooit zonder versie-bump) */
   if (isImage || isFont) {
     event.respondWith(
       caches.open(MEDIA_CACHE).then(cache =>
@@ -178,21 +198,34 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  /* JS/CSS — NETWORK-FIRST met 3s timeout, fallback cache */
   if (isAsset) {
     event.respondWith(
-      caches.open(STATIC_CACHE).then(cache =>
-        cache.match(req).then(cached => {
-          const networkFetch = fetch(req).then(res => {
-            if (res && res.status === 200) cache.put(req, res.clone()).catch(()=>{});
-            return res;
-          }).catch(() => cached);
-          return cached || networkFetch;
-        })
-      )
+      (async () => {
+        const cache = await caches.open(STATIC_CACHE);
+        const cached = await cache.match(req);
+
+        try {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
+          const res = await fetch(req, { signal: controller.signal });
+          clearTimeout(timeoutId);
+
+          if (res && res.status === 200) {
+            cache.put(req, res.clone()).catch(()=>{});
+          }
+          return res;
+        } catch (err) {
+          /* Netwerk faalde of timeout — val terug op cache */
+          if (cached) return cached;
+          return new Response('', { status: 503, statusText: 'Offline' });
+        }
+      })()
     );
     return;
   }
 
+  /* HTML/JSON — network-first, altijd cache updaten */
   if (isHtml || isJson) {
     event.respondWith(
       fetch(req)
