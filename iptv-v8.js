@@ -1,8 +1,11 @@
 /* ============================================================
-   WAR DESK v8.0.7 — IPTV (High Performance)
-   - FIX v8.0.5: A7 (HLS CDN vs browser)
-   - FIX v8.0.6: E4 (kwaliteitsgroep ranking), E7 (token check)
-   - FIX v8.0.7: N6 (veiligere logo fallback)
+   WAR DESK v8.1.0 — IPTV (High Performance)
+   - v8.1.0: Toggle "Onthoud gegevens op dit apparaat"
+             Standaard aan (backwards compat). Uit = creds
+             alleen in geheugen, niet in IndexedDB.
+   - v8.0.7: veiligere logo fallback
+   - v8.0.6: kwaliteitsgroep ranking, token check
+   - v8.0.5: HLS CDN vs browser
    ============================================================ */
 
 (function(){
@@ -10,7 +13,9 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[IPTV]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v8.0.7 geladen");
+  LOG("v8.1.0 geladen");
+
+  var REMEMBER_KEY = "wardesk_iptv_remember";
 
   var IPTV = {
     server: "", user: "", pass: "",
@@ -36,12 +41,25 @@
     _initialized: false,
     _groupsBound: false,
     _saveCredsTimer: null,
-    _renderChunkTimer: null
+    _renderChunkTimer: null,
+    rememberCreds: true
   };
 
   function cfg(key, fallback){
     if(window.CONFIG && CONFIG[key] !== undefined) return CONFIG[key];
     return fallback;
+  }
+
+  function loadRememberPref(){
+    try {
+      var v = localStorage.getItem(REMEMBER_KEY);
+      if (v === null) return true;
+      return v === "1";
+    } catch(e){ return true; }
+  }
+
+  function saveRememberPref(val){
+    try { localStorage.setItem(REMEMBER_KEY, val ? "1" : "0"); } catch(e){}
   }
 
   function isDutchGroup(groupName){
@@ -292,7 +310,13 @@
     var loadBtn = $("iptvLoadBtn");
     if(loadBtn){ loadBtn.disabled = true; loadBtn.style.opacity = ".6"; }
 
-    await dbPut("creds", {server:IPTV.server, user:IPTV.user, pass:IPTV.pass});
+    /* v8.1.0: alleen opslaan als gebruiker dat wil */
+    if(IPTV.rememberCreds){
+      await dbPut("creds", {server:IPTV.server, user:IPTV.user, pass:IPTV.pass});
+    } else {
+      await dbDelete("creds");
+    }
+
     var setup = $("iptvSetup");
     if(setup) setup.hidden = false;
     setStatus("Categorieen laden...", "loading");
@@ -320,6 +344,7 @@
       }).filter(function(c){ return c.name && c.url; });
 
       IPTV.channels = newChannels;
+      /* Kanaal-lijst altijd opslaan — bevat geen wachtwoord */
       await dbPut("channels", IPTV.channels);
       IPTV.renderLimit = cfg("iptvChannelsDisplayMax", 500);
 
@@ -460,6 +485,13 @@
   }
 
   function saveCredsNow(){
+    if(!IPTV.rememberCreds){
+      /* Niet opslaan — wel in geheugen houden voor deze sessie */
+      IPTV.server = (($("iptvServer") || {}).value || "").trim();
+      IPTV.user = (($("iptvUser") || {}).value || "").trim();
+      IPTV.pass = ($("iptvPass") || {}).value || "";
+      return;
+    }
     IPTV.server = (($("iptvServer") || {}).value || "").trim();
     IPTV.user = (($("iptvUser") || {}).value || "").trim();
     IPTV.pass = ($("iptvPass") || {}).value || "";
@@ -507,6 +539,26 @@
       document.addEventListener("visibilitychange", function(){
         if(document.hidden) saveCredsImmediate();
       });
+
+      /* v8.1.0: toggle "Onthoud gegevens" */
+      var remember = $("iptvRemember");
+      if(remember){
+        remember.checked = IPTV.rememberCreds;
+        remember.addEventListener("change", function(){
+          IPTV.rememberCreds = !!remember.checked;
+          saveRememberPref(IPTV.rememberCreds);
+          if(!IPTV.rememberCreds){
+            /* Verwijder bestaande opgeslagen creds */
+            dbDelete("creds");
+            if(window.showToast) window.showToast("Gegevens worden niet meer opgeslagen");
+          } else {
+            /* Sla nu op */
+            saveCredsImmediate();
+            if(window.showToast) window.showToast("Gegevens worden opgeslagen");
+          }
+          LOG("rememberCreds:", IPTV.rememberCreds ? "aan" : "uit");
+        });
+      }
 
       var testBtn = $("iptvTestBtn");
       if(testBtn){
@@ -843,7 +895,7 @@
   function bindGridEvents(list){
     var grid = $("iptvGrid");
     if(!grid || grid._iptvBound) return;
-    
+
     grid._iptvBound = true;
     grid.addEventListener("click", function(e){
       var btn = e.target.closest(".iptv-ch");
@@ -906,7 +958,7 @@
 
     var limit = IPTV.renderLimit || 500;
     var toShow = list.slice(0, limit);
-    
+
     renderChannelsChunked(toShow);
 
     if(visibleEl){
@@ -1195,18 +1247,27 @@
 
     try{
       LOG("init start");
+
+      IPTV.rememberCreds = loadRememberPref();
+      LOG("rememberCreds:", IPTV.rememberCreds ? "aan" : "uit");
+
       await openDB();
       loadWorking();
       loadViewMode();
 
       var creds = await dbGet("creds");
-      if(creds){
+
+      if(IPTV.rememberCreds && creds){
         IPTV.server = creds.server || "";
         IPTV.user = creds.user || "";
         IPTV.pass = creds.pass || "";
         var sEl = $("iptvServer"); if(sEl) sEl.value = IPTV.server;
         var uEl = $("iptvUser"); if(uEl) uEl.value = IPTV.user;
         var pEl = $("iptvPass"); if(pEl) pEl.value = IPTV.pass;
+      } else if(creds && !IPTV.rememberCreds){
+        /* Opgeslagen creds bestaan maar mogen niet meer — opruimen */
+        await dbDelete("creds");
+        LOG("Oude creds verwijderd (rememberCreds=uit)");
       }
 
       var channels = await dbGet("channels");
@@ -1222,6 +1283,11 @@
       }
 
       bindUI();
+
+      /* Zet de toggle in de juiste stand */
+      var remember = $("iptvRemember");
+      if(remember) remember.checked = IPTV.rememberCreds;
+
       LOG("init klaar");
     }catch(e){
       LOG("init FOUT:", e);
@@ -1236,5 +1302,5 @@
   else document.addEventListener("DOMContentLoaded", function(){ setTimeout(start, 200); });
   window.addEventListener("load", function(){ setTimeout(start, 500); });
 
-  wdLog.info("[WAR DESK] iptv-v8.js v8.0.7 geladen");
+  wdLog.info("[WAR DESK] iptv-v8.js v8.1.0 geladen");
 })();
