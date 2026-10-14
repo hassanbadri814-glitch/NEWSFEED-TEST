@@ -1,19 +1,17 @@
 /* ============================================================
-   WAR DESK — wd-proxy.js v1.0
-   Centrale proxy-fetcher. Probeert direct, dan alle proxies
-   in volgorde. Logt elke poging.
+   WAR DESK — wd-proxy.js v1.1
+   - v1.1: publieke proxies verwijderd (security + reliability)
+           Alleen eigen Cloudflare Workers
    ============================================================ */
 
 (function(){
   "use strict";
 
-  var VERSION = "v1.0";
+  var VERSION = "v1.1";
 
   var PROXIES = [
     { url: "https://newsfeed2.hassanbadri814.workers.dev/?url=", name: "worker1" },
-    { url: "https://nieuwsproxy.hassanbadri814.workers.dev/?url=", name: "worker2" },
-    { url: "https://api.allorigins.win/raw?url=", name: "allorigins" },
-    { url: "https://corsproxy.io/?url=", name: "corsproxy" }
+    { url: "https://nieuwsproxy.hassanbadri814.workers.dev/?url=", name: "worker2" }
   ];
 
   var DEFAULT_TIMEOUT = 25000;
@@ -76,7 +74,6 @@
     });
   }
 
-  /* Directe fetch zonder proxy (voor bekende CORS-vriendelijke endpoints) */
   function fetchRaw(url, timeoutMs, options){
     return fetchWithTimeout(url, timeoutMs || DEFAULT_TIMEOUT, options)
       .then(function(res){ return res.text(); });
@@ -106,6 +103,6 @@
     getProxies: getProxies
   };
 
-  try { wdLog.info("[WD-Proxy] " + VERSION + " geladen — " + PROXIES.length + " proxies"); } catch(e){}
+  try { wdLog.info("[WD-Proxy] " + VERSION + " geladen — " + PROXIES.length + " eigen workers"); } catch(e){}
 
 })();
