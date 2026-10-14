@@ -1,11 +1,10 @@
 /* ============================================================
-   WAR DESK Service Worker v4.41
-   - v4.41: styles.css + timeline.js + icons + consensus modules
-            maplibre-labels.js verwijderd (dode code)
-   - v4.40: JS/CSS network-first met 3s timeout
+   WAR DESK Service Worker v4.44
+   - v4.44: classifier-bridge + classifier-worker toegevoegd
+   - v4.43: (Fase 2) worldmap-data v3.6
    ============================================================ */
 
-const CACHE_VERSION = 'v4.43';
+const CACHE_VERSION = 'v4.44';
 const STATIC_CACHE  = 'wardesk-static-' + CACHE_VERSION;
 const MEDIA_CACHE   = 'wardesk-media-v1';
 const TILE_CACHE    = 'wardesk-tiles-v1';
@@ -16,16 +15,16 @@ const PRECACHE_ASSETS = [
   './',
   './index.html',
   './offline.html',
-  './styles.css',                     /* ← v4.41 TOEGEVOEGD */
+  './styles.css',
   './icon.svg',
   './manifest.json',
 
-  /* Icons (voor PWA-installatie) */
-  './icons/icon-144.png',             /* ← v4.41 TOEGEVOEGD */
-  './icons/icon-152.png',             /* ← v4.41 TOEGEVOEGD */
-  './icons/icon-180.png',             /* ← v4.41 TOEGEVOEGD */
+  './icons/icon-144.png',
+  './icons/icon-152.png',
+  './icons/icon-180.png',
 
   /* Core */
+  './error-reporter.js',
   './config.js',
   './utils.js',
   './storage.js',
@@ -38,8 +37,12 @@ const PRECACHE_ASSETS = [
   './cache-manager.js',
   './boot-check.js',
 
-  /* Classifier + event logic */
+  /* Classifier + worker */
   './classifier.js',
+  './classifier-bridge.js',
+  './classifier-worker.js',
+
+  /* Event logic */
   './city-actors.js',
   './event-detector.js',
   './event-dedup.js',
@@ -59,15 +62,14 @@ const PRECACHE_ASSETS = [
   './baseline.js',
   './worldmap.js',
   './province-mapper.js',
-  './province-consensus.js',          /* ← v4.41 TOEGEVOEGD */
-  './consensus-history.js',           /* ← v4.41 TOEGEVOEGD */
+  './province-consensus.js',
+  './consensus-history.js',
   './city-status.js',
   './capture-tracker.js',
   './conflict-areas-data.js',
   './conflict-areas-fetch.js',
   './conflict-areas.js',
-  './timeline.js',                    /* ← v4.41 TOEGEVOEGD */
-  /* maplibre-labels.js VERWIJDERD — dode code */
+  './timeline.js',
 
   /* OSINT */
   './osint-feeds.js',
