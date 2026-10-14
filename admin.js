@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — admin.js v2.3
+   WAR DESK — admin.js v2.4
+   - v2.4: onPanelOpen toegevoegd (koppeling met conflict-areas)
+           Back-button in changelog fix (lastIso3)
    - v2.3: Confidence slider + verifiedAt + notes in modal
-   - v2.2: FAB alleen zichtbaar als admin modus AAN staat
    ============================================================ */
 
 (function(){
@@ -15,6 +16,7 @@
   var modal = null;
   var fab = null;
   var mapClickBound = false;
+  var lastIso3 = null;                              /* ← v2.4: voor back-button */
 
   function toast(msg){
     try { if (window.showToast) window.showToast(msg); } catch(e){}
@@ -262,16 +264,19 @@
   function escAttr(s){ return escHtml(s).replace(/"/g, "&quot;"); }
 
   function openModal(feature, iso3){
+    /* ← v2.4: onthoud iso3 voor back-button */
+    if (iso3) lastIso3 = iso3;
+
     var props = feature.properties;
     var conflicts = (window.ConflictAreas && ConflictAreas._conflicts) || {};
-    var conflict = conflicts[iso3];
+    var conflict = conflicts[lastIso3];               /* ← gebruik lastIso3 */
 
     if (!conflict || !conflict.parties){
-      toast("Geen partijen bekend voor " + iso3);
+      toast("Geen partijen bekend voor " + (lastIso3 || "?"));
       return;
     }
 
-    var baseline = window.WDBaseline ? WDBaseline.get(iso3, props.name, props.provinceName) : null;
+    var baseline = window.WDBaseline ? WDBaseline.get(lastIso3, props.name, props.provinceName) : null;
     var currentCtrl = baseline ? baseline.controller : "";
     var currentConf = baseline && typeof baseline.confidence === "number" ? baseline.confidence : 0.7;
     var currentVerified = baseline && baseline.verifiedAt ? baseline.verifiedAt : new Date().toISOString().slice(0, 10);
@@ -289,7 +294,7 @@
       '<label>Provincie / district</label>' +
       '<div class="val">' + escHtml(props.name || "?") +
         (props.provinceName ? ' <span style="opacity:.5">· ' + escHtml(props.provinceName) + '</span>' : '') +
-        ' <span style="opacity:.5">· ' + iso3 + '</span>' +
+        ' <span style="opacity:.5">· ' + lastIso3 + '</span>' +
       '</div>' +
       '<label>Huidige controller</label>' +
       '<div class="val">' + (currentCtrl ? escHtml(currentCtrl) : "— geen baseline —") + '</div>' +
@@ -312,7 +317,6 @@
 
     modal.classList.add("show");
 
-    /* Confidence slider live update */
     var slider = document.getElementById("wdAdminConfidence");
     var confVal = document.getElementById("wdAdminConfVal");
     if (slider && confVal){
@@ -334,7 +338,7 @@
       var verified = document.getElementById("wdAdminVerified");
       var notes = document.getElementById("wdAdminNotes");
 
-      saveChange(iso3, props, newController, {
+      saveChange(lastIso3, props, newController, {
         confidence: conf,
         verifiedAt: verified ? verified.value : null,
         notes: notes ? notes.value.trim() : null
@@ -351,10 +355,7 @@
       toast("Geen changelog beschikbaar");
       return;
     }
-    var iso3 = null;
-    var fullKey = null;
     var log = WDBaseline.getChangelog();
-    /* We zoeken entries waarvan de key eindigt op |props.name */
     var nameParts = [];
     if (props.name) nameParts.push(props.name);
     if (props.provinceName) nameParts.push(props.provinceName);
@@ -372,7 +373,6 @@
       return;
     }
 
-    /* Toon als prompt-paneel */
     var box = modal.querySelector("#wdAdminBox");
     var lines = matches.slice(-30).reverse().map(function(c){
       var date = new Date(c.t).toLocaleString("nl-NL");
@@ -391,7 +391,8 @@
       '</div>';
 
     document.getElementById("wdAdminBack").addEventListener("click", function(){
-      openModal({properties: props}, null);
+      /* ← v2.4: gebruik lastIso3, niet null */
+      openModal({properties: props}, lastIso3);
     });
   }
 
@@ -491,14 +492,25 @@
     }
     tryBind();
 
-    LOG("admin.js v2.3 actief — FAB + menu-toggle");
+    LOG("admin.js v2.4 actief — FAB + menu-toggle + onPanelOpen");
   }
 
   window.WDAdmin = {
-    version: "v2.3",
+    version: "v2.4",
     toggle: toggleAdmin,
     isAdmin: function(){ return isAdmin; },
-    openModal: openModal
+    openModal: openModal,
+
+    /* ← v2.4: NIEUW — koppeling met conflict-areas.js */
+    onPanelOpen: function(area, conflictIso){
+      if (!isAdmin) return;
+      if (!area || !area.feature) return;
+      LOG("onPanelOpen: " + (area.name || "?") + " (" + conflictIso + ")");
+      /* Open admin-modal automatisch als admin actief is */
+      setTimeout(function(){
+        openModal(area.feature, conflictIso);
+      }, 300);
+    }
   };
 
   if (document.readyState === "loading"){
