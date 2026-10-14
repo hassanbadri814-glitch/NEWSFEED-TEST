@@ -1,5 +1,7 @@
 /* ============================================================
-   WAR DESK v1.20 — AI Chat Module
+   WAR DESK v1.21 — AI Chat Module
+   - v1.21: onMeta vangt nu ook meta.sources op, zodat bronnen
+            uit de streaming-worker in de UI verschijnen.
    - v1.20: Warmup uitgeschakeld (data/batterij-besparing).
             Eerste vraag duurt ~2s langer, daarna alles gecached.
    - v1.19: getMilitaryEvents fallback verbeterd (MAPAPI → MapAI)
@@ -64,7 +66,7 @@
 
   var $ = function(id){ return document.getElementById(id); };
   var LOG = function(){ try{ wdLog.info.apply(null, ["[AI]"].concat(Array.prototype.slice.call(arguments))); }catch(e){} };
-  LOG("v1.20 geladen (warmup uit)");
+  LOG("v1.21 geladen (warmup uit + meta.sources fix)");
 
   var WORKER_URL = "https://newsfeed2.hassanbadri814.workers.dev/ai";
   var AUTH_TOKEN = "wardesk-2026-soft-auth";
@@ -1398,10 +1400,16 @@
         payload.militarySubtype = (militaryCtx.intent.subtype && militaryCtx.intent.subtype !== "actief") ? militaryCtx.intent.subtype : null;
       }
 
+      /* ============================================================
+         v1.21: onMeta vangt nu ook sources op
+         ============================================================ */
       var onMeta = function(meta){
         if (!AI.streaming) return;
         if (meta.provider) AI.streaming.provider = meta.provider;
         if (meta.model) AI.streaming.model = meta.model;
+        if (meta.sources && Array.isArray(meta.sources) && meta.sources.length) {
+          AI.streaming.sources = meta.sources;
+        }
       };
 
       var result = await streamWithRetry(payload, onMeta);
@@ -1416,6 +1424,9 @@
         await sleep(150);
         AI.streaming.provider = data.provider || "";
         AI.streaming.model = data.model || "";
+        if (data.sources && Array.isArray(data.sources) && data.sources.length) {
+          AI.streaming.sources = data.sources;
+        }
         result.text = responseText;
       }
 
@@ -1567,6 +1578,7 @@
     abortWarmup: abortWarmup,
     dayOverview: refreshDayOverview,
     state: AI,
+    version: "v1.21",                          /* v1.21: versie zichtbaar in API */
     _warmupState: warmupState,
     _dayState: dayState,
     _voiceState: voiceState,
@@ -1603,5 +1615,5 @@
     });
   }
 
-  wdLog.info("[WAR DESK] ai-chat.js v1.20 geladen (warmup uit)");
+  wdLog.info("[WAR DESK] ai-chat.js v1.21 geladen (meta.sources fix)");
 })();
