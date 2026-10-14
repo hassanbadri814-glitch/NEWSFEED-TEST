@@ -1,7 +1,7 @@
 /* ============================================================
-   WAR DESK — conflict-areas.js v14.0
-   - v14.0: Saoedi-Arabië toegevoegd aan CONFLICTS
-   - v13.1: DEBUG GADM logging (kan later verwijderd worden)
+   WAR DESK — conflict-areas.js v14.1
+   - v14.1: migratie naar WDGeo, WDProxy, WD.safeCatch
+   - v14.0: Saoedi-Arabië toegevoegd
    ============================================================ */
 
 (function(){
@@ -218,12 +218,6 @@
     "MMR", "PAK"
   ];
 
-  var PROXIES = [
-    "https://newsfeed2.hassanbadri814.workers.dev/?url=",
-    "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
-    "https://api.allorigins.win/raw?url="
-  ];
-
   var DB_NAME = "wardesk_conflict_areas";
   var DB_VERSION = 1;
   var STORE_GEOJSON = "geojson";
@@ -268,45 +262,12 @@
 
   function getConflict(iso){ return CONFLICTS[iso] || null; }
 
-  function pointInRing(x, y, ring){
-    var inside = false, len = ring.length;
-    for(var i = 0, j = len - 1; i < len; j = i++){
-      var xi = ring[i][0], yi = ring[i][1];
-      var xj = ring[j][0], yj = ring[j][1];
-      var intersect = ((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-      if(intersect) inside = !inside;
-    }
-    return inside;
-  }
-
-  function pointInGeometry(x, y, geometry){
-    if(!geometry) return false;
-    if(geometry.type === "Polygon"){
-      var rings = geometry.coordinates;
-      if(!rings || !rings.length) return false;
-      if(!pointInRing(x, y, rings[0])) return false;
-      for(var h = 1; h < rings.length; h++){ if(pointInRing(x, y, rings[h])) return false; }
-      return true;
-    }
-    if(geometry.type === "MultiPolygon"){
-      var polys = geometry.coordinates;
-      for(var p = 0; p < polys.length; p++){
-        var rings2 = polys[p];
-        if(!rings2 || !rings2.length) continue;
-        if(!pointInRing(x, y, rings2[0])) continue;
-        var inHole = false;
-        for(var h2 = 1; h2 < rings2.length; h2++){ if(pointInRing(x, y, rings2[h2])){ inHole = true; break; } }
-        if(!inHole) return true;
-      }
-      return false;
-    }
-    return false;
-  }
-
-  function featureContainsPoint(feature, x, y){
-    if(!feature || !feature.geometry) return false;
-    return pointInGeometry(x, y, feature.geometry);
-  }
+  /* ─── GEO HELPERS: alles via WDGeo ─── */
+  var G = window.WDGeo || {};
+  function pointInRing(x,y,r){ return G.pointInRing ? G.pointInRing(x,y,r) : false; }
+  function pointInGeometry(x,y,g){ return G.pointInGeometry ? G.pointInGeometry(x,y,g) : false; }
+  function featureContainsPoint(f,x,y){ return G.featureContainsPoint ? G.featureContainsPoint(f,x,y) : false; }
+  function getCentroid(f){ return G.getCentroid ? G.getCentroid(f) : null; }
 
   function openDB(){
     return new Promise(function(resolve){
@@ -347,30 +308,29 @@
     });
   }
 
-  function isValidGeoJSON(json){ return json && json.features && Array.isArray(json.features) && json.features.length > 0; }
-
-  function parseJsonText(text){
-    var trimmed = String(text).replace(/^\uFEFF/, "").replace(/^\s+/, "");
-    if(trimmed.charAt(0) !== "{" && trimmed.charAt(0) !== "[") throw new Error("Geen JSON response");
-    try { return JSON.parse(text); } catch(e){ throw new Error("JSON parse fout"); }
+  function isValidGeoJSON(json){
+    return json && json.features && Array.isArray(json.features) && json.features.length > 0;
   }
 
-  function fetchRaw(url, timeoutMs){
-    var ctrl = new AbortController();
-    var timer = setTimeout(function(){ ctrl.abort(); }, timeoutMs || 25000);
-    return fetch(url, { signal: ctrl.signal })
-      .then(function(r){ clearTimeout(timer); if(!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
-      .then(function(text){ clearTimeout(timer); return parseJsonText(text); })
-      .catch(function(e){ clearTimeout(timer); throw e; });
-  }
-
-  function fetchViaProxy(targetUrl){
+  /* ─── FETCH: alles via WDProxy ─── */
+  function fetchViaProxy(url){
+    if (window.WDProxy && WDProxy.fetchJSON){
+      return WDProxy.fetchJSON(url);
+    }
+    /* Fallback voor als WDProxy niet geladen is */
+    var proxies = [
+      "https://newsfeed2.hassanbadri814.workers.dev/?url=",
+      "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
+      "https://api.allorigins.win/raw?url="
+    ];
     var idx = 0;
     function tryNext(){
-      if(idx >= PROXIES.length) return Promise.reject(new Error("Alle proxies faalden"));
-      var fullUrl = PROXIES[idx] + encodeURIComponent(targetUrl);
-      idx++;
-      return fetchRaw(fullUrl, 50000).catch(function(){ return tryNext(); });
+      if(idx >= proxies.length) return Promise.reject(new Error("Alle proxies faalden"));
+      var fullUrl = proxies[idx++] + encodeURIComponent(url);
+      return fetch(fullUrl).then(function(r){
+        if(!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      }).catch(function(){ return tryNext(); });
     }
     return tryNext();
   }
@@ -438,7 +398,7 @@
     var cacheKey = "ca_country_" + conflictIso;
     return dbGet(cacheKey).then(function(cached){
       if(cached && cached.v && isValidGeoJSON(cached.v)) return cached.v;
-      return fetchCountry(conflictIso).then(function(json){ return dbPut(cacheKey, json).then(function(){ return json; }); }).catch(function(){ return null; });
+      return fetchCountry(conflictIso).then(function(json){ return dbPut(cacheKey, json).then(function(){ return json; }); }).catch(WD && WD.safeCatch ? WD.safeCatch("loadCountry") : function(){ return null; });
     });
   }
 
@@ -446,7 +406,11 @@
     var geojson = CA.geojsons[conflictIso];
     if(!geojson || !geojson.features) return;
     var events = [];
-    try { if(window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events)) events = window.MAPAPI.state.events; } catch(e){}
+    try {
+      if(window.MAPAPI && window.MAPAPI.state && Array.isArray(window.MAPAPI.state.events)) events = window.MAPAPI.state.events;
+    } catch(e){
+      try { wdLog.warn("[AREA] events ophalen faalde:", e.message); } catch(err){}
+    }
     if(!events.length) return;
 
     geojson.features.forEach(function(f){ if(f.properties){ f.properties.attack_intensity = 0; f.properties.attack_count = 0; } });
@@ -461,7 +425,11 @@
       if(new Date(ev.date).getTime() < periodAgo) return;
       for(var i = 0; i < geojson.features.length; i++){
         var f = geojson.features[i];
-        if(featureContainsPoint(f, ev.lng, ev.lat)){ var id = f.properties.id; countByArea[id] = (countByArea[id] || 0) + 1; break; }
+        if(featureContainsPoint(f, ev.lng, ev.lat)){
+          var id = f.properties.id;
+          countByArea[id] = (countByArea[id] || 0) + 1;
+          break;
+        }
       }
     });
 
@@ -498,13 +466,22 @@
       dashArray: null, lineCap: "round", lineJoin: "round", interactive: true
     };
 
-    if (fillActor){ result.weight = Math.max(baseWeight, 1.3); result.opacity = Math.max(baseOpacity, 0.55); }
+    if (fillActor){
+      result.weight = Math.max(baseWeight, 1.3);
+      result.opacity = Math.max(baseOpacity, 0.55);
+    }
 
     var attackIntensity = props.attack_intensity || 0;
     if (attackIntensity >= ATTACK_RING_THRESHOLD_HIGH){
-      result.color = COLORS.underAttack; result.weight = Math.max(baseWeight, 2.5); result.opacity = 1.0; result.dashArray = "3 2";
+      result.color = COLORS.underAttack;
+      result.weight = Math.max(baseWeight, 2.5);
+      result.opacity = 1.0;
+      result.dashArray = "3 2";
     } else if (attackIntensity >= ATTACK_RING_THRESHOLD){
-      result.color = COLORS.underAttack; result.weight = Math.max(baseWeight, 1.8); result.opacity = 0.85; result.dashArray = "5 3";
+      result.color = COLORS.underAttack;
+      result.weight = Math.max(baseWeight, 1.8);
+      result.opacity = 0.85;
+      result.dashArray = "5 3";
     }
 
     return result;
@@ -521,7 +498,9 @@
     if (CA.layers[conflictIso]) try { CA.map.removeLayer(CA.layers[conflictIso]); } catch(e){}
 
     CA.layers[conflictIso] = L.geoJSON(geojson, {
-      style: styleProvince, pane: PANES.province.name, smoothFactor: 1.5,
+      style: styleProvince,
+      pane: PANES.province.name,
+      smoothFactor: 1.5,
       onEachFeature: function(feature, layer){
         layer.on({
           click: function(e){
@@ -529,7 +508,9 @@
               if(L.DomEvent) L.DomEvent.stopPropagation(e);
               var area = { id: feature.properties.id, name: feature.properties.name, provinceName: feature.properties.provinceName, feature: feature, iso3: conflictIso };
               openPanel(area, conflictIso);
-            } catch(err){}
+            } catch(err){
+              try { wdLog.warn("[AREA] click handler faalde:", err.message); } catch(e2){}
+            }
           }
         });
       }
@@ -541,7 +522,9 @@
       if (CA.countryLayers[conflictIso]) try { CA.map.removeLayer(CA.countryLayers[conflictIso]); } catch(e){}
       CA.countryLayers[conflictIso] = L.geoJSON(countryJson, {
         style: function(){ return { fillColor: "transparent", fillOpacity: 0, color: COLORS.countryBorder, weight: 1.0, opacity: 0.85, interactive: false }; },
-        pane: PANES.country.name, smoothFactor: 1.5, interactive: false
+        pane: PANES.country.name,
+        smoothFactor: 1.5,
+        interactive: false
       });
       CA.countryLayers[conflictIso].addTo(CA.map);
     }
@@ -573,9 +556,12 @@
     return panel;
   }
 
-  function escapeHtml(s){
-    return String(s || "").replace(/[&<>"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; });
-  }
+  var _esc = function(s){
+    if (window.WD && WD.escapeHtml) return WD.escapeHtml(s);
+    return String(s || "").replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  };
 
   function openPanel(area, conflictIso){
     try {
@@ -600,19 +586,22 @@
 
       var statsEl = panel.querySelector("#caPanelStats");
       statsEl.innerHTML =
-        '<div class="wm-panel-stat conf-high"><div class="wm-panel-stat-val">' + escapeHtml(ctrlLabel) + '</div><div class="wm-panel-stat-lbl">Controller</div></div>' +
+        '<div class="wm-panel-stat conf-high"><div class="wm-panel-stat-val">' + _esc(ctrlLabel) + '</div><div class="wm-panel-stat-lbl">Controller</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + (props.attack_count || 0) + '</div><div class="wm-panel-stat-lbl">Events (7d)</div></div>' +
         '<div class="wm-panel-stat"><div class="wm-panel-stat-val">' + Math.round(attackIntensity * 100) + '%</div><div class="wm-panel-stat-lbl">Intensiteit</div></div>' +
         attackLine +
-        '<div class="wm-panel-conf-detail">' + escapeHtml(sinceLabel) + (baseline && baseline.source ? ' · bron: ' + escapeHtml(baseline.source) : '') + '</div>';
+        '<div class="wm-panel-conf-detail">' + _esc(sinceLabel) + (baseline && baseline.source ? ' · bron: ' + _esc(baseline.source) : '') + '</div>';
 
-      /* Admin slot — laat admin.js hier een knop injecteren als admin modus actief */
       if (window.WDAdmin && window.WDAdmin.onPanelOpen){
-        try { window.WDAdmin.onPanelOpen(area, conflictIso); } catch(e){}
+        try { window.WDAdmin.onPanelOpen(area, conflictIso); } catch(e){
+          try { wdLog.warn("[AREA] WDAdmin.onPanelOpen faalde:", e.message); } catch(e2){}
+        }
       }
 
       requestAnimationFrame(function(){ panel.classList.add("show"); });
-    } catch(err){}
+    } catch(err){
+      try { wdLog.warn("[AREA] openPanel faalde:", err.message); } catch(e){}
+    }
   }
 
   function logFeatureNames(conflictIso, oblastsJson){
@@ -630,7 +619,9 @@
       chunks.forEach(function(chunk){
         wdLog.info("[GADM " + conflictIso + "]   " + chunk);
       });
-    } catch(e){}
+    } catch(e){
+      try { wdLog.warn("[AREA] logFeatureNames faalde:", e.message); } catch(e2){}
+    }
   }
 
   function initOneConflict(conflictIso){
@@ -643,7 +634,10 @@
         renderLayer(conflictIso);
         return true;
       });
-    }).catch(function(e){ LOG("[" + conflictIso + "] Init faalde: " + (e.message || "?")); return false; });
+    }).catch(function(e){
+      LOG("[" + conflictIso + "] Init faalde: " + (e.message || "?"));
+      return false;
+    });
   }
 
   function _doInit(){
@@ -651,11 +645,19 @@
       var batches = [];
       for(var i = 0; i < ACTIVE_CONFLICTS.length; i += 4) batches.push(ACTIVE_CONFLICTS.slice(i, i + 4));
       return batches.reduce(function(chain, batch){
-        return chain.then(function(){ return Promise.all(batch.map(function(iso){ return initOneConflict(iso); })); });
+        return chain.then(function(){
+          return Promise.all(batch.map(function(iso){ return initOneConflict(iso); }));
+        });
       }, Promise.resolve());
     }).then(function(){
-      CA.isInitialized = true; CA.isLoaded = true;
-      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten geladen (v14.0)");
+      CA.isInitialized = true;
+      CA.isLoaded = true;
+      LOG("Init klaar — " + ACTIVE_CONFLICTS.length + " conflicten geladen (v14.1)");
+      try {
+        if (window.WarDesk && WarDesk.events){
+          WarDesk.events.emit("conflictareas:ready", { count: ACTIVE_CONFLICTS.length });
+        }
+      } catch(e){}
       return true;
     });
   }
@@ -679,8 +681,11 @@
   }
 
   window.ConflictAreas = {
-    init: init, state: CA, _version: "v14.0",
-    _conflicts: CONFLICTS, _activeConflicts: ACTIVE_CONFLICTS,
+    init: init,
+    state: CA,
+    _version: "v14.1",
+    _conflicts: CONFLICTS,
+    _activeConflicts: ACTIVE_CONFLICTS,
     refreshLayer: refreshLayerForIso
   };
 
@@ -689,13 +694,19 @@
     if(CA.isInitialized) return;
     tries++;
     var m = window.MAPAPI && window.MAPAPI.state && window.MAPAPI.state.instance;
-    if(m){ init(m).catch(function(e){ LOG("Init FAALDE: " + (e.message || "?")); }); return; }
+    if(m){
+      init(m).catch(function(e){ LOG("Init FAALDE: " + (e.message || "?")); });
+      return;
+    }
     if(tries >= MAX) return;
     setTimeout(tryInit, 500);
   }
 
-  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ setTimeout(tryInit, 1500); });
-  else setTimeout(tryInit, 1500);
+  if(document.readyState === "loading"){
+    document.addEventListener("DOMContentLoaded", function(){ setTimeout(tryInit, 1500); });
+  } else {
+    setTimeout(tryInit, 1500);
+  }
 
   document.addEventListener("click", function(e){
     var tab = e.target.closest && e.target.closest('.bottom-tabs .tab[data-view="map"]');
@@ -712,13 +723,17 @@
           _intensityTimer = null;
           ACTIVE_CONFLICTS.forEach(function(iso){
             calculateAttackIntensity(iso);
-            if (CA.layers[iso]) CA.layers[iso].eachLayer(function(l){ if(l.feature) try { l.setStyle(styleProvince(l.feature)); } catch(e){} });
+            if (CA.layers[iso]){
+              CA.layers[iso].eachLayer(function(l){
+                if(l.feature) try { l.setStyle(styleProvince(l.feature)); } catch(e){}
+              });
+            }
           });
         }, 800);
       });
     }
   } catch(e){}
 
-  LOG("conflict-areas.js v14.0 geladen (SAU toegevoegd + GADM debug)");
+  LOG("conflict-areas.js v14.1 geladen (WDGeo + WDProxy + safeCatch)");
 
 })();
