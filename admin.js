@@ -1,7 +1,8 @@
 /* ============================================================
-   WAR DESK — admin.js v2.1
-   - v2.1: Menu-toggle terug + floating 🛠️ knop. Beide werken.
-   - v2.0: Eigen klik-handler (geen haakje via conflict-areas)
+   WAR DESK — admin.js v2.2
+   - v2.2: FAB alleen zichtbaar als admin modus AAN staat
+   - v2.1: Menu-toggle terug + floating FAB
+   - v2.0: Eigen klik-handler op kaart
    ============================================================ */
 
 (function(){
@@ -92,9 +93,10 @@
     var s = document.createElement("style");
     s.id = "wdAdminStyles";
     s.textContent =
-      "#wdAdminFab{position:fixed;right:12px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:99998;width:44px;height:44px;border-radius:50%;background:rgba(20,28,44,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.4);color:#e0a857;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);transition:all .2s;font-family:inherit;display:grid;place-items:center;padding:0;}" +
-      "#wdAdminFab:hover{background:rgba(224,168,87,.2);transform:scale(1.05);}" +
-      "#wdAdminFab.on{background:linear-gradient(135deg,#e0a857,#f0c074);color:#070c16;border-color:#f0c074;box-shadow:0 4px 20px rgba(224,168,87,.6),0 0 0 3px rgba(224,168,87,.3);}" +
+      /* FAB: verborgen by default, alleen zichtbaar met .on */
+      "#wdAdminFab{display:none!important;}" +
+      "#wdAdminFab.on{display:grid!important;position:fixed;right:12px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:99998;width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#e0a857,#f0c074);color:#070c16;border:1px solid #f0c074;font-size:20px;cursor:pointer;box-shadow:0 4px 20px rgba(224,168,87,.6),0 0 0 3px rgba(224,168,87,.3);transition:all .2s;font-family:inherit;place-items:center;padding:0;}" +
+      "#wdAdminFab.on:hover{transform:scale(1.05);}" +
       "body.wd-admin-mode .leaflet-container .ca-pane-province path{cursor:crosshair!important;}" +
       "#wdAdminFabHint{position:fixed;right:64px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:99998;background:rgba(224,168,87,.95);color:#070c16;padding:.4rem .7rem;border-radius:6px;font-size:.72rem;font-weight:700;pointer-events:none;opacity:0;transition:opacity .3s;max-width:200px;line-height:1.3;box-shadow:0 4px 12px rgba(0,0,0,.4);}" +
       "#wdAdminFabHint.show{opacity:1;}" +
@@ -166,7 +168,6 @@
       '</div>' +
       '<div id="wdAdminMenuStatus" style="font-size:.7rem;opacity:.6;padding:.4rem .25rem">Admin: uit</div>';
 
-    /* Voeg vóór het laatste sheet-section-blok (About) */
     var sections = sheetContent.querySelectorAll(".sheet-section");
     var lastSection = sections[sections.length - 1];
     if (lastSection && lastSection.querySelector(".sheet-about")){
@@ -176,7 +177,6 @@
     }
 
     var row = document.getElementById("wdAdminMenuRow");
-    var toggle = document.getElementById("wdAdminMenuToggle");
 
     row.addEventListener("click", function(){
       toggleAdmin();
@@ -404,7 +404,6 @@
     injectFab();
     ensureModal();
 
-    /* Wacht op sheet in DOM */
     var tries = 0;
     function tryMenu(){
       tries++;
@@ -413,7 +412,6 @@
     }
     tryMenu();
 
-    /* Wacht op kaart */
     var triesMap = 0;
     function tryBind(){
       triesMap++;
@@ -423,11 +421,11 @@
     }
     tryBind();
 
-    LOG("admin.js v2.1 actief — FAB + menu-toggle");
+    LOG("admin.js v2.2 actief — FAB alleen bij admin AAN");
   }
 
   window.WDAdmin = {
-    version: "v2.1",
+    version: "v2.2",
     toggle: toggleAdmin,
     isAdmin: function(){ return isAdmin; },
     openModal: openModal
