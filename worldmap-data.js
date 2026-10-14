@@ -1,16 +1,15 @@
 /* ============================================================
-   WAR DESK — worldmap-data.js v3.5
+   WAR DESK — worldmap-data.js v3.6
+   - v3.6: dubbele "rome" key verwijderd + typo "jabalia afghan"
+           verwijderd. Versie gelijkgetrokken.
    - v3.5: LOCATIONS +80 (Pakistan, Afghanistan, Kashmir, Afrika,
            Latijns-Amerika, Europa/Balkan, Centraal-Azië, Arabisch)
-           COUNTRY_TO_ISO3 +30
-   - v3.4: Arabische uitbreiding
-   - v3.3: +90 Arabische steden, wijken, bases
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WORLDMAP_VERSION = "v3.5";
+  window.WORLDMAP_VERSION = "v3.6";
 
   var LOCATIONS = {
     /* ================= OEKRAÏNE ================= */
@@ -55,7 +54,7 @@
     "rostov":{lat:47.24,lng:39.71,country:"Rusland",region:"Oost-Europa"},
     "bryansk":{lat:53.25,lng:34.37,country:"Rusland",region:"Oost-Europa"},
 
-    /* ================= SYRIË — LATIJNS ================= */
+    /* ================= SYRIË ================= */
     "syrië":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "syria":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
     "damascus":{lat:33.51,lng:36.29,country:"Syrië",region:"Midden-Oosten"},
@@ -325,7 +324,6 @@
     "herat":{lat:34.3529,lng:62.2040,country:"Afghanistan",region:"Azië"},
     "mazar-i-sharif":{lat:36.7069,lng:67.1122,country:"Afghanistan",region:"Azië"},
     "kunduz":{lat:36.7285,lng:68.8681,country:"Afghanistan",region:"Azië"},
-    "jabalia afghan":{lat:34.5640,lng:69.2180,country:"Afghanistan",region:"Azië"},
     "أفغانستان":{lat:33.9391,lng:67.7100,country:"Afghanistan",region:"Azië"},
     "كابول":{lat:34.5553,lng:69.2075,country:"Afghanistan",region:"Azië"},
     "قندهار":{lat:31.6100,lng:65.7000,country:"Afghanistan",region:"Azië"},
@@ -553,7 +551,6 @@
     "london":{lat:51.51,lng:-0.13,country:"VK",region:"West-Europa"},
     "londen":{lat:51.51,lng:-0.13,country:"VK",region:"West-Europa"},
     "rome":{lat:41.90,lng:12.50,country:"Italië",region:"West-Europa"},
-    "rome":{lat:41.90,lng:12.50,country:"Italië",region:"West-Europa"},
     "madrid":{lat:40.42,lng:-3.70,country:"Spanje",region:"West-Europa"},
     "barcelona":{lat:41.39,lng:2.17,country:"Spanje",region:"West-Europa"},
     "warschau":{lat:52.23,lng:21.01,country:"Polen",region:"West-Europa"},
@@ -599,7 +596,6 @@
     "argentina":{lat:-38.42,lng:-63.62,country:"Argentinië",region:"Latijns-Amerika"},
     "buenos aires":{lat:-34.60,lng:-58.38,country:"Argentinië",region:"Latijns-Amerika"}
   };
-
   /* ============================================================
      ALLIANTIES
      ============================================================ */
@@ -964,6 +960,6 @@
     }
   };
 
-  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v3.5 geladen — LOCATIONS: " + Object.keys(LOCATIONS).length + ", ACTORS: " + Object.keys(window.ACTOR_MAP).length); } catch(e){}
+  try { if (window.wdLog) wdLog.info("[WORLDMAP] data v3.6 geladen — LOCATIONS: " + Object.keys(LOCATIONS).length + ", ACTORS: " + Object.keys(window.ACTOR_MAP).length); } catch(e){}
 
 })();
