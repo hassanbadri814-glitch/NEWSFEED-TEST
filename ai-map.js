@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16.6
-   - v3.16.6: cityEvent.type === "loss" → CityStatus.recordLossClaim
-              lossCount in log
-   - v3.16.5: conflict-ISO doorgeven + skippedCityClaim-teller
-   - v3.16.4: precompileerde LOCATION-regexes
+   WAR DESK — ai-map.js v3.16.7
+   - v3.16.7: WD.safeCatch migratie (geen stille catches meer)
+   - v3.16.6: loss-claim forwarding
    ============================================================ */
 
 (function(){
@@ -36,9 +34,7 @@
     /\b(veroverde|veroverden|ingenomen)\b/i, /\b(viel binnen|vielen binnen|binnengevallen)\b/i,
     /\b(neerschoot|neergeschoten|neergehaald|onderschept)\b/i,
     /\b(frappé|frappe|attaqué|attaques)\b/i, /\b(angegriffen|getroffen|bombardiert)\b/i,
-    /\b(lost|lose|loses|retreated|withdrew|abandoned)\b/i,
-    /\b(verloor|verliest|verliezen|teruggetrokken|opgegeven)\b/i,
-    /قصف|غارة|هجوم|قتل|انفجار|خسر|انسحب/
+    /قصف|غارة|هجوم|قتل|انفجار/
   ];
 
   var LOCATIONS = (window.WorldMapData && window.WorldMapData.LOCATIONS)
@@ -295,7 +291,9 @@
           article.source || ""
         );
         return { category: r.category, subtype: r.subtype, confidence: r.confidence, uncertain: r.uncertain, scores: r.scores, meta: r.meta };
-      } catch(e){}
+      } catch(e){
+        try { wdLog.warn("[Map-AI] classify faalde:", e.message); } catch(e2){}
+      }
     }
     return { category: "civiel", subtype: "Overig", confidence: 50, uncertain: true, scores: {}, meta: {} };
   }
@@ -317,17 +315,23 @@
 
   function detectActorCountries(title, desc){
     var text = (title || "") + " " + (desc || "");
-    try { if (window.WorldMapData && window.WorldMapData.detectActorsInTitle) return window.WorldMapData.detectActorsInTitle(text); } catch(e){}
+    try {
+      if (window.WorldMapData && window.WorldMapData.detectActorsInTitle) return window.WorldMapData.detectActorsInTitle(text);
+    } catch(e){}
     return [];
   }
 
   function detectPhysicalEvent(title, desc){
-    try { if (window.WDEventDetector && window.WDEventDetector.analyze) return window.WDEventDetector.analyze(title, desc); } catch(e){}
+    try {
+      if (window.WDEventDetector && window.WDEventDetector.analyze) return window.WDEventDetector.analyze(title, desc);
+    } catch(e){}
     return { isPhysicalEvent: false, actionTypes: [], actionCount: 0, reason: "no-detector" };
   }
 
   function getSourceCountry(sourceName){
-    try { if (window.WDEventDetector && window.WDEventDetector.getSourceCountry) return window.WDEventDetector.getSourceCountry(sourceName); } catch(e){}
+    try {
+      if (window.WDEventDetector && window.WDEventDetector.getSourceCountry) return window.WDEventDetector.getSourceCountry(sourceName);
+    } catch(e){}
     return null;
   }
 
@@ -398,9 +402,7 @@
 
       var iso3 = getISO3For(loc.country);
 
-      /* ══════════════════════════════════════════════════════════
-         CITY-EVENT → CityStatus (control | loss | attack)
-         ══════════════════════════════════════════════════════════ */
+      /* City-event → CityStatus */
       if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
           window.WDEventDetector.extractCityEvent){
         try {
@@ -434,11 +436,17 @@
               );
             }
 
-            if (promise && promise.catch) promise.catch(function(){});
+            if (promise && promise.catch){
+              promise.catch(WD && WD.safeCatch ? WD.safeCatch("ai-map:cityClaim") : function(e){
+                try { wdLog.warn("[Map-AI] cityClaim faalde:", e && e.message); } catch(err){}
+              });
+            }
           } else if (detection.isPhysicalEvent) {
             skippedCityClaim++;
           }
-        } catch(e){}
+        } catch(e){
+          try { wdLog.warn("[Map-AI] extractCityEvent faalde:", e.message); } catch(e2){}
+        }
       }
 
       var translatedTitle = getTranslatedTitleFor(article);
@@ -474,7 +482,9 @@
     var beforeDedup = events.length;
     var grouped = events;
     if (window.WDEventDedup && window.WDEventDedup.group) {
-      try { grouped = window.WDEventDedup.group(events); } catch(e){ if (window.wdLog) wdLog.warn("[Map-AI] Dedup faalde:", e.message); }
+      try { grouped = window.WDEventDedup.group(events); } catch(e){
+        try { wdLog.warn("[Map-AI] Dedup faalde:", e.message); } catch(e2){}
+      }
     }
 
     grouped.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
@@ -496,14 +506,16 @@
         }
         if (toTranslate.length) window.NewsAPI.ensureTranslations(toTranslate);
       }
-    } catch(e){}
+    } catch(e){
+      try { wdLog.warn("[Map-AI] ensureTranslations faalde:", e.message); } catch(e2){}
+    }
 
     var elapsed = ((window.performance && performance.now) ? performance.now() : Date.now()) - startTime;
 
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16.6] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.16.7] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
@@ -528,7 +540,7 @@
         if (Array.isArray(osint) && osint.length) return osint;
       }
     } catch(e){
-      if (window.wdLog) wdLog.warn("[Map-AI] OSINTFeeds.getEvents faalde: " + (e.message || "?"));
+      try { wdLog.warn("[Map-AI] OSINTFeeds.getEvents faalde: " + (e.message || "?")); } catch(e2){}
     }
     return [];
   }
@@ -608,16 +620,29 @@
 
   function init(){
     var bus = getBus();
-    if (!bus) { if (window.wdLog) wdLog.warn("[Map-AI] EventBus niet gevonden"); return; }
+    if (!bus) {
+      if (window.wdLog) wdLog.warn("[Map-AI] EventBus niet gevonden");
+      return;
+    }
     bus.on("news:loaded", function(){
       var idle = window.requestIdleCallback || function(cb){ return setTimeout(cb, 1); };
       idle(function(){ run(); }, { timeout: 3000 });
     });
     bus.on("translation:added", function(){
-      try { var mapTab = document.querySelector('.tab[data-view="map"]'); if (mapTab && mapTab.classList.contains("active")) forceRun(); } catch(e){}
+      try {
+        var mapTab = document.querySelector('.tab[data-view="map"]');
+        if (mapTab && mapTab.classList.contains("active")) forceRun();
+      } catch(e){
+        try { wdLog.warn("[Map-AI] translation:added faalde:", e.message); } catch(e2){}
+      }
     });
     bus.on("translation:toggle", function(){
-      try { var mapTab = document.querySelector('.tab[data-view="map"]'); if (mapTab && mapTab.classList.contains("active")) forceRun(); } catch(e){}
+      try {
+        var mapTab = document.querySelector('.tab[data-view="map"]');
+        if (mapTab && mapTab.classList.contains("active")) forceRun();
+      } catch(e){
+        try { wdLog.warn("[Map-AI] translation:toggle faalde:", e.message); } catch(e2){}
+      }
     });
     bus.on("osint:military-events", function(osintList){
       if (!Array.isArray(osintList) || !osintList.length) return;
@@ -635,7 +660,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.6 geladen");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.7 geladen (safeCatch)");
   }
 
   function getCountries(){
@@ -659,13 +684,14 @@
           return window.MAPAPI.state.militaryEvents.slice();
         }
         var ev = buildEvents();
-        if (ev === null) {
-          return [];
-        }
+        if (ev === null) return [];
         if (!Array.isArray(ev)) ev = [];
         mergeOsintEvents(ev);
         return ev;
-      } catch(e){ return []; }
+      } catch(e){
+        try { wdLog.warn("[Map-AI] getEventsSync faalde:", e.message); } catch(e2){}
+        return [];
+      }
     },
 
     forceEventsSync: function(){
@@ -675,16 +701,24 @@
         if (!Array.isArray(ev)) ev = [];
         mergeOsintEvents(ev);
         return ev;
-      } catch(e){ return []; }
+      } catch(e){
+        try { wdLog.warn("[Map-AI] forceEventsSync faalde:", e.message); } catch(e2){}
+        return [];
+      }
     },
 
     getCountries: getCountries,
 
     calculateHotspots: function(){
       if (!window.State || !window.State.items) return [];
-      var ev = buildEvents() || [];
-      mergeOsintEvents(ev);
-      return calculateHotspots(ev);
+      try {
+        var ev = buildEvents() || [];
+        mergeOsintEvents(ev);
+        return calculateHotspots(ev);
+      } catch(e){
+        try { wdLog.warn("[Map-AI] calculateHotspots faalde:", e.message); } catch(e2){}
+        return [];
+      }
     }
   };
 
