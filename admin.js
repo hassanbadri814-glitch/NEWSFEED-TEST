@@ -1,9 +1,7 @@
 /* ============================================================
-   WAR DESK — admin.js v2.0
-   - v2.0: Eigen klik-handler op de kaart (geen haakje meer via
-           conflict-areas.js). Floating knop rechtsonder.
-           Modal popup in plaats van paneel-slot.
-   - v1.0: eerste versie (verwijderd — werkte niet betrouwbaar)
+   WAR DESK — admin.js v2.1
+   - v2.1: Menu-toggle terug + floating 🛠️ knop. Beide werken.
+   - v2.0: Eigen klik-handler (geen haakje via conflict-areas)
    ============================================================ */
 
 (function(){
@@ -18,37 +16,13 @@
   var fab = null;
   var mapClickBound = false;
 
-  /* ════════════════════════════════════════════════════════════
-     Toon een toast
-     ════════════════════════════════════════════════════════════ */
   function toast(msg){
     try { if (window.showToast) window.showToast(msg); } catch(e){}
   }
 
   /* ════════════════════════════════════════════════════════════
-     Zoek een provincie-feature op basis van lat/lng
+     Punt-in-polygoon
      ════════════════════════════════════════════════════════════ */
-  function findProvinceAt(lat, lng){
-    if (!window.ConflictAreas) return null;
-    var state = ConflictAreas.state;
-    var geojsons = state.geojsons || {};
-
-    for (var iso in geojsons){
-      if (!Object.prototype.hasOwnProperty.call(geojsons, iso)) continue;
-      var gj = geojsons[iso];
-      if (!gj || !gj.features) continue;
-
-      for (var i = 0; i < gj.features.length; i++){
-        var f = gj.features[i];
-        if (!f || !f.geometry) continue;
-        if (pointInFeature(lng, lat, f)){
-          return { feature: f, iso3: iso };
-        }
-      }
-    }
-    return null;
-  }
-
   function pointInRing(x, y, ring){
     var inside = false, len = ring.length;
     for (var i = 0, j = len - 1; i < len; j = i++){
@@ -89,30 +63,34 @@
     return false;
   }
 
-  /* ════════════════════════════════════════════════════════════
-     Floating knop (rechtsonder)
-     ════════════════════════════════════════════════════════════ */
-  function injectFab(){
-    if (fab) return fab;
+  function findProvinceAt(lat, lng){
+    if (!window.ConflictAreas) return null;
+    var state = ConflictAreas.state;
+    var geojsons = state.geojsons || {};
 
-    fab = document.createElement("button");
-    fab.id = "wdAdminFab";
-    fab.title = "Admin modus";
-    fab.innerHTML = "🛠️";
-    document.body.appendChild(fab);
+    for (var iso in geojsons){
+      if (!Object.prototype.hasOwnProperty.call(geojsons, iso)) continue;
+      var gj = geojsons[iso];
+      if (!gj || !gj.features) continue;
 
-    fab.addEventListener("click", function(e){
-      e.stopPropagation();
-      toggleAdmin();
-    });
-
-    return fab;
+      for (var i = 0; i < gj.features.length; i++){
+        var f = gj.features[i];
+        if (!f || !f.geometry) continue;
+        if (pointInFeature(lng, lat, f)){
+          return { feature: f, iso3: iso };
+        }
+      }
+    }
+    return null;
   }
 
-  function injectFabStyles(){
-    if (document.getElementById("wdAdminFabStyles")) return;
+  /* ════════════════════════════════════════════════════════════
+     Styles
+     ════════════════════════════════════════════════════════════ */
+  function injectStyles(){
+    if (document.getElementById("wdAdminStyles")) return;
     var s = document.createElement("style");
-    s.id = "wdAdminFabStyles";
+    s.id = "wdAdminStyles";
     s.textContent =
       "#wdAdminFab{position:fixed;right:12px;bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:99998;width:44px;height:44px;border-radius:50%;background:rgba(20,28,44,.95);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(224,168,87,.4);color:#e0a857;font-size:20px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.5);transition:all .2s;font-family:inherit;display:grid;place-items:center;padding:0;}" +
       "#wdAdminFab:hover{background:rgba(224,168,87,.2);transform:scale(1.05);}" +
@@ -130,13 +108,28 @@
       "#wdAdminBox .row{display:flex;gap:.5rem;}" +
       "#wdAdminBox .row button{flex:1;padding:.7rem;border-radius:8px;font-family:inherit;font-weight:700;font-size:.85rem;cursor:pointer;border:0;}" +
       "#wdAdminBox .btn-save{background:linear-gradient(135deg,#e0a857,#f0c074);color:#070c16;}" +
-      "#wdAdminBox .btn-cancel{background:rgba(255,255,255,.06);color:#8a94a8;border:1px solid rgba(255,255,255,.15);}";
+      "#wdAdminBox .btn-cancel{background:rgba(255,255,255,.06);color:#8a94a8;border:1px solid rgba(255,255,255,.15);}" +
+      ".wd-admin-menu-btn.active{background:linear-gradient(135deg,#e0a857,#f0c074)!important;color:#070c16!important;}";
     document.head.appendChild(s);
   }
 
   /* ════════════════════════════════════════════════════════════
-     Hint tonen naast FAB
+     FAB
      ════════════════════════════════════════════════════════════ */
+  function injectFab(){
+    if (fab) return fab;
+    fab = document.createElement("button");
+    fab.id = "wdAdminFab";
+    fab.title = "Admin modus";
+    fab.innerHTML = "🛠️";
+    document.body.appendChild(fab);
+    fab.addEventListener("click", function(e){
+      e.stopPropagation();
+      toggleAdmin();
+    });
+    return fab;
+  }
+
   function showHint(text, duration){
     var hint = document.getElementById("wdAdminFabHint");
     if (!hint){
@@ -147,23 +140,85 @@
     hint.textContent = text;
     hint.classList.add("show");
     if (hint._timer) clearTimeout(hint._timer);
-    hint._timer = setTimeout(function(){
-      hint.classList.remove("show");
-    }, duration || 3500);
+    hint._timer = setTimeout(function(){ hint.classList.remove("show"); }, duration || 3500);
   }
 
   /* ════════════════════════════════════════════════════════════
-     Admin toggle
+     Menu-toggle in sheet
+     ════════════════════════════════════════════════════════════ */
+  function injectMenuButton(){
+    var sheetContent = document.querySelector("#sheet .sheet-content");
+    if (!sheetContent) return false;
+    if (sheetContent.querySelector("#wdAdminMenuToggle")) return true;
+
+    var section = document.createElement("div");
+    section.className = "sheet-section";
+    section.innerHTML =
+      '<div class="sheet-title">Beheer</div>' +
+      '<div class="toggle-row" id="wdAdminMenuRow">' +
+        '<span class="toggle-icon" style="font-size:1.1rem;display:grid;place-items:center">🛠️</span>' +
+        '<span class="toggle-label">Admin modus</span>' +
+        '<div class="toggle-switch" id="wdAdminMenuToggle"></div>' +
+      '</div>' +
+      '<div class="action-row" style="margin-top:.5rem">' +
+        '<button class="sheet-item" id="wdAdminExportBtn">📄 Exporteer baseline</button>' +
+        '<button class="sheet-item" id="wdAdminResetBtn">♻️ Reset wijzigingen</button>' +
+      '</div>' +
+      '<div id="wdAdminMenuStatus" style="font-size:.7rem;opacity:.6;padding:.4rem .25rem">Admin: uit</div>';
+
+    /* Voeg vóór het laatste sheet-section-blok (About) */
+    var sections = sheetContent.querySelectorAll(".sheet-section");
+    var lastSection = sections[sections.length - 1];
+    if (lastSection && lastSection.querySelector(".sheet-about")){
+      sheetContent.insertBefore(section, lastSection);
+    } else {
+      sheetContent.appendChild(section);
+    }
+
+    var row = document.getElementById("wdAdminMenuRow");
+    var toggle = document.getElementById("wdAdminMenuToggle");
+
+    row.addEventListener("click", function(){
+      toggleAdmin();
+    });
+
+    document.getElementById("wdAdminExportBtn").addEventListener("click", function(e){
+      e.stopPropagation();
+      exportBaseline();
+    });
+    document.getElementById("wdAdminResetBtn").addEventListener("click", function(e){
+      e.stopPropagation();
+      if (!confirm("Alle handmatige wijzigingen wissen?")) return;
+      resetChanges();
+    });
+
+    syncMenuUI();
+    LOG("Menu-knop geïnjecteerd");
+    return true;
+  }
+
+  function syncMenuUI(){
+    var toggle = document.getElementById("wdAdminMenuToggle");
+    var row = document.getElementById("wdAdminMenuRow");
+    var status = document.getElementById("wdAdminMenuStatus");
+    if (toggle) toggle.classList.toggle("active", isAdmin);
+    if (row) row.classList.toggle("active", isAdmin);
+    if (status) status.textContent = "Admin: " + (isAdmin ? "AAN" : "uit");
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     Toggle
      ════════════════════════════════════════════════════════════ */
   function toggleAdmin(){
     isAdmin = !isAdmin;
 
     document.body.classList.toggle("wd-admin-mode", isAdmin);
     if (fab) fab.classList.toggle("on", isAdmin);
+    syncMenuUI();
 
     if (isAdmin){
       toast("🛠️ Admin AAN — klik op een provincie");
-      showHint("Klik op een provincie om de controller te wijzigen", 4000);
+      showHint("Klik op een provincie om controller te wijzigen", 4000);
       bindMapClick();
     } else {
       toast("Admin UIT");
@@ -174,24 +229,21 @@
   }
 
   /* ════════════════════════════════════════════════════════════
-     Bind map click handler
+     Map click
      ════════════════════════════════════════════════════════════ */
   function bindMapClick(){
     if (mapClickBound) return;
     var mapInstance = window.MAPAPI && MAPAPI.state && MAPAPI.state.instance;
-    if (!mapInstance) {
-      /* Probeer opnieuw over een seconde */
+    if (!mapInstance){
       setTimeout(bindMapClick, 1000);
       return;
     }
 
     mapInstance.on("click", function(e){
       if (!isAdmin) return;
-      var lat = e.latlng.lat;
-      var lng = e.latlng.lng;
-      var found = findProvinceAt(lat, lng);
+      var found = findProvinceAt(e.latlng.lat, e.latlng.lng);
       if (!found){
-        LOG("Geen provincie op lat=" + lat.toFixed(4) + " lng=" + lng.toFixed(4));
+        LOG("Geen provincie op lat=" + e.latlng.lat.toFixed(4) + " lng=" + e.latlng.lng.toFixed(4));
         return;
       }
       openModal(found.feature, found.iso3);
@@ -206,16 +258,13 @@
      ════════════════════════════════════════════════════════════ */
   function ensureModal(){
     if (modal) return modal;
-
     modal = document.createElement("div");
     modal.id = "wdAdminOverlay";
     modal.innerHTML = '<div id="wdAdminBox"></div>';
     document.body.appendChild(modal);
-
     modal.addEventListener("click", function(e){
       if (e.target === modal) closeModal();
     });
-
     return modal;
   }
 
@@ -233,8 +282,6 @@
       return;
     }
 
-    /* Bepaal de juiste naam voor baseline lookup */
-    var lookupKey = props.provinceName || props.name;
     var baseline = window.WDBaseline ? WDBaseline.get(iso3, props.name, props.provinceName) : null;
     var currentCtrl = baseline ? baseline.controller : "Onbekend";
 
@@ -270,31 +317,16 @@
       if (!newController) return;
       saveChange(iso3, props, newController);
     });
-
-    LOG("Modal geopend voor " + iso3 + " · " + props.name);
   }
 
-  /* ════════════════════════════════════════════════════════════
-     Save change
-     ════════════════════════════════════════════════════════════ */
   function saveChange(iso3, props, newController){
-    /* Baseline key: gebruik name (district) als die bestaat, anders provinceName */
     var baselineKey = props.name || props.provinceName;
-
-    if (!baselineKey){
-      toast("Kan provincie niet identificeren");
-      return;
-    }
-
-    if (!window.WDBaseline || !WDBaseline.set){
-      toast("Baseline module niet geladen");
-      return;
-    }
+    if (!baselineKey){ toast("Kan provincie niet identificeren"); return; }
+    if (!window.WDBaseline || !WDBaseline.set){ toast("Baseline module niet geladen"); return; }
 
     WDBaseline.set(iso3, baselineKey, newController, null, "admin-UI");
     LOG("Admin wijziging: " + iso3 + "|" + baselineKey + " → " + newController);
 
-    /* Ververs kaartlaag */
     try {
       if (window.ConflictAreas && ConflictAreas.refreshLayer){
         ConflictAreas.refreshLayer(iso3);
@@ -306,42 +338,96 @@
   }
 
   /* ════════════════════════════════════════════════════════════
-     Helpers
+     Export / reset
      ════════════════════════════════════════════════════════════ */
+  function exportBaseline(){
+    var lines = [];
+    var baseline = window.WDBaseline && WDBaseline._all ? WDBaseline._all : {};
+    for (var k in baseline){
+      if (!Object.prototype.hasOwnProperty.call(baseline, k)) continue;
+      var b = baseline[k];
+      lines.push('    "' + k + '": { controller: "' + b.controller + '", since: "' + (b.since || "") + '", source: "' + (b.source || "") + '" },');
+    }
+    var text = "var BASELINE = {\n" + lines.join("\n") + "\n  };";
+
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){
+        toast("📋 Baseline gekopieerd");
+      }).catch(function(){ showExportModal(text); });
+    } else {
+      showExportModal(text);
+    }
+  }
+
+  function showExportModal(text){
+    var existing = document.getElementById("wdAdminExportModal");
+    if (existing) existing.remove();
+    var m = document.createElement("div");
+    m.id = "wdAdminExportModal";
+    m.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:999999;padding:1rem;display:flex;flex-direction:column;";
+    m.innerHTML =
+      '<div style="color:#e0a857;font-weight:700;margin-bottom:.5rem">📄 Baseline export — kopieer alles</div>' +
+      '<textarea readonly style="flex:1;background:#0a1320;color:#e6ebf5;border:1px solid rgba(224,168,87,.4);border-radius:6px;padding:.5rem;font-family:monospace;font-size:.7rem;width:100%"></textarea>' +
+      '<button style="margin-top:.5rem;padding:.75rem;background:#e0a857;color:#070c16;border:0;border-radius:6px;font-weight:700;font-family:inherit;cursor:pointer">Sluiten</button>';
+    document.body.appendChild(m);
+    var ta = m.querySelector("textarea");
+    ta.value = text; ta.select();
+    m.querySelector("button").addEventListener("click", function(){ m.remove(); });
+  }
+
+  function resetChanges(){
+    var cleared = 0;
+    try {
+      var keys = Object.keys(localStorage);
+      keys.forEach(function(k){
+        if (k.indexOf("baseline_") === 0){
+          localStorage.removeItem(k);
+          cleared++;
+        }
+      });
+    } catch(e){}
+    toast("♻️ " + cleared + " wijzigingen gewist — herlaad");
+  }
+
   function escHtml(s){
     return String(s || "").replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
   }
-  function escAttr(s){
-    return escHtml(s).replace(/"/g, "&quot;");
-  }
+  function escAttr(s){ return escHtml(s).replace(/"/g, "&quot;"); }
 
   /* ════════════════════════════════════════════════════════════
      Init
      ════════════════════════════════════════════════════════════ */
   function init(){
-    injectFabStyles();
+    injectStyles();
     injectFab();
     ensureModal();
 
-    /* Wacht tot kaart bestaat en bind dan */
+    /* Wacht op sheet in DOM */
     var tries = 0;
-    function tryBind(){
+    function tryMenu(){
       tries++;
+      if (injectMenuButton()) return;
+      if (tries < 40) setTimeout(tryMenu, 250);
+    }
+    tryMenu();
+
+    /* Wacht op kaart */
+    var triesMap = 0;
+    function tryBind(){
+      triesMap++;
       var mapInstance = window.MAPAPI && MAPAPI.state && MAPAPI.state.instance;
-      if (mapInstance){
-        bindMapClick();
-        LOG("admin.js v2.0 actief — klik 🛠️ rechtsonder");
-        return;
-      }
-      if (tries < 60) setTimeout(tryBind, 500);
+      if (mapInstance){ bindMapClick(); return; }
+      if (triesMap < 60) setTimeout(tryBind, 500);
     }
     tryBind();
+
+    LOG("admin.js v2.1 actief — FAB + menu-toggle");
   }
 
   window.WDAdmin = {
-    version: "v2.0",
+    version: "v2.1",
     toggle: toggleAdmin,
     isAdmin: function(){ return isAdmin; },
     openModal: openModal
