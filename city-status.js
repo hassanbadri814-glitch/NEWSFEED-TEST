@@ -1,11 +1,7 @@
 /* ============================================================
-   WAR DESK — city-status.js v3.1
+   WAR DESK — city-status.js v3.2
+   - v3.2: WD.safeCatch migratie + emit logging
    - v3.1: recordLossClaim + transition-state
-           Events: city:control-lost
-           Transition vervalt na 7 dagen
-           Transition gewist zodra sterke control-claim binnenkomt
-   - v3.0: claim-levenscyclus + origin-dedup + events
-   - v2.1: decay-fix + batch-writes
    ============================================================ */
 
 (function(){
@@ -66,7 +62,10 @@
           }
         };
         req.onsuccess = function(e){ db = e.target.result; resolve(db); };
-        req.onerror = function(){ resolve(null); };
+        req.onerror = function(){
+          try { wdLog.warn("[CITY] DB open faalde"); } catch(e){}
+          resolve(null);
+        };
       } catch(e){ resolve(null); }
     });
   }
@@ -162,7 +161,6 @@
       dominantAttacker: null,
       attackIntensity: 0,
       attackCount: 0,
-      /* v3.1 */
       transition: null,
       since: null,
       history: [],
@@ -218,7 +216,6 @@
       });
     });
 
-    /* v3.1: transition laten verlopen */
     if (record.transition && record.transition.since){
       var transitionAgeDays = (now - record.transition.since) / 86400000;
       if (transitionAgeDays > TRANSITION_EXPIRY_DAYS){
@@ -227,9 +224,6 @@
     }
   }
 
-  /* ════════════════════════════════════════════════════════════
-     CONTROL CLAIM — winnaar
-     ════════════════════════════════════════════════════════════ */
   function recordControlClaim(cityKey, actorName, actorISO3, sourceName, originCountry, conflictIso){
     if (!cityKey || !actorName) return Promise.resolve(null);
 
@@ -275,7 +269,6 @@
 
     ageOutClaims(record, now);
 
-    /* v3.1: control-claim wist transition — er is weer een duidelijke winnaar */
     if (record.transition && claim.confidence >= 0.4){
       LOG("Transition gewist voor " + cityKey + " — " + actorName + " claimt nu");
       record.transition = null;
@@ -300,6 +293,7 @@
         contested: record.contested,
         contestedActors: record.contestedActors,
         conflict: record.conflict,
+        source: sourceName,
         timestamp: now
       });
     }
@@ -312,9 +306,6 @@
     return Promise.resolve(record);
   }
 
-  /* ════════════════════════════════════════════════════════════
-     v3.1: LOSS CLAIM — verliezer markeert stad als transition
-     ════════════════════════════════════════════════════════════ */
   function recordLossClaim(cityKey, actorName, actorISO3, sourceName, originCountry, conflictIso){
     if (!cityKey || !actorName) return Promise.resolve(null);
 
@@ -325,11 +316,9 @@
       record.conflict = conflictIso;
     }
 
-    /* Kijk of de verliezende actor überhaupt controller is/was */
     var isCurrentController = (record.controller === actorName);
     var hadClaim = !!record.controlClaims[actorName];
 
-    /* Alleen registreren als deze actor daadwerkelijk iets te verliezen had */
     if (!isCurrentController && !hadClaim){
       LOG("Loss genegeerd: " + cityKey + " — " + actorName + " was geen controller");
       return Promise.resolve(record);
@@ -347,7 +336,6 @@
               : 1)
     };
 
-    /* Verzwak de bestaande claim van de verliezende actor — decay zijn confidence */
     if (record.controlClaims[actorName]){
       record.controlClaims[actorName].confidence =
         Math.round(record.controlClaims[actorName].confidence * 0.5 * 100) / 100;
@@ -364,16 +352,17 @@
       lostBy: actorName,
       conflict: record.conflict,
       transition: record.transition,
+      source: sourceName,
       timestamp: now
     });
 
-    /* Ook control-changed emitten — dot moet herberekenen */
     emitCityEvent("city:control-changed", {
       city: cityKey,
       controller: record.controller,
       contested: record.contested,
       transition: record.transition,
       conflict: record.conflict,
+      source: sourceName,
       timestamp: now
     });
 
@@ -384,9 +373,6 @@
     return Promise.resolve(record);
   }
 
-  /* ════════════════════════════════════════════════════════════
-     ATTACK CLAIM
-     ════════════════════════════════════════════════════════════ */
   function recordAttackClaim(cityKey, actorName, actorISO3, sourceName, originCountry, conflictIso){
     if (!cityKey || !actorName) return Promise.resolve(null);
 
@@ -443,6 +429,7 @@
         attackIntensity: record.attackIntensity,
         attackCount: record.attackCount,
         conflict: record.conflict,
+        source: sourceName,
         timestamp: now
       });
     }
@@ -529,7 +516,9 @@
       if (window.WarDesk && WarDesk.events){
         WarDesk.events.emit(name, payload);
       }
-    } catch(e){}
+    } catch(e){
+      try { wdLog.warn("[CITY] emit " + name + " faalde:", e.message); } catch(e2){}
+    }
   }
 
   function getCity(cityKey){ return CITY_STATUS[cityKey] || null; }
@@ -561,9 +550,7 @@
           if (!c.controlClaims) c.controlClaims = {};
           if (!c.attackClaims) c.attackClaims = {};
           if (c.conflict === undefined) c.conflict = null;
-          /* v3.1: normaliseer transition */
           if (c.transition === undefined) c.transition = null;
-          /* Verlopen transitions wissen bij load */
           if (c.transition && c.transition.since){
             var ageDays = (Date.now() - c.transition.since) / 86400000;
             if (ageDays > TRANSITION_EXPIRY_DAYS){
@@ -575,6 +562,9 @@
       });
       LOG("Init — " + Object.keys(CITY_STATUS).length + " steden uit cache");
       return true;
+    }).catch(function(e){
+      try { wdLog.warn("[CITY] Init faalde:", e.message); } catch(e2){}
+      return false;
     });
   }
 
@@ -620,7 +610,6 @@
     return Promise.resolve(removed);
   }
 
-  /* v3.1: handmatig transition clearen (voor als het te lang duurt) */
   function clearTransition(cityKey){
     var record = CITY_STATUS[cityKey];
     if (!record || !record.transition) return Promise.resolve(false);
@@ -653,7 +642,7 @@
     getAllSnapshots: getAllSnapshots,
     flush: flushWrites,
     _getState: function(){ return CITY_STATUS; },
-    _version: "v3.1"
+    _version: "v3.2"
   };
 
   if (document.readyState === "loading"){
@@ -662,6 +651,6 @@
     setTimeout(init, 500);
   }
 
-  LOG("city-status v3.1 geladen (loss-claims + transition-state)");
+  LOG("city-status v3.2 geladen (WD.safeCatch migratie)");
 
 })();
