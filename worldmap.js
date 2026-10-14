@@ -1,12 +1,8 @@
 /* ============================================================
-   WAR DESK — worldmap.js v5.0
-   - v5.0: FUNDAMENTELE SCHEIDING
-           * Fill-kleur = alleen baseline (via conflict-areas.js)
-           * WorldMap tekent alleen landen die NIET in CONFLICTS
-             zitten, met neutrale donkere fill + heat-randen
-           * Geen rood-oranje fill meer op basis van heat
-           * Dynamische check via ConflictAreas._activeConflicts
-   - v4.1: city-dots + transition-state (behouden)
+   WAR DESK — worldmap.js v5.1
+   - v5.1: destroy() + timer cleanup + observer disconnect
+           Voorkomt memory leaks bij pagehide/navigatie
+   - v5.0: fundamentele scheiding fill = baseline, rand = heat
    ============================================================ */
 
 (function(){
@@ -32,10 +28,26 @@
     targetHeatByCountry: {}, actorHeatByCountry: {}, countryConfidence: {},
     _allEvents: [], isLoaded: false, isEnabled: true, isLegendVisible: true,
     lastHeatCalc: 0, map: null,
-    _cityBusBound: false
+    _cityBusBound: false,
+    _timers: [],
+    _observers: [],
+    _listeners: []
   };
 
   var _legendRetryTimer = null;
+
+  function _addTimer(id){
+    WM._timers.push(id);
+    return id;
+  }
+  function _addObserver(obs){
+    WM._observers.push(obs);
+    return obs;
+  }
+  function _addListener(target, event, fn, opts){
+    try { target.addEventListener(event, fn, opts); } catch(e){ return; }
+    WM._listeners.push({ target: target, event: event, fn: fn, opts: opts });
+  }
 
   /* ════════════════════════════════════════════════════════════
      GEOJSON LADEN
@@ -103,9 +115,6 @@
     return p.NAME_NL || p.name_nl || p.NAME || p.name || p.ADMIN || p.admin || "?";
   }
 
-  /* ════════════════════════════════════════════════════════════
-     v5.0: dynamische check — wie tekent dit land?
-     ════════════════════════════════════════════════════════════ */
   function isRenderedByConflictAreas(iso3){
     if (!iso3) return false;
     if (!window.ConflictAreas) return false;
@@ -276,13 +285,9 @@
     return lines.join("<br>");
   }
 
-  /* ════════════════════════════════════════════════════════════
-     v5.0: styleCountry — geen fill-kleur meer, alleen neutral + rand
-     ════════════════════════════════════════════════════════════ */
   function styleCountry(feature){
     var iso3 = getISO3(feature);
 
-    /* Landen die door conflict-areas.js gerenderd worden: niet aanraken */
     if (isRenderedByConflictAreas(iso3)){
       return {
         fillColor: "transparent",
@@ -294,7 +299,6 @@
       };
     }
 
-    /* Alle andere landen: neutrale fill + heat-based rand */
     var targetHeat = WM.targetHeatByCountry[iso3] || 0;
     var actorHeat = WM.actorHeatByCountry[iso3] || 0;
     var totalHeat = targetHeat + actorHeat;
@@ -364,9 +368,6 @@
     });
   }
 
-  /* ════════════════════════════════════════════════════════════
-     PANEL
-     ════════════════════════════════════════════════════════════ */
   function closeConflictAreasPanel(){
     try {
       var caPanel = document.getElementById("caAreaPanel");
@@ -460,9 +461,6 @@
     if (WM.panel) WM.panel.classList.remove("show");
   }
 
-  /* ════════════════════════════════════════════════════════════
-     CITY DOTS
-     ════════════════════════════════════════════════════════════ */
   function ensureCityPane(map){
     if (map.getPane("cityDots")) return;
     map.createPane("cityDots");
@@ -813,9 +811,6 @@
     requestAnimationFrame(function(){ panel.classList.add("show"); });
   }
 
-  /* ════════════════════════════════════════════════════════════
-     PERIOD FILTER
-     ════════════════════════════════════════════════════════════ */
   function ensurePeriodFilter(){
     var wrap = document.querySelector(".map-wrap");
     if (!wrap || wrap.querySelector(".wm-period-filter")) return;
@@ -858,9 +853,6 @@
     } catch(e){}
   }
 
-  /* ════════════════════════════════════════════════════════════
-     LEGEND
-     ════════════════════════════════════════════════════════════ */
   function ensureLegend(map){
     if (document.getElementById("wmLegend")) return;
     var legend = document.createElement("div");
@@ -894,10 +886,10 @@
 
   function scheduleLegendRetry(){
     if (_legendRetryTimer) return;
-    _legendRetryTimer = setTimeout(function(){
+    _legendRetryTimer = _addTimer(setTimeout(function(){
       _legendRetryTimer = null;
       if (!refreshAreaLegend()) scheduleLegendRetry();
-    }, 1500);
+    }, 1500));
   }
 
   function ensureLegendToggle(){
@@ -934,9 +926,6 @@
     } catch(e){}
   }
 
-  /* ════════════════════════════════════════════════════════════
-     STYLES
-     ════════════════════════════════════════════════════════════ */
   function injectStyles(){
     if (document.getElementById("wmStyles")) return;
     var s = document.createElement("style");
@@ -1020,9 +1009,6 @@
     document.head.appendChild(s);
   }
 
-  /* ════════════════════════════════════════════════════════════
-     INIT
-     ════════════════════════════════════════════════════════════ */
   function init(map){
     if (!map || WM.isLoaded) return Promise.resolve();
     WM.map = map;
@@ -1047,7 +1033,7 @@
       restoreLegendVisibility();
       restorePeriodFilter();
       WM.isLoaded = true;
-      LOG("Wereldkaart v5.0 geladen — " + geo.features.length + " features (fill = baseline)");
+      LOG("Wereldkaart v5.1 geladen — " + geo.features.length + " features (fill = baseline)");
 
       bindCityBus();
     });
@@ -1075,7 +1061,6 @@
       LOG("city:control-lost → dots rerender (" + (data && data.city ? data.city : "?") + ")");
     });
 
-    /* v5.0: als ConflictAreas klaar is, herteken landen (zodat overlap weg gaat) */
     WarDesk.events.on("conflictareas:ready", function(){
       if (!WM.layer) return;
       WM.layer.eachLayer(function(layer){
@@ -1131,10 +1116,66 @@
     LOG("Wereldkaart " + (WM.isEnabled ? "aan" : "uit"));
   }
 
+  /* ============================================================
+     v5.1: destroy — cleanup van alle timers, observers en listeners
+     ============================================================ */
+  function destroy(){
+    LOG("destroy() aangeroepen — opruimen");
+
+    /* Timers */
+    WM._timers.forEach(function(id){
+      try { clearTimeout(id); } catch(e){}
+      try { clearInterval(id); } catch(e){}
+    });
+    WM._timers = [];
+
+    /* Legend retry */
+    if (_legendRetryTimer){ try{ clearTimeout(_legendRetryTimer); }catch(e){} _legendRetryTimer = null; }
+
+    /* Observers */
+    WM._observers.forEach(function(obs){
+      try { obs.disconnect(); } catch(e){}
+    });
+    WM._observers = [];
+
+    /* Listeners */
+    WM._listeners.forEach(function(l){
+      try { l.target.removeEventListener(l.event, l.fn, l.opts); } catch(e){}
+    });
+    WM._listeners = [];
+
+    /* Layers */
+    if (WM.map){
+      try { if (WM.layer && WM.map.hasLayer(WM.layer)) WM.map.removeLayer(WM.layer); } catch(e){}
+      try { if (WM.cityLayer && WM.map.hasLayer(WM.cityLayer)) WM.map.removeLayer(WM.cityLayer); } catch(e){}
+    }
+    WM.layer = null;
+    WM.cityLayer = null;
+
+    /* Panel */
+    if (WM.panel){
+      try { WM.panel.remove(); } catch(e){}
+      WM.panel = null;
+    }
+
+    /* DOM-elementen */
+    try { var el = document.getElementById("wmLegend"); if (el) el.remove(); } catch(e){}
+    try { var btn = document.querySelector(".wm-legend-toggle"); if (btn) btn.remove(); } catch(e){}
+    try { var pf = document.querySelector(".wm-period-filter"); if (pf) pf.remove(); } catch(e){}
+    try { var st = document.getElementById("wmStyles"); if (st) st.remove(); } catch(e){}
+
+    WM.isLoaded = false;
+    WM.isEnabled = true;
+    WM._cityBusBound = false;
+    WM.map = null;
+    LOG("destroy() klaar");
+  }
+
   window.WorldMap = {
     init: init,
     refresh: refresh,
     setEnabled: setEnabled,
+    destroy: destroy,                              /* v5.1: NIEUW */
     isEnabled: function(){ return WM.isEnabled; },
     isLoaded: function(){ return WM.isLoaded; },
     calculateHeat: calculateHeat,
@@ -1152,6 +1193,13 @@
     _state: WM
   };
 
-  LOG("worldmap.js v5.0 geladen (fill = baseline, heat = rand)");
+  /* Auto-cleanup bij pagehide */
+  if (typeof window !== "undefined"){
+    window.addEventListener("pagehide", function(){
+      try { destroy(); } catch(e){}
+    });
+  }
+
+  LOG("worldmap.js v5.1 geladen (fill = baseline, heat = rand, destroy toegevoegd)");
 
 })();
