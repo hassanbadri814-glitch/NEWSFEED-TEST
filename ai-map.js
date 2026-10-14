@@ -1,7 +1,11 @@
 /* ============================================================
-   WAR DESK — ai-map.js v3.16.7
-   - v3.16.7: WD.safeCatch migratie (geen stille catches meer)
-   - v3.16.6: loss-claim forwarding
+   WAR DESK — ai-map.js v3.17.0
+   - v3.17.0: async buildEventsAsync met chunk-yielding
+              (elke 40 artikelen → setTimeout 0 → UI blijft
+              responsief tijdens classificatie op mobiel)
+              run() en forceRun() gebruiken de async pad.
+              Sync-paden (getEventsSync e.d.) blijven werken.
+   - v3.16.7: WD.safeCatch migratie
    ============================================================ */
 
 (function(){
@@ -11,6 +15,7 @@
   var MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
   var MAX_TRANSLATIONS_PER_RUN = 25;
   var TRANSLATE_THROTTLE_MS = 30 * 60 * 1000;
+  var YIELD_EVERY = 40;
 
   var STRONG_CIVIEL_PATTERN = /\b(aardbeving|earthquake|overstroming|flood|tsunami|orkaan|hurricane|tyfoon|typhoon|cycloon|tornado|windhoos|wervelstorm|bosbrand|wildfire|woningbrand|flatbrand|keukenbrand|brand|verkeersongeval|verkeersongeluk|vliegramp|vliegtuigongeluk|plane.crash|treinramp|treinongeluk|treinontsporing|helikoptercrash|helicopter.crash|gaslek|gasontploffing|lawine|aardverschuiving|modderstroom|vulkaan|vulkaanuitbarsting|instorting|ingestort|evacuatie|geëvacueerd|natuurramp|natural.disaster|scheepsramp|ontploffing|explosie|explosion|blast|botsing|aanrijding|noodweer|noodstorm|hittegolf|droogte|stroomuitval|blackout|stroomstoring|wateroverlast|brandweer|hulpdiensten|vermiste|vermist)\b/i;
 
@@ -335,150 +340,131 @@
     return null;
   }
 
-  var lastHash = "";
-  var _lastTranslateRun = 0;
+  /* ════════════════════════════════════════════════════════════
+     Per-artikel verwerking (gedeeld tussen sync en async pad)
+     ════════════════════════════════════════════════════════════ */
+  function processArticle(article, i, stats){
+    var ts = getTimestamp(article) || Date.now();
+    if (Date.now() - ts > MAX_AGE_MS) { stats.skippedOld++; return null; }
 
-  function buildEvents(){
-    if (!window.State || !Array.isArray(window.State.items)) return [];
-    var items = window.State.items;
-    if (!items.length) return [];
+    var cls = classifyItem(article);
+    if (cls.category === "sport") { stats.skippedSport++; return null; }
 
-    var hash = hashArticles(items);
-    if (hash === lastHash) return null;
-    lastHash = hash;
+    var titleStr = String(article.title || "");
 
-    var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
-    var events = [];
-    var skippedOld = 0, skippedSport = 0, skippedWeakCiviel = 0, skippedWeakPolitiek = 0;
-    var skippedNoLocation = 0, skippedNonPhysical = 0;
-    var controlCount = 0, attackCount = 0, lossCount = 0;
-    var skippedCityClaim = 0;
-    var positionHits = 0, contextHits = 0;
-    var cityHits = 0;
-
-    for (var i = 0; i < items.length; i++) {
-      var article = items[i];
-
-      var ts = getTimestamp(article) || Date.now();
-      if (Date.now() - ts > MAX_AGE_MS) { skippedOld++; continue; }
-
-      var cls = classifyItem(article);
-      if (cls.category === "sport") { skippedSport++; continue; }
-
-      var titleStr = String(article.title || "");
-
-      if (cls.category === "civiel") {
-        if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
-          if (!WAR_CONTEXT_PATTERN.test(titleStr)) { skippedWeakCiviel++; continue; }
-        }
+    if (cls.category === "civiel") {
+      if (!STRONG_CIVIEL_PATTERN.test(titleStr)) {
+        if (!WAR_CONTEXT_PATTERN.test(titleStr)) { stats.skippedWeakCiviel++; return null; }
       }
-
-      if (cls.category === "politiek") {
-        var hasPolitiekConflictContext = POLITIEK_CONFLICT_PATTERN.test(titleStr) ||
-                                         WAR_CONTEXT_PATTERN.test(titleStr);
-        if (!hasPolitiekConflictContext) {
-          skippedWeakPolitiek++;
-          continue;
-        }
-      }
-
-      var actorCountries = detectActorCountries(article.title, article.description || article.desc);
-      var detection = detectPhysicalEvent(article.title, article.description || article.desc);
-      var sourceCountry = getSourceCountry(article.source);
-      var skipForLoc = detection.isPhysicalEvent ? null : sourceCountry;
-
-      var targetResult = extractTargetLocation(article.title || "", actorCountries, skipForLoc);
-      var loc = targetResult.loc;
-      if (targetResult.method === "position") positionHits++;
-      else if (targetResult.method === "context") contextHits++;
-
-      if (loc && loc._isCity) cityHits++;
-
-      if (!loc) loc = extractRegionFallback(article, skipForLoc);
-      if (!loc) { skippedNoLocation++; continue; }
-
-      var countsForHeat = detection.isPhysicalEvent;
-      if (!countsForHeat && (cls.category === "militair" || cls.category === "crime")) skippedNonPhysical++;
-
-      var iso3 = getISO3For(loc.country);
-
-      /* City-event → CityStatus */
-      if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
-          window.WDEventDetector.extractCityEvent){
-        try {
-          var cityEvent = window.WDEventDetector.extractCityEvent(
-            article.title,
-            article.description || article.desc,
-            actorCountries
-          );
-          if (cityEvent && cityEvent.city && cityEvent.actor){
-            var originCountry = sourceCountry;
-            var conflictIso = cityEvent.conflict || null;
-            var promise = null;
-
-            if (cityEvent.type === "control" && window.CityStatus.recordControlClaim){
-              controlCount++;
-              promise = window.CityStatus.recordControlClaim(
-                cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
-                article.source, originCountry, conflictIso
-              );
-            } else if (cityEvent.type === "loss" && window.CityStatus.recordLossClaim){
-              lossCount++;
-              promise = window.CityStatus.recordLossClaim(
-                cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
-                article.source, originCountry, conflictIso
-              );
-            } else if (cityEvent.type === "attack" && window.CityStatus.recordAttackClaim){
-              attackCount++;
-              promise = window.CityStatus.recordAttackClaim(
-                cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
-                article.source, originCountry, conflictIso
-              );
-            }
-
-            if (promise && promise.catch){
-              promise.catch(WD && WD.safeCatch ? WD.safeCatch("ai-map:cityClaim") : function(e){
-                try { wdLog.warn("[Map-AI] cityClaim faalde:", e && e.message); } catch(err){}
-              });
-            }
-          } else if (detection.isPhysicalEvent) {
-            skippedCityClaim++;
-          }
-        } catch(e){
-          try { wdLog.warn("[Map-AI] extractCityEvent faalde:", e.message); } catch(e2){}
-        }
-      }
-
-      var translatedTitle = getTranslatedTitleFor(article);
-      var translatedDesc = getTranslatedDescFor(article);
-      var finalTitle = translatedTitle || article.title || "Onbekend";
-      var finalDesc = translatedDesc || article.description || article.desc || article.summary || "";
-      var subtype = cls.subtype || "Overig";
-      var eventId = "ev-" + i + "-" + cls.category + "-" + subtype;
-
-      events.push({
-        id: eventId, lat: loc.lat, lng: loc.lng,
-        title: finalTitle,
-        originalTitle: translatedTitle ? (article.title || "") : null,
-        isTranslated: !!translatedTitle,
-        description: finalDesc,
-        fullDescription: loc.country + " · " + loc.region + "\n\n" + finalDesc + (translatedTitle ? "\n\nOrigineel: " + (article.title || "") : ""),
-        category: cls.category, subtype: subtype, type: cls.category,
-        confidence: cls.confidence || 50, uncertain: !!cls.uncertain,
-        scores: cls.scores || {}, meta: cls.meta || {},
-        country: loc.country, countryISO3: iso3,
-        actorCountries: actorCountries, region: loc.region,
-        date: new Date(ts).toISOString(),
-        url: article.link || article.url || "",
-        source: article.source || "",
-        isMilitary: cls.category === "militair",
-        countsForHeat: countsForHeat,
-        actionTypes: detection.actionTypes || [],
-        actionReason: detection.reason,
-        locationMethod: targetResult.method
-      });
     }
 
+    if (cls.category === "politiek") {
+      var hasPolitiekConflictContext = POLITIEK_CONFLICT_PATTERN.test(titleStr) ||
+                                       WAR_CONTEXT_PATTERN.test(titleStr);
+      if (!hasPolitiekConflictContext) {
+        stats.skippedWeakPolitiek++;
+        return null;
+      }
+    }
+
+    var actorCountries = detectActorCountries(article.title, article.description || article.desc);
+    var detection = detectPhysicalEvent(article.title, article.description || article.desc);
+    var sourceCountry = getSourceCountry(article.source);
+    var skipForLoc = detection.isPhysicalEvent ? null : sourceCountry;
+
+    var targetResult = extractTargetLocation(article.title || "", actorCountries, skipForLoc);
+    var loc = targetResult.loc;
+    if (targetResult.method === "position") stats.positionHits++;
+    else if (targetResult.method === "context") stats.contextHits++;
+
+    if (loc && loc._isCity) stats.cityHits++;
+
+    if (!loc) loc = extractRegionFallback(article, skipForLoc);
+    if (!loc) { stats.skippedNoLocation++; return null; }
+
+    var countsForHeat = detection.isPhysicalEvent;
+    if (!countsForHeat && (cls.category === "militair" || cls.category === "crime")) stats.skippedNonPhysical++;
+
+    var iso3 = getISO3For(loc.country);
+
+    /* City-event → CityStatus */
+    if (detection.isPhysicalEvent && window.CityStatus && window.WDEventDetector &&
+        window.WDEventDetector.extractCityEvent){
+      try {
+        var cityEvent = window.WDEventDetector.extractCityEvent(
+          article.title,
+          article.description || article.desc,
+          actorCountries
+        );
+        if (cityEvent && cityEvent.city && cityEvent.actor){
+          var originCountry = sourceCountry;
+          var conflictIso = cityEvent.conflict || null;
+          var promise = null;
+
+          if (cityEvent.type === "control" && window.CityStatus.recordControlClaim){
+            stats.controlCount++;
+            promise = window.CityStatus.recordControlClaim(
+              cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
+              article.source, originCountry, conflictIso
+            );
+          } else if (cityEvent.type === "loss" && window.CityStatus.recordLossClaim){
+            stats.lossCount++;
+            promise = window.CityStatus.recordLossClaim(
+              cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
+              article.source, originCountry, conflictIso
+            );
+          } else if (cityEvent.type === "attack" && window.CityStatus.recordAttackClaim){
+            stats.attackCount++;
+            promise = window.CityStatus.recordAttackClaim(
+              cityEvent.city, cityEvent.actor, cityEvent.actorISO3,
+              article.source, originCountry, conflictIso
+            );
+          }
+
+          if (promise && promise.catch){
+            promise.catch(WD && WD.safeCatch ? WD.safeCatch("ai-map:cityClaim") : function(e){
+              try { wdLog.warn("[Map-AI] cityClaim faalde:", e && e.message); } catch(err){}
+            });
+          }
+        } else if (detection.isPhysicalEvent) {
+          stats.skippedCityClaim++;
+        }
+      } catch(e){
+        try { wdLog.warn("[Map-AI] extractCityEvent faalde:", e.message); } catch(e2){}
+      }
+    }
+
+    var translatedTitle = getTranslatedTitleFor(article);
+    var translatedDesc = getTranslatedDescFor(article);
+    var finalTitle = translatedTitle || article.title || "Onbekend";
+    var finalDesc = translatedDesc || article.description || article.desc || article.summary || "";
+    var subtype = cls.subtype || "Overig";
+    var eventId = "ev-" + i + "-" + cls.category + "-" + subtype;
+
+    return {
+      id: eventId, lat: loc.lat, lng: loc.lng,
+      title: finalTitle,
+      originalTitle: translatedTitle ? (article.title || "") : null,
+      isTranslated: !!translatedTitle,
+      description: finalDesc,
+      fullDescription: loc.country + " · " + loc.region + "\n\n" + finalDesc + (translatedTitle ? "\n\nOrigineel: " + (article.title || "") : ""),
+      category: cls.category, subtype: subtype, type: cls.category,
+      confidence: cls.confidence || 50, uncertain: !!cls.uncertain,
+      scores: cls.scores || {}, meta: cls.meta || {},
+      country: loc.country, countryISO3: iso3,
+      actorCountries: actorCountries, region: loc.region,
+      date: new Date(ts).toISOString(),
+      url: article.link || article.url || "",
+      source: article.source || "",
+      isMilitary: cls.category === "militair",
+      countsForHeat: countsForHeat,
+      actionTypes: detection.actionTypes || [],
+      actionReason: detection.reason,
+      locationMethod: targetResult.method
+    };
+  }
+
+  function finalizeEvents(events, stats, startTime){
     var beforeDedup = events.length;
     var grouped = events;
     if (window.WDEventDedup && window.WDEventDedup.group) {
@@ -490,12 +476,14 @@
     grouped.sort(function(a, b){ return new Date(b.date).getTime() - new Date(a.date).getTime(); });
     if (grouped.length > MAX_EVENTS) grouped = grouped.slice(0, MAX_EVENTS);
 
+    /* Vertalingen triggeren (throttled) */
     try {
       var now = Date.now();
       if (window.NewsAPI && window.NewsAPI.ensureTranslations &&
           (now - _lastTranslateRun) > TRANSLATE_THROTTLE_MS) {
         _lastTranslateRun = now;
         var TRANSLATABLE = { "ar": 1, "fr": 1, "ru": 1, "uk": 1, "he": 1 };
+        var items = window.State.items || [];
         var toTranslate = [];
         for (var k = 0; k < items.length; k++) {
           var it = items[k];
@@ -515,24 +503,105 @@
     if (window.wdLog) {
       var counts = { militair:0, crime:0, politiek:0, protest:0, civiel:0 };
       grouped.forEach(function(e){ if(counts[e.category] !== undefined) counts[e.category]++; });
-      wdLog.info("[Map-AI v3.16.7] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
+      wdLog.info("[Map-AI v3.17.0] " + grouped.length + " events (was " + beforeDedup + ", dedup -" + (beforeDedup - grouped.length) + ") | " +
         "MIL:" + counts.militair + " CRI:" + counts.crime +
         " POL:" + counts.politiek + " PRO:" + counts.protest +
         " CIV:" + counts.civiel +
-        " | skip sport:" + skippedSport + " zwak-civiel:" + skippedWeakCiviel +
-        " zwak-pol:" + skippedWeakPolitiek +
-        " niet-fysiek:" + skippedNonPhysical +
-        " control:" + controlCount + " attack:" + attackCount + " loss:" + lossCount +
-        " city-claim-miss:" + skippedCityClaim +
-        " oud:" + skippedOld + " geen-loc:" + skippedNoLocation +
-        " | loc-pos:" + positionHits + " loc-ctx:" + contextHits +
-        " city-hits:" + cityHits +
+        " | skip sport:" + stats.skippedSport + " zwak-civiel:" + stats.skippedWeakCiviel +
+        " zwak-pol:" + stats.skippedWeakPolitiek +
+        " niet-fysiek:" + stats.skippedNonPhysical +
+        " control:" + stats.controlCount + " attack:" + stats.attackCount + " loss:" + stats.lossCount +
+        " city-claim-miss:" + stats.skippedCityClaim +
+        " oud:" + stats.skippedOld + " geen-loc:" + stats.skippedNoLocation +
+        " | loc-pos:" + stats.positionHits + " loc-ctx:" + stats.contextHits +
+        " city-hits:" + stats.cityHits +
         " | " + Math.round(elapsed) + "ms");
     }
 
     return grouped;
   }
 
+  function makeStats(){
+    return {
+      skippedOld: 0, skippedSport: 0, skippedWeakCiviel: 0, skippedWeakPolitiek: 0,
+      skippedNoLocation: 0, skippedNonPhysical: 0,
+      controlCount: 0, attackCount: 0, lossCount: 0,
+      skippedCityClaim: 0, positionHits: 0, contextHits: 0, cityHits: 0
+    };
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     Sync buildEvents (voor backward compat + fallback)
+     ════════════════════════════════════════════════════════════ */
+  var lastHash = "";
+  var _lastTranslateRun = 0;
+
+  function buildEvents(){
+    if (!window.State || !Array.isArray(window.State.items)) return [];
+    var items = window.State.items;
+    if (!items.length) return [];
+
+    var hash = hashArticles(items);
+    if (hash === lastHash) return null;
+    lastHash = hash;
+
+    var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
+    var stats = makeStats();
+    var events = [];
+
+    for (var i = 0; i < items.length; i++) {
+      var ev = processArticle(items[i], i, stats);
+      if (ev) events.push(ev);
+    }
+
+    return finalizeEvents(events, stats, startTime);
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     v3.17.0: Async buildEvents met chunk-yielding
+     ════════════════════════════════════════════════════════════ */
+  function yieldToMain(){
+    return new Promise(function(resolve){
+      if (window.requestIdleCallback){
+        window.requestIdleCallback(function(){ resolve(); }, { timeout: 50 });
+      } else {
+        setTimeout(resolve, 0);
+      }
+    });
+  }
+
+  function buildEventsAsync(){
+    if (!window.State || !Array.isArray(window.State.items)) return Promise.resolve([]);
+    var items = window.State.items;
+    if (!items.length) return Promise.resolve([]);
+
+    var hash = hashArticles(items);
+    if (hash === lastHash) return Promise.resolve(null);
+    lastHash = hash;
+
+    var startTime = (window.performance && performance.now) ? performance.now() : Date.now();
+    var stats = makeStats();
+    var events = [];
+
+    return (async function(){
+      var counter = 0;
+      for (var i = 0; i < items.length; i++) {
+        var ev = processArticle(items[i], i, stats);
+        if (ev) events.push(ev);
+
+        counter++;
+        if (counter >= YIELD_EVERY){
+          counter = 0;
+          await yieldToMain();
+        }
+      }
+      return finalizeEvents(events, stats, startTime);
+    })();
+  }
+
+  /* ════════════════════════════════════════════════════════════
+     OSINT merge
+     ════════════════════════════════════════════════════════════ */
   function getOsintEvents(){
     try {
       if (window.OSINTFeeds && typeof window.OSINTFeeds.getEvents === "function"){
@@ -602,21 +671,41 @@
     return result;
   }
 
+  /* ════════════════════════════════════════════════════════════
+     run() — async, met yielding
+     ════════════════════════════════════════════════════════════ */
+  var _runInFlight = null;
+
   function run(){
-    var events = buildEvents();
-    if (events === null) return;
-    if (!Array.isArray(events)) events = [];
+    if (_runInFlight) return _runInFlight;
 
-    mergeOsintEvents(events);
+    _runInFlight = buildEventsAsync().then(function(events){
+      _runInFlight = null;
+      if (events === null) return;   /* cache hit */
+      if (!Array.isArray(events)) events = [];
 
-    if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
-    var bus = getBus();
-    if (!bus) return;
-    bus.emit("map:military-events", events);
-    bus.emit("map:hotspots", calculateHotspots(events));
+      mergeOsintEvents(events);
+
+      if (events.length > MAX_EVENTS) events = events.slice(0, MAX_EVENTS);
+
+      var bus = getBus();
+      if (!bus) return;
+
+      bus.emit("map:military-events", events);
+      bus.emit("map:hotspots", calculateHotspots(events));
+    }).catch(function(e){
+      _runInFlight = null;
+      try { wdLog.warn("[Map-AI] run faalde:", e && e.message); } catch(e2){}
+    });
+
+    return _runInFlight;
   }
 
-  function forceRun(){ lastHash = ""; run(); }
+  function forceRun(){
+    lastHash = "";
+    _runInFlight = null;
+    return run();
+  }
 
   function init(){
     var bus = getBus();
@@ -660,7 +749,7 @@
         forceRun();
       }
     }, 15000);
-    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.16.7 geladen (safeCatch)");
+    if (window.wdLog) wdLog.info("[WAR DESK] ai-map.js v3.17.0 geladen (chunk-yielding)");
   }
 
   function getCountries(){
