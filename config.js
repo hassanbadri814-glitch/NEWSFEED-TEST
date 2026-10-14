@@ -1,13 +1,12 @@
 /* ============================================================
-   WAR DESK v14.33 — Configuratie
-   - v14.33: +3 OSINT (OSINTdefender, Faytuks, NOELreports) → 10 X-feeds
+   WAR DESK v14.34 — Configuratie
+   - v14.34: MYMEMORY_EMAIL en stadiaKey verwijderd (security)
+   - v14.33: +3 OSINT (OSINTdefender, Faytuks, NOELreports)
    - v14.32: TAGS_VERSION 5 (sport als exclusieve categorie)
-   - v14.31: MyMemory email voor 10x hogere vertaal-limiet
    ============================================================ */
 
-window.APP_VERSION = "v14.33";
+window.APP_VERSION = "v14.34";
 window.TAGS_VERSION = "5";
-window.MYMEMORY_EMAIL = "hassanbadri814@gmail.com";
 
 if (typeof window.WD_DEBUG === "undefined") {
   window.WD_DEBUG = (function(){
@@ -71,8 +70,6 @@ window.CONFIG = {
   detailCacheMax: 500,
   detailCacheTTL: 7200000,
 
-  stadiaKey: "",
-
   iptvMaxRecent: 10,
   iptvChannelsDisplayMax: 500,
   iptvHlsCdns: [
@@ -81,16 +78,15 @@ window.CONFIG = {
     "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js"
   ],
 
+  /* v14.34: alleen eigen Cloudflare Workers — publieke proxies verwijderd */
   proxies: [
     "https://newsfeed2.hassanbadri814.workers.dev/?url=",
-    "https://nieuwsproxy.hassanbadri814.workers.dev/?url=",
-    "https://api.allorigins.win/raw?url="
+    "https://nieuwsproxy.hassanbadri814.workers.dev/?url="
   ],
 
   googleNewsProxies: [
-    "https://api.allorigins.win/raw?url=",
-    "https://corsproxy.io/?url=",
-    "https://newsfeed2.hassanbadri814.workers.dev/?url="
+    "https://newsfeed2.hassanbadri814.workers.dev/?url=",
+    "https://nieuwsproxy.hassanbadri814.workers.dev/?url="
   ],
 
   fetchTimeoutMs: 10000,
@@ -119,15 +115,12 @@ window.HIGH_PRIORITY = [
 ];
 
 window.KEYWORDS_HIGH = [
-  /* ===== ENGELS ===== */
   "killed","dead","deaths","massacre","nuclear","invasion",
   "airstrike","ceasefire","assassinated","declared war",
   "explosion","bombing","missile","rocket attack","shooting",
   "hostage","emergency","evacuation","collapse","crash",
   "state of emergency","martial law","coup","terrorist",
   "earthquake","tsunami","pandemic","outbreak","cyberattack",
-
-  /* ===== NEDERLANDS ===== */
   "doden","dood","gedood","dodelijk","bloedbad","nucleair",
   "kernwapen","invasie","luchtaanval","staakt-het-vuren",
   "vermoord","aanslag","bomaanslag","explosie","raketaanval",
@@ -137,34 +130,24 @@ window.KEYWORDS_HIGH = [
   "cyberaanval","vredesakkoord","vredesplan","verdrag",
   "ontploffing","vermisten","slachtoffers","gewonden",
   "ontvoerd","gijzelaars","uitgebroken","brand","ontruiming",
-
-  /* ===== DUITS ===== */
   "getötet","tot","tote","massaker","atomwaffe","invasion",
   "luftangriff","waffenruhe","ermordet","explosion","bombardierung",
   "rakete","schiesserei","geisel","notstand","evakuierung",
   "einsturz","absturz","putsch","erdbeben","tsunami",
   "krieg","angriff","anschlag","offensive","waffenstillstand",
-
-  /* ===== FRANS ===== */
   "tué","morts","massacre","nucléaire","invasion","frappe",
   "cessez-le-feu","assassiné","explosion","bombardement",
   "missile","fusillade","otage","urgence","évacuation",
   "effondrement","crash","coup d'état","terroriste","séisme",
   "guerre","attaque","offensive","victimes","blessés",
-
-  /* ===== SPAANS ===== */
   "muerto","muertos","masacre","nuclear","invasión","ataque aéreo",
   "alto el fuego","asesinado","explosión","bombardeo","misil",
   "tiroteo","rehén","emergencia","evacuación","colapso","accidente",
   "guerra","ataque","ofensiva","víctimas","heridos",
-
-  /* ===== ITALIAANS ===== */
   "morto","morti","massacro","nucleare","invasione","attacco aereo",
   "cessate il fuoco","assassinato","esplosione","bombardamento",
   "missile","sparatoria","ostaggio","emergenza","evacuazione",
   "crollo","incidente","colpo di stato","terremoto","vittime",
-
-  /* ===== ARABISCH ===== */
   "قتل","قتلى","موت","مجزرة","نووي","غزو","ضربة جوية",
   "وقف إطلاق النار","اغتيال","انفجار","قصف","صاروخ","إطلاق نار",
   "رهينة","طوارئ","إخلاء","انهيار","انقلاب","إرهابي","زلزال",
@@ -315,26 +298,14 @@ window.FEEDS = [
   {n:"Middle East Monitor",lang:"en",cat:"gaza",url:"https://www.middleeastmonitor.com/feed/"},
   {n:"Mondoweiss",lang:"en",cat:"gaza",url:"https://mondoweiss.net/feed/"},
 
-  /* ============================================================
-     X / TWITTER — 10 accounts via Worker proxy
-     ============================================================ */
-
-  /* Nieuws agentschappen */
+  /* ===== X / TWITTER ===== */
   {n:"Reuters TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Reuters"},
-
-  /* Arabisch */
   {n:"Al Jazeera AR TG",lang:"ar",cat:"qa",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=ajarabic"},
   {n:"Al Arabiya TG",lang:"ar",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=AlArabiya"},
-
-  /* Algemeen */
   {n:"Clash Report TG",lang:"en",cat:"world",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=clashreport"},
   {n:"Middle East Eye TG",lang:"en",cat:"mideast",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=MiddleEastEye"},
-
-  /* OSINT voor kaart-events */
   {n:"Liveuamap TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Liveuamap"},
   {n:"GeoConfirmed TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=GeoConfirmed"},
-
-  /* v14.33: Nieuwe OSINT accounts */
   {n:"OSINTdefender TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=OSINTdefender"},
   {n:"Faytuks TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=Faytuks"},
   {n:"NOELreports TG",lang:"en",cat:"war",url:"https://newsfeed2.hassanbadri814.workers.dev/x?user=NOELreports"}
