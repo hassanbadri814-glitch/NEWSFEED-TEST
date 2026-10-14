@@ -1,18 +1,20 @@
 /* ============================================================
-   WAR DESK — event-detector.js v2.1
-   - v2.1: CITY_LOSS_PATTERNS + hasLossAction — verlies-detectie
-           ("Houthi's verliezen Marib", "Russen trekken terug")
-           extractCityEvent kan nu type: control | loss | attack
+   WAR DESK — event-detector.js v2.2
+   - v2.2: UTF-8 fix — Arabisch/Frans/Duits patronen hersteld
+           Alle mojibake (Ř§Ř..., ĂŠ, Ăś) vervangen door correcte
+           UTF-8 tekens. Capture/attack/loss-detectie werkt nu ook
+           voor niet-Latijnse bronnen.
+   - v2.1: CITY_LOSS_PATTERNS + hasLossAction
    - v2.0: canonieke resolver via WDCityActors
-           findReportVerbs / findFuturePatterns returnen matches
    ============================================================ */
 
 (function(){
   "use strict";
 
-  window.WDEventDetectorVersion = "v2.1";
+  window.WDEventDetectorVersion = "v2.2";
 
   var ACTION_PATTERNS = [
+    /* ============ NEDERLANDS ============ */
     { re: /\b(raakte|raakten|getroffen|treft|treffen|raken)\b/i, type: "strike" },
     { re: /\b(aanviel|aanvielen|viel aan|vielen aan|aanvalt|aanvallen)\b/i, type: "attack" },
     { re: /\b(bombardeerde|bombardeerden|gebombardeerd|bombardement|bombardementen)\b/i, type: "bombing" },
@@ -28,6 +30,7 @@
     { re: /\b(gevecht|gevechten|vuurgevecht|grondgevecht|grondgevechten)\b/i, type: "combat" },
     { re: /\b(offensief|offensieven|tegenoffensief)\b/i, type: "offensive" },
 
+    /* ============ ENGELS ============ */
     { re: /\b(struck|strikes|striking|hit|hits|hitting)\b/i, type: "strike" },
     { re: /\b(attacked|attacks|attacking)\b/i, type: "attack" },
     { re: /\b(bombed|bombing|bombings|bombardment|bombardments)\b/i, type: "bombing" },
@@ -55,31 +58,43 @@
     { re: /\b(carried out|launched|conducted|mounted)\s+\d*\s*(airstrikes?|attacks?|strikes?|raids?|offensives?|operations?|bombardments?)/i, type: "specific-strike" },
     { re: /\b(air raid|air raids)\b/i, type: "specific-strike" },
 
+    /* ============ FRANS (UTF-8 gecorrigeerd) ============ */
     { re: /\b(frappé|frappe|frappes)\b/i, type: "strike" },
     { re: /\b(attaqué|attaque|attaques)\b/i, type: "attack" },
     { re: /\b(bombardé|bombardement|bombardements)\b/i, type: "bombing" },
     { re: /\b(tué|tués|mort|morts)\b/i, type: "kill" },
-    { re: /\b(blessé|blessés)\b/i, type: "wound" },
-    { re: /\b(invasion|envahi|envahie)\b/i, type: "invasion" },
-    { re: /\b(capturé|capture|capturent)\b/i, type: "capture" },
+    { re: /\b(blessé|blessés|blessée|blessées)\b/i, type: "wound" },
+    { re: /\b(invasion|envahi|envahie|envahit)\b/i, type: "invasion" },
+    { re: /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i, type: "capture" },
 
-    { re: /\b(getroffen|treffer|angriff|angriffe)\b/i, type: "strike" },
-    { re: /\b(angegriffen|greift an)\b/i, type: "attack" },
-    { re: /\b(bombardiert|bombardement)\b/i, type: "bombing" },
-    { re: /\b(getötet|tote|tötet|tot)\b/i, type: "kill" },
-    { re: /\b(verletzt|verletzte)\b/i, type: "wound" },
-    { re: /\b(invasion|invadiert)\b/i, type: "invasion" },
-    { re: /\b(eingenommen|erobert|eroberte)\b/i, type: "capture" },
+    /* ============ DUITS (UTF-8 gecorrigeerd) ============ */
+    { re: /\b(getroffen|treffer|treffer|angriff|angriffe)\b/i, type: "strike" },
+    { re: /\b(angegriffen|greift an|greifen an)\b/i, type: "attack" },
+    { re: /\b(bombardiert|bombardement|bombardements)\b/i, type: "bombing" },
+    { re: /\b(getötet|tote|tötet|tot|tötete|getoetet)\b/i, type: "kill" },
+    { re: /\b(verletzt|verletzte|verletzten|verwundet)\b/i, type: "wound" },
+    { re: /\b(invasion|invadiert|einmarschiert)\b/i, type: "invasion" },
+    { re: /\b(eingenommen|erobert|eroberte|eroberten)\b/i, type: "capture" },
 
+    /* ============ ARABISCH (UTF-8 gecorrigeerd) ============ */
+    /* strike: قصف = bombardeerde, غارة/غارات = raid(s), ضربة/ضربات = strike(s) */
     { re: /قصف|غارة|غارات|ضربة|ضربات/, type: "strike" },
-    { re: /هجوم|هجمات|اعتداء/, type: "attack" },
+    /* attack: هجوم/هجمات = aanval(len), اعتداء = agressie */
+    { re: /هجوم|هجمات|اعتداء|اعتداءات/, type: "attack" },
+    /* kill: قتل/قتلى/مقتل/مصرع */
     { re: /قتل|قتلى|مقتل|مصرع/, type: "kill" },
-    { re: /جرح|جرحى|إصابات/, type: "wound" },
-    { re: /انفجار|انفجارات|تفجير/, type: "explosion" },
+    /* wound: جرح/جرحى/إصابات */
+    { re: /جرح|جرحى|إصابات|اصابات/, type: "wound" },
+    /* explosion: انفجار/انفجارات/تفجير */
+    { re: /انفجار|انفجارات|تفجير|تفجيرات/, type: "explosion" },
+    /* launch: صاروخ/صواريخ/قذيفة/قذائف */
     { re: /صاروخ|صواريخ|قذيفة|قذائف/, type: "launch" },
+    /* invasion: احتلال/غزو/اجتياح */
     { re: /احتلال|غزو|اجتياح/, type: "invasion" },
+    /* combat: معارك/قتال/اشتباكات */
     { re: /معارك|قتال|اشتباكات/, type: "combat" },
-    { re: /سيطر|استولى|حرر|دخل/, type: "capture" }
+    /* capture: سيطر/استولى/حرر/دخل */
+    { re: /سيطر|استولى|حرر|دخل|سيطرة|استيلاء/, type: "capture" }
   ];
 
   var REPORT_PATTERNS = [
@@ -96,15 +111,17 @@
     /\b(according to|reportedly|allegedly)\b/i,
     /\b(selon|d'après)\b/i,
     /\b(laut|berichtet|meldet)\b/i,
-    /قال|صرح|أعلن|وفقا|حسب/
+    /* Arabisch: قال = zei, صرح = verklaarde, أعلن = kondigde aan, وفقا/حسب = volgens */
+    /قال|صرح|أعلن|اعلن|وفقا|وفقاً|حسب/
   ];
 
   var FUTURE_PATTERNS = [
     /\b(ready for|ready to|preparing to|prepared to|about to|will attack|will strike|will launch|will fire|planning to|plans to|threatens to|vows to|says will|announces will|promises to|intends to)\b/i,
     /\b(klaar voor|bereid om|op het punt om|zal aanvallen|zal toeslaan|dreigt met|belooft te|van plan is)\b/i,
-    /\b(prêt à|va attaquer|menace de)\b/i,
-    /\b(bereit für|wird angreifen|droht mit)\b/i,
-    /مستعد ل|يهدد بـ|سيهاجم/,
+    /\b(prêt à|va attaquer|menace de|prévoit de)\b/i,
+    /\b(bereit für|wird angreifen|droht mit|plant zu)\b/i,
+    /* Arabisch: مستعد ل = klaar voor, يهدد بـ = dreigt met, سيهاجم = zal aanvallen */
+    /مستعد ل|يهدد بـ|سيهاجم|يستعد ل/,
     /\b(voices?\s+readiness|voiced?\s+readiness)\b/i,
     /\b(ready\s+for\s+potential|ready\s+for\s+any|ready\s+for\s+renewed)\b/i,
     /\b(potential\s+(renewed\s+)?(attack|strike|offensive|war|conflict))\b/i,
@@ -192,7 +209,7 @@
   };
 
   /* ════════════════════════════════════════════════════════════
-     CITY-PATRONEN — capture (winnaar)
+     CITY-CONTROL (winnaar claimt) — UTF-8 gecorrigeerd
      ════════════════════════════════════════════════════════════ */
   var CITY_CONTROL_PATTERNS = [
     /\b(captured|captures|capturing|seized|seizes|seizing|overran|overruns|took|taken|takes)\b/i,
@@ -204,11 +221,12 @@
     /\b(nam|namen)\s+.*\s+in\b/i,
     /\b(capturé|capture|capturent|repris|reprirent|libéré|libéra)\b/i,
     /\b(eingenommen|einnahm|erobert|eroberte|befreit|befreite)\b/i,
-    /سيطر|استولى|حرر|دخل/
+    /* Arabisch: سيطر = nam controle, استولى = nam over, حرر = bevrijdde, دخل = ging binnen */
+    /سيطر|استولى|حرر|دخل|سيطرة|استيلاء/
   ];
 
   /* ════════════════════════════════════════════════════════════
-     v2.1: CITY_LOSS_PATTERNS — verlies / terugtrekking
+     CITY-LOSS (verlies / terugtrekking) — UTF-8 gecorrigeerd
      ════════════════════════════════════════════════════════════ */
   var CITY_LOSS_PATTERNS = [
     /\b(lost|lose|loses|losing|loss)\b/i,
@@ -226,7 +244,8 @@
     /\b(overgedragen|overhandigd|overdracht)\b/i,
     /\b(viel aan|valt aan|viel in handen|is gevallen)\b/i,
     /\b(verlaten|geabandoneerd|ontruimd|ontruimen)\b/i,
-    /استعاد|انسحب|تراجع|فقد|خسر|سقط|سلم/
+    /* Arabisch: استعاد = heroverde, انسحب = trok terug, فقد = verloor, سقط = viel */
+    /استعاد|انسحب|فقد|سقط|خسر|تراجع/
   ];
 
   var CITY_ATTACK_PATTERNS = [
@@ -238,7 +257,8 @@
     /\b(aangevallen|aanvalt|aanvielen|beschoot)\b/i,
     /\b(frappé|attaqué|attaques|bombardé)\b/i,
     /\b(angegriffen|getroffen|bombardiert)\b/i,
-    /قصف|غارة|غارات|هجوم|اعتداء|ضربة/
+    /* Arabisch: قصف = bombardeerde, هجوم = aanval, اعتداء = agressie, ضربة = strike */
+    /قصف|هجوم|اعتداء|ضربة|غارة/
   ];
 
   function findActionVerbs(text){
@@ -282,7 +302,6 @@
     return false;
   }
 
-  /* v2.1: verlies-detectie */
   function hasLossAction(text){
     for (var i = 0; i < CITY_LOSS_PATTERNS.length; i++){
       if (CITY_LOSS_PATTERNS[i].test(text)) return true;
@@ -346,7 +365,7 @@
     if (!window.__wm_locations) return null;
     var lower = " " + String(text || "")
       .toLowerCase()
-      .replace(/[^\w\sÀ-ÿ-]/g, " ")
+      .replace(/[^\w\sÀ-ÿ\u0400-\u06FF\u0600-\u06FF\u0590-\u05FF-]/g, " ")
       .replace(/\s+/g, " ")
       .trim() + " ";
     var bestCity = null;
@@ -364,7 +383,7 @@
   }
 
   /* ════════════════════════════════════════════════════════════
-     v2.1: extractCityEvent met control | loss | attack
+     extractCityEvent met control | loss | attack
      ════════════════════════════════════════════════════════════ */
   function extractCityEvent(title, desc, actorCountries){
     title = String(title || "");
@@ -408,10 +427,6 @@
 
     if (!actorName) return null;
 
-    /* Prioriteit: control > loss > attack
-       "HTS captured Aleppo after Syrian army lost it" → control (HTS wint)
-       "Houthi's lost Marib" → loss
-       "Aleppo under attack" → attack */
     var type = null;
     if (hasControlAction(text)) type = "control";
     else if (hasLossAction(text)) type = "loss";
@@ -462,7 +477,7 @@
 
   try {
     if (window.wdLog){
-      wdLog.info("[EventDetector] v2.1 geladen — " +
+      wdLog.info("[EventDetector] v2.2 geladen — UTF-8 hersteld — " +
         ACTION_PATTERNS.length + " acties, " +
         CITY_CONTROL_PATTERNS.length + " control, " +
         CITY_LOSS_PATTERNS.length + " loss, " +
